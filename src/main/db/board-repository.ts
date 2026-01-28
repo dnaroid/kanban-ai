@@ -24,21 +24,23 @@ export class BoardRepository {
     const now = new Date().toISOString()
 
     db.transaction(() => {
-      db.prepare(
+      const insertBoard = db.prepare(
         `
         INSERT INTO boards (id, project_id, name, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?)
       `
-      ).run(boardId, projectId, 'Main Board', now, now)
+      )
+      insertBoard.run(boardId, projectId, 'Main Board', now, now)
 
+      const insertColumn = db.prepare(
+        `
+        INSERT INTO board_columns (id, board_id, name, order_index, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `
+      )
       const defaultColumns = ['Backlog', 'In Progress', 'Done']
       defaultColumns.forEach((name, index) => {
-        db.prepare(
-          `
-          INSERT INTO board_columns (id, board_id, name, order_index, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?)
-        `
-        ).run(randomUUID(), boardId, name, index, now, now)
+        insertColumn.run(randomUUID(), boardId, name, index, now, now)
       })
     })()
 
@@ -72,21 +74,23 @@ export class BoardRepository {
     const now = new Date().toISOString()
 
     db.transaction(() => {
+      const updateColumn = db.prepare(
+        `
+        UPDATE board_columns SET name = ?, order_index = ?, updated_at = ?
+        WHERE id = ? AND board_id = ?
+      `
+      )
+      const insertColumn = db.prepare(
+        `
+        INSERT INTO board_columns (id, board_id, name, order_index, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `
+      )
       columns.forEach((col) => {
         if (col.id) {
-          db.prepare(
-            `
-            UPDATE board_columns SET name = ?, order_index = ?, updated_at = ?
-            WHERE id = ? AND board_id = ?
-          `
-          ).run(col.name, col.orderIndex, now, col.id, boardId)
+          updateColumn.run(col.name, col.orderIndex, now, col.id, boardId)
         } else {
-          db.prepare(
-            `
-            INSERT INTO board_columns (id, board_id, name, order_index, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-          `
-          ).run(randomUUID(), boardId, col.name, col.orderIndex, now, now)
+          insertColumn.run(randomUUID(), boardId, col.name, col.orderIndex, now, now)
         }
       })
     })()

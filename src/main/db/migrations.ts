@@ -2,8 +2,10 @@ export const migrations = [
   {
     version: 0,
     sql: `
-      CREATE TABLE IF NOT EXISTS schema_version (
-        version INTEGER PRIMARY KEY
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        version INTEGER NOT NULL UNIQUE,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
     `,
   },
@@ -58,6 +60,13 @@ export const migrations = [
         updated_at TEXT NOT NULL,
         FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE
       );
+
+      ALTER TABLE tasks ADD COLUMN board_id TEXT;
+      ALTER TABLE tasks ADD COLUMN column_id TEXT;
+      ALTER TABLE tasks ADD COLUMN order_in_column INTEGER DEFAULT 0;
+      ALTER TABLE tasks ADD COLUMN type TEXT DEFAULT 'task';
+      ALTER TABLE tasks ADD COLUMN tags_json TEXT DEFAULT '[]';
+      ALTER TABLE tasks ADD COLUMN description_md TEXT;
 
       CREATE INDEX IF NOT EXISTS idx_tasks_board_id ON tasks(board_id);
       CREATE INDEX IF NOT EXISTS idx_tasks_column_id ON tasks(column_id);
