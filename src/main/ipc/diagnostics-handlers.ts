@@ -19,7 +19,7 @@ export function registerDiagnosticsHandlers(): void {
       chromeVersion: process.versions.chrome,
       userDataPath: (await import('electron')).app.getPath('userData'),
       appVersion: (await import('electron')).app.getVersion(),
-      env: process.env.NODE_ENV || 'production',
+      mode: (await import('electron')).app.isPackaged ? 'production' : 'development',
       dbPath: dbManager.connect().name,
       logsPath: logger.getLogFilePath(),
       safeStorageAvailable: (await import('electron')).safeStorage.isEncryptionAvailable()
@@ -28,17 +28,58 @@ export function registerDiagnosticsHandlers(): void {
 
   ipcMain.handle('diagnostics:getDbInfo', async () => {
     const db = dbManager.connect()
+    
+    let projectsCount = 0
+    let tasksCount = 0
+    let lastMigration = 0
 
-    const projectsCount = db.prepare('SELECT COUNT(*) as count FROM projects').get() as { count: number }
-    const tasksCount = db.prepare('SELECT COUNT(*) as count FROM tasks').get() as { count: number }
-    const dbSize = (await import('fs')).statSync(db.name).size
+    try {
+      const pCount = db.prepare('SELECT COUNT(*) as count FROM projects').get() as { count: number }
+      projectsCount = pCount.count
+    } catch (e) {
+      logger.warn('Failed to get projects count', 'Diagnostics')
+    }
+
+    try {
+      const tCount = db.prepare('SELECT COUNT(*) as count FROM tasks').get() as { count: number }
+      tasksCount = tCount.count
+    } catch (e) {
+      logger.warn('Failed to get tasks count', 'Diagnostics')
+    }
+
+    try {
+      const migration = db.prepare('SELECT MAX(version) as version FROM schema_version').get() as { version: number | null }
+      lastMigration = migration.version ?? 0
+    } catch (e) {
+      logger.warn('Failed to get last migration version', 'Diagnostics')
+    }
+
+    let dbSize = 0
+    try {
+      dbSize = (await import('fs')).statSync(db.name).size
+    } catch (e) {
+      logger.warn('Failed to get db size', 'Diagnostics')
+    }
 
     return {
-      projectsCount: projectsCount.count,
-      tasksCount: tasksCount.count,
+      projectsCount,
+      tasksCount,
       dbSize,
       dbPath: db.name,
-      lastMigration: db.prepare('SELECT MAX(version) as version FROM schema_version').get() as { version: number | null }
+      lastMigration
+    }
+  })
+
+  ipcMain.handle('diagnostics:getLogTail', async (_, lines = 200) => {
+    try {
+      const fs = await import('fs/promises')
+      const path = logger.getLogFilePath()
+      const content = await fs.readFile(path, 'utf-8')
+      const allLines = content.split('\n').filter(Boolean)
+      return allLines.slice(-lines)
+    } catch (error) {
+      logger.error('Failed to tail logs', 'Diagnostics', error)
+      return []
     }
   })
 }

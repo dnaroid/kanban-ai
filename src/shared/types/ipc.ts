@@ -16,7 +16,12 @@ export const AppInfoSchema = z.object({
   name: z.string(),
   version: z.string(),
   platform: z.string(),
-  arch: z.string()
+  arch: z.string(),
+  electronVersion: z.string(),
+  chromeVersion: z.string(),
+  nodeVersion: z.string(),
+  mode: z.string(),
+  userDataPath: z.string()
 })
 
 export type AppInfo = z.infer<typeof AppInfoSchema>
@@ -50,4 +55,55 @@ export const DeleteProjectInputSchema = z.object({
   id: z.string().uuid()
 })
 
-export type DeleteProjectInput = z.infer<typeof DeleteProjectInputSchema>
+export const BoardColumnSchema = z.object({
+  id: z.string().uuid(),
+  boardId: z.string().uuid(),
+  name: z.string().min(1),
+  orderIndex: z.number()
+})
+
+export type BoardColumn = z.infer<typeof BoardColumnSchema>
+
+export const BoardSchema = z.object({
+  id: z.string().uuid(),
+  projectId: z.string().uuid(),
+  name: z.string().min(1),
+  columns: z.array(BoardColumnSchema).optional()
+})
+
+export type Board = z.infer<typeof BoardSchema>
+
+export const KanbanTaskSchema = z.object({
+  id: z.string().uuid(),
+  projectId: z.string().uuid(),
+  boardId: z.string().uuid(),
+  columnId: z.string().uuid(),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  descriptionMd: z.string().optional(),
+  status: z.string(),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']),
+  type: z.string(),
+  orderInColumn: z.number(),
+  tags: z.array(z.string()).default([]),
+  assignedAgent: z.string().optional(),
+  branchName: z.string().optional(),
+  prNumber: z.number().optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime()
+})
+
+export type KanbanTask = z.infer<typeof KanbanTaskSchema>
+
+export const CreateTaskInputSchema = z.object({
+  projectId: z.string().uuid(),
+  boardId: z.string().uuid(),
+  columnId: z.string().uuid(),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
+  type: z.string().default('task'),
+  tags: z.array(z.string()).optional()
+})
+
+export type CreateTaskInput = z.infer<typeof CreateTaskInputSchema>

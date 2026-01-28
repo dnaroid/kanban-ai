@@ -5,6 +5,7 @@ import { cn } from '../lib/utils'
 
 export function DiagnosticsScreen() {
   const [logs, setLogs] = useState<LogEntry[]>([])
+  const [logTail, setLogTail] = useState<string[]>([])
   const [systemInfo, setSystemInfo] = useState<Record<string, unknown>>({})
   const [dbInfo, setDbInfo] = useState<Record<string, unknown>>({})
   const [loading, setLoading] = useState(true)
@@ -16,14 +17,16 @@ export function DiagnosticsScreen() {
   const loadDiagnostics = async () => {
     try {
       setLoading(true)
-      const [logsData, systemData, dbData] = await Promise.all([
+      const [logsData, systemData, dbData, tailData] = await Promise.all([
         window.api.diagnostics.getLogs(undefined, 50),
         window.api.diagnostics.getSystemInfo(),
         window.api.diagnostics.getDbInfo(),
+        window.api.diagnostics.getLogTail(200),
       ])
       setLogs(logsData)
       setSystemInfo(systemData as Record<string, unknown>)
       setDbInfo(dbData as Record<string, unknown>)
+      setLogTail(tailData)
     } catch (error) {
       console.error('Failed to load diagnostics:', error)
     } finally {
@@ -97,11 +100,11 @@ export function DiagnosticsScreen() {
           icon={Cpu}
           accent="from-blue-600/20 to-transparent"
           data={{
-            platform: systemInfo.platform,
-            arch: systemInfo.arch,
-            electron: systemInfo.electronVersion,
-            chrome: systemInfo.chromeVersion,
-            node: systemInfo.nodeVersion,
+            platform: systemInfo.platform || '—',
+            arch: systemInfo.arch || '—',
+            electron: systemInfo.electronVersion || '—',
+            chrome: systemInfo.chromeVersion || '—',
+            node: systemInfo.nodeVersion || '—',
           }}
         />
         <StatCard
@@ -109,9 +112,9 @@ export function DiagnosticsScreen() {
           icon={Server}
           accent="from-amber-600/20 to-transparent"
           data={{
-            version: (systemInfo as Record<string, unknown>).appVersion as string,
-            mode: (systemInfo as Record<string, unknown>).env as string,
-            secureStore: (systemInfo as Record<string, unknown>).safeStorageAvailable
+            version: (systemInfo.appVersion as string) || '—',
+            mode: (systemInfo.mode as string) || '—',
+            secureStore: systemInfo.safeStorageAvailable
               ? 'Hardware Encrypted'
               : 'Mock/Standard',
           }}
@@ -121,25 +124,20 @@ export function DiagnosticsScreen() {
           icon={Database}
           accent="from-emerald-600/20 to-transparent"
           data={{
-            projects: dbInfo.projectsCount,
-            tasks: dbInfo.tasksCount,
-            size: dbInfo.dbSize,
-            schema:
-              ((dbInfo.lastMigration as Record<string, unknown> | undefined)?.version as number) ??
-              0,
+            projects: dbInfo.projectsCount ?? 0,
+            tasks: dbInfo.tasksCount ?? 0,
+            size: dbInfo.dbSize ?? 0,
+            schema: dbInfo.lastMigration ?? 0,
           }}
         />
         <StatCard
-          title="Persistence"
-          icon={Database}
-          accent="from-emerald-600/20 to-transparent"
+          title="Infrastructure"
+          icon={Layers}
+          accent="from-purple-600/20 to-transparent"
           data={{
-            projects: dbInfo.projectsCount,
-            tasks: dbInfo.tasksCount,
-            size: dbInfo.dbSize,
-            schema:
-              ((dbInfo.lastMigration as Record<string, unknown> | undefined)?.version as number) ??
-              0,
+            userData: (systemInfo.userDataPath as string) || '—',
+            database: (systemInfo.dbPath as string) || '—',
+            logs: (systemInfo.logsPath as string) || '—',
           }}
         />
       </div>
@@ -149,44 +147,38 @@ export function DiagnosticsScreen() {
           <div className="flex items-center gap-3">
             <Terminal className="w-5 h-5 text-blue-400" />
             <h3 className="font-bold text-white text-sm uppercase tracking-wider">
-              Main Process Logs
+              Main Process Logs (main.log)
             </h3>
           </div>
-          <div className="flex gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-slate-700" />
-            <div className="w-2.5 h-2.5 rounded-full bg-slate-700" />
-            <div className="w-2.5 h-2.5 rounded-full bg-slate-700" />
+          <div className="flex gap-2 text-[10px] text-slate-500 font-mono">
+            {logTail.length} lines captured
           </div>
         </div>
         <div className="p-2 bg-[#0B0E14]">
-          <div className="font-mono text-[12px] h-96 overflow-y-auto custom-scrollbar p-4 space-y-1.5">
-            {logs.length === 0 ? (
+          <div className="font-mono text-[12px] h-96 overflow-y-auto custom-scrollbar p-4 space-y-1">
+            {logTail.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-slate-600 space-y-3">
                 <Layers className="w-8 h-8 opacity-20" />
-                <span>No process signals captured</span>
+                <span>No log file entries found</span>
               </div>
             ) : (
-              logs.map((log, index) => (
-                <div
-                  key={index}
-                  className="group flex gap-4 hover:bg-slate-800/30 py-0.5 px-2 rounded transition-colors"
-                >
-                  <span className="text-slate-600 w-44 shrink-0">{log.timestamp}</span>
-                  <span
+              logTail.map((line, index) => {
+                const isError = line.includes('[ERROR]')
+                const isWarn = line.includes('[WARN]')
+                return (
+                  <div
+                    key={index}
                     className={cn(
-                      'w-16 shrink-0 font-bold',
-                      log.level === 'error'
-                        ? 'text-red-500'
-                        : log.level === 'warn'
-                          ? 'text-amber-500'
-                          : 'text-blue-500'
+                      "py-0.5 px-2 rounded whitespace-pre-wrap transition-colors",
+                      isError ? "text-red-400 bg-red-500/5" : 
+                      isWarn ? "text-amber-400 bg-amber-500/5" : 
+                      "text-slate-300 hover:bg-slate-800/30"
                     )}
                   >
-                    {log.level.toUpperCase()}
-                  </span>
-                  <span className="text-slate-300 break-all">{log.message}</span>
-                </div>
-              ))
+                    {line}
+                  </div>
+                )
+              })
             )}
           </div>
         </div>
