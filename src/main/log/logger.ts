@@ -44,7 +44,7 @@ class Logger {
       timestamp: new Date().toISOString(),
       level,
       message,
-      context
+      context,
     }
 
     this.logs.push(entry)
@@ -82,7 +82,7 @@ class Logger {
   }
 
   getLogsByLevel(level: LogLevel, limit = 100): LogEntry[] {
-    return this.logs.filter(l => l.level === level).slice(-limit)
+    return this.logs.filter((l) => l.level === level).slice(-limit)
   }
 
   clearMemory(): void {

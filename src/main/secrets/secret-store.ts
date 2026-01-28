@@ -89,8 +89,6 @@ export function getSecretStore(): ISecretStore {
     return secretStoreInstance
   }
 
-  const { safeStorage } = require('electron')
-
   if (safeStorage.isEncryptionAvailable()) {
     secretStoreInstance = new ElectronSafeStorage()
     console.log('[SecretStore] Using Electron safeStorage')

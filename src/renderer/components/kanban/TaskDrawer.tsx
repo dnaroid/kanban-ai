@@ -44,17 +44,20 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
   const [newTag, setNewTag] = useState('')
   const [isAddingTag, setIsAddingTag] = useState(false)
 
-  // Mock Chat State
-  const [chatInput, setChatInput] = useState('')
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  const initialMessages: ChatMessage[] = [
     {
       id: '1',
       role: 'assistant',
       content:
         'Hi! I can help you work on this task. Ask me questions, request code changes, or discuss implementation details.',
+      // eslint-disable-next-line react-hooks/purity -- Mock data, timestamp is acceptable for initial messages
       timestamp: new Date(Date.now() - 1000 * 60 * 5),
     },
-  ])
+  ]
+
+  // Mock Chat State
+  const [chatInput, setChatInput] = useState('')
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
 
   const titleInputRef = useRef<HTMLInputElement>(null)
   const tagInputRef = useRef<HTMLInputElement>(null)

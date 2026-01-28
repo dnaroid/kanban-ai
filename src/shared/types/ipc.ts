@@ -6,7 +6,7 @@ export const LogEntrySchema = z.object({
   timestamp: z.string(),
   level: LogLevelSchema,
   message: z.string(),
-  context: z.string().optional()
+  context: z.string().optional(),
 })
 
 export type LogLevel = z.infer<typeof LogLevelSchema>
@@ -21,7 +21,7 @@ export const AppInfoSchema = z.object({
   chromeVersion: z.string(),
   nodeVersion: z.string(),
   mode: z.string(),
-  userDataPath: z.string()
+  userDataPath: z.string(),
 })
 
 export type AppInfo = z.infer<typeof AppInfoSchema>
@@ -31,14 +31,14 @@ export const ProjectSchema = z.object({
   name: z.string().min(1),
   path: z.string(),
   createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime()
+  updatedAt: z.string().datetime(),
 })
 
 export type Project = z.infer<typeof ProjectSchema>
 
 export const CreateProjectInputSchema = z.object({
   name: z.string().min(1),
-  path: z.string()
+  path: z.string(),
 })
 
 export type CreateProjectInput = z.infer<typeof CreateProjectInputSchema>
@@ -46,20 +46,22 @@ export type CreateProjectInput = z.infer<typeof CreateProjectInputSchema>
 export const UpdateProjectInputSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1).optional(),
-  path: z.string().optional()
+  path: z.string().optional(),
 })
 
 export type UpdateProjectInput = z.infer<typeof UpdateProjectInputSchema>
 
 export const DeleteProjectInputSchema = z.object({
-  id: z.string().uuid()
+  id: z.string().uuid(),
 })
+
+export type DeleteProjectInput = z.infer<typeof DeleteProjectInputSchema>
 
 export const BoardColumnSchema = z.object({
   id: z.string().uuid(),
   boardId: z.string().uuid(),
   name: z.string().min(1),
-  orderIndex: z.number()
+  orderIndex: z.number(),
 })
 
 export type BoardColumn = z.infer<typeof BoardColumnSchema>
@@ -68,7 +70,7 @@ export const BoardSchema = z.object({
   id: z.string().uuid(),
   projectId: z.string().uuid(),
   name: z.string().min(1),
-  columns: z.array(BoardColumnSchema).optional()
+  columns: z.array(BoardColumnSchema).optional(),
 })
 
 export type Board = z.infer<typeof BoardSchema>
@@ -90,7 +92,7 @@ export const KanbanTaskSchema = z.object({
   branchName: z.string().optional(),
   prNumber: z.number().optional(),
   createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime()
+  updatedAt: z.string().datetime(),
 })
 
 export type KanbanTask = z.infer<typeof KanbanTaskSchema>
@@ -103,7 +105,7 @@ export const CreateTaskInputSchema = z.object({
   description: z.string().optional(),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
   type: z.string().default('task'),
-  tags: z.array(z.string()).optional()
+  tags: z.array(z.string()).optional(),
 })
 
 export type CreateTaskInput = z.infer<typeof CreateTaskInputSchema>

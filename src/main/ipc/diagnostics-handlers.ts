@@ -22,13 +22,13 @@ export function registerDiagnosticsHandlers(): void {
       mode: (await import('electron')).app.isPackaged ? 'production' : 'development',
       dbPath: dbManager.connect().name,
       logsPath: logger.getLogFilePath(),
-      safeStorageAvailable: (await import('electron')).safeStorage.isEncryptionAvailable()
+      safeStorageAvailable: (await import('electron')).safeStorage.isEncryptionAvailable(),
     }
   })
 
   ipcMain.handle('diagnostics:getDbInfo', async () => {
     const db = dbManager.connect()
-    
+
     let projectsCount = 0
     let tasksCount = 0
     let lastMigration = 0
@@ -36,28 +36,30 @@ export function registerDiagnosticsHandlers(): void {
     try {
       const pCount = db.prepare('SELECT COUNT(*) as count FROM projects').get() as { count: number }
       projectsCount = pCount.count
-    } catch (e) {
+    } catch {
       logger.warn('Failed to get projects count', 'Diagnostics')
     }
 
     try {
       const tCount = db.prepare('SELECT COUNT(*) as count FROM tasks').get() as { count: number }
       tasksCount = tCount.count
-    } catch (e) {
+    } catch {
       logger.warn('Failed to get tasks count', 'Diagnostics')
     }
 
     try {
-      const migration = db.prepare('SELECT MAX(version) as version FROM schema_version').get() as { version: number | null }
+      const migration = db.prepare('SELECT MAX(version) as version FROM schema_version').get() as {
+        version: number | null
+      }
       lastMigration = migration.version ?? 0
-    } catch (e) {
+    } catch {
       logger.warn('Failed to get last migration version', 'Diagnostics')
     }
 
     let dbSize = 0
     try {
       dbSize = (await import('fs')).statSync(db.name).size
-    } catch (e) {
+    } catch {
       logger.warn('Failed to get db size', 'Diagnostics')
     }
 
@@ -66,7 +68,7 @@ export function registerDiagnosticsHandlers(): void {
       tasksCount,
       dbSize,
       dbPath: db.name,
-      lastMigration
+      lastMigration,
     }
   })
 

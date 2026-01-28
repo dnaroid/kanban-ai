@@ -37,7 +37,9 @@ class DatabaseManager {
   private runMigrations(): void {
     if (!this.db) return
 
-    const versionRow = this.db.prepare('SELECT version FROM schema_version').get() as { version: number } | undefined
+    const versionRow = this.db.prepare('SELECT version FROM schema_version').get() as
+      | { version: number }
+      | undefined
 
     const currentVersion = versionRow?.version || 0
 
@@ -45,7 +47,9 @@ class DatabaseManager {
       if (migration.version > currentVersion) {
         this.db!.transaction(() => {
           this.db!.exec(migration.sql)
-          this.db!.prepare('INSERT OR REPLACE INTO schema_version (version) VALUES (?)').run(migration.version)
+          this.db!.prepare('INSERT OR REPLACE INTO schema_version (version) VALUES (?)').run(
+            migration.version
+          )
         })()
       }
     }

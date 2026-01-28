@@ -20,7 +20,7 @@ export class ProjectRepository {
       name: input.name,
       path: input.path,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
     }
   }
 

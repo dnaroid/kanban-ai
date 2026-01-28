@@ -7,8 +7,10 @@ export class TaskRepository {
     const db = dbManager.connect()
     const now = new Date().toISOString()
     const id = randomUUID()
-    
-    const maxOrder = db.prepare('SELECT MAX(order_in_column) as maxOrder FROM tasks WHERE column_id = ?').get(input.columnId) as { maxOrder: number | null }
+
+    const maxOrder = db
+      .prepare('SELECT MAX(order_in_column) as maxOrder FROM tasks WHERE column_id = ?')
+      .get(input.columnId) as { maxOrder: number | null }
     const orderIndex = (maxOrder.maxOrder ?? -1) + 1
 
     const stmt = db.prepare(`
@@ -20,18 +22,18 @@ export class TaskRepository {
     `)
 
     stmt.run(
-      id, 
-      input.projectId, 
-      input.boardId, 
-      input.columnId, 
-      input.title, 
+      id,
+      input.projectId,
+      input.boardId,
+      input.columnId,
+      input.title,
       input.description ?? null,
-      'open', 
-      input.priority, 
-      input.type, 
+      'open',
+      input.priority,
+      input.type,
       orderIndex,
       JSON.stringify(input.tags ?? []),
-      now, 
+      now,
       now
     )
 
@@ -48,13 +50,15 @@ export class TaskRepository {
       orderInColumn: orderIndex,
       tags: input.tags ?? [],
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
     }
   }
 
   listByBoard(boardId: string): KanbanTask[] {
     const db = dbManager.connect()
-    const rows = db.prepare(`
+    const rows = db
+      .prepare(
+        `
       SELECT 
         id, project_id as projectId, board_id as boardId, column_id as columnId, 
         title, description, description_md as descriptionMd, status, priority, 
@@ -64,11 +68,13 @@ export class TaskRepository {
       FROM tasks
       WHERE board_id = ?
       ORDER BY order_in_column ASC
-    `).all(boardId) as any[]
+    `
+      )
+      .all(boardId) as any[]
 
-    return rows.map(row => ({
+    return rows.map((row) => ({
       ...row,
-      tags: JSON.parse(row.tagsJson || '[]')
+      tags: JSON.parse(row.tagsJson || '[]'),
     }))
   }
 
@@ -80,11 +86,18 @@ export class TaskRepository {
     const values: any[] = []
 
     const allowedFields: (keyof KanbanTask)[] = [
-      'title', 'description', 'descriptionMd', 'status', 'priority', 
-      'type', 'columnId', 'orderInColumn', 'tags'
+      'title',
+      'description',
+      'descriptionMd',
+      'status',
+      'priority',
+      'type',
+      'columnId',
+      'orderInColumn',
+      'tags',
     ]
 
-    allowedFields.forEach(field => {
+    allowedFields.forEach((field) => {
       if (patch[field] !== undefined) {
         if (field === 'tags') {
           sets.push('tags_json = ?')
@@ -108,11 +121,13 @@ export class TaskRepository {
     if (sets.length === 0) return
 
     values.push(now, id)
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE tasks 
       SET ${sets.join(', ')}, updated_at = ?
       WHERE id = ?
-    `).run(...values)
+    `
+    ).run(...values)
   }
 
   move(taskId: string, toColumnId: string, toIndex: number): void {
@@ -120,18 +135,23 @@ export class TaskRepository {
     const now = new Date().toISOString()
 
     db.transaction(() => {
-      const task = db.prepare('SELECT column_id, order_in_column FROM tasks WHERE id = ?').get(taskId) as { column_id: string, order_in_column: number }
-      
+      const task = db
+        .prepare('SELECT column_id, order_in_column FROM tasks WHERE id = ?')
+        .get(taskId) as { column_id: string; order_in_column: number }
+
       if (!task) return
 
-      db.prepare('UPDATE tasks SET order_in_column = order_in_column - 1 WHERE column_id = ? AND order_in_column > ?')
-        .run(task.column_id, task.order_in_column)
-      
-      db.prepare('UPDATE tasks SET order_in_column = order_in_column + 1 WHERE column_id = ? AND order_in_column >= ?')
-        .run(toColumnId, toIndex)
-      
-      db.prepare('UPDATE tasks SET column_id = ?, order_in_column = ?, updated_at = ? WHERE id = ?')
-        .run(toColumnId, toIndex, now, taskId)
+      db.prepare(
+        'UPDATE tasks SET order_in_column = order_in_column - 1 WHERE column_id = ? AND order_in_column > ?'
+      ).run(task.column_id, task.order_in_column)
+
+      db.prepare(
+        'UPDATE tasks SET order_in_column = order_in_column + 1 WHERE column_id = ? AND order_in_column >= ?'
+      ).run(toColumnId, toIndex)
+
+      db.prepare(
+        'UPDATE tasks SET column_id = ?, order_in_column = ?, updated_at = ? WHERE id = ?'
+      ).run(toColumnId, toIndex, now, taskId)
     })()
   }
 }

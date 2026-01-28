@@ -1,10 +1,7 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron'
 import { z } from 'zod'
 
-type Handler<TInput, TOutput> = (
-  event: IpcMainInvokeEvent,
-  input: TInput
-) => Promise<TOutput>
+type Handler<TInput, TOutput> = (event: IpcMainInvokeEvent, input: TInput) => Promise<TOutput>
 
 function createValidatedHandler<TInput, TOutput>(
   schema: z.ZodSchema<TInput>,
@@ -23,7 +20,7 @@ export const ipcHandlers = {
     handler: Handler<TInput, TOutput>
   ) {
     ipcMain.handle(channel, createValidatedHandler(schema, handler))
-  }
+  },
 }
 
 export type { Handler }

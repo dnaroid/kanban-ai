@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Terminal, Database, RefreshCw, Server, Cpu, Layers } from 'lucide-react'
-import type { LogEntry } from '../../shared/types/ipc'
 import { cn } from '../lib/utils'
 
 export function DiagnosticsScreen() {
-  const [logs, setLogs] = useState<LogEntry[]>([])
   const [logTail, setLogTail] = useState<string[]>([])
   const [systemInfo, setSystemInfo] = useState<Record<string, unknown>>({})
   const [dbInfo, setDbInfo] = useState<Record<string, unknown>>({})
@@ -17,13 +15,11 @@ export function DiagnosticsScreen() {
   const loadDiagnostics = async () => {
     try {
       setLoading(true)
-      const [logsData, systemData, dbData, tailData] = await Promise.all([
-        window.api.diagnostics.getLogs(undefined, 50),
+      const [systemData, dbData, tailData] = await Promise.all([
         window.api.diagnostics.getSystemInfo(),
         window.api.diagnostics.getDbInfo(),
         window.api.diagnostics.getLogTail(200),
       ])
-      setLogs(logsData)
       setSystemInfo(systemData as Record<string, unknown>)
       setDbInfo(dbData as Record<string, unknown>)
       setLogTail(tailData)
@@ -114,9 +110,7 @@ export function DiagnosticsScreen() {
           data={{
             version: (systemInfo.appVersion as string) || '—',
             mode: (systemInfo.mode as string) || '—',
-            secureStore: systemInfo.safeStorageAvailable
-              ? 'Hardware Encrypted'
-              : 'Mock/Standard',
+            secureStore: systemInfo.safeStorageAvailable ? 'Hardware Encrypted' : 'Mock/Standard',
           }}
         />
         <StatCard
@@ -169,10 +163,12 @@ export function DiagnosticsScreen() {
                   <div
                     key={index}
                     className={cn(
-                      "py-0.5 px-2 rounded whitespace-pre-wrap transition-colors",
-                      isError ? "text-red-400 bg-red-500/5" : 
-                      isWarn ? "text-amber-400 bg-amber-500/5" : 
-                      "text-slate-300 hover:bg-slate-800/30"
+                      'py-0.5 px-2 rounded whitespace-pre-wrap transition-colors',
+                      isError
+                        ? 'text-red-400 bg-red-500/5'
+                        : isWarn
+                          ? 'text-amber-400 bg-amber-500/5'
+                          : 'text-slate-300 hover:bg-slate-800/30'
                     )}
                   >
                     {line}

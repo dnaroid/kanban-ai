@@ -8,7 +8,7 @@ import {
   useSensor,
   useSensors,
   DragStartEvent,
-  DragEndEvent
+  DragEndEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -16,7 +16,7 @@ import {
   sortableKeyboardCoordinates,
   horizontalListSortingStrategy,
   verticalListSortingStrategy,
-  useSortable
+  useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import {
@@ -27,7 +27,7 @@ import {
   X,
   AlertCircle,
   Clock,
-  Play
+  Play,
 } from 'lucide-react'
 import type { Board, KanbanTask, CreateTaskInput } from '../../shared/types/ipc'
 import { cn } from '../lib/utils'
@@ -44,14 +44,9 @@ interface SortableTaskProps {
 }
 
 function SortableTask({ task, onDelete, onClick }: SortableTaskProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging
-  } = useSortable({ id: task.id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task.id,
+  })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -62,7 +57,7 @@ function SortableTask({ task, onDelete, onClick }: SortableTaskProps) {
     low: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     medium: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     high: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-    urgent: 'bg-red-500/10 text-red-400 border-red-500/20'
+    urgent: 'bg-red-500/10 text-red-400 border-red-500/20',
   }
 
   return (
@@ -71,8 +66,8 @@ function SortableTask({ task, onDelete, onClick }: SortableTaskProps) {
       style={style}
       onClick={() => onClick?.(task)}
       className={cn(
-        "bg-[#11151C] border border-slate-800/50 rounded-xl p-4 mb-3 group hover:border-slate-700/50 hover:border-blue-500/30 transition-all cursor-grab active:cursor-grabbing",
-        isDragging && "opacity-50 shadow-2xl"
+        'bg-[#11151C] border border-slate-800/50 rounded-xl p-4 mb-3 group hover:border-slate-700/50 hover:border-blue-500/30 transition-all cursor-grab active:cursor-grabbing',
+        isDragging && 'opacity-50 shadow-2xl'
       )}
     >
       <div className="flex items-start gap-3">
@@ -101,15 +96,15 @@ function SortableTask({ task, onDelete, onClick }: SortableTaskProps) {
           </div>
 
           <div className="flex items-center gap-2 mb-2">
-            <span className={cn(
-              "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border",
-              priorityColors[task.priority]
-            )}>
+            <span
+              className={cn(
+                'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border',
+                priorityColors[task.priority]
+              )}
+            >
               {task.priority}
             </span>
-            <span className="text-[10px] text-slate-500 uppercase tracking-wider">
-              {task.type}
-            </span>
+            <span className="text-[10px] text-slate-500 uppercase tracking-wider">{task.type}</span>
           </div>
 
           {task.tags.length > 0 && (
@@ -123,9 +118,7 @@ function SortableTask({ task, onDelete, onClick }: SortableTaskProps) {
                 </span>
               ))}
               {task.tags.length > 3 && (
-                <span className="text-[10px] text-slate-500">
-                  +{task.tags.length - 3}
-                </span>
+                <span className="text-[10px] text-slate-500">+{task.tags.length - 3}</span>
               )}
             </div>
           )}
@@ -144,15 +137,17 @@ interface SortableColumnProps {
   onTaskClick?: (task: KanbanTask) => void
 }
 
-function SortableColumn({ id, name, tasks, onAddTask, onDeleteTask, onTaskClick }: SortableColumnProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging
-  } = useSortable({ id: id })
+function SortableColumn({
+  id,
+  name,
+  tasks,
+  onAddTask,
+  onDeleteTask,
+  onTaskClick,
+}: SortableColumnProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: id,
+  })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -166,8 +161,8 @@ function SortableColumn({ id, name, tasks, onAddTask, onDeleteTask, onTaskClick 
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex-shrink-0 w-80 bg-[#0B0E14] rounded-2xl border border-slate-800/50 flex flex-col max-h-full",
-        isDragging && "opacity-50"
+        'flex-shrink-0 w-80 bg-[#0B0E14] rounded-2xl border border-slate-800/50 flex flex-col max-h-full',
+        isDragging && 'opacity-50'
       )}
     >
       <div className="p-4 border-b border-slate-800/50">
@@ -207,10 +202,7 @@ function SortableColumn({ id, name, tasks, onAddTask, onDeleteTask, onTaskClick 
         </div>
       </div>
 
-      <div className={cn(
-        "flex-1 overflow-y-auto custom-scrollbar p-3",
-        isCollapsed && "hidden"
-      )}>
+      <div className={cn('flex-1 overflow-y-auto custom-scrollbar p-3', isCollapsed && 'hidden')}>
         <SortableContext items={tasks} strategy={verticalListSortingStrategy}>
           {tasks.length === 0 ? (
             <div className="text-center py-12 text-slate-600">
@@ -222,7 +214,12 @@ function SortableColumn({ id, name, tasks, onAddTask, onDeleteTask, onTaskClick 
             </div>
           ) : (
             tasks.map((task) => (
-              <SortableTask key={task.id} task={task} onDelete={onDeleteTask} onClick={onTaskClick} />
+              <SortableTask
+                key={task.id}
+                task={task}
+                onDelete={onDeleteTask}
+                onClick={onTaskClick}
+              />
             ))
           )}
         </SortableContext>
@@ -253,8 +250,8 @@ function QuickAddTaskModal({ isOpen, onClose, onSubmit, columnName }: QuickAddTa
 
     const tagArray = tags
       .split(',')
-      .map(t => t.trim())
-      .filter(t => t.length > 0)
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0)
 
     onSubmit({
       title: title.trim(),
@@ -262,7 +259,7 @@ function QuickAddTaskModal({ isOpen, onClose, onSubmit, columnName }: QuickAddTa
       priority,
       type,
       tags: tagArray,
-      columnId: ''
+      columnId: '',
     })
 
     setTitle('')
@@ -426,7 +423,7 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
 
   const handleDragStart = (event: DragStartEvent) => {
     if (event.active.data.current?.type === 'task') {
-      setActiveTask(tasks.find(t => t.id === event.active.id) || null)
+      setActiveTask(tasks.find((t) => t.id === event.active.id) || null)
     } else {
       setActiveColumn(event.active.id as string)
     }
@@ -445,11 +442,11 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
     if (!board) return
 
     const columns = board.columns || []
-    const isColumn = columns.some(c => c.id === activeId)
+    const isColumn = columns.some((c) => c.id === activeId)
 
     if (isColumn) {
-      const oldIndex = columns.findIndex(c => c.id === activeId)
-      const newIndex = columns.findIndex(c => c.id === overId)
+      const oldIndex = columns.findIndex((c) => c.id === activeId)
+      const newIndex = columns.findIndex((c) => c.id === overId)
 
       if (oldIndex !== newIndex) {
         const newColumns = arrayMove(columns, oldIndex, newIndex)
@@ -460,33 +457,33 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
       return
     }
 
-    const activeTask = tasks.find(t => t.id === activeId)
-    const overTask = tasks.find(t => t.id === overId)
+    const activeTask = tasks.find((t) => t.id === activeId)
+    const overTask = tasks.find((t) => t.id === overId)
 
     if (!activeTask) return
 
     const activeColumnId = activeTask.columnId
     let overColumnId = overTask?.columnId || activeColumnId
 
-    const targetColumn = board.columns?.find(c => c.id === overId)
+    const targetColumn = board.columns?.find((c) => c.id === overId)
     if (targetColumn) {
       overColumnId = targetColumn.id
     }
 
     if (activeColumnId === overColumnId) {
       const oldIndex = tasks
-        .filter(t => t.columnId === activeColumnId)
-        .findIndex(t => t.id === activeId)
+        .filter((t) => t.columnId === activeColumnId)
+        .findIndex((t) => t.id === activeId)
       const newIndex = tasks
-        .filter(t => t.columnId === activeColumnId)
-        .findIndex(t => t.id === overId)
+        .filter((t) => t.columnId === activeColumnId)
+        .findIndex((t) => t.id === overId)
 
       if (oldIndex !== newIndex && overTask) {
         await window.api.task.move(activeId, activeColumnId, newIndex)
         loadBoard()
       }
     } else {
-      const tasksInNewColumn = tasks.filter(t => t.columnId === overColumnId)
+      const tasksInNewColumn = tasks.filter((t) => t.columnId === overColumnId)
       const newIndex = tasksInNewColumn.length
 
       await window.api.task.move(activeId, overColumnId, newIndex)
@@ -507,7 +504,7 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
         ...taskData,
         columnId: quickAddColumnId,
         projectId,
-        boardId: board.id
+        boardId: board.id,
       })
 
       setQuickAddModalOpen(false)
@@ -589,7 +586,8 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
             <div>
               <h1 className="text-2xl font-bold text-white">{board.name}</h1>
               <p className="text-slate-500 text-sm mt-1">
-                {tasks.length} task{tasks.length !== 1 ? 's' : ''} across {columns.length} column{columns.length !== 1 ? 's' : ''}
+                {tasks.length} task{tasks.length !== 1 ? 's' : ''} across {columns.length} column
+                {columns.length !== 1 ? 's' : ''}
               </p>
             </div>
             <button
@@ -607,11 +605,14 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
           </div>
 
           <div className="flex-1 overflow-x-auto overflow-y-hidden custom-scrollbar">
-            <SortableContext items={columns.map(c => c.id)} strategy={horizontalListSortingStrategy}>
+            <SortableContext
+              items={columns.map((c) => c.id)}
+              strategy={horizontalListSortingStrategy}
+            >
               <div className="flex gap-4 h-full p-1">
                 {columns.map((column) => {
                   const columnTasks = tasks
-                    .filter(t => t.columnId === column.id)
+                    .filter((t) => t.columnId === column.id)
                     .sort((a, b) => a.orderInColumn - b.orderInColumn)
 
                   return (
@@ -653,7 +654,7 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
                 <div className="flex items-center gap-2">
                   <GripVertical className="w-4 h-4 text-blue-400" />
                   <h3 className="text-sm font-bold text-white">
-                    {columns.find(c => c.id === activeColumn)?.name}
+                    {columns.find((c) => c.id === activeColumn)?.name}
                   </h3>
                 </div>
               </div>
@@ -672,7 +673,7 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
           setQuickAddColumnId(null)
         }}
         onSubmit={handleQuickAddSubmit}
-        columnName={columns.find(c => c.id === quickAddColumnId)?.name}
+        columnName={columns.find((c) => c.id === quickAddColumnId)?.name}
       />
 
       <TaskDrawer

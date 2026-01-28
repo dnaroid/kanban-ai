@@ -1,6 +1,13 @@
-import type { 
-  AppInfo, Project, CreateProjectInput, UpdateProjectInput, DeleteProjectInput, LogEntry,
-  Board, KanbanTask, CreateTaskInput 
+import type {
+  AppInfo,
+  Project,
+  CreateProjectInput,
+  UpdateProjectInput,
+  DeleteProjectInput,
+  LogEntry,
+  Board,
+  KanbanTask,
+  CreateTaskInput,
 } from '../shared/types/ipc'
 
 export interface MainToRenderer {
@@ -60,4 +67,3 @@ export interface RendererToMain {
     getDbInfo(): Promise<object>
   }
 }
-

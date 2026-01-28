@@ -5,7 +5,7 @@ export const migrations = [
       CREATE TABLE IF NOT EXISTS schema_version (
         version INTEGER PRIMARY KEY
       );
-    `
+    `,
   },
   {
     version: 1,
@@ -35,7 +35,7 @@ export const migrations = [
 
       CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
       CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
-    `
+    `,
   },
   {
     version: 2,
@@ -69,8 +69,8 @@ export const migrations = [
 
       CREATE INDEX IF NOT EXISTS idx_tasks_board_id ON tasks(board_id);
       CREATE INDEX IF NOT EXISTS idx_tasks_column_id ON tasks(column_id);
-    `
-  }
+    `,
+  },
 ]
 
-export type Migration = typeof migrations[number]
+export type Migration = (typeof migrations)[number]
