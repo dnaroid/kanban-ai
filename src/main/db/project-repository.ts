@@ -13,7 +13,13 @@ export class ProjectRepository {
       VALUES (?, ?, ?, ?, ?)
     `)
 
-    stmt.run(id, input.name, input.path, now, now)
+    try {
+      const result = stmt.run(id, input.name, input.path, now, now)
+      console.log('[ProjectRepo] Insert result:', result)
+    } catch (error) {
+      console.error('[ProjectRepo] Insert failed:', error)
+      throw error
+    }
 
     return {
       id,

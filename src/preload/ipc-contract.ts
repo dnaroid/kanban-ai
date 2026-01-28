@@ -15,6 +15,7 @@ export interface MainToRenderer {
     getInfo(): Promise<AppInfo>
   }
   project: {
+    selectFolder(): Promise<{ path: string; name: string } | null>
     create(input: CreateProjectInput): Promise<Project>
     getAll(): Promise<Project[]>
     getById(id: string): Promise<Project | null>
@@ -44,6 +45,7 @@ export interface RendererToMain {
     getInfo(): Promise<AppInfo>
   }
   project: {
+    selectFolder(): Promise<{ path: string; name: string } | null>
     create(input: CreateProjectInput): Promise<Project>
     getAll(): Promise<Project[]>
     getById(id: string): Promise<Project | null>

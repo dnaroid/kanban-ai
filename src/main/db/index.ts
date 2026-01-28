@@ -37,15 +37,23 @@ class DatabaseManager {
   private runMigrations(): void {
     if (!this.db) return
 
+    // Run migration 0 to create schema_version table
+    const migration0 = migrations.find((m) => m.version === 0)
+    if (migration0) {
+      this.db.exec(migration0.sql)
+      // Insert initial version record
+      this.db.prepare('INSERT OR REPLACE INTO schema_version (version) VALUES (?)').run(0)
+    }
+
     const versionRow = this.db.prepare('SELECT version FROM schema_version').get() as
       | { version: number }
       | undefined
 
-    const currentVersion = versionRow?.version || 0
+    const currentVersion = versionRow?.version ?? 0
 
     for (const migration of migrations) {
       if (migration.version > currentVersion) {
-        this.db!.transaction(() => {
+        this.db.transaction(() => {
           this.db!.exec(migration.sql)
           this.db!.prepare('INSERT OR REPLACE INTO schema_version (version) VALUES (?)').run(
             migration.version

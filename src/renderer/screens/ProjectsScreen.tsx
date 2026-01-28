@@ -15,8 +15,33 @@ function CreateProjectModal({
   onClose: () => void
   onCreate: (name: string, path: string) => void
 }) {
-  const [name, setName] = useState('')
-  const [path, setPath] = useState('')
+  const [selectedFolder, setSelectedFolder] = useState<{ path: string; name: string } | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  const handleSelectFolder = async () => {
+    try {
+      setLoading(true)
+      console.log('[ProjectsScreen] Opening folder picker...')
+      const result = await window.api.project.selectFolder()
+      console.log('[ProjectsScreen] Folder selected:', result)
+      if (result) {
+        setSelectedFolder(result)
+      }
+    } catch (error) {
+      console.error('[ProjectsScreen] Failed to select folder:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    console.log('[ProjectsScreen] Form submit:', selectedFolder)
+    if (selectedFolder) {
+      onCreate(selectedFolder.name, selectedFolder.path)
+      setSelectedFolder(null)
+    }
+  }
 
   if (!isOpen) return null
 
@@ -24,56 +49,57 @@ function CreateProjectModal({
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
       <div className="bg-[#11151C] border border-slate-800 rounded-2xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
         <h2 className="text-2xl font-bold text-white mb-2">Connect Repository</h2>
-        <p className="text-slate-500 text-sm mb-8">Link a local folder to start managing tasks</p>
+        <p className="text-slate-500 text-sm mb-8">Select a local folder to start managing tasks</p>
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            onCreate(name, path)
-            setName('')
-            setPath('')
-          }}
-          className="space-y-6"
-        >
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-1">
-              Display Name
+              Project Folder
             </label>
-            <input
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-3 bg-[#0B0E14] border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
-              placeholder="e.g. My Website"
-              autoFocus
-            />
+            <div className="flex gap-2">
+              <div className="flex-1 px-4 py-3 bg-[#0B0E14] border border-slate-800 rounded-xl text-white font-mono text-sm overflow-hidden">
+                {selectedFolder ? (
+                  <span className="truncate block">{selectedFolder.path}</span>
+                ) : (
+                  <span className="text-slate-600">No folder selected</span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleSelectFolder}
+                disabled={loading}
+                className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-sm transition-all border border-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                {loading ? 'Loading...' : 'Browse...'}
+              </button>
+            </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-1">
-              Absolute Path
-            </label>
-            <input
-              type="text"
-              required
-              value={path}
-              onChange={(e) => setPath(e.target.value)}
-              className="w-full px-4 py-3 bg-[#0B0E14] border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all font-mono text-sm"
-              placeholder="/Users/name/projects/my-site"
-            />
-          </div>
+
+          {selectedFolder && (
+            <div className="space-y-2 animate-in slide-in-from-top-2 duration-200">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-1">
+                Project Name
+              </label>
+              <div className="px-4 py-3 bg-[#0B0E14] border border-blue-500/30 rounded-xl text-white">
+                {selectedFolder.name}
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-4 pt-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => {
+                onClose()
+                setSelectedFolder(null)
+              }}
               className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-sm transition-all border border-slate-700/50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={!name.trim() || !path.trim()}
+              disabled={!selectedFolder}
               className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-600/20"
             >
               Connect
@@ -97,10 +123,12 @@ export function ProjectsScreen({ onProjectSelect }: ProjectsScreenProps) {
   const loadProjects = async () => {
     try {
       setLoading(true)
+      console.log('[ProjectsScreen] Loading projects...')
       const data = await window.api.project.getAll()
+      console.log('[ProjectsScreen] Projects loaded:', data)
       setProjects(data)
     } catch (error) {
-      console.error('Failed to load projects:', error)
+      console.error('[ProjectsScreen] Failed to load projects:', error)
     } finally {
       setLoading(false)
     }
@@ -108,11 +136,13 @@ export function ProjectsScreen({ onProjectSelect }: ProjectsScreenProps) {
 
   const handleCreateProject = async (name: string, path: string) => {
     try {
+      console.log('[ProjectsScreen] Creating project:', { name, path })
       await window.api.project.create({ name, path })
+      console.log('[ProjectsScreen] Project created successfully')
       setIsModalOpen(false)
       loadProjects()
     } catch (error) {
-      console.error('Failed to create project:', error)
+      console.error('[ProjectsScreen] Failed to create project:', error)
     }
   }
 

@@ -6,6 +6,7 @@ const api: MainToRenderer = {
     getInfo: () => ipcRenderer.invoke('app:getInfo'),
   },
   project: {
+    selectFolder: () => ipcRenderer.invoke('project:selectFolder'),
     create: (input) => ipcRenderer.invoke('project:create', input),
     getAll: () => ipcRenderer.invoke('project:getAll'),
     getById: (id) => ipcRenderer.invoke('project:getById', id),

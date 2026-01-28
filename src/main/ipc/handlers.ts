@@ -1,4 +1,5 @@
-import { app } from 'electron'
+import { app, dialog } from 'electron'
+import path from 'path'
 import { ipcHandlers } from './validation'
 import { z } from 'zod'
 import { registerDiagnosticsHandlers } from './diagnostics-handlers'
@@ -12,6 +13,25 @@ import {
 import { projectRepo } from '../db/project-repository'
 import { boardRepo } from '../db/board-repository'
 import { taskRepo } from '../db/task-repository'
+
+ipcHandlers.register('project:selectFolder', z.unknown(), async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory', 'createDirectory'],
+    title: 'Select Project Folder',
+  })
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null
+  }
+
+  const selectedPath = result.filePaths[0]
+  const projectName = path.basename(selectedPath)
+
+  return {
+    path: selectedPath,
+    name: projectName,
+  }
+})
 
 ipcHandlers.register('app:getInfo', z.unknown(), async () => {
   return AppInfoSchema.parse({
@@ -28,11 +48,16 @@ ipcHandlers.register('app:getInfo', z.unknown(), async () => {
 })
 
 ipcHandlers.register('project:create', CreateProjectInputSchema, async (_, input) => {
-  return projectRepo.create(input)
+  console.log('[IPC] Creating project:', input)
+  const project = projectRepo.create(input)
+  console.log('[IPC] Project created:', project)
+  return project
 })
 
 ipcHandlers.register('project:getAll', z.unknown(), async () => {
-  return projectRepo.getAll()
+  const projects = projectRepo.getAll()
+  console.log('[IPC] Returning projects:', projects)
+  return projects
 })
 
 ipcHandlers.register('project:getById', z.string(), async (_, id) => {
