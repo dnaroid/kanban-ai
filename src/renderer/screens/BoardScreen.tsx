@@ -477,6 +477,76 @@ function QuickAddTaskModal({ isOpen, onClose, onSubmit, columnName }: QuickAddTa
   )
 }
 
+interface AddColumnModalProps {
+  isOpen: boolean
+  onClose: () => void
+  onSubmit: (name: string) => void
+}
+
+function AddColumnModal({ isOpen, onClose, onSubmit }: AddColumnModalProps) {
+  const [name, setName] = useState('')
+
+  if (!isOpen) return null
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!name.trim()) return
+    onSubmit(name.trim())
+    setName('')
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+      <div className="bg-[#11151C] border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold text-white">Add New Column</h2>
+          <button
+            onClick={onClose}
+            className="text-slate-500 hover:text-slate-300 transition-colors"
+            aria-label="Close modal"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+              Column Name *
+            </label>
+            <input
+              type="text"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-4 py-3 bg-[#0B0E14] border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
+              placeholder="e.g., To Do, In Progress, Done"
+              autoFocus
+            />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-semibold text-sm transition-all border border-slate-700/50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!name.trim()}
+              className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-600/20"
+            >
+              Add Column
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export function BoardScreen({ projectId }: BoardScreenProps) {
   const [board, setBoard] = useState<Board | null>(null)
   const [tasks, setTasks] = useState<KanbanTask[]>([])
@@ -489,6 +559,7 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
 
   const [quickAddModalOpen, setQuickAddModalOpen] = useState(false)
   const [quickAddColumnId, setQuickAddColumnId] = useState<string | null>(null)
+  const [addColumnModalOpen, setAddColumnModalOpen] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -666,13 +737,11 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
     }
   }
 
-  const handleAddColumn = async () => {
+  const handleAddColumn = async (name: string) => {
     if (!board) return
-    const newName = prompt('Enter column name:')
-    if (!newName?.trim()) return
 
     const currentColumns = (board.columns || []).map(({ id, name }) => ({ id, name }))
-    const newColumns = [...currentColumns, { name: newName.trim() }]
+    const newColumns = [...currentColumns, { name: name.trim() }]
 
     try {
       const response = await window.api.board.updateColumns({
@@ -680,6 +749,7 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
         columns: normalizeColumns(newColumns),
       })
       setBoard({ ...board, columns: response.columns })
+      setAddColumnModalOpen(false)
     } catch (error) {
       console.error('Failed to add column:', error)
     }
@@ -817,7 +887,7 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
                   Get started by creating columns to organize your tasks.
                 </p>
                 <button
-                  onClick={handleAddColumn}
+                  onClick={() => setAddColumnModalOpen(true)}
                   className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-all shadow-lg shadow-blue-600/20"
                 >
                   <Plus className="w-5 h-5" />
@@ -852,7 +922,7 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
 
                   <div className="flex-shrink-0 w-80">
                     <button
-                      onClick={handleAddColumn}
+                      onClick={() => setAddColumnModalOpen(true)}
                       className="w-full h-14 bg-[#0B0E14]/50 hover:bg-[#0B0E14] border border-dashed border-slate-800/50 hover:border-slate-700 rounded-2xl flex items-center justify-center gap-2 text-slate-500 hover:text-slate-300 transition-all group"
                     >
                       <Plus className="w-5 h-5 group-hover:scale-110 transition-transform" />
@@ -907,6 +977,12 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
         }}
         onSubmit={handleQuickAddSubmit}
         columnName={columns.find((c) => c.id === quickAddColumnId)?.name}
+      />
+
+      <AddColumnModal
+        isOpen={addColumnModalOpen}
+        onClose={() => setAddColumnModalOpen(false)}
+        onSubmit={handleAddColumn}
       />
 
       <TaskDrawer

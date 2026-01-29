@@ -2,7 +2,7 @@ import Database from 'better-sqlite3'
 import { app } from 'electron'
 import path from 'path'
 import fs from 'node:fs'
-import { migrations } from './migrations'
+import { INIT_DB_SQL, migrations } from './migrations'
 
 const DB_PATH = path.join(app.getPath('userData'), 'kanban.db')
 
@@ -14,6 +14,7 @@ class DatabaseManager {
       return this.db
     }
 
+    const isNewDb = !fs.existsSync(DB_PATH)
     const dbDir = path.dirname(DB_PATH)
     if (!fs.existsSync(dbDir)) {
       fs.mkdirSync(dbDir, { recursive: true })
@@ -22,7 +23,11 @@ class DatabaseManager {
     this.db = new Database(DB_PATH)
     this.db.pragma('journal_mode = WAL')
 
-    this.runMigrations()
+    if (isNewDb) {
+      this.runInitSql()
+    } else {
+      this.runMigrations()
+    }
     this.seedAgentRoles()
 
     return this.db
@@ -67,6 +72,15 @@ class DatabaseManager {
       .prepare('SELECT MAX(version) as version FROM schema_migrations')
       .get() as { version: number | null }
     console.log('[DB] Final max schema version:', finalVersion.version)
+  }
+
+  private runInitSql(): void {
+    if (!this.db) return
+
+    this.db.exec(INIT_DB_SQL)
+
+    const latestVersion = migrations[migrations.length - 1]?.version ?? 0
+    this.db.prepare('INSERT INTO schema_migrations (version) VALUES (?)').run(latestVersion)
   }
 
   private seedAgentRoles(): void {
