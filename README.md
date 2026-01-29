@@ -55,47 +55,55 @@ pnpm install
    ```
    Должна быть директория `Electron.app` (macOS) или `electron` (Linux/Windows)
 
-### Проблема: Native модули не работают с Electron
+### Проблема: Native модули не работают с Electron и тестами
 
 **Симптомы:**
 
 - Ошибки при импорте `better-sqlite3` или других native модулей
 - Error: `The module ... was compiled against a different Node.js version using NODE_MODULE_VERSION X. This version of Node.js requires NODE_MODULE_VERSION Y`
-- Тесты проходят, но Electron приложение падает при запуске
+- Тесты проходят, но Electron приложение падает при запуске (или наоборот)
 
 **Корневая причина:**
 
-Тесты запускаются с системным Node.js (например, v22 с NODE_MODULE_VERSION 127), а Electron использует встроенный Node.js (в данном случае Electron 40.0.0 использует Node.js v20.x с NODE_MODULE_VERSION 143). Native модули нужно компилировать для каждого окружения отдельно.
+Тесты запускаются с системным Node.js (например, v22 с NODE_MODULE_VERSION 127), а Electron использует встроенный Node.js (Electron 40.0.0 использует Node.js v20.x с NODE_MODULE_VERSION 143). Native модули (как `better-sqlite3`) нужно компилировать для каждого окружения отдельно.
 
-**Решение:**
+**Автоматическое решение:**
 
-Добавил скрипт `rebuild:native` в package.json, который автоматически перестраивает native модули для Electron перед запуском:
+Добавлены два скрипта в package.json для автоматического переключения сборок:
 
 ```json
 {
   "scripts": {
-    "dev": "npm run rebuild:native && electron-vite dev",
-    "rebuild:native": "electron-rebuild -f -w better-sqlite3"
+    "dev": "npm run rebuild:electron && electron-vite dev",
+    "test": "npm run rebuild:node && vitest",
+    "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
+    "rebuild:node": "cd node_modules/.pnpm/better-sqlite3@12.6.2/node_modules/better-sqlite3 && npm run install"
   }
 }
 ```
 
-Теперь команда `pnpm dev` автоматически пересобирает native модули перед запуском Electron.
-
-**Ручная пересборка (если нужно):**
+**Как пользоваться:**
 
 ```bash
-# Пересобрать native модули для Electron
-npm run rebuild:native
+# Запуск Electron приложения - автоматически пересобирает для Electron
+pnpm dev
 
-# Или с параметрами
-electron-rebuild -f -w better-sqlite3
+# Запуск тестов - автоматически пересобирает для системного Node.js
+npm test
+
+# Ручная пересборка для Electron
+npm run rebuild:electron
+
+# Ручная пересборка для Node.js (тесты)
+npm run rebuild:node
 ```
 
-Где:
+**Как это работает:**
 
-- `-f` - принудительная пересборка (force)
-- `-w better-sqlite3` - пересобрать только этот модуль
+- `pnpm dev` → запускает `rebuild:electron` → компилирует better-sqlite3 для Electron (NODE_MODULE_VERSION 143)
+- `npm test` → запускает `rebuild:node` → компилирует better-sqlite3 для системного Node.js (NODE_MODULE_VERSION 127)
+
+Больше не нужно вручную переключаться между версиями Node.js или пересобирать модули — всё происходит автоматически перед запуском.
 
 ### Проблема: Ошибка zsh при настройке pnpm config
 

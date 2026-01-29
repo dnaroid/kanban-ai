@@ -118,6 +118,30 @@ class DatabaseManager {
             'Test Plan\n- ...\n\n' + 'Negative Cases\n- ...\n\n' + 'Regression Checklist\n- ...',
         }),
       },
+      {
+        id: 'merge-resolver',
+        name: 'Merge Resolver',
+        description: 'Resolve merge conflicts only',
+        preset_json: JSON.stringify({
+          output: 'markdown',
+          template:
+            'Resolve merge conflicts only. Do not modify unrelated code.\n' +
+            'Output artifacts:\n' +
+            '- kind: patch, title: "Merge conflict resolution" (unified diff)\n' +
+            '- kind: markdown, title: "Explanation"\n',
+        }),
+      },
+      {
+        id: 'release-notes',
+        name: 'Release Notes',
+        description: 'Summarize changes for release notes',
+        preset_json: JSON.stringify({
+          output: 'markdown',
+          template:
+            'Generate release notes from tasks and PRs.\n' +
+            'Output concise markdown with sections: Features, Fixes, Chores.\n',
+        }),
+      },
     ]
 
     const tx = this.db.transaction(() => {

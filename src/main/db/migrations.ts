@@ -195,6 +195,62 @@ export const migrations = [
       CREATE INDEX IF NOT EXISTS idx_pr_task ON pull_requests(task_id, updated_at);
     `,
   },
+  {
+    version: 6,
+    sql: `
+      CREATE TABLE IF NOT EXISTS merge_conflicts (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL,
+        pr_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        base_branch TEXT NOT NULL,
+        head_branch TEXT NOT NULL,
+        conflict_files_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS releases (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        status TEXT NOT NULL,
+        target_date TEXT,
+        notes_md TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS release_items (
+        id TEXT PRIMARY KEY,
+        release_id TEXT NOT NULL,
+        task_id TEXT NOT NULL,
+        pr_id TEXT NOT NULL DEFAULT '',
+        state TEXT NOT NULL DEFAULT 'planned',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_conflicts_task ON merge_conflicts(task_id, updated_at);
+      CREATE INDEX IF NOT EXISTS idx_releases_project ON releases(project_id, updated_at);
+      CREATE INDEX IF NOT EXISTS idx_release_items_release ON release_items(release_id, state);
+    `,
+  },
+  {
+    version: 7,
+    sql: `
+      CREATE TABLE IF NOT EXISTS auto_merge_settings (
+        project_id TEXT PRIMARY KEY,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        method TEXT NOT NULL DEFAULT 'merge',
+        require_ci_success INTEGER NOT NULL DEFAULT 1,
+        required_approvals INTEGER NOT NULL DEFAULT 1,
+        require_no_conflicts INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `,
+  },
 ]
 
 export type Migration = (typeof migrations)[number]

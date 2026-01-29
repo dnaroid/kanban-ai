@@ -328,7 +328,8 @@ export const PrMergeInputSchema = z.object({
 export type PrMergeInput = z.infer<typeof PrMergeInputSchema>
 
 export const PrMergeResponseSchema = z.object({
-  ok: z.literal(true),
+  ok: z.boolean(),
+  conflictId: z.string().uuid().nullable().optional(),
 })
 
 export type PrMergeResponse = z.infer<typeof PrMergeResponseSchema>
@@ -515,3 +516,216 @@ export const ArtifactGetResponseSchema = z.object({
 })
 
 export type ArtifactGetResponse = z.infer<typeof ArtifactGetResponseSchema>
+
+export const MergeConflictFileSchema = z.object({
+  path: z.string(),
+  base: z.string(),
+  ours: z.string(),
+  theirs: z.string(),
+  markers: z.string(),
+})
+
+export const MergeConflictPackageSchema = z.object({
+  task: z.object({
+    id: z.string().uuid(),
+    title: z.string(),
+  }),
+  pr: z.object({
+    id: z.string(),
+    base: z.string(),
+    head: z.string(),
+  }),
+  files: z.array(MergeConflictFileSchema),
+  rules: z.object({
+    style: z.string(),
+    denylist: z.array(z.string()),
+  }),
+})
+
+export type MergeConflictPackage = z.infer<typeof MergeConflictPackageSchema>
+
+export const MergeDetectInputSchema = z.object({
+  taskId: z.string().uuid(),
+})
+
+export type MergeDetectInput = z.infer<typeof MergeDetectInputSchema>
+
+export const MergeDetectResponseSchema = z.object({
+  conflictId: z.string().uuid().nullable(),
+  conflictPackage: MergeConflictPackageSchema.nullable(),
+})
+
+export type MergeDetectResponse = z.infer<typeof MergeDetectResponseSchema>
+
+export const MergeSuggestInputSchema = z.object({
+  conflictId: z.string().uuid(),
+})
+
+export type MergeSuggestInput = z.infer<typeof MergeSuggestInputSchema>
+
+export const MergeSuggestResponseSchema = z.object({
+  runId: z.string().uuid(),
+})
+
+export type MergeSuggestResponse = z.infer<typeof MergeSuggestResponseSchema>
+
+export const MergeApplyInputSchema = z.object({
+  conflictId: z.string().uuid(),
+  patchArtifactId: z.string().uuid(),
+})
+
+export type MergeApplyInput = z.infer<typeof MergeApplyInputSchema>
+
+export const MergeApplyResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type MergeApplyResponse = z.infer<typeof MergeApplyResponseSchema>
+
+export const MergeAbortInputSchema = z.object({
+  conflictId: z.string().uuid(),
+})
+
+export type MergeAbortInput = z.infer<typeof MergeAbortInputSchema>
+
+export const MergeAbortResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type MergeAbortResponse = z.infer<typeof MergeAbortResponseSchema>
+
+export const AutoMergeSettingsSchema = z.object({
+  projectId: z.string().uuid(),
+  enabled: z.boolean(),
+  method: z.enum(['merge', 'squash', 'rebase']),
+  requireCiSuccess: z.boolean(),
+  requiredApprovals: z.number().int().nonnegative(),
+  requireNoConflicts: z.boolean(),
+})
+
+export type AutoMergeSettings = z.infer<typeof AutoMergeSettingsSchema>
+
+export const AutoMergeSetInputSchema = AutoMergeSettingsSchema
+
+export type AutoMergeSetInput = z.infer<typeof AutoMergeSetInputSchema>
+
+export const AutoMergeSetResponseSchema = z.object({
+  settings: AutoMergeSettingsSchema,
+})
+
+export type AutoMergeSetResponse = z.infer<typeof AutoMergeSetResponseSchema>
+
+export const AutoMergeRunOnceInputSchema = z.object({
+  projectId: z.string().uuid(),
+})
+
+export type AutoMergeRunOnceInput = z.infer<typeof AutoMergeRunOnceInputSchema>
+
+export const AutoMergeRunOnceResponseSchema = z.object({
+  mergedCount: z.number().int().nonnegative(),
+  conflictsCount: z.number().int().nonnegative(),
+})
+
+export type AutoMergeRunOnceResponse = z.infer<typeof AutoMergeRunOnceResponseSchema>
+
+export const ReleaseSchema = z.object({
+  id: z.string().uuid(),
+  projectId: z.string().uuid(),
+  name: z.string(),
+  status: z.enum(['draft', 'in_progress', 'published', 'canceled']),
+  targetDate: z.string().nullable(),
+  notesMd: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export type Release = z.infer<typeof ReleaseSchema>
+
+export const ReleaseItemSchema = z.object({
+  id: z.string().uuid(),
+  releaseId: z.string().uuid(),
+  taskId: z.string().uuid(),
+  prId: z.string(),
+  state: z.enum(['planned', 'merged', 'dropped']),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export type ReleaseItem = z.infer<typeof ReleaseItemSchema>
+
+export const ReleaseCreateInputSchema = z.object({
+  projectId: z.string().uuid(),
+  name: z.string().min(1),
+  targetDate: z.string().nullable().optional(),
+})
+
+export type ReleaseCreateInput = z.infer<typeof ReleaseCreateInputSchema>
+
+export const ReleaseCreateResponseSchema = z.object({
+  releaseId: z.string().uuid(),
+})
+
+export type ReleaseCreateResponse = z.infer<typeof ReleaseCreateResponseSchema>
+
+export const ReleaseAddItemsInputSchema = z.object({
+  releaseId: z.string().uuid(),
+  taskIds: z.array(z.string().uuid()).min(1),
+})
+
+export type ReleaseAddItemsInput = z.infer<typeof ReleaseAddItemsInputSchema>
+
+export const ReleaseAddItemsResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type ReleaseAddItemsResponse = z.infer<typeof ReleaseAddItemsResponseSchema>
+
+export const ReleaseGenerateNotesInputSchema = z.object({
+  releaseId: z.string().uuid(),
+})
+
+export type ReleaseGenerateNotesInput = z.infer<typeof ReleaseGenerateNotesInputSchema>
+
+export const ReleaseGenerateNotesResponseSchema = z.object({
+  runId: z.string().uuid(),
+})
+
+export type ReleaseGenerateNotesResponse = z.infer<typeof ReleaseGenerateNotesResponseSchema>
+
+export const ReleasePublishInputSchema = z.object({
+  releaseId: z.string().uuid(),
+  notesMd: z.string(),
+})
+
+export type ReleasePublishInput = z.infer<typeof ReleasePublishInputSchema>
+
+export const ReleasePublishResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type ReleasePublishResponse = z.infer<typeof ReleasePublishResponseSchema>
+
+export const ReleaseListInputSchema = z.object({
+  projectId: z.string().uuid(),
+})
+
+export type ReleaseListInput = z.infer<typeof ReleaseListInputSchema>
+
+export const ReleaseListResponseSchema = z.object({
+  releases: z.array(ReleaseSchema),
+})
+
+export type ReleaseListResponse = z.infer<typeof ReleaseListResponseSchema>
+
+export const ReleaseGetInputSchema = z.object({
+  releaseId: z.string().uuid(),
+})
+
+export type ReleaseGetInput = z.infer<typeof ReleaseGetInputSchema>
+
+export const ReleaseGetResponseSchema = z.object({
+  release: ReleaseSchema,
+  items: z.array(ReleaseItemSchema),
+})
+
+export type ReleaseGetResponse = z.infer<typeof ReleaseGetResponseSchema>

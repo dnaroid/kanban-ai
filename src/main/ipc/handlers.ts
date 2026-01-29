@@ -58,6 +58,28 @@ import {
   ArtifactListResponseSchema,
   ArtifactGetInputSchema,
   ArtifactGetResponseSchema,
+  MergeDetectInputSchema,
+  MergeDetectResponseSchema,
+  MergeSuggestInputSchema,
+  MergeSuggestResponseSchema,
+  MergeApplyInputSchema,
+  MergeApplyResponseSchema,
+  AutoMergeSetInputSchema,
+  AutoMergeSetResponseSchema,
+  AutoMergeRunOnceInputSchema,
+  AutoMergeRunOnceResponseSchema,
+  ReleaseCreateInputSchema,
+  ReleaseCreateResponseSchema,
+  ReleaseAddItemsInputSchema,
+  ReleaseAddItemsResponseSchema,
+  ReleaseGenerateNotesInputSchema,
+  ReleaseGenerateNotesResponseSchema,
+  ReleasePublishInputSchema,
+  ReleasePublishResponseSchema,
+  ReleaseListInputSchema,
+  ReleaseListResponseSchema,
+  ReleaseGetInputSchema,
+  ReleaseGetResponseSchema,
 } from '../../shared/types/ipc'
 import { projectRepo } from '../db/project-repository'
 import { boardRepo } from '../db/board-repository'
@@ -67,11 +89,26 @@ import { vcsProjectRepo } from '../db/vcs-project-repository'
 import { runRepo } from '../db/run-repository'
 import { runEventRepo } from '../db/run-event-repository'
 import { artifactRepo } from '../db/artifact-repository'
+import { autoMergeSettingsRepo } from '../db/auto-merge-settings-repository'
 import { runService } from '../run/run-service'
 import { buildContextSnapshot } from '../run/context-snapshot-builder'
 import { createGitAdapter } from '../git/git-adapter'
 import { ensureTaskBranchName } from '../git/task-branch-service'
 import { createPullRequest, mergePullRequest, refreshPullRequest } from '../pr/pr-service'
+import { runAutoMergeOnce } from '../pr/auto-merge'
+import {
+  addReleaseItems,
+  createRelease,
+  generateReleaseNotes,
+  getRelease,
+  listReleases,
+  publishRelease,
+} from '../release/release-service'
+import {
+  applyMergeResolution,
+  detectMergeConflict,
+  suggestMergeResolution,
+} from '../merge/merge-service'
 import { getSecretStore } from '../secrets/secret-store'
 
 const gitAdapter = createGitAdapter()
@@ -260,6 +297,28 @@ ipcHandlers.register('pr:merge', PrMergeInputSchema, async (_, { taskId, method 
   return PrMergeResponseSchema.parse(result)
 })
 
+ipcHandlers.register('merge:detect', MergeDetectInputSchema, async (_, { taskId }) => {
+  const result = await detectMergeConflict(taskId)
+  return MergeDetectResponseSchema.parse({
+    conflictId: result.conflictId,
+    conflictPackage: result.conflictPackage,
+  })
+})
+
+ipcHandlers.register('merge:suggest', MergeSuggestInputSchema, async (_, { conflictId }) => {
+  const result = await suggestMergeResolution(conflictId)
+  return MergeSuggestResponseSchema.parse(result)
+})
+
+ipcHandlers.register(
+  'merge:apply',
+  MergeApplyInputSchema,
+  async (_, { conflictId, patchArtifactId }) => {
+    const result = await applyMergeResolution({ conflictId, patchArtifactId })
+    return MergeApplyResponseSchema.parse(result)
+  }
+)
+
 ipcHandlers.register(
   'vcs:connectRepo',
   VcsConnectRepoInputSchema,
@@ -343,6 +402,52 @@ ipcHandlers.register('artifact:get', ArtifactGetInputSchema, async (_, { artifac
     throw new Error('Artifact not found')
   }
   return ArtifactGetResponseSchema.parse({ artifact })
+})
+
+ipcHandlers.register('autoMerge:set', AutoMergeSetInputSchema, async (_, input) => {
+  const settings = autoMergeSettingsRepo.upsert(input.projectId, {
+    enabled: input.enabled,
+    method: input.method,
+    requireCiSuccess: input.requireCiSuccess,
+    requiredApprovals: input.requiredApprovals,
+    requireNoConflicts: input.requireNoConflicts,
+  })
+  return AutoMergeSetResponseSchema.parse({ settings })
+})
+
+ipcHandlers.register('autoMerge:runOnce', AutoMergeRunOnceInputSchema, async (_, { projectId }) => {
+  const result = await runAutoMergeOnce(projectId)
+  return AutoMergeRunOnceResponseSchema.parse(result)
+})
+
+ipcHandlers.register('release:create', ReleaseCreateInputSchema, async (_, input) => {
+  const result = await createRelease(input)
+  return ReleaseCreateResponseSchema.parse(result)
+})
+
+ipcHandlers.register('release:addItems', ReleaseAddItemsInputSchema, async (_, input) => {
+  const result = await addReleaseItems(input)
+  return ReleaseAddItemsResponseSchema.parse(result)
+})
+
+ipcHandlers.register('release:generateNotes', ReleaseGenerateNotesInputSchema, async (_, input) => {
+  const result = await generateReleaseNotes(input.releaseId)
+  return ReleaseGenerateNotesResponseSchema.parse(result)
+})
+
+ipcHandlers.register('release:publish', ReleasePublishInputSchema, async (_, input) => {
+  const result = await publishRelease(input)
+  return ReleasePublishResponseSchema.parse(result)
+})
+
+ipcHandlers.register('release:list', ReleaseListInputSchema, async (_, input) => {
+  const result = await listReleases(input.projectId)
+  return ReleaseListResponseSchema.parse(result)
+})
+
+ipcHandlers.register('release:get', ReleaseGetInputSchema, async (_, input) => {
+  const result = await getRelease(input.releaseId)
+  return ReleaseGetResponseSchema.parse(result)
 })
 
 registerDiagnosticsHandlers()

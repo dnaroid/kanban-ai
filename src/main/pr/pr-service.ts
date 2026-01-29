@@ -7,7 +7,13 @@ import { createGitAdapter } from '../git/git-adapter.js'
 import { ensureTaskBranchName } from '../git/task-branch-service.js'
 import { createGitHubPRProvider } from './github-pr-provider.js'
 import type { PRProvider } from './pr-provider.js'
-import { DEFAULT_REQUIRED_APPROVALS, evaluateMergeGates } from './merge-gates.js'
+import {
+  DEFAULT_REQUIRED_APPROVALS,
+  evaluateMergeGates,
+  evaluateMergeGatesWithSettings,
+  type MergeGateSettings,
+} from './merge-gates.js'
+import { detectMergeConflict } from '../merge/merge-service.js'
 
 const gitAdapter = createGitAdapter()
 
@@ -136,7 +142,8 @@ export const refreshPullRequest = async (taskId: string) => {
 export const mergePullRequest = async (input: {
   taskId: string
   method: 'merge' | 'squash' | 'rebase'
-}): Promise<{ ok: true }> => {
+  gateOverrides?: MergeGateSettings
+}): Promise<{ ok: boolean; conflictId?: string | null }> => {
   const task = taskRepo.getById(input.taskId)
   if (!task) {
     throw new Error('Task not found')
@@ -150,18 +157,28 @@ export const mergePullRequest = async (input: {
   const vcsProject = getVcsProject(task.projectId)
   const provider = getProvider(vcsProject.providerType)
 
-  await provider.mergePR({
-    repoId: vcsProject.providerRepoId,
-    providerPrId: link.prId,
-    method: input.method,
-  })
+  try {
+    await provider.mergePR({
+      repoId: vcsProject.providerRepoId,
+      providerPrId: link.prId,
+      method: input.method,
+    })
+  } catch (err) {
+    const conflict = await detectMergeConflict(input.taskId)
+    if (conflict.conflictId) {
+      return { ok: false, conflictId: conflict.conflictId }
+    }
+    throw err
+  }
 
   const existing = pullRequestRepo.getByTaskId(input.taskId)
   if (!existing) {
     throw new Error('Pull request not found')
   }
 
-  const gateCheck = evaluateMergeGates(existing)
+  const gateCheck = input.gateOverrides
+    ? evaluateMergeGatesWithSettings(existing, input.gateOverrides)
+    : evaluateMergeGates(existing)
   if (!gateCheck.ok) {
     throw new Error(`Merge gates not satisfied: ${gateCheck.reasons.join(', ')}`)
   }

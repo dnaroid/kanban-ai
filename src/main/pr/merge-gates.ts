@@ -24,6 +24,13 @@ export const getMergeGateSettings = (record: PullRequestRecord): MergeGateSettin
 
 export const evaluateMergeGates = (record: PullRequestRecord): MergeGateResult => {
   const settings = getMergeGateSettings(record)
+  return evaluateMergeGatesWithSettings(record, settings)
+}
+
+export const evaluateMergeGatesWithSettings = (
+  record: PullRequestRecord,
+  settings: MergeGateSettings
+): MergeGateResult => {
   const reasons: string[] = []
 
   if (!settings.allowMergeWhenDraft && record.state === 'draft') {

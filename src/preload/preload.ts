@@ -62,6 +62,24 @@ const api: MainToRenderer = {
     list: (input) => ipcRenderer.invoke('artifact:list', input),
     get: (input) => ipcRenderer.invoke('artifact:get', input),
   },
+  merge: {
+    detect: (input) => ipcRenderer.invoke('merge:detect', input),
+    suggest: (input) => ipcRenderer.invoke('merge:suggest', input),
+    apply: (input) => ipcRenderer.invoke('merge:apply', input),
+    abort: (input) => ipcRenderer.invoke('merge:abort', input),
+  },
+  autoMerge: {
+    set: (input) => ipcRenderer.invoke('autoMerge:set', input),
+    runOnce: (input) => ipcRenderer.invoke('autoMerge:runOnce', input),
+  },
+  release: {
+    create: (input) => ipcRenderer.invoke('release:create', input),
+    addItems: (input) => ipcRenderer.invoke('release:addItems', input),
+    generateNotes: (input) => ipcRenderer.invoke('release:generateNotes', input),
+    publish: (input) => ipcRenderer.invoke('release:publish', input),
+    list: (input) => ipcRenderer.invoke('release:list', input),
+    get: (input) => ipcRenderer.invoke('release:get', input),
+  },
 }
 
 contextBridge.exposeInMainWorld('api', api)

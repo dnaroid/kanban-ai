@@ -55,6 +55,30 @@ import type {
   ArtifactListResponse,
   ArtifactGetInput,
   ArtifactGetResponse,
+  MergeDetectInput,
+  MergeDetectResponse,
+  MergeSuggestInput,
+  MergeSuggestResponse,
+  MergeApplyInput,
+  MergeApplyResponse,
+  MergeAbortInput,
+  MergeAbortResponse,
+  AutoMergeSetInput,
+  AutoMergeSetResponse,
+  AutoMergeRunOnceInput,
+  AutoMergeRunOnceResponse,
+  ReleaseCreateInput,
+  ReleaseCreateResponse,
+  ReleaseAddItemsInput,
+  ReleaseAddItemsResponse,
+  ReleaseGenerateNotesInput,
+  ReleaseGenerateNotesResponse,
+  ReleasePublishInput,
+  ReleasePublishResponse,
+  ReleaseListInput,
+  ReleaseListResponse,
+  ReleaseGetInput,
+  ReleaseGetResponse,
 } from '../shared/types/ipc'
 
 export interface MainToRenderer {
@@ -118,6 +142,24 @@ export interface MainToRenderer {
     list(input: ArtifactListInput): Promise<ArtifactListResponse>
     get(input: ArtifactGetInput): Promise<ArtifactGetResponse>
   }
+  merge: {
+    detect(input: MergeDetectInput): Promise<MergeDetectResponse>
+    suggest(input: MergeSuggestInput): Promise<MergeSuggestResponse>
+    apply(input: MergeApplyInput): Promise<MergeApplyResponse>
+    abort(input: MergeAbortInput): Promise<MergeAbortResponse>
+  }
+  autoMerge: {
+    set(input: AutoMergeSetInput): Promise<AutoMergeSetResponse>
+    runOnce(input: AutoMergeRunOnceInput): Promise<AutoMergeRunOnceResponse>
+  }
+  release: {
+    create(input: ReleaseCreateInput): Promise<ReleaseCreateResponse>
+    addItems(input: ReleaseAddItemsInput): Promise<ReleaseAddItemsResponse>
+    generateNotes(input: ReleaseGenerateNotesInput): Promise<ReleaseGenerateNotesResponse>
+    publish(input: ReleasePublishInput): Promise<ReleasePublishResponse>
+    list(input: ReleaseListInput): Promise<ReleaseListResponse>
+    get(input: ReleaseGetInput): Promise<ReleaseGetResponse>
+  }
 }
 
 export interface RendererToMain {
@@ -180,5 +222,23 @@ export interface RendererToMain {
   artifact: {
     list(input: ArtifactListInput): Promise<ArtifactListResponse>
     get(input: ArtifactGetInput): Promise<ArtifactGetResponse>
+  }
+  merge: {
+    detect(input: MergeDetectInput): Promise<MergeDetectResponse>
+    suggest(input: MergeSuggestInput): Promise<MergeSuggestResponse>
+    apply(input: MergeApplyInput): Promise<MergeApplyResponse>
+    abort(input: MergeAbortInput): Promise<MergeAbortResponse>
+  }
+  autoMerge: {
+    set(input: AutoMergeSetInput): Promise<AutoMergeSetResponse>
+    runOnce(input: AutoMergeRunOnceInput): Promise<AutoMergeRunOnceResponse>
+  }
+  release: {
+    create(input: ReleaseCreateInput): Promise<ReleaseCreateResponse>
+    addItems(input: ReleaseAddItemsInput): Promise<ReleaseAddItemsResponse>
+    generateNotes(input: ReleaseGenerateNotesInput): Promise<ReleaseGenerateNotesResponse>
+    publish(input: ReleasePublishInput): Promise<ReleasePublishResponse>
+    list(input: ReleaseListInput): Promise<ReleaseListResponse>
+    get(input: ReleaseGetInput): Promise<ReleaseGetResponse>
   }
 }

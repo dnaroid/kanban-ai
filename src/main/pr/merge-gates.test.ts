@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { evaluateMergeGates } from './merge-gates'
+import { evaluateMergeGates, evaluateMergeGatesWithSettings } from './merge-gates'
 import type { PullRequestRecord } from '../db/pull-request-repository'
 
 const buildRecord = (overrides: Partial<PullRequestRecord> = {}): PullRequestRecord => ({
@@ -41,6 +41,15 @@ describe('merge-gates', () => {
 
   it('allows merge when all gates pass', () => {
     const result = evaluateMergeGates(buildRecord())
+    expect(result.ok).toBe(true)
+  })
+
+  it('allows merge when CI requirement is disabled', () => {
+    const result = evaluateMergeGatesWithSettings(buildRecord({ ciStatus: 'failed' }), {
+      requireCiSuccess: false,
+      requiredApprovals: 0,
+      allowMergeWhenDraft: false,
+    })
     expect(result.ok).toBe(true)
   })
 })

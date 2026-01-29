@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Database,
   FolderKanban,
+  Layers,
   Github,
   Layout,
   Settings,
@@ -12,19 +13,23 @@ import {
 import { ProjectsScreen } from './screens/ProjectsScreen'
 import { DiagnosticsScreen } from './screens/DiagnosticsScreen'
 import { BoardScreen } from './screens/BoardScreen'
+import { ReleasesScreen } from './screens/ReleasesScreen'
 import { cn } from './lib/utils'
 
 type Screen =
   | { id: 'projects' }
   | { id: 'diagnostics' }
   | { id: 'board'; projectId: string; projectName: string }
+  | { id: 'releases'; projectId: string; projectName: string }
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ id: 'projects' })
+  const [activeProject, setActiveProject] = useState<{ id: string; name: string } | null>(null)
 
   const navItems = [
     { id: 'projects' as const, label: 'Projects', icon: FolderKanban },
     { id: 'diagnostics' as const, label: 'Diagnostics', icon: Activity },
+    { id: 'releases' as const, label: 'Releases', icon: Layers },
   ]
   return (
     <div className="min-h-screen bg-[#0B0E14] text-slate-200 font-sans selection:bg-blue-500/30">
@@ -46,15 +51,29 @@ export default function App() {
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = screen.id === item.id
+            const isDisabled = item.id === 'releases' && !activeProject
             return (
               <button
                 key={item.id}
-                onClick={() => setScreen({ id: item.id })}
+                onClick={() => {
+                  if (item.id === 'releases') {
+                    if (!activeProject) return
+                    setScreen({
+                      id: 'releases',
+                      projectId: activeProject.id,
+                      projectName: activeProject.name,
+                    })
+                    return
+                  }
+                  setScreen({ id: item.id })
+                }}
+                disabled={isDisabled}
                 className={cn(
                   'w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group',
                   isActive
                     ? 'bg-blue-600/10 text-blue-400 ring-1 ring-inset ring-blue-500/20'
-                    : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+                    : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200',
+                  isDisabled && 'opacity-50 cursor-not-allowed hover:bg-transparent'
                 )}
               >
                 <Icon
@@ -115,6 +134,14 @@ export default function App() {
                 <span className="text-slate-300 font-medium">Diagnostics</span>
               </>
             )}
+            {screen.id === 'releases' && (
+              <>
+                <ChevronRight className="w-4 h-4 text-slate-700" />
+                <span className="text-slate-300 font-medium">{screen.projectName}</span>
+                <ChevronRight className="w-4 h-4 text-slate-700" />
+                <span className="text-slate-300 font-medium">Releases</span>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-4">
             <div className="px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center gap-2">
@@ -129,13 +156,17 @@ export default function App() {
         <div className="flex-1 p-8 overflow-hidden flex flex-col">
           {screen.id === 'projects' && (
             <ProjectsScreen
-              onProjectSelect={(id, name) =>
+              onProjectSelect={(id, name) => {
+                setActiveProject({ id, name })
                 setScreen({ id: 'board', projectId: id, projectName: name })
-              }
+              }}
             />
           )}
           {screen.id === 'diagnostics' && <DiagnosticsScreen />}
           {screen.id === 'board' && <BoardScreen projectId={screen.projectId} />}
+          {screen.id === 'releases' && (
+            <ReleasesScreen projectId={screen.projectId} projectName={screen.projectName} />
+          )}
         </div>
       </main>
     </div>

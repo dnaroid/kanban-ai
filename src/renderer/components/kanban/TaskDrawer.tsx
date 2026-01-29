@@ -39,6 +39,7 @@ import type {
   Artifact,
   GitStatus,
   PrRefreshResponse,
+  MergeConflictPackage,
 } from '../../../shared/types/ipc'
 import { cn } from '../../lib/utils'
 
@@ -580,7 +581,13 @@ function RunDetailsView({
               statusTone
             )}
           >
-            <div className={cn('w-1 h-1 rounded-full', statusDot, run?.status === 'running' && 'animate-pulse')} />
+            <div
+              className={cn(
+                'w-1 h-1 rounded-full',
+                statusDot,
+                run?.status === 'running' && 'animate-pulse'
+              )}
+            />
             {run?.status ?? 'running'}
           </div>
         </div>
@@ -703,6 +710,15 @@ function VcsPanel({ task }: { task: KanbanTask }) {
   const [prError, setPrError] = useState<string | null>(null)
   const [isPrLoading, setIsPrLoading] = useState(false)
   const [isPrProcessing, setIsPrProcessing] = useState(false)
+  const [conflictId, setConflictId] = useState<string | null>(null)
+  const [conflictPackage, setConflictPackage] = useState<MergeConflictPackage | null>(null)
+  const [isConflictOpen, setIsConflictOpen] = useState(false)
+  const [isConflictLoading, setIsConflictLoading] = useState(false)
+  const [suggestRunId, setSuggestRunId] = useState<string | null>(null)
+  const [suggestArtifacts, setSuggestArtifacts] = useState<Artifact[]>([])
+  const [isSuggestLoading, setIsSuggestLoading] = useState(false)
+  const [conflictError, setConflictError] = useState<string | null>(null)
+  const [suggestError, setSuggestError] = useState<string | null>(null)
 
   const fetchGitInfo = useCallback(async () => {
     setIsLoading(true)
@@ -882,7 +898,16 @@ function VcsPanel({ task }: { task: KanbanTask }) {
     setIsPrProcessing(true)
     setPrError(null)
     try {
-      await window.api.pr.merge({ taskId: task.id, method: 'merge' })
+      const result = await window.api.pr.merge({ taskId: task.id, method: 'merge' })
+      if (!result.ok && result.conflictId) {
+        const conflict = await window.api.merge.detect({ taskId: task.id })
+        if (conflict.conflictId) {
+          setConflictId(conflict.conflictId)
+          setConflictPackage(conflict.conflictPackage)
+          setIsConflictOpen(true)
+        }
+        return
+      }
       await fetchPrInfo(false)
     } catch (err) {
       console.error('Failed to merge PR:', err)
@@ -891,6 +916,85 @@ function VcsPanel({ task }: { task: KanbanTask }) {
       setIsPrProcessing(false)
     }
   }
+
+  const handleDetectConflict = async () => {
+    if (isConflictLoading) return
+    setIsConflictLoading(true)
+    setConflictError(null)
+    setSuggestError(null)
+    try {
+      const result = await window.api.merge.detect({ taskId: task.id })
+      setConflictId(result.conflictId)
+      setConflictPackage(result.conflictPackage)
+      setSuggestRunId(null)
+      setSuggestArtifacts([])
+      if (result.conflictId) {
+        setIsConflictOpen(true)
+      } else {
+        setConflictError('No conflicts detected')
+      }
+    } catch (err) {
+      console.error('Failed to detect merge conflict:', err)
+      setConflictError('Failed to detect merge conflict')
+    } finally {
+      setIsConflictLoading(false)
+    }
+  }
+
+  const handleSuggestResolution = async () => {
+    if (!conflictId || isSuggestLoading) return
+    setIsSuggestLoading(true)
+    setSuggestError(null)
+    try {
+      const result = await window.api.merge.suggest({ conflictId })
+      setSuggestRunId(result.runId)
+      const response = await window.api.artifact.list({ runId: result.runId })
+      setSuggestArtifacts(response.artifacts)
+    } catch (err) {
+      console.error('Failed to generate suggestion:', err)
+      setSuggestError('Failed to generate suggestion')
+    } finally {
+      setIsSuggestLoading(false)
+    }
+  }
+
+  const handleRefreshArtifacts = async () => {
+    if (!suggestRunId || isSuggestLoading) return
+    setIsSuggestLoading(true)
+    try {
+      const response = await window.api.artifact.list({ runId: suggestRunId })
+      setSuggestArtifacts(response.artifacts)
+    } catch (err) {
+      console.error('Failed to refresh artifacts:', err)
+      setSuggestError('Failed to refresh artifacts')
+    } finally {
+      setIsSuggestLoading(false)
+    }
+  }
+
+  const handleApplyResolution = async () => {
+    if (!conflictId || !patchArtifact || isSuggestLoading) return
+    setIsSuggestLoading(true)
+    setSuggestError(null)
+    try {
+      await window.api.merge.apply({ conflictId, patchArtifactId: patchArtifact.id })
+      setIsConflictOpen(false)
+      await fetchPrInfo(false)
+    } catch (err) {
+      console.error('Failed to apply resolution:', err)
+      setSuggestError('Failed to apply resolution')
+    } finally {
+      setIsSuggestLoading(false)
+    }
+  }
+
+  const handleCloseConflict = () => {
+    setIsConflictOpen(false)
+  }
+
+  const patchArtifact = suggestArtifacts.find((artifact) => artifact.kind === 'patch')
+  const explanationArtifact = suggestArtifacts.find((artifact) => artifact.kind === 'markdown')
+  const conflictFiles = conflictPackage?.files ?? []
 
   if (isLoading && !status) {
     return (
@@ -1085,6 +1189,39 @@ function VcsPanel({ task }: { task: KanbanTask }) {
                       Merge
                     </button>
                   </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleDetectConflict}
+                      disabled={isConflictLoading}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-indigo-600/80 hover:bg-indigo-500/80 disabled:bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
+                    >
+                      <FileCode
+                        className={cn('w-3.5 h-3.5', isConflictLoading && 'animate-spin')}
+                      />
+                      Resolve Conflicts
+                    </button>
+                    {conflictId && (
+                      <button
+                        onClick={() => setIsConflictOpen(true)}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        Open Resolver
+                      </button>
+                    )}
+                  </div>
+                  {conflictError && (
+                    <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl flex items-center gap-2 text-amber-400 text-xs">
+                      <AlertTriangle className="w-4 h-4" />
+                      {conflictError}
+                    </div>
+                  )}
+                  {suggestError && (
+                    <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-xl flex items-center gap-2 text-red-400 text-xs">
+                      <AlertTriangle className="w-4 h-4" />
+                      {suggestError}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1141,6 +1278,134 @@ function VcsPanel({ task }: { task: KanbanTask }) {
           <DiffView diff={diff} />
         </div>
       </div>
+
+      {isConflictOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/70" onClick={handleCloseConflict} />
+          <div className="relative z-10 w-full max-w-6xl mx-6 bg-[#0B0E14] border border-slate-800/60 rounded-3xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800/60 bg-slate-900/40">
+              <div className="flex items-center gap-3">
+                <FileCode className="w-4 h-4 text-indigo-400" />
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-slate-500">
+                    Merge Conflict Resolver
+                  </p>
+                  <p className="text-sm text-slate-200 font-semibold">
+                    {conflictFiles.length} files
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleCloseConflict}
+                className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-12 gap-0">
+              <div className="col-span-4 border-r border-slate-800/60 bg-slate-950/60 p-4 space-y-4">
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-2">
+                    Conflicting Files
+                  </p>
+                  <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                    {conflictFiles.map((file) => (
+                      <div
+                        key={file.path}
+                        className="text-xs text-slate-200 bg-slate-900/40 border border-slate-800/60 rounded-lg px-3 py-2"
+                      >
+                        {file.path}
+                      </div>
+                    ))}
+                    {conflictFiles.length === 0 && (
+                      <div className="text-xs text-slate-500">No conflicting files found</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <button
+                    onClick={handleSuggestResolution}
+                    disabled={isSuggestLoading || !conflictId}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-indigo-600/80 hover:bg-indigo-500/80 disabled:bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
+                  >
+                    <Sparkles className={cn('w-3.5 h-3.5', isSuggestLoading && 'animate-spin')} />
+                    Suggest
+                  </button>
+                  <button
+                    onClick={handleRefreshArtifacts}
+                    disabled={isSuggestLoading || !suggestRunId}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 text-slate-200 text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
+                  >
+                    <RefreshCw className={cn('w-3.5 h-3.5', isSuggestLoading && 'animate-spin')} />
+                    Refresh Artifacts
+                  </button>
+                  <button
+                    onClick={handleApplyResolution}
+                    disabled={isSuggestLoading || !patchArtifact}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    Apply
+                  </button>
+                  <button
+                    onClick={handleCloseConflict}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    Close
+                  </button>
+                </div>
+
+                {suggestRunId && (
+                  <div className="text-[10px] text-slate-500 font-mono">
+                    Run: {suggestRunId.slice(0, 8)}…
+                  </div>
+                )}
+              </div>
+
+              <div className="col-span-8 p-4 space-y-4 bg-[#0B0E14]/70">
+                <div className="border border-slate-800/60 rounded-xl overflow-hidden">
+                  <div className="px-4 py-2 border-b border-slate-800/60 bg-slate-900/40 flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-widest text-slate-500">
+                      Patch
+                    </span>
+                    {patchArtifact && (
+                      <button
+                        onClick={() => navigator.clipboard.writeText(patchArtifact.content)}
+                        className="text-[10px] uppercase tracking-widest text-blue-400 hover:text-blue-300"
+                      >
+                        Copy Patch
+                      </button>
+                    )}
+                  </div>
+                  <div className="p-4 max-h-72 overflow-auto">
+                    {patchArtifact ? (
+                      <ArtifactViewer artifact={patchArtifact} />
+                    ) : (
+                      <div className="text-xs text-slate-500">No patch artifact yet.</div>
+                    )}
+                  </div>
+                </div>
+
+                {explanationArtifact && (
+                  <div className="border border-slate-800/60 rounded-xl overflow-hidden">
+                    <div className="px-4 py-2 border-b border-slate-800/60 bg-slate-900/40">
+                      <span className="text-[10px] uppercase tracking-widest text-slate-500">
+                        Explanation
+                      </span>
+                    </div>
+                    <div className="p-4 max-h-48 overflow-auto">
+                      <ArtifactViewer artifact={explanationArtifact} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1165,6 +1430,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
     { id: 'ba', name: 'BA' },
     { id: 'dev', name: 'DEV' },
     { id: 'qa', name: 'QA' },
+    { id: 'merge-resolver', name: 'Merge Resolver' },
   ])
 
   const initialMessages: ChatMessage[] = [
