@@ -20,6 +20,33 @@ import {
   TaskUpdateResponseSchema,
   TaskMoveInputSchema,
   TaskMoveResponseSchema,
+  DepsListInputSchema,
+  DepsListResponseSchema,
+  DepsAddInputSchema,
+  DepsAddResponseSchema,
+  DepsRemoveInputSchema,
+  DepsRemoveResponseSchema,
+  ScheduleGetInputSchema,
+  ScheduleGetResponseSchema,
+  ScheduleUpdateInputSchema,
+  ScheduleUpdateResponseSchema,
+  SearchQueryInputSchema,
+  SearchQueryResponseSchema,
+  AnalyticsGetOverviewInputSchema,
+  AnalyticsGetOverviewResponseSchema,
+  AnalyticsGetRunStatsInputSchema,
+  AnalyticsGetRunStatsResponseSchema,
+  PluginsListResponseSchema,
+  PluginsInstallInputSchema,
+  PluginsInstallResponseSchema,
+  PluginsEnableInputSchema,
+  PluginsEnableResponseSchema,
+  PluginsReloadResponseSchema,
+  RolesListResponseSchema,
+  BackupExportInputSchema,
+  BackupExportResponseSchema,
+  BackupImportInputSchema,
+  BackupImportResponseSchema,
   GitStatusInputSchema,
   GitStatusResponseSchema,
   GitBranchCreateInputSchema,
@@ -84,6 +111,13 @@ import {
 import { projectRepo } from '../db/project-repository'
 import { boardRepo } from '../db/board-repository'
 import { taskRepo } from '../db/task-repository'
+import { dependencyService } from '../deps/dependency-service'
+import { taskScheduleRepo } from '../db/task-schedule-repository'
+import { searchService } from '../search/search-service'
+import { analyticsService } from '../analytics/analytics-service'
+import { pluginService } from '../plugins/plugin-service'
+import { agentRoleRepo } from '../db/agent-role-repository'
+import { backupService } from '../backup/backup-service'
 import { taskVcsLinkRepo } from '../db/task-vcs-link-repository'
 import { vcsProjectRepo } from '../db/vcs-project-repository'
 import { runRepo } from '../db/run-repository'
@@ -230,6 +264,109 @@ ipcHandlers.register(
     return TaskMoveResponseSchema.parse({ success: true })
   }
 )
+
+ipcHandlers.register('deps:list', DepsListInputSchema, async (_, { taskId }) => {
+  const links = dependencyService.list(taskId)
+  return DepsListResponseSchema.parse({ links })
+})
+
+ipcHandlers.register('deps:add', DepsAddInputSchema, async (_, input) => {
+  const link = dependencyService.add({
+    fromTaskId: input.fromTaskId,
+    toTaskId: input.toTaskId,
+    type: input.type,
+  })
+  return DepsAddResponseSchema.parse({ link })
+})
+
+ipcHandlers.register('deps:remove', DepsRemoveInputSchema, async (_, { linkId }) => {
+  dependencyService.remove(linkId)
+  return DepsRemoveResponseSchema.parse({ ok: true })
+})
+
+ipcHandlers.register('schedule:get', ScheduleGetInputSchema, async (_, { projectId }) => {
+  const tasks = taskScheduleRepo.listByProject(projectId)
+  return ScheduleGetResponseSchema.parse({ tasks })
+})
+
+ipcHandlers.register('schedule:update', ScheduleUpdateInputSchema, async (_, input) => {
+  const schedule = taskScheduleRepo.update(input)
+  return ScheduleUpdateResponseSchema.parse({ schedule })
+})
+
+ipcHandlers.register('search:query', SearchQueryInputSchema, async (_, input) => {
+  const filters = input.filters
+  const results: Array<unknown> = []
+
+  if (!filters?.entity || filters.entity === 'task') {
+    const tasks = searchService.queryTasks(input.q, filters)
+    results.push(...tasks.map((task) => ({ entity: 'task', task })))
+  }
+
+  if (!filters?.entity || filters.entity === 'run') {
+    const runs = searchService.queryRuns(input.q, filters)
+    results.push(...runs.map((run) => ({ entity: 'run', run })))
+  }
+
+  if (!filters?.entity || filters.entity === 'artifact') {
+    const artifacts = searchService.queryArtifacts(input.q, filters)
+    results.push(...artifacts.map((artifact) => ({ entity: 'artifact', artifact })))
+  }
+
+  return SearchQueryResponseSchema.parse({ results })
+})
+
+ipcHandlers.register('analytics:getOverview', AnalyticsGetOverviewInputSchema, async (_, input) => {
+  const overview = analyticsService.getOverview(input.projectId, input.range)
+  return AnalyticsGetOverviewResponseSchema.parse({ overview })
+})
+
+ipcHandlers.register('analytics:getRunStats', AnalyticsGetRunStatsInputSchema, async (_, input) => {
+  const stats = analyticsService.getRunStats(input.projectId, input.range)
+  return AnalyticsGetRunStatsResponseSchema.parse({ stats })
+})
+
+ipcHandlers.register('plugins:list', null, async () => {
+  const plugins = pluginService.list()
+  return PluginsListResponseSchema.parse({ plugins })
+})
+
+ipcHandlers.register('plugins:install', PluginsInstallInputSchema, async (_, input) => {
+  const plugin = pluginService.install(input.path)
+  return PluginsInstallResponseSchema.parse({ plugin })
+})
+
+ipcHandlers.register('plugins:enable', PluginsEnableInputSchema, async (_, input) => {
+  const plugin = pluginService.enable(input.pluginId, input.enabled)
+  return PluginsEnableResponseSchema.parse({ plugin })
+})
+
+ipcHandlers.register('plugins:reload', null, async () => {
+  const plugins = pluginService.reload()
+  return PluginsReloadResponseSchema.parse({ plugins })
+})
+
+ipcHandlers.register('roles:list', null, async () => {
+  const roles = agentRoleRepo.list()
+  return RolesListResponseSchema.parse({ roles })
+})
+
+ipcHandlers.register('backup:exportProject', BackupExportInputSchema, async (_, input) => {
+  const result = backupService.exportProject({
+    projectId: input.projectId,
+    toPath: input.toPath,
+  })
+  return BackupExportResponseSchema.parse(result)
+})
+
+ipcHandlers.register('backup:importProject', BackupImportInputSchema, async (_, input) => {
+  const result = backupService.importProject({
+    zipPath: input.zipPath,
+    mode: input.mode,
+    projectPath: input.projectPath,
+  })
+  return BackupImportResponseSchema.parse(result)
+})
 
 ipcHandlers.register('git:status', GitStatusInputSchema, async (_, { projectId }) => {
   const repoPath = getProjectRepoPath(projectId)

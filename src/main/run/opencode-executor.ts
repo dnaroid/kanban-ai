@@ -4,6 +4,7 @@ import { artifactRepo } from '../db/artifact-repository.js'
 import { projectRepo } from '../db/project-repository.js'
 import { runEventRepo } from '../db/run-event-repository.js'
 import { taskRepo } from '../db/task-repository.js'
+import { runRepo } from '../db/run-repository.js'
 import type { RunRecord, RunEventType } from '../db/run-types'
 import { createGitAdapter } from '../git/git-adapter.js'
 import { ensureTaskBranchName } from '../git/task-branch-service.js'
@@ -18,7 +19,47 @@ const ALLOWED_EVENT_TYPES: RunEventType[] = [
   'artifact',
   'status',
   'debug',
+  'usage',
 ]
+
+const toNumber = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null
+
+const extractUsage = (payload: unknown) => {
+  if (!payload || typeof payload !== 'object') return null
+  const root = payload as Record<string, unknown>
+  const usageRaw =
+    root.usage && typeof root.usage === 'object' ? (root.usage as Record<string, unknown>) : root
+
+  const inputTokens = toNumber(usageRaw.input_tokens) ?? toNumber(usageRaw.prompt_tokens) ?? null
+  const outputTokens =
+    toNumber(usageRaw.output_tokens) ?? toNumber(usageRaw.completion_tokens) ?? null
+  const costUsd = toNumber(usageRaw.cost_usd) ?? toNumber(usageRaw.cost) ?? toNumber(usageRaw.usd)
+
+  if (inputTokens === null && outputTokens === null && costUsd === null) return null
+
+  return {
+    inputTokens,
+    outputTokens,
+    costUsd,
+  }
+}
+
+const applyUsageUpdate = (runId: string, usage: ReturnType<typeof extractUsage>) => {
+  if (!usage) return
+  const current = runRepo.getById(runId)
+  if (!current) return
+
+  const nextTokensIn = (current.aiTokensIn ?? 0) + (usage.inputTokens ?? 0)
+  const nextTokensOut = (current.aiTokensOut ?? 0) + (usage.outputTokens ?? 0)
+  const nextCost = (current.aiCostUsd ?? 0) + (usage.costUsd ?? 0)
+
+  runRepo.update(runId, {
+    aiTokensIn: nextTokensIn,
+    aiTokensOut: nextTokensOut,
+    aiCostUsd: nextCost,
+  })
+}
 
 const gitAdapter = createGitAdapter()
 
@@ -123,6 +164,11 @@ export class OpenCodeExecutor implements RunExecutor {
         if (eventType === 'artifact') {
           handleArtifact(parsed.artifact ?? (parsed as ParsedEvent)['artifact'])
           return
+        }
+        const usage = extractUsage(parsed.payload ?? parsed)
+        if (usage) {
+          applyUsageUpdate(run.id, usage)
+          emitEvent('usage', usage)
         }
         if (eventType) {
           emitEvent(eventType, parsed.payload ?? parsed)

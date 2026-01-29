@@ -31,6 +31,7 @@ import {
   GitBranch,
   GitPullRequest,
   ExternalLink,
+  Link2,
 } from 'lucide-react'
 import type {
   KanbanTask,
@@ -40,6 +41,8 @@ import type {
   GitStatus,
   PrRefreshResponse,
   MergeConflictPackage,
+  TaskLink,
+  TaskLinkType,
 } from '../../../shared/types/ipc'
 import { cn } from '../../lib/utils'
 
@@ -305,10 +308,11 @@ function ExecutionLog({ runId }: { runId: string }) {
         const response = await window.api.events.tail({
           runId,
           afterTs: lastTsRef.current,
+          limit: 200,
         })
         if (!isActive) return
         if (response.events.length > 0) {
-          setEvents((prev) => [...prev, ...response.events])
+          setEvents((prev) => [...prev, ...response.events].slice(-500))
           lastTsRef.current = response.events[response.events.length - 1].ts
         }
       } catch (error) {
@@ -1425,13 +1429,19 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
   const [runs, setRuns] = useState<Run[]>([])
   const [isLoadingRuns, setIsLoadingRuns] = useState(false)
   const [isStartingRun, setIsStartingRun] = useState(false)
-  const [selectedRoleId, setSelectedRoleId] = useState('ba')
-  const [roles] = useState<{ id: string; name: string }[]>([
-    { id: 'ba', name: 'BA' },
-    { id: 'dev', name: 'DEV' },
-    { id: 'qa', name: 'QA' },
-    { id: 'merge-resolver', name: 'Merge Resolver' },
-  ])
+  const [boardTasks, setBoardTasks] = useState<KanbanTask[]>([])
+  const [dependencyLinks, setDependencyLinks] = useState<TaskLink[]>([])
+  const [dependencyError, setDependencyError] = useState<string | null>(null)
+  const [isLoadingDependencies, setIsLoadingDependencies] = useState(false)
+  const [isAddingDependency, setIsAddingDependency] = useState(false)
+  const [dependencyQuery, setDependencyQuery] = useState('')
+  const [dependencyTargetId, setDependencyTargetId] = useState<string | null>(null)
+  const [dependencyRelationship, setDependencyRelationship] = useState<
+    'blocks' | 'blocked-by' | 'relates' | 'duplicates'
+  >('blocks')
+  const [selectedRoleId, setSelectedRoleId] = useState('')
+  const [roles, setRoles] = useState<{ id: string; name: string; description?: string }[]>([])
+  const [isLoadingRoles, setIsLoadingRoles] = useState(false)
 
   const initialMessages: ChatMessage[] = [
     {
@@ -1469,13 +1479,60 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
     }
   }
 
+  const fetchRoles = useCallback(async () => {
+    setIsLoadingRoles(true)
+    try {
+      const response = await window.api.roles.list()
+      setRoles(response.roles)
+      const hasSelected = response.roles.some((role) => role.id === selectedRoleId)
+      if (!hasSelected && response.roles.length > 0) {
+        setSelectedRoleId(response.roles[0].id)
+      }
+    } catch (error) {
+      console.error('Failed to fetch roles:', error)
+    } finally {
+      setIsLoadingRoles(false)
+    }
+  }, [selectedRoleId])
+
+  const fetchBoardTasks = useCallback(async () => {
+    if (!task) return
+    try {
+      const response = await window.api.task.listByBoard({ boardId: task.boardId })
+      setBoardTasks(response.tasks.filter((candidate) => candidate.id !== task.id))
+    } catch (error) {
+      console.error('Failed to fetch board tasks:', error)
+    }
+  }, [task])
+
+  const fetchDependencies = useCallback(async () => {
+    if (!task) return
+    setIsLoadingDependencies(true)
+    setDependencyError(null)
+    try {
+      const response = await window.api.deps.list({ taskId: task.id })
+      setDependencyLinks(response.links)
+    } catch (error) {
+      console.error('Failed to fetch dependencies:', error)
+      setDependencyError('Failed to load dependencies')
+    } finally {
+      setIsLoadingDependencies(false)
+    }
+  }, [task])
+
   useEffect(() => {
     if (task) {
       setEditedTitle(task.title)
       setEditedDescription(task.descriptionMd || task.description || '')
       setSelectedRunId(null)
+      setDependencyQuery('')
+      setDependencyTargetId(null)
+      setIsAddingDependency(false)
+      fetchBoardTasks()
+      fetchDependencies()
+      fetchRoles()
     }
-  }, [task])
+  }, [task, fetchBoardTasks, fetchDependencies, fetchRoles])
 
   useEffect(() => {
     if (isEditingTitle && titleInputRef.current) {
@@ -1501,6 +1558,34 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
   }, [activeTab, task])
 
   if (!isOpen || !task) return null
+
+  const dependencyResults = dependencyQuery.trim()
+    ? boardTasks
+        .filter((candidate) => {
+          const haystack = `${candidate.title} ${candidate.tags.join(' ')}`.toLowerCase()
+          return haystack.includes(dependencyQuery.toLowerCase())
+        })
+        .slice(0, 6)
+    : []
+
+  const blockedByLinks = dependencyLinks.filter(
+    (link) => link.linkType === 'blocks' && link.toTaskId === task.id
+  )
+  const blocksLinks = dependencyLinks.filter(
+    (link) => link.linkType === 'blocks' && link.fromTaskId === task.id
+  )
+  const relatedLinks = dependencyLinks.filter(
+    (link) =>
+      link.linkType !== 'blocks' && (link.fromTaskId === task.id || link.toTaskId === task.id)
+  )
+
+  const getTaskLabel = (taskId: string) => {
+    const match = boardTasks.find((candidate) => candidate.id === taskId)
+    return match ? match.title : taskId.slice(0, 8)
+  }
+
+  const getOtherTaskId = (link: TaskLink) =>
+    link.fromTaskId === task.id ? link.toTaskId : link.fromTaskId
 
   const handleSaveTitle = () => {
     if (editedTitle.trim() !== task.title && editedTitle.trim() && onUpdate) {
@@ -1537,6 +1622,40 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
   const handleRemoveTag = (tagToRemove: string) => {
     if (onUpdate) {
       onUpdate(task.id, { tags: task.tags.filter((t) => t !== tagToRemove) })
+    }
+  }
+
+  const handleAddDependency = async () => {
+    if (!dependencyTargetId) return
+    setDependencyError(null)
+
+    const linkType: TaskLinkType =
+      dependencyRelationship === 'blocked-by' ? 'blocks' : dependencyRelationship
+    const fromTaskId = dependencyRelationship === 'blocked-by' ? dependencyTargetId : task.id
+    const toTaskId = dependencyRelationship === 'blocked-by' ? task.id : dependencyTargetId
+
+    try {
+      const response = await window.api.deps.add({ fromTaskId, toTaskId, type: linkType })
+      setDependencyLinks((prev) => {
+        if (prev.some((link) => link.id === response.link.id)) return prev
+        return [...prev, response.link]
+      })
+      setIsAddingDependency(false)
+      setDependencyQuery('')
+      setDependencyTargetId(null)
+    } catch (error) {
+      console.error('Failed to add dependency:', error)
+      setDependencyError('Failed to add dependency')
+    }
+  }
+
+  const handleRemoveDependency = async (linkId: string) => {
+    try {
+      await window.api.deps.remove({ linkId })
+      setDependencyLinks((prev) => prev.filter((link) => link.id !== linkId))
+    } catch (error) {
+      console.error('Failed to remove dependency:', error)
+      setDependencyError('Failed to remove dependency')
     }
   }
 
@@ -1963,6 +2082,192 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
                 </div>
               </div>
 
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                    <Link2 className="w-3 h-3" />
+                    Dependencies
+                  </h3>
+                  {!isAddingDependency && (
+                    <button
+                      onClick={() => setIsAddingDependency(true)}
+                      className="p-1 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-md transition-all"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {dependencyError && (
+                  <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                    {dependencyError}
+                  </div>
+                )}
+
+                {isLoadingDependencies && (
+                  <div className="text-xs text-slate-500">Loading dependencies...</div>
+                )}
+
+                <div className="space-y-2">
+                  <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
+                    Blocked by
+                  </div>
+                  {blockedByLinks.length === 0 ? (
+                    <div className="text-xs text-slate-500">No blockers</div>
+                  ) : (
+                    <div className="space-y-1">
+                      {blockedByLinks.map((link) => (
+                        <div
+                          key={link.id}
+                          className="group flex items-center justify-between gap-2 text-xs text-slate-200 bg-slate-800/40 px-3 py-2 rounded-lg border border-slate-700/40"
+                        >
+                          <span className="truncate">{getTaskLabel(link.fromTaskId)}</span>
+                          <button
+                            onClick={() => handleRemoveDependency(link.id)}
+                            className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-red-400 transition-all"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
+                    Blocks
+                  </div>
+                  {blocksLinks.length === 0 ? (
+                    <div className="text-xs text-slate-500">Not blocking any tasks</div>
+                  ) : (
+                    <div className="space-y-1">
+                      {blocksLinks.map((link) => (
+                        <div
+                          key={link.id}
+                          className="group flex items-center justify-between gap-2 text-xs text-slate-200 bg-slate-800/40 px-3 py-2 rounded-lg border border-slate-700/40"
+                        >
+                          <span className="truncate">{getTaskLabel(link.toTaskId)}</span>
+                          <button
+                            onClick={() => handleRemoveDependency(link.id)}
+                            className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-red-400 transition-all"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
+                    Related / Duplicates
+                  </div>
+                  {relatedLinks.length === 0 ? (
+                    <div className="text-xs text-slate-500">No related tasks</div>
+                  ) : (
+                    <div className="space-y-1">
+                      {relatedLinks.map((link) => {
+                        const otherTaskId = getOtherTaskId(link)
+                        return (
+                          <div
+                            key={link.id}
+                            className="group flex items-center justify-between gap-2 text-xs text-slate-200 bg-slate-800/40 px-3 py-2 rounded-lg border border-slate-700/40"
+                          >
+                            <span className="truncate">{getTaskLabel(otherTaskId)}</span>
+                            <span className="text-[10px] uppercase tracking-wide text-slate-500">
+                              {link.linkType}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {isAddingDependency && (
+                  <div className="space-y-2 bg-slate-900/60 border border-slate-800 rounded-lg p-3">
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={dependencyRelationship}
+                        onChange={(e) =>
+                          setDependencyRelationship(
+                            e.target.value as 'blocks' | 'blocked-by' | 'relates' | 'duplicates'
+                          )
+                        }
+                        className="bg-[#0B0E14] border border-slate-700/60 text-xs text-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      >
+                        <option value="blocks">Blocks</option>
+                        <option value="blocked-by">Blocked by</option>
+                        <option value="relates">Relates</option>
+                        <option value="duplicates">Duplicates</option>
+                      </select>
+                      <span className="text-xs text-slate-500">Select task</span>
+                    </div>
+
+                    <div className="relative">
+                      <input
+                        value={dependencyQuery}
+                        onChange={(e) => {
+                          setDependencyQuery(e.target.value)
+                          setDependencyTargetId(null)
+                        }}
+                        className="w-full bg-[#0B0E14] border border-slate-700/60 text-xs text-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        placeholder="Search tasks..."
+                      />
+                      {dependencyResults.length > 0 && (
+                        <div className="absolute z-10 mt-1 w-full bg-[#0B0E14] border border-slate-700/60 rounded-lg shadow-lg max-h-40 overflow-auto">
+                          {dependencyResults.map((candidate) => (
+                            <button
+                              key={candidate.id}
+                              type="button"
+                              onClick={() => {
+                                setDependencyTargetId(candidate.id)
+                                setDependencyQuery(candidate.title)
+                              }}
+                              className="w-full text-left px-3 py-2 hover:bg-slate-800/60 transition-colors"
+                            >
+                              <div className="text-xs text-slate-200 truncate">
+                                {candidate.title}
+                              </div>
+                              <div className="text-[10px] text-slate-500 uppercase tracking-wide">
+                                {candidate.status}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleAddDependency}
+                        disabled={!dependencyTargetId}
+                        className={cn(
+                          'px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors',
+                          dependencyTargetId
+                            ? 'bg-blue-500/20 text-blue-200 hover:bg-blue-500/30'
+                            : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                        )}
+                      >
+                        Add
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsAddingDependency(false)
+                          setDependencyQuery('')
+                          setDependencyTargetId(null)
+                        }}
+                        className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
@@ -2163,8 +2468,19 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
                         <select
                           value={selectedRoleId}
                           onChange={(e) => setSelectedRoleId(e.target.value)}
+                          disabled={isLoadingRoles || roles.length === 0}
                           className="w-full appearance-none cursor-pointer pl-9 pr-8 py-2.5 bg-[#0B0E14] border border-slate-800/50 hover:border-slate-700/50 rounded-xl text-xs font-medium text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                         >
+                          {isLoadingRoles && (
+                            <option value="" disabled>
+                              Loading roles...
+                            </option>
+                          )}
+                          {!isLoadingRoles && roles.length === 0 && (
+                            <option value="" disabled>
+                              No roles available
+                            </option>
+                          )}
                           {roles.map((role) => (
                             <option key={role.id} value={role.id}>
                               {role.name}
@@ -2176,10 +2492,10 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
 
                       <button
                         onClick={handleStartRun}
-                        disabled={isStartingRun}
+                        disabled={isStartingRun || !selectedRoleId}
                         className={cn(
                           'flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-lg',
-                          isStartingRun
+                          isStartingRun || !selectedRoleId
                             ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50'
                             : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98] border border-blue-500/30'
                         )}

@@ -1,5 +1,11 @@
 import { z } from 'zod'
 
+export const TaskStatusSchema = z.enum(['todo', 'in-progress', 'done']).describe('TaskStatus')
+
+export const TaskPrioritySchema = z
+  .enum(['low', 'medium', 'high', 'urgent'])
+  .describe('TaskPriority')
+
 export const LogLevelSchema = z.enum(['info', 'warn', 'error', 'debug'])
 
 export const LogEntrySchema = z.object({
@@ -117,7 +123,7 @@ export const KanbanTaskSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   descriptionMd: z.string().optional(),
-  status: z.string(),
+  status: z.enum(['todo', 'in-progress', 'done']),
   priority: z.enum(['low', 'medium', 'high', 'urgent']),
   type: z.string(),
   orderInColumn: z.number(),
@@ -166,7 +172,7 @@ export const TaskPatchSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().optional(),
   descriptionMd: z.string().optional(),
-  status: z.string().optional(),
+  status: z.enum(['todo', 'in-progress', 'done']).optional(),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
   type: z.string().optional(),
   columnId: z.string().uuid().optional(),
@@ -203,6 +209,363 @@ export const TaskMoveResponseSchema = z.object({
 })
 
 export type TaskMoveResponse = z.infer<typeof TaskMoveResponseSchema>
+
+export const TaskLinkTypeSchema = z.enum(['blocks', 'relates', 'duplicates'])
+
+export type TaskLinkType = z.infer<typeof TaskLinkTypeSchema>
+
+export const TaskLinkSchema = z.object({
+  id: z.string().uuid(),
+  projectId: z.string().uuid(),
+  fromTaskId: z.string().uuid(),
+  toTaskId: z.string().uuid(),
+  linkType: TaskLinkTypeSchema,
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+})
+
+export type TaskLink = z.infer<typeof TaskLinkSchema>
+
+export const DepsListInputSchema = z.object({
+  taskId: z.string().uuid(),
+})
+
+export type DepsListInput = z.infer<typeof DepsListInputSchema>
+
+export const DepsListResponseSchema = z.object({
+  links: z.array(TaskLinkSchema),
+})
+
+export type DepsListResponse = z.infer<typeof DepsListResponseSchema>
+
+export const DepsAddInputSchema = z.object({
+  fromTaskId: z.string().uuid(),
+  toTaskId: z.string().uuid(),
+  type: TaskLinkTypeSchema,
+})
+
+export type DepsAddInput = z.infer<typeof DepsAddInputSchema>
+
+export const DepsAddResponseSchema = z.object({
+  link: TaskLinkSchema,
+})
+
+export type DepsAddResponse = z.infer<typeof DepsAddResponseSchema>
+
+export const DepsRemoveInputSchema = z.object({
+  linkId: z.string().uuid(),
+})
+
+export type DepsRemoveInput = z.infer<typeof DepsRemoveInputSchema>
+
+export const DepsRemoveResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type DepsRemoveResponse = z.infer<typeof DepsRemoveResponseSchema>
+
+export const TaskScheduleSchema = z.object({
+  taskId: z.string().uuid(),
+  startDate: z.string().nullable(),
+  dueDate: z.string().nullable(),
+  estimatePoints: z.number(),
+  estimateHours: z.number(),
+  assignee: z.string(),
+  updatedAt: z.string().datetime(),
+})
+
+export type TaskSchedule = z.infer<typeof TaskScheduleSchema>
+
+export const TimelineTaskSchema = z.object({
+  id: z.string().uuid(),
+  projectId: z.string().uuid(),
+  title: z.string(),
+  status: z.enum(['todo', 'in-progress', 'done']),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']),
+  tags: z.array(z.string()),
+  startDate: z.string().nullable(),
+  dueDate: z.string().nullable(),
+  estimatePoints: z.number(),
+  estimateHours: z.number(),
+  assignee: z.string(),
+  updatedAt: z.string().datetime(),
+})
+
+export type TimelineTask = z.infer<typeof TimelineTaskSchema>
+
+export const ScheduleGetInputSchema = z.object({
+  projectId: z.string().uuid(),
+})
+
+export type ScheduleGetInput = z.infer<typeof ScheduleGetInputSchema>
+
+export const ScheduleGetResponseSchema = z.object({
+  tasks: z.array(TimelineTaskSchema),
+})
+
+export type ScheduleGetResponse = z.infer<typeof ScheduleGetResponseSchema>
+
+export const ScheduleUpdateInputSchema = z.object({
+  taskId: z.string().uuid(),
+  startDate: z.string().nullable(),
+  dueDate: z.string().nullable(),
+  estimatePoints: z.number().optional(),
+  estimateHours: z.number().optional(),
+  assignee: z.string().optional(),
+})
+
+export type ScheduleUpdateInput = z.infer<typeof ScheduleUpdateInputSchema>
+
+export const ScheduleUpdateResponseSchema = z.object({
+  schedule: TaskScheduleSchema,
+})
+
+export type ScheduleUpdateResponse = z.infer<typeof ScheduleUpdateResponseSchema>
+
+export const SearchEntitySchema = z.enum(['task', 'run', 'artifact'])
+
+export type SearchEntity = z.infer<typeof SearchEntitySchema>
+
+export const SearchFiltersSchema = z.object({
+  projectId: z.string().uuid().optional(),
+  entity: SearchEntitySchema.optional(),
+  status: z.enum(['todo', 'in-progress', 'done']).optional(),
+  tags: z.array(z.string()).optional(),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  role: z.string().optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+})
+
+export type SearchFilters = z.infer<typeof SearchFiltersSchema>
+
+export const SearchQueryInputSchema = z.object({
+  q: z.string().trim().min(1),
+  filters: SearchFiltersSchema.optional(),
+})
+
+export type SearchQueryInput = z.infer<typeof SearchQueryInputSchema>
+
+export const TaskSearchResultSchema = z.object({
+  entity: z.literal('task'),
+  task: KanbanTaskSchema,
+})
+
+export type TaskSearchResult = z.infer<typeof TaskSearchResultSchema>
+
+export const RunSearchResultSchema = z.object({
+  entity: z.literal('run'),
+  run: z.object({
+    id: z.string().uuid(),
+    taskId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    roleId: z.string(),
+    status: z.string(),
+    errorText: z.string(),
+    createdAt: z.string().datetime(),
+  }),
+})
+
+export type RunSearchResult = z.infer<typeof RunSearchResultSchema>
+
+export const ArtifactSearchResultSchema = z.object({
+  entity: z.literal('artifact'),
+  artifact: z.object({
+    id: z.string().uuid(),
+    runId: z.string().uuid(),
+    taskId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    title: z.string(),
+    kind: z.string(),
+    createdAt: z.string().datetime(),
+  }),
+})
+
+export type ArtifactSearchResult = z.infer<typeof ArtifactSearchResultSchema>
+
+export const SearchResultSchema = z.union([
+  TaskSearchResultSchema,
+  RunSearchResultSchema,
+  ArtifactSearchResultSchema,
+])
+
+export type SearchResult = z.infer<typeof SearchResultSchema>
+
+export const SearchQueryResponseSchema = z.object({
+  results: z.array(SearchResultSchema),
+})
+
+export type SearchQueryResponse = z.infer<typeof SearchQueryResponseSchema>
+
+export const AnalyticsRangeSchema = z.object({
+  from: z.string().optional(),
+  to: z.string().optional(),
+})
+
+export type AnalyticsRange = z.infer<typeof AnalyticsRangeSchema>
+
+export const AnalyticsOverviewSchema = z.object({
+  wipCount: z.number(),
+  throughputPerDay: z.number(),
+  doneCount: z.number(),
+  createdCount: z.number(),
+  leadTimeHours: z.number(),
+  cycleTimeHours: z.number(),
+  aiTokensIn: z.number(),
+  aiTokensOut: z.number(),
+  aiCostUsd: z.number(),
+})
+
+export type AnalyticsOverview = z.infer<typeof AnalyticsOverviewSchema>
+
+export const AnalyticsRunStatsSchema = z.object({
+  totalRuns: z.number(),
+  successRuns: z.number(),
+  successRate: z.number(),
+  avgDurationSec: z.number(),
+})
+
+export type AnalyticsRunStats = z.infer<typeof AnalyticsRunStatsSchema>
+
+export const AnalyticsGetOverviewInputSchema = z.object({
+  projectId: z.string().uuid(),
+  range: AnalyticsRangeSchema.optional(),
+})
+
+export type AnalyticsGetOverviewInput = z.infer<typeof AnalyticsGetOverviewInputSchema>
+
+export const AnalyticsGetRunStatsInputSchema = z.object({
+  projectId: z.string().uuid(),
+  range: AnalyticsRangeSchema.optional(),
+})
+
+export type AnalyticsGetRunStatsInput = z.infer<typeof AnalyticsGetRunStatsInputSchema>
+
+export const AnalyticsGetOverviewResponseSchema = z.object({
+  overview: AnalyticsOverviewSchema,
+})
+
+export type AnalyticsGetOverviewResponse = z.infer<typeof AnalyticsGetOverviewResponseSchema>
+
+export const AnalyticsGetRunStatsResponseSchema = z.object({
+  stats: AnalyticsRunStatsSchema,
+})
+
+export type AnalyticsGetRunStatsResponse = z.infer<typeof AnalyticsGetRunStatsResponseSchema>
+
+export const PluginTypeSchema = z.enum(['role', 'executor', 'integration', 'ui'])
+
+export type PluginType = z.infer<typeof PluginTypeSchema>
+
+export const PluginPermissionsSchema = z.object({
+  canRegisterRoles: z.boolean().default(false),
+  canRegisterExecutors: z.boolean().default(false),
+  canCallNetwork: z.boolean().default(false),
+})
+
+export const PluginManifestSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  version: z.string().min(1),
+  type: PluginTypeSchema,
+  permissions: PluginPermissionsSchema.optional(),
+  entrypoint: z.string().min(1),
+})
+
+export type PluginManifest = z.infer<typeof PluginManifestSchema>
+
+export const PluginRecordSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  version: z.string().min(1),
+  enabled: z.boolean(),
+  type: PluginTypeSchema,
+  manifest: PluginManifestSchema,
+  installedAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+})
+
+export type PluginRecord = z.infer<typeof PluginRecordSchema>
+
+export const PluginsListResponseSchema = z.object({
+  plugins: z.array(PluginRecordSchema),
+})
+
+export type PluginsListResponse = z.infer<typeof PluginsListResponseSchema>
+
+export const PluginsInstallInputSchema = z.object({
+  path: z.string().min(1),
+})
+
+export type PluginsInstallInput = z.infer<typeof PluginsInstallInputSchema>
+
+export const PluginsInstallResponseSchema = z.object({
+  plugin: PluginRecordSchema,
+})
+
+export type PluginsInstallResponse = z.infer<typeof PluginsInstallResponseSchema>
+
+export const PluginsEnableInputSchema = z.object({
+  pluginId: z.string().min(1),
+  enabled: z.boolean(),
+})
+
+export type PluginsEnableInput = z.infer<typeof PluginsEnableInputSchema>
+
+export const PluginsEnableResponseSchema = z.object({
+  plugin: PluginRecordSchema,
+})
+
+export type PluginsEnableResponse = z.infer<typeof PluginsEnableResponseSchema>
+
+export const PluginsReloadResponseSchema = z.object({
+  plugins: z.array(PluginRecordSchema),
+})
+
+export type PluginsReloadResponse = z.infer<typeof PluginsReloadResponseSchema>
+
+export const RoleSummarySchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().optional(),
+})
+
+export type RoleSummary = z.infer<typeof RoleSummarySchema>
+
+export const RolesListResponseSchema = z.object({
+  roles: z.array(RoleSummarySchema),
+})
+
+export type RolesListResponse = z.infer<typeof RolesListResponseSchema>
+
+export const BackupExportInputSchema = z.object({
+  projectId: z.string().uuid(),
+  toPath: z.string().min(1),
+})
+
+export type BackupExportInput = z.infer<typeof BackupExportInputSchema>
+
+export const BackupExportResponseSchema = z.object({
+  ok: z.literal(true),
+  path: z.string().min(1),
+})
+
+export type BackupExportResponse = z.infer<typeof BackupExportResponseSchema>
+
+export const BackupImportInputSchema = z.object({
+  zipPath: z.string().min(1),
+  mode: z.enum(['new', 'overwrite']).default('new'),
+  projectPath: z.string().optional(),
+})
+
+export type BackupImportInput = z.infer<typeof BackupImportInputSchema>
+
+export const BackupImportResponseSchema = z.object({
+  ok: z.literal(true),
+  projectId: z.string().uuid().optional(),
+})
+
+export type BackupImportResponse = z.infer<typeof BackupImportResponseSchema>
 
 export const GitStatusSchema = z.object({
   branch: z.string(),
@@ -389,6 +752,9 @@ export const RunSchema = z.object({
   errorText: z.string(),
   budget: z.record(z.string(), z.unknown()).default({}),
   contextSnapshotId: z.string().uuid(),
+  aiTokensIn: z.number().default(0),
+  aiTokensOut: z.number().default(0),
+  aiCostUsd: z.number().default(0),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 })
@@ -453,6 +819,7 @@ export const RunEventTypeSchema = z.enum([
   'artifact',
   'status',
   'debug',
+  'usage',
 ])
 
 export const RunEventSchema = z.object({

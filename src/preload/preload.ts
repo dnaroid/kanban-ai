@@ -23,6 +23,35 @@ const api: MainToRenderer = {
     update: (input) => ipcRenderer.invoke('task:update', input),
     move: (input) => ipcRenderer.invoke('task:move', input),
   },
+  deps: {
+    list: (input) => ipcRenderer.invoke('deps:list', input),
+    add: (input) => ipcRenderer.invoke('deps:add', input),
+    remove: (input) => ipcRenderer.invoke('deps:remove', input),
+  },
+  schedule: {
+    get: (input) => ipcRenderer.invoke('schedule:get', input),
+    update: (input) => ipcRenderer.invoke('schedule:update', input),
+  },
+  search: {
+    query: (input) => ipcRenderer.invoke('search:query', input),
+  },
+  analytics: {
+    getOverview: (input) => ipcRenderer.invoke('analytics:getOverview', input),
+    getRunStats: (input) => ipcRenderer.invoke('analytics:getRunStats', input),
+  },
+  plugins: {
+    list: () => ipcRenderer.invoke('plugins:list'),
+    install: (input) => ipcRenderer.invoke('plugins:install', input),
+    enable: (input) => ipcRenderer.invoke('plugins:enable', input),
+    reload: () => ipcRenderer.invoke('plugins:reload'),
+  },
+  roles: {
+    list: () => ipcRenderer.invoke('roles:list'),
+  },
+  backup: {
+    exportProject: (input) => ipcRenderer.invoke('backup:exportProject', input),
+    importProject: (input) => ipcRenderer.invoke('backup:importProject', input),
+  },
   git: {
     status: (input) => ipcRenderer.invoke('git:status', input),
     branchCreate: (input) => ipcRenderer.invoke('git:branch:create', input),

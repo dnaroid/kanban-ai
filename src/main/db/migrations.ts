@@ -251,6 +251,211 @@ export const migrations = [
       );
     `,
   },
+  {
+    version: 8,
+    sql: `
+      CREATE TABLE IF NOT EXISTS task_links (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        from_task_id TEXT NOT NULL,
+        to_task_id TEXT NOT NULL,
+        link_type TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (from_task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+        FOREIGN KEY (to_task_id) REFERENCES tasks(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS task_schedule (
+        task_id TEXT PRIMARY KEY,
+        start_date TEXT NULL,
+        due_date TEXT NULL,
+        estimate_points REAL NOT NULL DEFAULT 0,
+        estimate_hours REAL NOT NULL DEFAULT 0,
+        assignee TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS task_events (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL,
+        ts TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_links_from ON task_links(from_task_id);
+      CREATE INDEX IF NOT EXISTS idx_links_to ON task_links(to_task_id);
+      CREATE INDEX IF NOT EXISTS idx_links_project ON task_links(project_id);
+      CREATE INDEX IF NOT EXISTS idx_schedule_task ON task_schedule(task_id);
+      CREATE INDEX IF NOT EXISTS idx_task_events_task ON task_events(task_id, ts);
+    `,
+  },
+  {
+    version: 9,
+    sql: `
+      CREATE VIRTUAL TABLE IF NOT EXISTS tasks_fts USING fts5(
+        task_id UNINDEXED,
+        title,
+        description,
+        tags
+      );
+
+      INSERT INTO tasks_fts (task_id, title, description, tags)
+      SELECT
+        id,
+        title,
+        COALESCE(description_md, description, ''),
+        COALESCE(tags_json, '')
+      FROM tasks
+      WHERE id NOT IN (SELECT task_id FROM tasks_fts);
+
+      CREATE TRIGGER IF NOT EXISTS tasks_fts_insert AFTER INSERT ON tasks
+      BEGIN
+        INSERT INTO tasks_fts (task_id, title, description, tags)
+        VALUES (
+          new.id,
+          new.title,
+          COALESCE(new.description_md, new.description, ''),
+          COALESCE(new.tags_json, '')
+        );
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS tasks_fts_update AFTER UPDATE ON tasks
+      BEGIN
+        UPDATE tasks_fts
+        SET
+          title = new.title,
+          description = COALESCE(new.description_md, new.description, ''),
+          tags = COALESCE(new.tags_json, '')
+        WHERE task_id = new.id;
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS tasks_fts_delete AFTER DELETE ON tasks
+      BEGIN
+        DELETE FROM tasks_fts WHERE task_id = old.id;
+      END;
+    `,
+  },
+  {
+    version: 10,
+    sql: `
+      CREATE VIRTUAL TABLE IF NOT EXISTS runs_fts USING fts5(
+        run_id UNINDEXED,
+        role_id,
+        status,
+        error_text
+      );
+
+      CREATE VIRTUAL TABLE IF NOT EXISTS run_events_fts USING fts5(
+        run_id UNINDEXED,
+        event_type,
+        payload
+      );
+
+      CREATE VIRTUAL TABLE IF NOT EXISTS artifacts_fts USING fts5(
+        artifact_id UNINDEXED,
+        title,
+        content
+      );
+
+      INSERT INTO runs_fts (run_id, role_id, status, error_text)
+      SELECT id, role_id, status, COALESCE(error_text, '') FROM runs
+      WHERE id NOT IN (SELECT run_id FROM runs_fts);
+
+      INSERT INTO run_events_fts (run_id, event_type, payload)
+      SELECT run_id, event_type, COALESCE(payload_json, '') FROM run_events
+      WHERE rowid NOT IN (SELECT rowid FROM run_events_fts);
+
+      INSERT INTO artifacts_fts (artifact_id, title, content)
+      SELECT id, title, COALESCE(content, '') FROM artifacts
+      WHERE id NOT IN (SELECT artifact_id FROM artifacts_fts);
+
+      CREATE TRIGGER IF NOT EXISTS runs_fts_insert AFTER INSERT ON runs
+      BEGIN
+        INSERT INTO runs_fts (run_id, role_id, status, error_text)
+        VALUES (new.id, new.role_id, new.status, COALESCE(new.error_text, ''));
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS runs_fts_update AFTER UPDATE ON runs
+      BEGIN
+        UPDATE runs_fts
+        SET role_id = new.role_id,
+            status = new.status,
+            error_text = COALESCE(new.error_text, '')
+        WHERE run_id = new.id;
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS runs_fts_delete AFTER DELETE ON runs
+      BEGIN
+        DELETE FROM runs_fts WHERE run_id = old.id;
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS run_events_fts_insert AFTER INSERT ON run_events
+      BEGIN
+        INSERT INTO run_events_fts (run_id, event_type, payload)
+        VALUES (new.run_id, new.event_type, COALESCE(new.payload_json, ''));
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS run_events_fts_update AFTER UPDATE ON run_events
+      BEGIN
+        UPDATE run_events_fts
+        SET event_type = new.event_type,
+            payload = COALESCE(new.payload_json, '')
+        WHERE run_id = new.run_id AND rowid = old.rowid;
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS run_events_fts_delete AFTER DELETE ON run_events
+      BEGIN
+        DELETE FROM run_events_fts WHERE run_id = old.run_id AND rowid = old.rowid;
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS artifacts_fts_insert AFTER INSERT ON artifacts
+      BEGIN
+        INSERT INTO artifacts_fts (artifact_id, title, content)
+        VALUES (new.id, new.title, COALESCE(new.content, ''));
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS artifacts_fts_update AFTER UPDATE ON artifacts
+      BEGIN
+        UPDATE artifacts_fts
+        SET title = new.title,
+            content = COALESCE(new.content, '')
+        WHERE artifact_id = new.id;
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS artifacts_fts_delete AFTER DELETE ON artifacts
+      BEGIN
+        DELETE FROM artifacts_fts WHERE artifact_id = old.id;
+      END;
+    `,
+  },
+  {
+    version: 11,
+    sql: `
+      ALTER TABLE runs ADD COLUMN ai_tokens_in INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE runs ADD COLUMN ai_tokens_out INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE runs ADD COLUMN ai_cost_usd REAL NOT NULL DEFAULT 0;
+    `,
+  },
+  {
+    version: 12,
+    sql: `
+      CREATE TABLE IF NOT EXISTS plugins (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        version TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        type TEXT NOT NULL,
+        manifest_json TEXT NOT NULL,
+        installed_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `,
+  },
 ]
 
 export type Migration = (typeof migrations)[number]

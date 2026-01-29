@@ -8,6 +8,7 @@ export type RunEventType =
   | 'artifact'
   | 'status'
   | 'debug'
+  | 'usage'
 export type ArtifactKind = 'markdown' | 'json' | 'patch' | 'file_ref' | 'link'
 
 export type RunRecord = {
@@ -21,6 +22,9 @@ export type RunRecord = {
   errorText: string
   budget: Record<string, unknown>
   contextSnapshotId: string
+  aiTokensIn?: number
+  aiTokensOut?: number
+  aiCostUsd?: number
   createdAt: string
   updatedAt: string
 }

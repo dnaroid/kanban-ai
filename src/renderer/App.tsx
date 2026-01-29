@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Activity,
   AlertTriangle,
@@ -6,6 +6,9 @@ import {
   Database,
   FolderKanban,
   Layers,
+  CalendarRange,
+  Search,
+  BarChart3,
   Github,
   Layout,
   Settings,
@@ -14,21 +17,126 @@ import { ProjectsScreen } from './screens/ProjectsScreen'
 import { DiagnosticsScreen } from './screens/DiagnosticsScreen'
 import { BoardScreen } from './screens/BoardScreen'
 import { ReleasesScreen } from './screens/ReleasesScreen'
+import { TimelineScreen } from './screens/TimelineScreen'
+import { AnalyticsScreen } from './screens/AnalyticsScreen'
+import { SettingsScreen } from './screens/SettingsScreen'
 import { cn } from './lib/utils'
+import type { SearchResult } from '../shared/types/ipc'
 
 type Screen =
   | { id: 'projects' }
   | { id: 'diagnostics' }
   | { id: 'board'; projectId: string; projectName: string }
   | { id: 'releases'; projectId: string; projectName: string }
+  | { id: 'timeline'; projectId: string; projectName: string }
+  | { id: 'analytics'; projectId: string; projectName: string }
+  | { id: 'settings'; projectId: string; projectName: string }
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ id: 'projects' })
   const [activeProject, setActiveProject] = useState<{ id: string; name: string } | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [isSearchLoading, setIsSearchLoading] = useState(false)
+  const [searchEntity, setSearchEntity] = useState<'all' | 'task' | 'run' | 'artifact'>('all')
+  const [searchStatus, setSearchStatus] = useState<'all' | 'todo' | 'in-progress' | 'done'>('all')
+  const [searchPriority, setSearchPriority] = useState<
+    'all' | 'low' | 'medium' | 'high' | 'urgent'
+  >('all')
+  const [searchRole, setSearchRole] = useState('')
+  const [searchTags, setSearchTags] = useState('')
+  const [searchDateFrom, setSearchDateFrom] = useState('')
+  const [searchDateTo, setSearchDateTo] = useState('')
+  const [searchProjectScope, setSearchProjectScope] = useState<'all' | 'active'>('active')
+
+  const searchFilters = useMemo(
+    () => ({
+      projectId: searchProjectScope === 'active' ? activeProject?.id : undefined,
+      entity: searchEntity === 'all' ? undefined : searchEntity,
+      status: searchStatus === 'all' ? undefined : searchStatus,
+      priority: searchPriority === 'all' ? undefined : searchPriority,
+      role: searchRole.trim() || undefined,
+      tags: searchTags.trim()
+        ? searchTags
+            .split(',')
+            .map((tag) => tag.trim())
+            .filter(Boolean)
+        : undefined,
+      dateFrom: searchDateFrom || undefined,
+      dateTo: searchDateTo || undefined,
+    }),
+    [
+      searchProjectScope,
+      activeProject,
+      searchEntity,
+      searchStatus,
+      searchPriority,
+      searchRole,
+      searchTags,
+      searchDateFrom,
+      searchDateTo,
+    ]
+  )
+
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setIsSearchOpen(true)
+      }
+      if (event.key === 'Escape') {
+        setIsSearchOpen(false)
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [])
+
+  useEffect(() => {
+    if (!isSearchOpen) return
+    const query = searchQuery.trim()
+    if (!query) {
+      setSearchResults([])
+      return
+    }
+
+    const timeout = window.setTimeout(async () => {
+      setIsSearchLoading(true)
+      try {
+        const response = await window.api.search.query({ q: query, filters: searchFilters })
+        setSearchResults(response.results)
+      } catch (error) {
+        console.error('Failed to search:', error)
+        setSearchResults([])
+      } finally {
+        setIsSearchLoading(false)
+      }
+    }, 200)
+
+    return () => window.clearTimeout(timeout)
+  }, [searchQuery, searchFilters, isSearchOpen])
+
+  const openProjectBoard = (projectId: string) => {
+    const name = activeProject?.id === projectId ? activeProject.name : projectId
+    setScreen({ id: 'board', projectId, projectName: name })
+    setIsSearchOpen(false)
+  }
+
+  const isTaskResult = (
+    result: SearchResult
+  ): result is Extract<SearchResult, { entity: 'task' }> => result.entity === 'task'
+  const isRunResult = (result: SearchResult): result is Extract<SearchResult, { entity: 'run' }> =>
+    result.entity === 'run'
+  const isArtifactResult = (
+    result: SearchResult
+  ): result is Extract<SearchResult, { entity: 'artifact' }> => result.entity === 'artifact'
 
   const navItems = [
     { id: 'projects' as const, label: 'Projects', icon: FolderKanban },
     { id: 'diagnostics' as const, label: 'Diagnostics', icon: Activity },
+    { id: 'analytics' as const, label: 'Analytics', icon: BarChart3 },
+    { id: 'timeline' as const, label: 'Timeline', icon: CalendarRange },
     { id: 'releases' as const, label: 'Releases', icon: Layers },
   ]
   return (
@@ -51,15 +159,18 @@ export default function App() {
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = screen.id === item.id
-            const isDisabled = item.id === 'releases' && !activeProject
+            const isDisabled =
+              (item.id === 'releases' && !activeProject) ||
+              (item.id === 'timeline' && !activeProject) ||
+              (item.id === 'analytics' && !activeProject)
             return (
               <button
                 key={item.id}
                 onClick={() => {
-                  if (item.id === 'releases') {
+                  if (item.id === 'releases' || item.id === 'timeline' || item.id === 'analytics') {
                     if (!activeProject) return
                     setScreen({
-                      id: 'releases',
+                      id: item.id,
                       projectId: activeProject.id,
                       projectName: activeProject.name,
                     })
@@ -101,7 +212,21 @@ export default function App() {
           </div>
 
           <div className="flex items-center justify-between px-2">
-            <button className="text-slate-500 hover:text-slate-300 transition-colors">
+            <button
+              onClick={() => {
+                if (!activeProject) return
+                setScreen({
+                  id: 'settings',
+                  projectId: activeProject.id,
+                  projectName: activeProject.name,
+                })
+              }}
+              disabled={!activeProject}
+              className={cn(
+                'text-slate-500 hover:text-slate-300 transition-colors',
+                !activeProject && 'opacity-50 cursor-not-allowed hover:text-slate-500'
+              )}
+            >
               <Settings className="w-5 h-5" />
             </button>
             <div className="flex items-center gap-2 text-slate-500 text-[11px] font-mono">
@@ -142,8 +267,45 @@ export default function App() {
                 <span className="text-slate-300 font-medium">Releases</span>
               </>
             )}
+            {screen.id === 'timeline' && (
+              <>
+                <ChevronRight className="w-4 h-4 text-slate-700" />
+                <span className="text-slate-300 font-medium">{screen.projectName}</span>
+                <ChevronRight className="w-4 h-4 text-slate-700" />
+                <span className="text-slate-300 font-medium">Timeline</span>
+              </>
+            )}
+            {screen.id === 'analytics' && (
+              <>
+                <ChevronRight className="w-4 h-4 text-slate-700" />
+                <span className="text-slate-300 font-medium">{screen.projectName}</span>
+                <ChevronRight className="w-4 h-4 text-slate-700" />
+                <span className="text-slate-300 font-medium">Analytics</span>
+              </>
+            )}
+            {screen.id === 'settings' && (
+              <>
+                <ChevronRight className="w-4 h-4 text-slate-700" />
+                <span className="text-slate-300 font-medium">{screen.projectName}</span>
+                <ChevronRight className="w-4 h-4 text-slate-700" />
+                <span className="text-slate-300 font-medium">Settings</span>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-4">
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                onFocus={() => setIsSearchOpen(true)}
+                placeholder="Search..."
+                className="w-64 bg-slate-900/60 border border-slate-800/60 text-xs text-slate-200 rounded-lg pl-9 pr-10 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+              <span className="absolute right-3 top-2 text-[10px] text-slate-600 font-semibold">
+                {navigator.platform.toLowerCase().includes('mac') ? '⌘K' : 'Ctrl+K'}
+              </span>
+            </div>
             <div className="px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center gap-2">
               <AlertTriangle className="w-3 h-3 text-amber-500" />
               <span className="text-[10px] text-amber-500 font-bold uppercase tracking-wider">
@@ -167,8 +329,185 @@ export default function App() {
           {screen.id === 'releases' && (
             <ReleasesScreen projectId={screen.projectId} projectName={screen.projectName} />
           )}
+          {screen.id === 'timeline' && (
+            <TimelineScreen projectId={screen.projectId} projectName={screen.projectName} />
+          )}
+          {screen.id === 'analytics' && (
+            <AnalyticsScreen projectId={screen.projectId} projectName={screen.projectName} />
+          )}
+          {screen.id === 'settings' && (
+            <SettingsScreen projectId={screen.projectId} projectName={screen.projectName} />
+          )}
         </div>
       </main>
+
+      {isSearchOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center pt-24">
+          <div className="w-[720px] bg-[#0B0E14] border border-slate-800/60 rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <Search className="w-4 h-4 text-slate-500" />
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search tasks, runs, artifacts"
+                autoFocus
+                className="flex-1 bg-transparent text-sm text-slate-100 focus:outline-none"
+              />
+              <button
+                onClick={() => setIsSearchOpen(false)}
+                className="text-xs text-slate-500 hover:text-slate-300"
+              >
+                Esc
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <select
+                value={searchProjectScope}
+                onChange={(event) => setSearchProjectScope(event.target.value as 'all' | 'active')}
+                className="bg-[#0B0E14] border border-slate-700/60 text-xs text-slate-200 rounded-lg px-2 py-1"
+              >
+                <option value="active">Active project</option>
+                <option value="all">All projects</option>
+              </select>
+              <select
+                value={searchEntity}
+                onChange={(event) =>
+                  setSearchEntity(event.target.value as 'all' | 'task' | 'run' | 'artifact')
+                }
+                className="bg-[#0B0E14] border border-slate-700/60 text-xs text-slate-200 rounded-lg px-2 py-1"
+              >
+                <option value="all">All entities</option>
+                <option value="task">Tasks</option>
+                <option value="run">Runs</option>
+                <option value="artifact">Artifacts</option>
+              </select>
+              <select
+                value={searchStatus}
+                onChange={(event) =>
+                  setSearchStatus(event.target.value as 'all' | 'todo' | 'in-progress' | 'done')
+                }
+                className="bg-[#0B0E14] border border-slate-700/60 text-xs text-slate-200 rounded-lg px-2 py-1"
+              >
+                <option value="all">All statuses</option>
+                <option value="todo">Todo</option>
+                <option value="in-progress">In progress</option>
+                <option value="done">Done</option>
+              </select>
+              <select
+                value={searchPriority}
+                onChange={(event) =>
+                  setSearchPriority(
+                    event.target.value as 'all' | 'low' | 'medium' | 'high' | 'urgent'
+                  )
+                }
+                className="bg-[#0B0E14] border border-slate-700/60 text-xs text-slate-200 rounded-lg px-2 py-1"
+              >
+                <option value="all">All priorities</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+              <input
+                value={searchRole}
+                onChange={(event) => setSearchRole(event.target.value)}
+                placeholder="Role"
+                className="bg-[#0B0E14] border border-slate-700/60 text-xs text-slate-200 rounded-lg px-2 py-1"
+              />
+              <input
+                value={searchTags}
+                onChange={(event) => setSearchTags(event.target.value)}
+                placeholder="Tags (comma)"
+                className="bg-[#0B0E14] border border-slate-700/60 text-xs text-slate-200 rounded-lg px-2 py-1"
+              />
+              <input
+                type="date"
+                value={searchDateFrom}
+                onChange={(event) => setSearchDateFrom(event.target.value)}
+                className="bg-[#0B0E14] border border-slate-700/60 text-xs text-slate-200 rounded-lg px-2 py-1"
+              />
+              <input
+                type="date"
+                value={searchDateTo}
+                onChange={(event) => setSearchDateTo(event.target.value)}
+                className="bg-[#0B0E14] border border-slate-700/60 text-xs text-slate-200 rounded-lg px-2 py-1"
+              />
+            </div>
+
+            <div className="border-t border-slate-800/60 pt-4 space-y-4 max-h-[420px] overflow-auto">
+              {isSearchLoading && <div className="text-xs text-slate-500">Searching...</div>}
+              {!isSearchLoading && searchResults.length === 0 && searchQuery.trim() && (
+                <div className="text-xs text-slate-500">No results.</div>
+              )}
+
+              {searchResults.some((result) => result.entity === 'task') && (
+                <div className="space-y-2">
+                  <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
+                    Tasks
+                  </div>
+                  {searchResults.filter(isTaskResult).map((result) => (
+                    <button
+                      key={`task-${result.task.id}`}
+                      onClick={() => openProjectBoard(result.task.projectId)}
+                      className="w-full text-left bg-slate-900/40 border border-slate-800/60 rounded-xl px-4 py-3 hover:bg-slate-800/60"
+                    >
+                      <div className="text-sm font-semibold text-slate-100 truncate">
+                        {result.task.title}
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-1">
+                        {result.task.status} • {result.task.priority}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {searchResults.some((result) => result.entity === 'run') && (
+                <div className="space-y-2">
+                  <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
+                    Runs
+                  </div>
+                  {searchResults.filter(isRunResult).map((result) => (
+                    <button
+                      key={`run-${result.run.id}`}
+                      onClick={() => openProjectBoard(result.run.projectId)}
+                      className="w-full text-left bg-slate-900/40 border border-slate-800/60 rounded-xl px-4 py-3 hover:bg-slate-800/60"
+                    >
+                      <div className="text-sm font-semibold text-slate-100 truncate">
+                        {result.run.roleId} • {result.run.status}
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-1 truncate">
+                        {result.run.errorText || 'No errors'}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {searchResults.some((result) => result.entity === 'artifact') && (
+                <div className="space-y-2">
+                  <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
+                    Artifacts
+                  </div>
+                  {searchResults.filter(isArtifactResult).map((result) => (
+                    <button
+                      key={`artifact-${result.artifact.id}`}
+                      onClick={() => openProjectBoard(result.artifact.projectId)}
+                      className="w-full text-left bg-slate-900/40 border border-slate-800/60 rounded-xl px-4 py-3 hover:bg-slate-800/60"
+                    >
+                      <div className="text-sm font-semibold text-slate-100 truncate">
+                        {result.artifact.title}
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-1">{result.artifact.kind}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -17,6 +17,33 @@ import type {
   TaskUpdateResponse,
   TaskMoveInput,
   TaskMoveResponse,
+  DepsListInput,
+  DepsListResponse,
+  DepsAddInput,
+  DepsAddResponse,
+  DepsRemoveInput,
+  DepsRemoveResponse,
+  ScheduleGetInput,
+  ScheduleGetResponse,
+  ScheduleUpdateInput,
+  ScheduleUpdateResponse,
+  SearchQueryInput,
+  SearchQueryResponse,
+  AnalyticsGetOverviewInput,
+  AnalyticsGetOverviewResponse,
+  AnalyticsGetRunStatsInput,
+  AnalyticsGetRunStatsResponse,
+  PluginsListResponse,
+  PluginsInstallInput,
+  PluginsInstallResponse,
+  PluginsEnableInput,
+  PluginsEnableResponse,
+  PluginsReloadResponse,
+  RolesListResponse,
+  BackupExportInput,
+  BackupExportResponse,
+  BackupImportInput,
+  BackupImportResponse,
   GitStatusInput,
   GitStatusResponse,
   GitBranchCreateInput,
@@ -103,6 +130,35 @@ export interface MainToRenderer {
     update(input: TaskUpdateInput): Promise<TaskUpdateResponse>
     move(input: TaskMoveInput): Promise<TaskMoveResponse>
   }
+  deps: {
+    list(input: DepsListInput): Promise<DepsListResponse>
+    add(input: DepsAddInput): Promise<DepsAddResponse>
+    remove(input: DepsRemoveInput): Promise<DepsRemoveResponse>
+  }
+  schedule: {
+    get(input: ScheduleGetInput): Promise<ScheduleGetResponse>
+    update(input: ScheduleUpdateInput): Promise<ScheduleUpdateResponse>
+  }
+  search: {
+    query(input: SearchQueryInput): Promise<SearchQueryResponse>
+  }
+  analytics: {
+    getOverview(input: AnalyticsGetOverviewInput): Promise<AnalyticsGetOverviewResponse>
+    getRunStats(input: AnalyticsGetRunStatsInput): Promise<AnalyticsGetRunStatsResponse>
+  }
+  plugins: {
+    list(): Promise<PluginsListResponse>
+    install(input: PluginsInstallInput): Promise<PluginsInstallResponse>
+    enable(input: PluginsEnableInput): Promise<PluginsEnableResponse>
+    reload(): Promise<PluginsReloadResponse>
+  }
+  roles: {
+    list(): Promise<RolesListResponse>
+  }
+  backup: {
+    exportProject(input: BackupExportInput): Promise<BackupExportResponse>
+    importProject(input: BackupImportInput): Promise<BackupImportResponse>
+  }
   git: {
     status(input: GitStatusInput): Promise<GitStatusResponse>
     branchCreate(input: GitBranchCreateInput): Promise<GitBranchCreateResponse>
@@ -183,6 +239,35 @@ export interface RendererToMain {
     listByBoard(input: TaskListByBoardInput): Promise<TaskListByBoardResponse>
     update(input: TaskUpdateInput): Promise<TaskUpdateResponse>
     move(input: TaskMoveInput): Promise<TaskMoveResponse>
+  }
+  deps: {
+    list(input: DepsListInput): Promise<DepsListResponse>
+    add(input: DepsAddInput): Promise<DepsAddResponse>
+    remove(input: DepsRemoveInput): Promise<DepsRemoveResponse>
+  }
+  schedule: {
+    get(input: ScheduleGetInput): Promise<ScheduleGetResponse>
+    update(input: ScheduleUpdateInput): Promise<ScheduleUpdateResponse>
+  }
+  search: {
+    query(input: SearchQueryInput): Promise<SearchQueryResponse>
+  }
+  analytics: {
+    getOverview(input: AnalyticsGetOverviewInput): Promise<AnalyticsGetOverviewResponse>
+    getRunStats(input: AnalyticsGetRunStatsInput): Promise<AnalyticsGetRunStatsResponse>
+  }
+  plugins: {
+    list(): Promise<PluginsListResponse>
+    install(input: PluginsInstallInput): Promise<PluginsInstallResponse>
+    enable(input: PluginsEnableInput): Promise<PluginsEnableResponse>
+    reload(): Promise<PluginsReloadResponse>
+  }
+  roles: {
+    list(): Promise<RolesListResponse>
+  }
+  backup: {
+    exportProject(input: BackupExportInput): Promise<BackupExportResponse>
+    importProject(input: BackupImportInput): Promise<BackupImportResponse>
   }
   git: {
     status(input: GitStatusInput): Promise<GitStatusResponse>

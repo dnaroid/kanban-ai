@@ -61,6 +61,31 @@ function SortableTask({ task, onDelete, onClick }: SortableTaskProps) {
     transition,
   }
 
+  const [isBlocked, setIsBlocked] = useState(false)
+
+  useEffect(() => {
+    let isMounted = true
+
+    const fetchBlockedState = async () => {
+      try {
+        const response = await window.api.deps.list({ taskId: task.id })
+        if (!isMounted) return
+        const blocked = response.links.some(
+          (link) => link.linkType === 'blocks' && link.toTaskId === task.id
+        )
+        setIsBlocked(blocked)
+      } catch (error) {
+        console.error('Failed to fetch dependencies for task:', error)
+      }
+    }
+
+    fetchBlockedState()
+
+    return () => {
+      isMounted = false
+    }
+  }, [task.id])
+
   const priorityColors = {
     low: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     medium: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
@@ -113,6 +138,12 @@ function SortableTask({ task, onDelete, onClick }: SortableTaskProps) {
               {task.priority}
             </span>
             <span className="text-[10px] text-slate-500 uppercase tracking-wider">{task.type}</span>
+            {isBlocked && (
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border bg-red-500/10 text-red-400 border-red-500/20 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                Blocked
+              </span>
+            )}
           </div>
 
           {task.tags.length > 0 && (

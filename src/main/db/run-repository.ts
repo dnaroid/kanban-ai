@@ -23,6 +23,9 @@ const mapRunRow = (row: {
   errorText: string
   budgetJson: string
   contextSnapshotId: string
+  aiTokensIn: number
+  aiTokensOut: number
+  aiCostUsd: number
   createdAt: string
   updatedAt: string
 }): RunRecord => ({
@@ -36,6 +39,9 @@ const mapRunRow = (row: {
   errorText: row.errorText ?? '',
   budget: parseJsonObject(row.budgetJson),
   contextSnapshotId: row.contextSnapshotId,
+  aiTokensIn: row.aiTokensIn ?? 0,
+  aiTokensOut: row.aiTokensOut ?? 0,
+  aiCostUsd: row.aiCostUsd ?? 0,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 })
@@ -54,9 +60,9 @@ export class RunRepository {
       `
       INSERT INTO runs (
         id, task_id, role_id, mode, status, started_at, finished_at, error_text,
-        budget_json, context_snapshot_id, created_at, updated_at
+        budget_json, context_snapshot_id, ai_tokens_in, ai_tokens_out, ai_cost_usd, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
     ).run(
       id,
@@ -69,6 +75,9 @@ export class RunRepository {
       '',
       budgetJson,
       input.contextSnapshotId,
+      0,
+      0,
+      0,
       now,
       now
     )
@@ -82,6 +91,9 @@ export class RunRepository {
       errorText: '',
       budget: input.budget ?? {},
       contextSnapshotId: input.contextSnapshotId,
+      aiTokensIn: 0,
+      aiTokensOut: 0,
+      aiCostUsd: 0,
       createdAt: now,
       updatedAt: now,
     }
@@ -103,6 +115,9 @@ export class RunRepository {
           error_text as errorText,
           budget_json as budgetJson,
           context_snapshot_id as contextSnapshotId,
+          ai_tokens_in as aiTokensIn,
+          ai_tokens_out as aiTokensOut,
+          ai_cost_usd as aiCostUsd,
           created_at as createdAt,
           updated_at as updatedAt
         FROM runs
@@ -147,6 +162,9 @@ export class RunRepository {
           error_text as errorText,
           budget_json as budgetJson,
           context_snapshot_id as contextSnapshotId,
+          ai_tokens_in as aiTokensIn,
+          ai_tokens_out as aiTokensOut,
+          ai_cost_usd as aiCostUsd,
           created_at as createdAt,
           updated_at as updatedAt
         FROM runs
@@ -188,6 +206,9 @@ export class RunRepository {
           error_text as errorText,
           budget_json as budgetJson,
           context_snapshot_id as contextSnapshotId,
+          ai_tokens_in as aiTokensIn,
+          ai_tokens_out as aiTokensOut,
+          ai_cost_usd as aiCostUsd,
           created_at as createdAt,
           updated_at as updatedAt
         FROM runs
@@ -234,6 +255,9 @@ export class RunRepository {
       'errorText',
       'budget',
       'contextSnapshotId',
+      'aiTokensIn',
+      'aiTokensOut',
+      'aiCostUsd',
     ]
 
     allowedFields.forEach((field) => {
