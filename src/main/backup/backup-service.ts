@@ -1,13 +1,12 @@
-import path from 'node:path'
-import fs from 'node:fs'
-import os from 'node:os'
-import { randomUUID } from 'node:crypto'
-import { app } from 'electron'
-import AdmZip from 'adm-zip'
-import Database from 'better-sqlite3'
-import { dbManager } from '../db/index.js'
-import { projectRepo } from '../db/project-repository'
-import { pluginRepo } from '../plugins/plugin-repository'
+import path from "node:path"
+import fs from "node:fs"
+import os from "node:os"
+import {randomUUID} from "node:crypto"
+import {app} from "electron"
+import AdmZip from "adm-zip"
+import {dbManager} from "../db/index.js"
+import {projectRepo} from "../db/project-repository"
+import {pluginRepo} from "../plugins/plugin-repository"
 
 type ExportInput = {
   projectId: string
@@ -16,11 +15,11 @@ type ExportInput = {
 
 type ImportInput = {
   zipPath: string
-  mode: 'new' | 'overwrite'
+  mode: "new" | "overwrite"
   projectPath?: string
 }
 
-const getDbPath = () => path.join(app.getPath('userData'), 'kanban.db')
+const getDbPath = () => path.join(app.getPath("userData"), "kanban.db")
 
 const writeJson = (filePath: string, data: unknown) => {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
@@ -32,7 +31,7 @@ const extractZip = (zipPath: string, targetDir: string) => {
 }
 
 const prepareExportDir = () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kanban-export-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kanban-export-"))
   return dir
 }
 
@@ -46,31 +45,38 @@ const runOptional = (fn: () => void) => {
   try {
     fn()
   } catch (error) {
-    console.warn('[Backup] Skipped optional table:', error)
+    console.warn("[Backup] Skipped optional table:", error)
   }
 }
 
+const makePlaceholders = (count: number) => Array(count).fill("?").join(",")
+
 export const backupService = {
-  exportProject({ projectId, toPath }: ExportInput) {
+  exportProject({projectId, toPath}: ExportInput) {
     const project = projectRepo.getById(projectId)
     if (!project) {
-      throw new Error('Project not found')
+      throw new Error("Project not found")
     }
 
     const db = dbManager.connect()
-    db.pragma('wal_checkpoint(TRUNCATE)')
+    db.pragma("wal_checkpoint(TRUNCATE)")
 
     const tempDir = prepareExportDir()
-    const exportDbPath = path.join(tempDir, 'app.db')
+    const exportDbPath = path.join(tempDir, "app.db")
     copyIfExists(getDbPath(), exportDbPath)
     const vcsProject = db
       .prepare(
         `
-          SELECT project_id as projectId, repo_path as repoPath, remote_url as remoteUrl,
-                 default_branch as defaultBranch, provider_type as providerType,
-                 provider_repo_id as providerRepoId, created_at as createdAt, updated_at as updatedAt
-          FROM vcs_projects
-          WHERE project_id = ?
+            SELECT project_id       as projectId,
+                   repo_path        as repoPath,
+                   remote_url       as remoteUrl,
+                   default_branch   as defaultBranch,
+                   provider_type    as providerType,
+                   provider_repo_id as providerRepoId,
+                   created_at as       createdAt,
+                   updated_at as       updatedAt
+            FROM vcs_projects
+            WHERE project_id = ?
         `
       )
       .get(projectId)
@@ -78,55 +84,60 @@ export const backupService = {
     const artifacts = db
       .prepare(
         `
-          SELECT a.id, a.run_id as runId, a.kind, a.title, a.content, a.metadata_json as metadataJson,
-                 a.created_at as createdAt
-          FROM artifacts a
-          JOIN runs r ON r.id = a.run_id
-          JOIN tasks t ON t.id = r.task_id
-          WHERE t.project_id = ?
+            SELECT a.id,
+                   a.run_id as runId,
+                   a.kind,
+                   a.title,
+                   a.content,
+                   a.metadata_json as metadataJson,
+                   a.created_at    as createdAt
+            FROM artifacts a
+                     JOIN runs r ON r.id = a.run_id
+                     JOIN tasks t ON t.id = r.task_id
+            WHERE t.project_id = ?
         `
       )
       .all(projectId)
 
-    writeJson(path.join(tempDir, 'project.json'), {
+    writeJson(path.join(tempDir, "project.json"), {
       project,
       vcsProject: vcsProject ?? null,
     })
-    writeJson(path.join(tempDir, 'plugins.json'), pluginRepo.list())
-    writeJson(path.join(tempDir, 'artifacts.json'), artifacts)
+    writeJson(path.join(tempDir, "plugins.json"), pluginRepo.list())
+    writeJson(path.join(tempDir, "artifacts.json"), artifacts)
 
     const zip = new AdmZip()
     zip.addLocalFile(exportDbPath)
-    zip.addLocalFile(path.join(tempDir, 'project.json'))
-    zip.addLocalFile(path.join(tempDir, 'plugins.json'))
-    zip.addLocalFile(path.join(tempDir, 'artifacts.json'))
+    zip.addLocalFile(path.join(tempDir, "project.json"))
+    zip.addLocalFile(path.join(tempDir, "plugins.json"))
+    zip.addLocalFile(path.join(tempDir, "artifacts.json"))
     zip.writeZip(toPath)
 
-    return { ok: true, path: toPath }
+    return {ok: true, path: toPath}
   },
-  importProject({ zipPath, mode, projectPath }: ImportInput) {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kanban-import-'))
+  importProject({zipPath, mode, projectPath}: ImportInput) {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "kanban-import-"))
     extractZip(zipPath, tempDir)
 
-    const exportDbPath = path.join(tempDir, 'app.db')
+    const exportDbPath = path.join(tempDir, "app.db")
     if (!fs.existsSync(exportDbPath)) {
-      throw new Error('Exported database not found')
+      throw new Error("Exported database not found")
     }
 
     const projectPayload = JSON.parse(
-      fs.readFileSync(path.join(tempDir, 'project.json'), 'utf8')
+      fs.readFileSync(path.join(tempDir, "project.json"), "utf8")
     ) as {
       project: { id: string; name: string; path: string }
       vcsProject?: { repoPath?: string } | null
     }
 
-    if (mode === 'overwrite') {
+    if (mode === "overwrite") {
       fs.copyFileSync(exportDbPath, getDbPath())
-      return { ok: true, projectId: projectPayload.project.id }
+      return {ok: true, projectId: projectPayload.project.id}
     }
 
     if (!projectPath) {
-      throw new Error('Project path is required for new import')
+      throw new Error("Project path is required for new import")
     }
 
     const db = dbManager.connect()
@@ -134,7 +145,7 @@ export const backupService = {
     const newProjectId = randomUUID()
     const name = `${projectPayload.project.name} (imported)`
 
-    db.exec(`ATTACH '${exportDbPath}' AS importdb;`)
+    db.exec(`ATTACH "${exportDbPath}" AS importdb;`)
 
     const sourceProjectId = projectPayload.project.id
     const safeAll = <T>(sql: string, params: unknown[] = []) => {
@@ -152,9 +163,9 @@ export const backupService = {
       updatedAt: string
     }>(
       `
-        SELECT id, name, created_at as createdAt, updated_at as updatedAt
-        FROM importdb.boards
-        WHERE project_id = ?
+          SELECT id, name, created_at as createdAt, updated_at as updatedAt
+          FROM importdb.boards
+          WHERE project_id = ?
       `,
       [sourceProjectId]
     )
@@ -163,21 +174,25 @@ export const backupService = {
     const boardIds = boardRows.map((row) => row.id)
     const columnRows = boardIds.length
       ? safeAll<{
-          id: string
-          boardId: string
-          name: string
-          orderIndex: number
-          createdAt: string
-          updatedAt: string
-        }>(
-          `
-            SELECT id, board_id as boardId, name, order_index as orderIndex,
-                   created_at as createdAt, updated_at as updatedAt
+        id: string
+        boardId: string
+        name: string
+        orderIndex: number
+        createdAt: string
+        updatedAt: string
+      }>(
+        `
+            SELECT id,
+                   board_id as boardId,
+                   name,
+                   order_index as orderIndex,
+                   created_at  as createdAt,
+                   updated_at  as updatedAt
             FROM importdb.board_columns
-            WHERE board_id IN (${boardIds.map(() => '?').join(',')})
-          `,
-          boardIds
-        )
+            WHERE board_id IN (${makePlaceholders(boardIds.length)})
+        `,
+        boardIds
+      )
       : []
     const columnIdMap = new Map(columnRows.map((row) => [row.id, randomUUID()]))
 
@@ -200,25 +215,24 @@ export const backupService = {
       updatedAt: string
     }>(
       `
-        SELECT
-          id,
-          board_id as boardId,
-          column_id as columnId,
-          title,
-          description,
-          description_md as descriptionMd,
-          status,
-          priority,
-          type,
-          order_in_column as orderInColumn,
-          tags_json as tagsJson,
-          assigned_agent as assignedAgent,
-          branch_name as branchName,
-          pr_number as prNumber,
-          created_at as createdAt,
-          updated_at as updatedAt
-        FROM importdb.tasks
-        WHERE project_id = ?
+          SELECT id,
+                 board_id        as boardId,
+                 column_id       as columnId,
+                 title,
+                 description,
+                 description_md  as descriptionMd,
+                 status,
+                 priority,
+                 type,
+                 order_in_column as orderInColumn,
+                 tags_json       as tagsJson,
+                 assigned_agent  as assignedAgent,
+                 branch_name     as branchName,
+                 pr_number       as prNumber,
+                 created_at      as createdAt,
+                 updated_at      as updatedAt
+          FROM importdb.tasks
+          WHERE project_id = ?
       `,
       [sourceProjectId]
     )
@@ -227,121 +241,130 @@ export const backupService = {
 
     const contextRows = taskIds.length
       ? safeAll<{
-          id: string
-          taskId: string
-          kind: string
-          summary: string
-          payloadJson: string
-          hash: string
-          createdAt: string
-        }>(
-          `
-            SELECT id, task_id as taskId, kind, summary, payload_json as payloadJson,
-                   hash, created_at as createdAt
+        id: string
+        taskId: string
+        kind: string
+        summary: string
+        payloadJson: string
+        hash: string
+        createdAt: string
+      }>(
+        `
+            SELECT id,
+                   task_id as      taskId,
+                   kind,
+                   summary,
+                   payload_json as payloadJson,
+                   hash,
+                   created_at   as createdAt
             FROM importdb.context_snapshots
-            WHERE task_id IN (${taskIds.map(() => '?').join(',')})
-          `,
-          taskIds
-        )
+            WHERE task_id IN (${makePlaceholders(taskIds.length)})
+        `,
+        taskIds
+      )
       : []
     const contextIdMap = new Map(contextRows.map((row) => [row.id, randomUUID()]))
 
     const runRows = taskIds.length
       ? safeAll<{
-          id: string
-          taskId: string
-          roleId: string
-          mode: string
-          status: string
-          startedAt: string | null
-          finishedAt: string | null
-          errorText: string | null
-          budgetJson: string
-          contextSnapshotId: string
-          aiTokensIn: number | null
-          aiTokensOut: number | null
-          aiCostUsd: number | null
-          createdAt: string
-          updatedAt: string
-        }>(
-          `
-            SELECT
-              id,
-              task_id as taskId,
-              role_id as roleId,
-              mode,
-              status,
-              started_at as startedAt,
-              finished_at as finishedAt,
-              error_text as errorText,
-              budget_json as budgetJson,
-              context_snapshot_id as contextSnapshotId,
-              ai_tokens_in as aiTokensIn,
-              ai_tokens_out as aiTokensOut,
-              ai_cost_usd as aiCostUsd,
-              created_at as createdAt,
-              updated_at as updatedAt
+        id: string
+        taskId: string
+        roleId: string
+        mode: string
+        status: string
+        startedAt: string | null
+        finishedAt: string | null
+        errorText: string | null
+        budgetJson: string
+        contextSnapshotId: string
+        aiTokensIn: number | null
+        aiTokensOut: number | null
+        aiCostUsd: number | null
+        createdAt: string
+        updatedAt: string
+      }>(
+        `
+            SELECT id,
+                   task_id             as taskId,
+                   role_id             as roleId,
+                   mode,
+                   status,
+                   started_at          as startedAt,
+                   finished_at         as finishedAt,
+                   error_text          as errorText,
+                   budget_json         as budgetJson,
+                   context_snapshot_id as contextSnapshotId,
+                   ai_tokens_in        as aiTokensIn,
+                   ai_tokens_out       as aiTokensOut,
+                   ai_cost_usd         as aiCostUsd,
+                   created_at          as createdAt,
+                   updated_at          as updatedAt
             FROM importdb.runs
-            WHERE task_id IN (${taskIds.map(() => '?').join(',')})
-          `,
-          taskIds
-        )
+            WHERE task_id IN (${makePlaceholders(taskIds.length)})
+        `,
+        taskIds
+      )
       : []
     const runIdMap = new Map(runRows.map((row) => [row.id, randomUUID()]))
     const runIds = runRows.map((row) => row.id)
 
     const runEventRows = runIds.length
       ? safeAll<{
-          id: string
-          runId: string
-          ts: string
-          eventType: string
-          payloadJson: string
-        }>(
-          `
+        id: string
+        runId: string
+        ts: string
+        eventType: string
+        payloadJson: string
+      }>(
+        `
             SELECT id, run_id as runId, ts, event_type as eventType, payload_json as payloadJson
             FROM importdb.run_events
-            WHERE run_id IN (${runIds.map(() => '?').join(',')})
-          `,
-          runIds
-        )
+            WHERE run_id IN (${makePlaceholders(runIds.length)})
+        `,
+        runIds
+      )
       : []
 
     const artifactRows = runIds.length
       ? safeAll<{
-          id: string
-          runId: string
-          kind: string
-          title: string
-          content: string
-          metadataJson: string
-          createdAt: string
-        }>(
-          `
-            SELECT id, run_id as runId, kind, title, content, metadata_json as metadataJson,
-                   created_at as createdAt
+        id: string
+        runId: string
+        kind: string
+        title: string
+        content: string
+        metadataJson: string
+        createdAt: string
+      }>(
+        `
+            SELECT id,
+                   run_id as        runId,
+                   kind,
+                   title,
+                   content,
+                   metadata_json as metadataJson,
+                   created_at    as createdAt
             FROM importdb.artifacts
-            WHERE run_id IN (${runIds.map(() => '?').join(',')})
-          `,
-          runIds
-        )
+            WHERE run_id IN (${makePlaceholders(runIds.length)})
+        `,
+        runIds
+      )
       : []
 
     const taskEventRows = taskIds.length
       ? safeAll<{
-          id: string
-          taskId: string
-          ts: string
-          eventType: string
-          payloadJson: string
-        }>(
-          `
+        id: string
+        taskId: string
+        ts: string
+        eventType: string
+        payloadJson: string
+      }>(
+        `
             SELECT id, task_id as taskId, ts, event_type as eventType, payload_json as payloadJson
             FROM importdb.task_events
-            WHERE task_id IN (${taskIds.map(() => '?').join(',')})
-          `,
-          taskIds
-        )
+            WHERE task_id IN (${makePlaceholders(taskIds.length)})
+        `,
+        taskIds
+      )
       : []
 
     const taskLinkRows = safeAll<{
@@ -353,103 +376,131 @@ export const backupService = {
       updatedAt: string
     }>(
       `
-        SELECT id, from_task_id as fromTaskId, to_task_id as toTaskId, link_type as linkType,
-               created_at as createdAt, updated_at as updatedAt
-        FROM importdb.task_links
-        WHERE project_id = ?
+          SELECT id,
+                 from_task_id as fromTaskId,
+                 to_task_id as toTaskId,
+                 link_type as linkType,
+                 created_at   as createdAt,
+                 updated_at   as updatedAt
+          FROM importdb.task_links
+          WHERE project_id = ?
       `,
       [sourceProjectId]
     )
 
     const scheduleRows = taskIds.length
       ? safeAll<{
-          taskId: string
-          startDate: string | null
-          dueDate: string | null
-          estimatePoints: number
-          estimateHours: number
-          assignee: string
-          updatedAt: string
-        }>(
-          `
-            SELECT task_id as taskId, start_date as startDate, due_date as dueDate,
-                   estimate_points as estimatePoints, estimate_hours as estimateHours,
-                   assignee, updated_at as updatedAt
+        taskId: string
+        startDate: string | null
+        dueDate: string | null
+        estimatePoints: number
+        estimateHours: number
+        assignee: string
+        updatedAt: string
+      }>(
+        `
+            SELECT task_id         as taskId,
+                   start_date      as startDate,
+                   due_date        as dueDate,
+                   estimate_points as estimatePoints,
+                   estimate_hours as  estimateHours,
+                   assignee,
+                   updated_at      as updatedAt
             FROM importdb.task_schedule
-            WHERE task_id IN (${taskIds.map(() => '?').join(',')})
-          `,
-          taskIds
-        )
+            WHERE task_id IN (${makePlaceholders(taskIds.length)})
+        `,
+        taskIds
+      )
       : []
 
     const taskVcsRows = taskIds.length
       ? safeAll<{
-          taskId: string
-          branchName: string | null
-          prId: number | null
-          prUrl: string | null
-          lastCommitSha: string | null
-          createdAt: string
-          updatedAt: string
-        }>(
-          `
-            SELECT task_id as taskId, branch_name as branchName, pr_id as prId,
-                   pr_url as prUrl, last_commit_sha as lastCommitSha,
-                   created_at as createdAt, updated_at as updatedAt
+        taskId: string
+        branchName: string | null
+        prId: number | null
+        prUrl: string | null
+        lastCommitSha: string | null
+        createdAt: string
+        updatedAt: string
+      }>(
+        `
+            SELECT task_id         as taskId,
+                   branch_name     as branchName,
+                   pr_id           as prId,
+                   pr_url as prUrl,
+                   last_commit_sha as lastCommitSha,
+                   created_at      as createdAt,
+                   updated_at      as updatedAt
             FROM importdb.task_vcs_links
-            WHERE task_id IN (${taskIds.map(() => '?').join(',')})
-          `,
-          taskIds
-        )
+            WHERE task_id IN (${makePlaceholders(taskIds.length)})
+        `,
+        taskIds
+      )
       : []
 
     const pullRequestRows = taskIds.length
       ? safeAll<{
-          id: string
-          taskId: string
-          providerPrId: string
-          title: string
-          state: string
-          url: string
-          baseBranch: string
-          headBranch: string
-          ciStatus: string
-          approvalsCount: number
-          requiredApprovals: number
-          lastSyncedAt: string | null
-          createdAt: string
-          updatedAt: string
-        }>(
-          `
-            SELECT id, task_id as taskId, provider_pr_id as providerPrId, title, state, url,
-                   base_branch as baseBranch, head_branch as headBranch, ci_status as ciStatus,
-                   approvals_count as approvalsCount, required_approvals as requiredApprovals,
-                   last_synced_at as lastSyncedAt, created_at as createdAt, updated_at as updatedAt
+        id: string
+        taskId: string
+        providerPrId: string
+        title: string
+        state: string
+        url: string
+        baseBranch: string
+        headBranch: string
+        ciStatus: string
+        approvalsCount: number
+        requiredApprovals: number
+        lastSyncedAt: string | null
+        createdAt: string
+        updatedAt: string
+      }>(
+        `
+            SELECT id,
+                   task_id            as taskId,
+                   provider_pr_id     as providerPrId,
+                   title,
+                   state,
+                   url,
+                   base_branch        as baseBranch,
+                   head_branch        as headBranch,
+                   ci_status          as ciStatus,
+                   approvals_count as    approvalsCount,
+                   required_approvals as requiredApprovals,
+                   last_synced_at     as lastSyncedAt,
+                   created_at         as createdAt,
+                   updated_at         as updatedAt
             FROM importdb.pull_requests
-            WHERE task_id IN (${taskIds.map(() => '?').join(',')})
-          `,
-          taskIds
-        )
+            WHERE task_id IN (${makePlaceholders(taskIds.length)})
+        `,
+        taskIds
+      )
       : []
 
     db.transaction(() => {
       db.prepare(
         `
-          INSERT INTO projects (id, name, path, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?)
+            INSERT INTO projects (id, name, path, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
         `
       ).run(newProjectId, name, projectPath, now, now)
 
       runOptional(() => {
         db.prepare(
           `
-            INSERT INTO vcs_projects (
-              project_id, repo_path, remote_url, default_branch, provider_type, provider_repo_id,
-              created_at, updated_at
-            )
-            SELECT ?, ?, remote_url, default_branch, provider_type, provider_repo_id, created_at, updated_at
-            FROM importdb.vcs_projects
-            WHERE project_id = ?
+              INSERT INTO vcs_projects (project_id, repo_path, remote_url, default_branch, provider_type,
+                                        provider_repo_id,
+                                        created_at, updated_at)
+              SELECT ?,
+                     ?,
+                     remote_url,
+                     default_branch,
+                     provider_type,
+                     provider_repo_id,
+                     created_at,
+                     updated_at
+              FROM importdb.vcs_projects
+              WHERE project_id = ?
           `
         ).run(newProjectId, projectPath, projectPayload.project.id)
       })
@@ -457,22 +508,26 @@ export const backupService = {
       runOptional(() => {
         db.prepare(
           `
-            INSERT INTO auto_merge_settings (
-              project_id, enabled, method, require_ci_success, required_approvals,
-              require_no_conflicts, created_at, updated_at
-            )
-            SELECT ?, enabled, method, require_ci_success, required_approvals,
-                   require_no_conflicts, created_at, updated_at
-            FROM importdb.auto_merge_settings
-            WHERE project_id = ?
+              INSERT INTO auto_merge_settings (project_id, enabled, method, require_ci_success, required_approvals,
+                                               require_no_conflicts, created_at, updated_at)
+              SELECT ?,
+                     enabled,
+                     method,
+                     require_ci_success,
+                     required_approvals,
+                     require_no_conflicts,
+                     created_at,
+                     updated_at
+              FROM importdb.auto_merge_settings
+              WHERE project_id = ?
           `
         ).run(newProjectId, projectPayload.project.id)
       })
 
       const insertBoard = db.prepare(
         `
-          INSERT INTO boards (id, project_id, name, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?)
+            INSERT INTO boards (id, project_id, name, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
         `
       )
       boardRows.forEach((row) => {
@@ -482,8 +537,8 @@ export const backupService = {
 
       const insertColumn = db.prepare(
         `
-          INSERT INTO board_columns (id, board_id, name, order_index, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO board_columns (id, board_id, name, order_index, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
         `
       )
       columnRows.forEach((row) => {
@@ -494,12 +549,10 @@ export const backupService = {
 
       const insertTask = db.prepare(
         `
-          INSERT INTO tasks (
-            id, project_id, board_id, column_id, title, description, description_md,
-            status, priority, type, order_in_column, tags_json, assigned_agent,
-            branch_name, pr_number, created_at, updated_at
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO tasks (id, project_id, board_id, column_id, title, description, description_md,
+                               status, priority, type, order_in_column, tags_json, assigned_agent,
+                               branch_name, pr_number, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `
       )
       taskRows.forEach((row) => {
@@ -518,7 +571,7 @@ export const backupService = {
           row.priority,
           row.type,
           row.orderInColumn,
-          row.tagsJson ?? '[]',
+          row.tagsJson ?? JSON.stringify([]),
           row.assignedAgent ?? null,
           row.branchName ?? null,
           row.prNumber ?? null,
@@ -529,8 +582,8 @@ export const backupService = {
 
       const insertTaskEvent = db.prepare(
         `
-          INSERT INTO task_events (id, task_id, ts, event_type, payload_json)
-          VALUES (?, ?, ?, ?, ?)
+            INSERT INTO task_events (id, task_id, ts, event_type, payload_json)
+            VALUES (?, ?, ?, ?, ?)
         `
       )
       taskEventRows.forEach((row) => {
@@ -540,10 +593,8 @@ export const backupService = {
 
       const insertTaskLink = db.prepare(
         `
-          INSERT INTO task_links (
-            id, project_id, from_task_id, to_task_id, link_type, created_at, updated_at
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO task_links (id, project_id, from_task_id, to_task_id, link_type, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         `
       )
       taskLinkRows.forEach((row) => {
@@ -562,10 +613,9 @@ export const backupService = {
 
       const insertSchedule = db.prepare(
         `
-          INSERT INTO task_schedule (
-            task_id, start_date, due_date, estimate_points, estimate_hours, assignee, updated_at
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO task_schedule (task_id, start_date, due_date, estimate_points, estimate_hours, assignee,
+                                       updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         `
       )
       scheduleRows.forEach((row) => {
@@ -583,8 +633,8 @@ export const backupService = {
 
       const insertContext = db.prepare(
         `
-          INSERT INTO context_snapshots (id, task_id, kind, summary, payload_json, hash, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO context_snapshots (id, task_id, kind, summary, payload_json, hash, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         `
       )
       contextRows.forEach((row) => {
@@ -603,12 +653,10 @@ export const backupService = {
 
       const insertRun = db.prepare(
         `
-          INSERT INTO runs (
-            id, task_id, role_id, mode, status, started_at, finished_at, error_text,
-            budget_json, context_snapshot_id, ai_tokens_in, ai_tokens_out, ai_cost_usd,
-            created_at, updated_at
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO runs (id, task_id, role_id, mode, status, started_at, finished_at, error_text,
+                              budget_json, context_snapshot_id, ai_tokens_in, ai_tokens_out, ai_cost_usd,
+                              created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `
       )
       runRows.forEach((row) => {
@@ -623,7 +671,7 @@ export const backupService = {
           row.status,
           row.startedAt,
           row.finishedAt,
-          row.errorText ?? '',
+          row.errorText || null,
           row.budgetJson,
           newContextId,
           row.aiTokensIn ?? 0,
@@ -636,8 +684,8 @@ export const backupService = {
 
       const insertRunEvent = db.prepare(
         `
-          INSERT INTO run_events (id, run_id, ts, event_type, payload_json)
-          VALUES (?, ?, ?, ?, ?)
+            INSERT INTO run_events (id, run_id, ts, event_type, payload_json)
+            VALUES (?, ?, ?, ?, ?)
         `
       )
       runEventRows.forEach((row) => {
@@ -647,8 +695,8 @@ export const backupService = {
 
       const insertArtifact = db.prepare(
         `
-          INSERT INTO artifacts (id, run_id, kind, title, content, metadata_json, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO artifacts (id, run_id, kind, title, content, metadata_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         `
       )
       artifactRows.forEach((row) => {
@@ -666,10 +714,8 @@ export const backupService = {
 
       const insertTaskVcs = db.prepare(
         `
-          INSERT INTO task_vcs_links (
-            task_id, branch_name, pr_id, pr_url, last_commit_sha, created_at, updated_at
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO task_vcs_links (task_id, branch_name, pr_id, pr_url, last_commit_sha, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         `
       )
       taskVcsRows.forEach((row) => {
@@ -687,11 +733,10 @@ export const backupService = {
 
       const insertPr = db.prepare(
         `
-          INSERT INTO pull_requests (
-            id, task_id, provider_pr_id, title, state, url, base_branch, head_branch, ci_status,
-            approvals_count, required_approvals, last_synced_at, created_at, updated_at
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO pull_requests (id, task_id, provider_pr_id, title, state, url, base_branch, head_branch,
+                                       ci_status,
+                                       approvals_count, required_approvals, last_synced_at, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `
       )
       pullRequestRows.forEach((row) => {
@@ -715,8 +760,8 @@ export const backupService = {
       })
     })()
 
-    db.exec('DETACH importdb;')
+    db.exec("DETACH importdb;")
 
-    return { ok: true, projectId: newProjectId }
+    return {ok: true, projectId: newProjectId}
   },
 }
