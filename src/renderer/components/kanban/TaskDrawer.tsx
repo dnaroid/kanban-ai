@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   X,
   MessageSquare,
@@ -16,8 +16,30 @@ import {
   AlertTriangle,
   Bug,
   Zap,
+  Play,
+  Square,
+  RotateCcw,
+  User,
+  History,
+  Terminal,
+  RefreshCw,
+  ArrowLeft,
+  ChevronsDown,
+  FileJson,
+  FileCode,
+  Files,
+  GitBranch,
+  GitPullRequest,
+  ExternalLink,
 } from 'lucide-react'
-import type { KanbanTask } from '../../../shared/types/ipc'
+import type {
+  KanbanTask,
+  Run,
+  RunEvent,
+  Artifact,
+  GitStatus,
+  PrRefreshResponse,
+} from '../../../shared/types/ipc'
 import { cn } from '../../lib/utils'
 
 interface TaskDrawerProps {
@@ -34,8 +56,1097 @@ interface ChatMessage {
   timestamp: Date
 }
 
+function ArtifactViewer({ artifact }: { artifact: Artifact }) {
+  if (artifact.kind === 'json') {
+    try {
+      const formatted = JSON.stringify(JSON.parse(artifact.content), null, 2)
+      return (
+        <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap p-4 bg-slate-900/50 rounded-lg border border-slate-800/50 overflow-auto max-h-full custom-scrollbar selection:bg-blue-500/30">
+          {formatted}
+        </pre>
+      )
+    } catch (e) {
+      return (
+        <pre className="text-xs font-mono text-slate-300 whitespace-pre-wrap p-4 bg-slate-900/50 rounded-lg border border-slate-800/50 overflow-auto max-h-full custom-scrollbar">
+          {artifact.content}
+        </pre>
+      )
+    }
+  }
+
+  if (artifact.kind === 'patch') {
+    const lines = artifact.content.split('\n')
+    return (
+      <div className="font-mono text-xs overflow-auto max-h-full custom-scrollbar bg-slate-900/50 rounded-lg border border-slate-800/50 py-2">
+        {lines.map((line, i) => {
+          let className = 'text-slate-400 px-4 py-0.5 block'
+          if (line.startsWith('+'))
+            className =
+              'text-emerald-400 bg-emerald-500/10 px-4 py-0.5 block border-l-2 border-emerald-500/50'
+          if (line.startsWith('-'))
+            className = 'text-red-400 bg-red-500/10 px-4 py-0.5 block border-l-2 border-red-500/50'
+          if (line.startsWith('@@'))
+            className = 'text-blue-400/70 bg-blue-500/10 px-4 py-0.5 block italic'
+          if (
+            line.startsWith('diff') ||
+            line.startsWith('index') ||
+            line.startsWith('---') ||
+            line.startsWith('+++')
+          )
+            className = 'text-slate-500 px-4 py-0.5 block font-bold'
+          return (
+            <span key={i} className={className}>
+              {line}
+            </span>
+          )
+        })}
+      </div>
+    )
+  }
+
+  return (
+    <div className="text-sm text-slate-300 overflow-auto max-h-full custom-scrollbar p-4 bg-slate-900/50 rounded-lg border border-slate-800/50">
+      <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed selection:bg-blue-500/30">
+        {artifact.content}
+      </pre>
+    </div>
+  )
+}
+
+function ArtifactsPanel({ runId }: { runId: string }) {
+  const [artifacts, setArtifacts] = useState<Artifact[]>([])
+  const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(null)
+  const [selectedArtifact, setSelectedArtifact] = useState<Artifact | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  const fetchArtifacts = useCallback(
+    async (isAuto = false) => {
+      if (!isAuto) setIsLoading(true)
+      try {
+        const response = await window.api.artifact.list({ runId })
+        setArtifacts(response.artifacts)
+        if (response.artifacts.length > 0 && !selectedArtifactId) {
+          setSelectedArtifactId(response.artifacts[0].id)
+        }
+      } catch (error) {
+        console.error('Failed to fetch artifacts:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [runId, selectedArtifactId]
+  )
+
+  useEffect(() => {
+    fetchArtifacts()
+  }, [runId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!selectedArtifactId) return
+    let isActive = true
+    const fetchContent = async () => {
+      try {
+        const response = await window.api.artifact.get({ artifactId: selectedArtifactId })
+        if (!isActive) return
+        setSelectedArtifact(response.artifact)
+      } catch (error) {
+        console.error('Failed to fetch artifact content:', error)
+      }
+    }
+    fetchContent()
+    return () => {
+      isActive = false
+    }
+  }, [selectedArtifactId])
+
+  if (isLoading && artifacts.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full space-y-3 opacity-50">
+        <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
+        <p className="text-xs text-slate-400 font-mono uppercase tracking-widest">
+          Loading Artifacts...
+        </p>
+      </div>
+    )
+  }
+
+  if (artifacts.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full space-y-2 opacity-30">
+        <Files className="w-8 h-8" />
+        <p className="text-xs text-slate-400 font-mono">No artifacts found for this run</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex h-full overflow-hidden animate-in fade-in duration-300">
+      <div className="w-44 border-r border-slate-800/50 flex flex-col bg-slate-900/10 shrink-0">
+        <div className="p-3 border-b border-slate-800/50 bg-slate-800/20 flex items-center justify-between">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+            <Files className="w-3 h-3" />
+            Items ({artifacts.length})
+          </span>
+          <button
+            onClick={() => fetchArtifacts()}
+            className="p-1 text-slate-500 hover:text-slate-300 hover:bg-slate-700/50 rounded transition-colors"
+            title="Refresh artifacts"
+          >
+            <RefreshCw className={cn('w-3 h-3', isLoading && 'animate-spin')} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+          {artifacts.map((a) => (
+            <button
+              key={a.id}
+              onClick={() => setSelectedArtifactId(a.id)}
+              className={cn(
+                'w-full text-left px-3 py-2 rounded-lg transition-all group relative overflow-hidden text-[11px]',
+                selectedArtifactId === a.id
+                  ? 'bg-blue-600/20 border border-blue-500/30 text-blue-300'
+                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent'
+              )}
+            >
+              <div className="flex items-center gap-2 relative z-10">
+                {a.kind === 'json' && <FileJson className="w-3 h-3 shrink-0 opacity-70" />}
+                {a.kind === 'patch' && <FileCode className="w-3 h-3 shrink-0 opacity-70" />}
+                {a.kind === 'markdown' && <FileText className="w-3 h-3 shrink-0 opacity-70" />}
+                <span className="font-medium truncate">{a.title}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-hidden flex flex-col bg-[#0B0E14]/40">
+        {selectedArtifact ? (
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <div className="px-4 py-2 border-b border-slate-800/30 flex items-center justify-between bg-slate-900/20 backdrop-blur-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-300">
+                  {selectedArtifact.title}
+                </span>
+                <span className="text-[9px] font-mono text-slate-500 uppercase px-1.5 py-0.5 bg-slate-800/50 rounded border border-slate-700/50 tracking-tighter">
+                  {selectedArtifact.kind}
+                </span>
+              </div>
+              <span className="text-[9px] text-slate-600 font-mono">
+                {new Date(selectedArtifact.createdAt).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
+            </div>
+            <div className="flex-1 overflow-hidden p-4">
+              <ArtifactViewer artifact={selectedArtifact} />
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center space-y-2 opacity-30">
+            <Eye className="w-8 h-8 text-slate-700" />
+            <p className="text-xs text-slate-500 font-mono italic">Select an artifact to view</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ExecutionLog({ runId }: { runId: string }) {
+  const [events, setEvents] = useState<RunEvent[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [autoScroll, setAutoScroll] = useState(true)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const lastTsRef = useRef<string | undefined>(undefined)
+
+  const coerceText = (payload: unknown) => {
+    if (typeof payload === 'string') return payload
+    if (payload && typeof payload === 'object') {
+      const maybeText = (payload as { text?: string }).text
+      if (typeof maybeText === 'string') return maybeText
+      const maybeStatus = (payload as { status?: string }).status
+      if (typeof maybeStatus === 'string') return maybeStatus
+      try {
+        return JSON.stringify(payload)
+      } catch (error) {
+        return String(payload)
+      }
+    }
+    return payload == null ? '' : String(payload)
+  }
+
+  const handleJumpToEnd = () => {
+    setAutoScroll(true)
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }
+
+  const handleScroll = () => {
+    if (!scrollRef.current) return
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 50
+    setAutoScroll(isAtBottom)
+  }
+
+  useEffect(() => {
+    setEvents([])
+    setIsLoading(true)
+    setAutoScroll(true)
+    lastTsRef.current = undefined
+  }, [runId])
+
+  useEffect(() => {
+    let isActive = true
+
+    const fetchEvents = async () => {
+      try {
+        const response = await window.api.events.tail({
+          runId,
+          afterTs: lastTsRef.current,
+        })
+        if (!isActive) return
+        if (response.events.length > 0) {
+          setEvents((prev) => [...prev, ...response.events])
+          lastTsRef.current = response.events[response.events.length - 1].ts
+        }
+      } catch (error) {
+        console.error('Failed to fetch events:', error)
+      } finally {
+        if (isActive) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    fetchEvents()
+    const interval = setInterval(fetchEvents, 1500)
+    return () => {
+      isActive = false
+      clearInterval(interval)
+    }
+  }, [runId])
+
+  useEffect(() => {
+    if (autoScroll && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [events, autoScroll])
+
+  const renderEvent = (event: RunEvent) => {
+    const time = new Date(event.ts).toLocaleTimeString('en-US', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+
+    if (event.eventType === 'stdout') {
+      return (
+        <div key={event.id} className="flex gap-3 py-0.5 group">
+          <span className="text-[10px] font-mono text-slate-600 mt-1 shrink-0 select-none w-16">
+            {time}
+          </span>
+          <span className="text-xs font-mono text-slate-300 break-all whitespace-pre-wrap">
+            {coerceText(event.payload)}
+          </span>
+        </div>
+      )
+    }
+
+    if (event.eventType === 'stderr') {
+      return (
+        <div key={event.id} className="flex gap-3 py-0.5 group bg-red-500/5">
+          <span className="text-[10px] font-mono text-red-900/50 mt-1 shrink-0 select-none w-16">
+            {time}
+          </span>
+          <span className="text-xs font-mono text-red-400 break-all whitespace-pre-wrap">
+            {coerceText(event.payload)}
+          </span>
+        </div>
+      )
+    }
+
+    if (event.eventType === 'message') {
+      return (
+        <div
+          key={event.id}
+          className="flex gap-3 py-2 px-3 my-1 bg-blue-500/5 border-l-2 border-blue-500/30 rounded-r-lg"
+        >
+          <span className="text-[10px] font-mono text-blue-500/50 shrink-0 select-none w-16">
+            {time}
+          </span>
+          <p className="text-xs text-blue-300 font-medium">{coerceText(event.payload)}</p>
+        </div>
+      )
+    }
+
+    if (event.eventType === 'status') {
+      return (
+        <div
+          key={event.id}
+          className="flex gap-3 py-2 px-3 my-1 bg-emerald-500/5 border-l-2 border-emerald-500/30 rounded-r-lg"
+        >
+          <span className="text-[10px] font-mono text-emerald-500/50 shrink-0 select-none w-16">
+            {time}
+          </span>
+          <p className="text-xs text-emerald-400 font-bold uppercase tracking-wider">
+            Status Changed: {coerceText(event.payload)}
+          </p>
+        </div>
+      )
+    }
+
+    return (
+      <div key={event.id} className="flex gap-3 py-0.5">
+        <span className="text-[10px] font-mono text-slate-600 mt-1 shrink-0 select-none w-16">
+          {time}
+        </span>
+        <span className="text-xs font-mono text-slate-400 break-all whitespace-pre-wrap">
+          {coerceText(event.payload)}
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col h-full bg-[#0B0E14] overflow-hidden relative">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-4 custom-scrollbar selection:bg-blue-500/30"
+      >
+        {isLoading && events.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full space-y-3 opacity-50">
+            <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
+            <p className="text-xs text-slate-400 font-medium font-mono uppercase tracking-widest text-center">
+              Initializing Stream...
+            </p>
+          </div>
+        ) : events.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full space-y-2 opacity-30">
+            <Terminal className="w-8 h-8" />
+            <p className="text-xs text-slate-400 font-mono">No events captured yet</p>
+          </div>
+        ) : (
+          <div className="space-y-0.5">{events.map(renderEvent)}</div>
+        )}
+      </div>
+
+      {!autoScroll && (
+        <button
+          onClick={handleJumpToEnd}
+          className="absolute bottom-6 right-6 flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-full text-[10px] font-bold uppercase tracking-wider shadow-xl shadow-blue-500/20 animate-in fade-in slide-in-from-bottom-2 duration-300"
+        >
+          <ChevronsDown className="w-3.5 h-3.5" />
+          Jump to End
+        </button>
+      )}
+    </div>
+  )
+}
+
+function RunDetailsView({
+  runId,
+  run,
+  task,
+  onBack,
+  onOpenVcs,
+}: {
+  runId: string
+  run: Run | null
+  task: KanbanTask
+  onBack: () => void
+  onOpenVcs: () => void
+}) {
+  const [view, setView] = useState<'log' | 'artifacts'>('log')
+  const [postRunStatus, setPostRunStatus] = useState<GitStatus | null>(null)
+  const [postRunError, setPostRunError] = useState<string | null>(null)
+  const [postRunLoading, setPostRunLoading] = useState(false)
+  const [commitMessage, setCommitMessage] = useState('')
+  const [isCommitting, setIsCommitting] = useState(false)
+
+  const isRunFinished =
+    run?.status === 'succeeded' || run?.status === 'failed' || run?.status === 'canceled'
+
+  const fetchPostRunChanges = useCallback(async () => {
+    setPostRunLoading(true)
+    setPostRunError(null)
+    try {
+      const statusRes = await window.api.git.status({ projectId: task.projectId })
+      setPostRunStatus(statusRes.status)
+    } catch (err) {
+      console.error('Failed to check post-run changes:', err)
+      setPostRunError('Failed to check post-run changes')
+    } finally {
+      setPostRunLoading(false)
+    }
+  }, [task.projectId])
+
+  useEffect(() => {
+    if (!isRunFinished) return
+    fetchPostRunChanges()
+  }, [isRunFinished, fetchPostRunChanges])
+
+  const handleCommitChanges = async () => {
+    if (isCommitting) return
+    const trimmedMessage = commitMessage.trim()
+    if (!trimmedMessage) {
+      setPostRunError('Commit message is required')
+      return
+    }
+
+    setIsCommitting(true)
+    setPostRunError(null)
+    try {
+      await window.api.git.commit({ taskId: task.id, message: trimmedMessage })
+      setCommitMessage('')
+      await fetchPostRunChanges()
+    } catch (err) {
+      console.error('Failed to commit post-run changes:', err)
+      setPostRunError('Failed to commit changes')
+    } finally {
+      setIsCommitting(false)
+    }
+  }
+
+  const statusTone =
+    run?.status === 'failed'
+      ? 'text-red-400 border-red-500/20 bg-red-500/10'
+      : run?.status === 'canceled'
+        ? 'text-slate-400 border-slate-500/20 bg-slate-500/10'
+        : run?.status === 'queued'
+          ? 'text-amber-400 border-amber-500/20 bg-amber-500/10'
+          : 'text-emerald-500 border-emerald-500/20 bg-emerald-500/10'
+
+  const statusDot =
+    run?.status === 'failed'
+      ? 'bg-red-500'
+      : run?.status === 'canceled'
+        ? 'bg-slate-400'
+        : run?.status === 'queued'
+          ? 'bg-amber-500'
+          : 'bg-emerald-500'
+
+  return (
+    <div className="flex flex-col h-full bg-[#0B0E14] overflow-hidden animate-in fade-in duration-300">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800/50 bg-[#11151C]/50 backdrop-blur-md shrink-0">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBack}
+            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+              Execution View
+            </span>
+            <span className="text-xs font-mono text-blue-400/80">{runId.slice(0, 8)}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="flex bg-slate-900/80 rounded-lg p-0.5 border border-slate-800/50 shadow-inner">
+            <button
+              onClick={() => setView('log')}
+              className={cn(
+                'flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200',
+                view === 'log'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                  : 'text-slate-500 hover:text-slate-300'
+              )}
+            >
+              <Terminal className="w-3 h-3" />
+              Log
+            </button>
+            <button
+              onClick={() => setView('artifacts')}
+              className={cn(
+                'flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200',
+                view === 'artifacts'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                  : 'text-slate-500 hover:text-slate-300'
+              )}
+            >
+              <Files className="w-3 h-3" />
+              Artifacts
+            </button>
+          </div>
+
+          <div
+            className={cn(
+              'flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border',
+              statusTone
+            )}
+          >
+            <div className={cn('w-1 h-1 rounded-full', statusDot, run?.status === 'running' && 'animate-pulse')} />
+            {run?.status ?? 'running'}
+          </div>
+        </div>
+      </div>
+
+      {isRunFinished && (
+        <div className="px-4 py-3 border-b border-slate-800/50 bg-[#0B0E14]/60">
+          {postRunLoading ? (
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              Checking workspace changes...
+            </div>
+          ) : postRunStatus?.isDirty ? (
+            <div className="space-y-3">
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                <GitBranch className="w-3 h-3" />
+                Changes detected after run
+              </div>
+              <div className="flex flex-col gap-2">
+                <input
+                  value={commitMessage}
+                  onChange={(event) => setCommitMessage(event.target.value)}
+                  placeholder="Commit message"
+                  className="w-full px-3 py-2 bg-[#0B0E14] border border-slate-800/60 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 placeholder:text-slate-600"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={handleCommitChanges}
+                    disabled={isCommitting || !commitMessage.trim()}
+                    className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    {isCommitting ? 'Committing...' : 'Commit changes'}
+                  </button>
+                  <button
+                    onClick={onOpenVcs}
+                    className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
+                  >
+                    <FileCode className="w-3.5 h-3.5" />
+                    Open VCS
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <Check className="w-3.5 h-3.5 text-emerald-500" />
+              No uncommitted changes detected
+            </div>
+          )}
+
+          {postRunError && (
+            <div className="mt-2 p-2 bg-red-500/5 border border-red-500/10 rounded-lg text-xs text-red-400 flex items-center gap-2">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              {postRunError}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="flex-1 overflow-hidden">
+        {view === 'log' ? <ExecutionLog runId={runId} /> : <ArtifactsPanel runId={runId} />}
+      </div>
+    </div>
+  )
+}
+
+function DiffView({ diff }: { diff: string | null }) {
+  if (!diff) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 opacity-30">
+        <FileCode className="w-8 h-8 mb-2" />
+        <p className="text-xs font-mono">No changes detected</p>
+      </div>
+    )
+  }
+
+  const lines = diff.split('\n')
+  return (
+    <div className="font-mono text-[11px] overflow-auto max-h-full custom-scrollbar bg-slate-900/50 rounded-xl border border-slate-800/50 py-3 shadow-inner">
+      {lines.map((line, i) => {
+        let className = 'text-slate-400 px-4 py-0.5 block border-l-2 border-transparent'
+        if (line.startsWith('+'))
+          className =
+            'text-emerald-400 bg-emerald-500/10 px-4 py-0.5 block border-l-2 border-emerald-500/50'
+        if (line.startsWith('-'))
+          className = 'text-red-400 bg-red-500/10 px-4 py-0.5 block border-l-2 border-red-500/50'
+        if (line.startsWith('@@'))
+          className =
+            'text-blue-400/70 bg-blue-500/10 px-4 py-0.5 block italic border-l-2 border-blue-500/30'
+        if (
+          line.startsWith('diff') ||
+          line.startsWith('index') ||
+          line.startsWith('---') ||
+          line.startsWith('+++')
+        )
+          className = 'text-slate-500 px-4 py-1 block font-bold bg-slate-800/30'
+        return (
+          <span key={i} className={className}>
+            {line}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
+function VcsPanel({ task }: { task: KanbanTask }) {
+  const [status, setStatus] = useState<GitStatus | null>(null)
+  const [diff, setDiff] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [taskBranchName, setTaskBranchName] = useState(task.branchName ?? '')
+  const [commitMessage, setCommitMessage] = useState('')
+  const [lastCommitSha, setLastCommitSha] = useState<string | null>(null)
+  const [prInfo, setPrInfo] = useState<PrRefreshResponse | null>(null)
+  const [prTitle, setPrTitle] = useState(task.title)
+  const [prBody, setPrBody] = useState('')
+  const [prError, setPrError] = useState<string | null>(null)
+  const [isPrLoading, setIsPrLoading] = useState(false)
+  const [isPrProcessing, setIsPrProcessing] = useState(false)
+
+  const fetchGitInfo = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const [statusRes, diffRes] = await Promise.all([
+        window.api.git.status({ projectId: task.projectId }),
+        window.api.git.diff({ taskId: task.id }),
+      ])
+      setStatus(statusRes.status)
+      setDiff(diffRes.diff)
+    } catch (err) {
+      console.error('Failed to fetch git info:', err)
+      setError('Failed to load VCS information')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [task.id, task.projectId])
+
+  const fetchPrInfo = useCallback(
+    async (silent = false) => {
+      setIsPrLoading(true)
+      if (!silent) {
+        setPrError(null)
+      }
+      try {
+        const result = await window.api.pr.refresh({ taskId: task.id })
+        setPrInfo(result)
+        if (!silent) {
+          setPrError(null)
+        }
+      } catch (err) {
+        if (!silent) {
+          console.error('Failed to refresh PR:', err)
+          setPrError('Failed to refresh PR')
+        }
+        setPrInfo(null)
+      } finally {
+        setIsPrLoading(false)
+      }
+    },
+    [task.id]
+  )
+
+  useEffect(() => {
+    fetchGitInfo()
+  }, [fetchGitInfo])
+
+  useEffect(() => {
+    fetchPrInfo(true)
+  }, [fetchPrInfo])
+
+  useEffect(() => {
+    setTaskBranchName(task.branchName ?? '')
+  }, [task.branchName])
+
+  useEffect(() => {
+    setPrTitle(task.title)
+  }, [task.title])
+
+  const handleCreateBranch = async () => {
+    if (isProcessing) return
+    setIsProcessing(true)
+    try {
+      const response = await window.api.git.branchCreate({ taskId: task.id })
+      setTaskBranchName(response.branchName)
+      await fetchGitInfo()
+    } catch (err) {
+      console.error('Failed to create branch:', err)
+      setError('Failed to create branch')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleCheckoutBranch = async () => {
+    if (isProcessing) return
+    setIsProcessing(true)
+    try {
+      const response = await window.api.git.branchCheckout({ taskId: task.id })
+      setTaskBranchName(response.branchName)
+      await fetchGitInfo()
+    } catch (err) {
+      console.error('Failed to checkout branch:', err)
+      setError('Failed to checkout branch')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleCommit = async () => {
+    if (isProcessing) return
+    const trimmedMessage = commitMessage.trim()
+    if (!trimmedMessage) {
+      setError('Commit message is required')
+      return
+    }
+
+    setIsProcessing(true)
+    setError(null)
+    try {
+      const response = await window.api.git.commit({
+        taskId: task.id,
+        message: trimmedMessage,
+      })
+      setLastCommitSha(response.sha)
+      setCommitMessage('')
+      await fetchGitInfo()
+    } catch (err) {
+      console.error('Failed to commit changes:', err)
+      setError('Failed to commit changes')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handlePush = async () => {
+    if (isProcessing) return
+    setIsProcessing(true)
+    setError(null)
+    try {
+      await window.api.git.push({ taskId: task.id })
+      await fetchGitInfo()
+    } catch (err) {
+      console.error('Failed to push branch:', err)
+      setError('Failed to push branch')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleCreatePr = async () => {
+    if (isPrProcessing) return
+    const trimmedTitle = prTitle.trim()
+    if (!trimmedTitle) {
+      setPrError('PR title is required')
+      return
+    }
+
+    setIsPrProcessing(true)
+    setPrError(null)
+    try {
+      const response = await window.api.pr.create({
+        taskId: task.id,
+        title: trimmedTitle,
+        body: prBody,
+      })
+      setPrInfo({
+        state: response.state,
+        title: trimmedTitle,
+        url: response.url,
+        approvals: 0,
+        requiredApprovals: 1,
+        ciStatus: 'unknown',
+      })
+      await fetchPrInfo(true)
+    } catch (err) {
+      console.error('Failed to create PR:', err)
+      setPrError('Failed to create PR')
+    } finally {
+      setIsPrProcessing(false)
+    }
+  }
+
+  const handleRefreshPr = async () => {
+    if (isPrProcessing || isPrLoading) return
+    setIsPrProcessing(true)
+    try {
+      await fetchPrInfo(false)
+    } finally {
+      setIsPrProcessing(false)
+    }
+  }
+
+  const handleMergePr = async () => {
+    if (isPrProcessing || !prInfo) return
+    setIsPrProcessing(true)
+    setPrError(null)
+    try {
+      await window.api.pr.merge({ taskId: task.id, method: 'merge' })
+      await fetchPrInfo(false)
+    } catch (err) {
+      console.error('Failed to merge PR:', err)
+      setPrError('Failed to merge PR')
+    } finally {
+      setIsPrProcessing(false)
+    }
+  }
+
+  if (isLoading && !status) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full space-y-3 opacity-50">
+        <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
+        <p className="text-xs text-slate-400 font-mono uppercase tracking-widest">
+          Loading VCS Status...
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col h-full bg-[#0B0E14]/30 animate-in fade-in duration-300 overflow-hidden">
+      <div className="p-6 border-b border-slate-800/50 space-y-6 flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+            <GitBranch className="w-3.5 h-3.5" />
+            Branch Status
+          </h3>
+          <button
+            onClick={fetchGitInfo}
+            disabled={isLoading || isProcessing}
+            className="p-1.5 text-slate-500 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
+            title="Refresh status"
+          >
+            <RefreshCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin')} />
+          </button>
+        </div>
+
+        {status && (
+          <div className="space-y-4">
+            <div className="bg-slate-900/40 border border-slate-800/50 rounded-2xl p-4 space-y-4">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                      Current Branch
+                    </span>
+                    {status.isDirty && (
+                      <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px] font-bold uppercase">
+                        Dirty
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-200 font-mono text-sm">
+                    <GitBranch className="w-4 h-4 text-blue-400" />
+                    {status.branch}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                      Sync
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400">
+                      <span className="flex items-center gap-0.5">
+                        <ArrowUpRight className="w-3 h-3 text-emerald-500" />
+                        {status.ahead}
+                      </span>
+                      <span className="flex items-center gap-0.5">
+                        <ArrowUpRight className="w-3 h-3 text-red-500 rotate-180" />
+                        {status.behind}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-800/50 flex gap-3">
+                {taskBranchName && status.branch !== taskBranchName ? (
+                  <button
+                    onClick={handleCheckoutBranch}
+                    disabled={isProcessing}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-blue-500/20"
+                  >
+                    <GitBranch className="w-3.5 h-3.5" />
+                    {isProcessing ? 'Switching...' : `Switch to ${taskBranchName}`}
+                  </button>
+                ) : !taskBranchName ? (
+                  <button
+                    onClick={handleCreateBranch}
+                    disabled={isProcessing}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-emerald-500/20"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    {isProcessing ? 'Creating...' : 'Create Task Branch'}
+                  </button>
+                ) : (
+                  <div className="flex-1 px-4 py-2 bg-slate-800/50 border border-slate-700/50 text-slate-400 text-xs font-medium rounded-xl text-center">
+                    Already on task branch
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-slate-900/40 border border-slate-800/50 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                  Commit & Push
+                </div>
+                {lastCommitSha && (
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    {lastCommitSha.slice(0, 7)}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-col gap-3">
+                <input
+                  value={commitMessage}
+                  onChange={(event) => setCommitMessage(event.target.value)}
+                  placeholder="Commit message"
+                  className="w-full px-3 py-2 bg-[#0B0E14] border border-slate-800/60 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 placeholder:text-slate-600"
+                />
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleCommit}
+                    disabled={isProcessing || !commitMessage.trim() || !status.isDirty}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-blue-500/20"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    {isProcessing ? 'Committing...' : 'Commit'}
+                  </button>
+                  <button
+                    onClick={handlePush}
+                    disabled={isProcessing || !taskBranchName}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 text-slate-200 text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                    {isProcessing ? 'Pushing...' : 'Push'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-slate-900/40 border border-slate-800/50 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                  <GitPullRequest className="w-3.5 h-3.5" />
+                  Pull Request
+                </div>
+                {prInfo?.url && (
+                  <a
+                    href={prInfo.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10px] uppercase tracking-widest text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                  >
+                    Open
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+
+              {prInfo ? (
+                <div className="space-y-3">
+                  <div className="text-sm text-slate-200 font-medium line-clamp-2">
+                    {prInfo.title}
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest text-slate-500">
+                    <span className="px-2 py-0.5 rounded-full border border-slate-700/60 text-slate-300">
+                      {prInfo.state}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full border border-slate-700/60">
+                      CI: {prInfo.ciStatus}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full border border-slate-700/60">
+                      Approvals: {prInfo.approvals} / {prInfo.requiredApprovals}
+                    </span>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleRefreshPr}
+                      disabled={isPrProcessing || isPrLoading}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 text-slate-200 text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
+                    >
+                      <RefreshCw className={cn('w-3.5 h-3.5', isPrLoading && 'animate-spin')} />
+                      Refresh
+                    </button>
+                    <button
+                      onClick={handleMergePr}
+                      disabled={
+                        isPrProcessing ||
+                        prInfo.state !== 'open' ||
+                        prInfo.ciStatus !== 'success' ||
+                        prInfo.approvals < prInfo.requiredApprovals
+                      }
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      Merge
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <input
+                    value={prTitle}
+                    onChange={(event) => setPrTitle(event.target.value)}
+                    placeholder="PR title"
+                    className="w-full px-3 py-2 bg-[#0B0E14] border border-slate-800/60 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 placeholder:text-slate-600"
+                  />
+                  <textarea
+                    value={prBody}
+                    onChange={(event) => setPrBody(event.target.value)}
+                    rows={3}
+                    placeholder="PR description"
+                    className="w-full px-3 py-2 bg-[#0B0E14] border border-slate-800/60 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 placeholder:text-slate-600 resize-none"
+                  />
+                  <button
+                    onClick={handleCreatePr}
+                    disabled={isPrProcessing || !prTitle.trim()}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
+                  >
+                    <GitPullRequest className="w-3.5 h-3.5" />
+                    {isPrProcessing ? 'Creating...' : 'Create PR'}
+                  </button>
+                </div>
+              )}
+
+              {prError && (
+                <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-xl flex items-center gap-2 text-red-400 text-xs">
+                  <AlertTriangle className="w-4 h-4" />
+                  {prError}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-xl flex items-center gap-2 text-red-400 text-xs">
+            <AlertTriangle className="w-4 h-4" />
+            {error}
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="px-6 py-4 flex items-center justify-between flex-shrink-0">
+          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+            <FileCode className="w-3.5 h-3.5" />
+            Changes (Diff)
+          </h3>
+        </div>
+        <div className="flex-1 px-6 pb-6 overflow-hidden">
+          <DiffView diff={diff} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps) {
-  const [activeTab, setActiveTab] = useState<'details' | 'chat'>('details')
+  const [activeTab, setActiveTab] = useState<'details' | 'chat' | 'runs' | 'vcs'>('details')
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [isEditingDescription, setIsEditingDescription] = useState(false)
   const [isPreviewMode, setIsPreviewMode] = useState(false)
@@ -43,6 +1154,18 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
   const [editedDescription, setEditedDescription] = useState('')
   const [newTag, setNewTag] = useState('')
   const [isAddingTag, setIsAddingTag] = useState(false)
+
+  // Runs State
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
+  const [runs, setRuns] = useState<Run[]>([])
+  const [isLoadingRuns, setIsLoadingRuns] = useState(false)
+  const [isStartingRun, setIsStartingRun] = useState(false)
+  const [selectedRoleId, setSelectedRoleId] = useState('ba')
+  const [roles] = useState<{ id: string; name: string }[]>([
+    { id: 'ba', name: 'BA' },
+    { id: 'dev', name: 'DEV' },
+    { id: 'qa', name: 'QA' },
+  ])
 
   const initialMessages: ChatMessage[] = [
     {
@@ -63,10 +1186,28 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
   const tagInputRef = useRef<HTMLInputElement>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
 
+  const fetchRuns = async () => {
+    if (!task) return
+    setIsLoadingRuns(true)
+    try {
+      const response = await window.api.run.listByTask({ taskId: task.id })
+      setRuns(
+        response.runs.sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )
+      )
+    } catch (error) {
+      console.error('Failed to fetch runs:', error)
+    } finally {
+      setIsLoadingRuns(false)
+    }
+  }
+
   useEffect(() => {
     if (task) {
       setEditedTitle(task.title)
       setEditedDescription(task.descriptionMd || task.description || '')
+      setSelectedRunId(null)
     }
   }, [task])
 
@@ -86,6 +1227,12 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, activeTab])
+
+  useEffect(() => {
+    if (activeTab === 'runs' && task) {
+      fetchRuns()
+    }
+  }, [activeTab, task])
 
   if (!isOpen || !task) return null
 
@@ -164,6 +1311,49 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
     }, 1000)
   }
 
+  const handleStartRun = async () => {
+    if (!task || isStartingRun) return
+    setIsStartingRun(true)
+    try {
+      const response = await window.api.run.start({
+        taskId: task.id,
+        roleId: selectedRoleId,
+        mode: 'execute',
+      })
+      setSelectedRunId(response.runId)
+      await fetchRuns()
+    } catch (error) {
+      console.error('Failed to start run:', error)
+    } finally {
+      setIsStartingRun(false)
+    }
+  }
+
+  const handleCancelRun = async (runId: string) => {
+    try {
+      await window.api.run.cancel({ runId })
+      await fetchRuns()
+    } catch (error) {
+      console.error('Failed to cancel run:', error)
+    }
+  }
+
+  const handleRetryRun = async (run: Run) => {
+    setIsStartingRun(true)
+    try {
+      await window.api.run.start({
+        taskId: run.taskId,
+        roleId: run.roleId,
+        mode: run.mode,
+      })
+      await fetchRuns()
+    } catch (error) {
+      console.error('Failed to retry run:', error)
+    } finally {
+      setIsStartingRun(false)
+    }
+  }
+
   const formatDate = (dateString: string | undefined) => {
     if (!dateString) return '—'
     const date = new Date(dateString)
@@ -230,6 +1420,34 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
     review: { label: 'In Review', className: 'bg-amber-500/10 text-amber-400 border-amber-500/25' },
     done: { label: 'Done', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25' },
     default: { label: 'Active', className: 'bg-slate-500/10 text-slate-400 border-slate-500/25' },
+  }
+
+  const runStatusConfig: Record<string, { label: string; className: string; icon: any }> = {
+    queued: {
+      label: 'Queued',
+      className: 'bg-slate-500/10 text-slate-400 border-slate-500/25',
+      icon: Clock,
+    },
+    running: {
+      label: 'Running',
+      className: 'bg-blue-500/10 text-blue-400 border-blue-500/25',
+      icon: RefreshCw,
+    },
+    succeeded: {
+      label: 'Succeeded',
+      className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25',
+      icon: Check,
+    },
+    failed: {
+      label: 'Failed',
+      className: 'bg-red-500/10 text-red-400 border-red-500/25',
+      icon: AlertTriangle,
+    },
+    canceled: {
+      label: 'Canceled',
+      className: 'bg-orange-500/10 text-orange-400 border-orange-500/25',
+      icon: X,
+    },
   }
 
   const priority =
@@ -320,6 +1538,32 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
             )}
           </button>
           <button
+            onClick={() => setActiveTab('vcs')}
+            className={cn(
+              'flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all relative',
+              activeTab === 'vcs' ? 'text-white' : 'text-slate-500 hover:text-slate-300'
+            )}
+          >
+            <GitBranch className="w-4 h-4" />
+            VCS
+            {activeTab === 'vcs' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 via-teal-400 to-blue-400" />
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('runs')}
+            className={cn(
+              'flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all relative',
+              activeTab === 'runs' ? 'text-white' : 'text-slate-500 hover:text-slate-300'
+            )}
+          >
+            <History className="w-4 h-4" />
+            Runs
+            {activeTab === 'runs' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-blue-400 to-cyan-400" />
+            )}
+          </button>
+          <button
             onClick={() => setActiveTab('chat')}
             className={cn(
               'flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all relative',
@@ -335,7 +1579,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {activeTab === 'details' ? (
+          {activeTab === 'details' && (
             <div className="p-6 space-y-8">
               <div className="flex flex-wrap items-center gap-3">
                 <span
@@ -608,7 +1852,195 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
                 </div>
               </div>
             </div>
-          ) : (
+          )}
+
+          {activeTab === 'vcs' && <VcsPanel task={task} />}
+
+          {activeTab === 'runs' && (
+            <div className="flex flex-col h-full bg-[#0B0E14]/30 animate-in fade-in duration-300">
+              {selectedRunId ? (
+                <RunDetailsView
+                  runId={selectedRunId}
+                  run={runs.find((run) => run.id === selectedRunId) ?? null}
+                  task={task}
+                  onOpenVcs={() => setActiveTab('vcs')}
+                  onBack={() => setSelectedRunId(null)}
+                />
+              ) : (
+                <>
+                  {/* Controls Header */}
+                  <div className="p-6 border-b border-slate-800/50 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                        <History className="w-3 h-3" />
+                        Execution History
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={fetchRuns}
+                          disabled={isLoadingRuns}
+                          className="p-1.5 text-slate-500 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
+                          title="Refresh history"
+                        >
+                          <RefreshCw
+                            className={cn('w-3.5 h-3.5', isLoadingRuns && 'animate-spin')}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 relative group/select">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-hover/select:text-blue-400 transition-colors pointer-events-none">
+                          <User className="w-3.5 h-3.5" />
+                        </div>
+                        <select
+                          value={selectedRoleId}
+                          onChange={(e) => setSelectedRoleId(e.target.value)}
+                          className="w-full appearance-none cursor-pointer pl-9 pr-8 py-2.5 bg-[#0B0E14] border border-slate-800/50 hover:border-slate-700/50 rounded-xl text-xs font-medium text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                        >
+                          {roles.map((role) => (
+                            <option key={role.id} value={role.id}>
+                              {role.name}
+                            </option>
+                          ))}
+                        </select>
+                        <Plus className="w-3 h-3 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600 group-hover/select:text-slate-400 transition-colors" />
+                      </div>
+
+                      <button
+                        onClick={handleStartRun}
+                        disabled={isStartingRun}
+                        className={cn(
+                          'flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-lg',
+                          isStartingRun
+                            ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50'
+                            : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98] border border-blue-500/30'
+                        )}
+                      >
+                        {isStartingRun ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                        )}
+                        {isStartingRun ? 'Starting...' : 'Start Run'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Runs List */}
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                    {isLoadingRuns && runs.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 space-y-3 opacity-50">
+                        <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
+                        <p className="text-xs text-slate-400 font-medium">Loading history...</p>
+                      </div>
+                    ) : runs.length > 0 ? (
+                      <div className="space-y-4">
+                        {runs.map((run) => {
+                          const runStatus = runStatusConfig[run.status] || runStatusConfig.queued
+                          return (
+                            <div
+                              key={run.id}
+                              className="group relative bg-slate-900/40 border border-slate-800/50 rounded-2xl p-4 hover:border-slate-700/50 hover:bg-slate-800/30 transition-all duration-300"
+                            >
+                              <div className="flex items-start justify-between mb-3">
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-mono text-slate-500">
+                                      {run.id.slice(0, 8)}
+                                    </span>
+                                    <span className="text-xs font-semibold text-slate-200">
+                                      {roles.find((r) => r.id === run.roleId)?.name || run.roleId}
+                                    </span>
+                                    <span className="text-[10px] text-slate-600">{run.mode}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className={cn(
+                                        'inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider transition-all',
+                                        runStatus.className
+                                      )}
+                                    >
+                                      <runStatus.icon
+                                        className={cn(
+                                          'w-2.5 h-2.5',
+                                          run.status === 'running' && 'animate-spin'
+                                        )}
+                                      />
+                                      {runStatus.label}
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                                      <Clock className="w-2.5 h-2.5" />
+                                      {new Date(run.createdAt).toLocaleString()}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                  {run.status === 'running' ? (
+                                    <button
+                                      onClick={() => handleCancelRun(run.id)}
+                                      className="p-2 text-red-400 hover:bg-red-500/15 rounded-xl transition-all hover:scale-105"
+                                      title="Cancel Run"
+                                    >
+                                      <Square className="w-3.5 h-3.5 fill-current" />
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleRetryRun(run)}
+                                      disabled={isStartingRun}
+                                      className="p-2 text-blue-400 hover:bg-blue-500/15 rounded-xl transition-all hover:scale-105 disabled:opacity-50"
+                                      title="Retry Run"
+                                    >
+                                      <RotateCcw className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => setSelectedRunId(run.id)}
+                                    className="p-2 text-slate-500 hover:text-white hover:bg-slate-700/50 rounded-xl transition-all"
+                                    title="View details"
+                                  >
+                                    <ArrowUpRight className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {run.errorText && (
+                                <div className="mt-2 p-3 bg-red-500/5 border border-red-500/10 rounded-xl">
+                                  <p className="text-[10px] text-red-400/80 font-mono line-clamp-2 leading-relaxed">
+                                    {run.errorText}
+                                  </p>
+                                </div>
+                              )}
+
+                              <div className="absolute -right-1 -top-1 opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none">
+                                <Terminal className="w-16 h-16" />
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-16 px-6 text-center space-y-4">
+                        <div className="w-12 h-12 bg-slate-900/50 rounded-2xl flex items-center justify-center border border-slate-800/50 text-slate-600">
+                          <History className="w-6 h-6" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold text-slate-300">No runs yet</p>
+                          <p className="text-xs text-slate-500 max-w-[200px] mx-auto leading-relaxed">
+                            Start a new run to see the agent in action.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'chat' && (
             <div className="h-full flex flex-col">
               <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
                 {messages.map((msg) => (

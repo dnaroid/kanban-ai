@@ -4,6 +4,10 @@ import type { Board, BoardColumn } from '../../shared/types/ipc'
 
 export class BoardRepository {
   getDefault(projectId: string): Board {
+    return this.getOrCreateDefaultBoard(projectId)
+  }
+
+  getOrCreateDefaultBoard(projectId: string): Board {
     const db = dbManager.connect()
 
     const existingBoard = db
@@ -74,6 +78,18 @@ export class BoardRepository {
     const now = new Date().toISOString()
 
     db.transaction(() => {
+      const existingIds = db
+        .prepare('SELECT id FROM board_columns WHERE board_id = ?')
+        .all(boardId) as { id: string }[]
+      const incomingIds = new Set(columns.filter((col) => col.id).map((col) => col.id as string))
+
+      existingIds
+        .map((row) => row.id)
+        .filter((id) => !incomingIds.has(id))
+        .forEach((id) => {
+          db.prepare('DELETE FROM board_columns WHERE id = ? AND board_id = ?').run(id, boardId)
+        })
+
       const updateColumn = db.prepare(
         `
         UPDATE board_columns SET name = ?, order_index = ?, updated_at = ?

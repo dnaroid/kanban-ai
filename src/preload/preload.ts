@@ -14,22 +14,53 @@ const api: MainToRenderer = {
     delete: (id) => ipcRenderer.invoke('project:delete', { id }),
   },
   board: {
-    getDefault: (projectId) => ipcRenderer.invoke('board:getDefault', projectId),
-    updateColumns: (boardId, columns) =>
-      ipcRenderer.invoke('board:updateColumns', { boardId, columns }),
+    getDefault: (input) => ipcRenderer.invoke('board:getDefault', input),
+    updateColumns: (input) => ipcRenderer.invoke('board:updateColumns', input),
   },
   task: {
     create: (input) => ipcRenderer.invoke('task:create', input),
-    listByBoard: (boardId) => ipcRenderer.invoke('task:listByBoard', boardId),
-    update: (id, patch) => ipcRenderer.invoke('task:update', { id, patch }),
-    move: (taskId, toColumnId, toIndex) =>
-      ipcRenderer.invoke('task:move', { taskId, toColumnId, toIndex }),
+    listByBoard: (input) => ipcRenderer.invoke('task:listByBoard', input),
+    update: (input) => ipcRenderer.invoke('task:update', input),
+    move: (input) => ipcRenderer.invoke('task:move', input),
+  },
+  git: {
+    status: (input) => ipcRenderer.invoke('git:status', input),
+    branchCreate: (input) => ipcRenderer.invoke('git:branch:create', input),
+    branchCheckout: (input) => ipcRenderer.invoke('git:branch:checkout', input),
+    diff: (input) => ipcRenderer.invoke('git:diff', input),
+    commit: (input) => ipcRenderer.invoke('git:commit', input),
+    push: (input) => ipcRenderer.invoke('git:push', input),
+  },
+  pr: {
+    create: (input) => ipcRenderer.invoke('pr:create', input),
+    refresh: (input) => ipcRenderer.invoke('pr:refresh', input),
+    merge: (input) => ipcRenderer.invoke('pr:merge', input),
+  },
+  vcs: {
+    connectRepo: (input) => ipcRenderer.invoke('vcs:connectRepo', input),
+  },
+  integrations: {
+    setProvider: (input) => ipcRenderer.invoke('integrations:setProvider', input),
+    setToken: (input) => ipcRenderer.invoke('integrations:setToken', input),
   },
   diagnostics: {
     getLogs: (level, limit) => ipcRenderer.invoke('diagnostics:getLogs', level, limit),
     getLogTail: (lines) => ipcRenderer.invoke('diagnostics:getLogTail', lines),
     getSystemInfo: () => ipcRenderer.invoke('diagnostics:getSystemInfo'),
     getDbInfo: () => ipcRenderer.invoke('diagnostics:getDbInfo'),
+  },
+  run: {
+    start: (input) => ipcRenderer.invoke('run:start', input),
+    cancel: (input) => ipcRenderer.invoke('run:cancel', input),
+    listByTask: (input) => ipcRenderer.invoke('run:listByTask', input),
+    get: (input) => ipcRenderer.invoke('run:get', input),
+  },
+  events: {
+    tail: (input) => ipcRenderer.invoke('run:events:tail', input),
+  },
+  artifact: {
+    list: (input) => ipcRenderer.invoke('artifact:list', input),
+    get: (input) => ipcRenderer.invoke('artifact:get', input),
   },
 }
 

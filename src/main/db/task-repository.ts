@@ -59,23 +59,65 @@ export class TaskRepository {
     const rows = db
       .prepare(
         `
-      SELECT 
-        id, project_id as projectId, board_id as boardId, column_id as columnId, 
-        title, description, description_md as descriptionMd, status, priority, 
-        type, order_in_column as orderInColumn, tags_json as tagsJson, 
-        assigned_agent as assignedAgent, branch_name as branchName, pr_number as prNumber,
-        created_at as createdAt, updated_at as updatedAt
-      FROM tasks
-      WHERE board_id = ?
-      ORDER BY order_in_column ASC
-    `
+        SELECT 
+          t.id, t.project_id as projectId, t.board_id as boardId, t.column_id as columnId, 
+          t.title, t.description, t.description_md as descriptionMd, t.status, t.priority, 
+          t.type, t.order_in_column as orderInColumn, t.tags_json as tagsJson, 
+          t.assigned_agent as assignedAgent,
+          COALESCE(tvl.branch_name, t.branch_name) as branchName,
+          t.pr_number as prNumber,
+          t.created_at as createdAt, t.updated_at as updatedAt
+        FROM tasks t
+        LEFT JOIN task_vcs_links tvl ON tvl.task_id = t.id
+        WHERE board_id = ?
+        ORDER BY order_in_column ASC
+      `
       )
       .all(boardId) as any[]
 
     return rows.map((row) => ({
       ...row,
+      description: row.description ?? undefined,
+      descriptionMd: row.descriptionMd ?? '',
+      assignedAgent: row.assignedAgent ?? undefined,
+      branchName: row.branchName ?? undefined,
+      prNumber: row.prNumber ?? undefined,
       tags: JSON.parse(row.tagsJson || '[]'),
     }))
+  }
+
+  getById(taskId: string): KanbanTask | null {
+    const db = dbManager.connect()
+    const row = db
+      .prepare(
+        `
+        SELECT 
+          t.id, t.project_id as projectId, t.board_id as boardId, t.column_id as columnId, 
+          t.title, t.description, t.description_md as descriptionMd, t.status, t.priority, 
+          t.type, t.order_in_column as orderInColumn, t.tags_json as tagsJson, 
+          t.assigned_agent as assignedAgent,
+          COALESCE(tvl.branch_name, t.branch_name) as branchName,
+          t.pr_number as prNumber,
+          t.created_at as createdAt, t.updated_at as updatedAt
+        FROM tasks t
+        LEFT JOIN task_vcs_links tvl ON tvl.task_id = t.id
+        WHERE id = ?
+        LIMIT 1
+      `
+      )
+      .get(taskId) as any | undefined
+
+    if (!row) return null
+
+    return {
+      ...row,
+      description: row.description ?? undefined,
+      descriptionMd: row.descriptionMd ?? '',
+      assignedAgent: row.assignedAgent ?? undefined,
+      branchName: row.branchName ?? undefined,
+      prNumber: row.prNumber ?? undefined,
+      tags: JSON.parse(row.tagsJson || '[]'),
+    }
   }
 
   update(id: string, patch: Partial<KanbanTask>): void {
@@ -135,23 +177,58 @@ export class TaskRepository {
     const now = new Date().toISOString()
 
     db.transaction(() => {
-      const task = db
-        .prepare('SELECT column_id, order_in_column FROM tasks WHERE id = ?')
-        .get(taskId) as { column_id: string; order_in_column: number }
+      const task = db.prepare('SELECT column_id FROM tasks WHERE id = ?').get(taskId) as
+        | { column_id: string }
+        | undefined
 
       if (!task) return
 
-      db.prepare(
-        'UPDATE tasks SET order_in_column = order_in_column - 1 WHERE column_id = ? AND order_in_column > ?'
-      ).run(task.column_id, task.order_in_column)
+      const sourceColumnId = task.column_id
+      const isSameColumn = sourceColumnId === toColumnId
 
-      db.prepare(
-        'UPDATE tasks SET order_in_column = order_in_column + 1 WHERE column_id = ? AND order_in_column >= ?'
-      ).run(toColumnId, toIndex)
+      const normalizeIndex = (index: number, length: number) => {
+        if (Number.isNaN(index)) return length
+        return Math.max(0, Math.min(index, length))
+      }
 
-      db.prepare(
-        'UPDATE tasks SET column_id = ?, order_in_column = ?, updated_at = ? WHERE id = ?'
-      ).run(toColumnId, toIndex, now, taskId)
+      const fetchColumnTaskIds = (columnId: string) => {
+        const rows = db
+          .prepare('SELECT id FROM tasks WHERE column_id = ? ORDER BY order_in_column ASC')
+          .all(columnId) as { id: string }[]
+        return rows.map((row) => row.id)
+      }
+
+      const applyOrder = (orderedIds: string[]) => {
+        const updateStmt = db.prepare(
+          'UPDATE tasks SET order_in_column = ?, updated_at = ? WHERE id = ?'
+        )
+        orderedIds.forEach((id, index) => {
+          updateStmt.run(index, now, id)
+        })
+      }
+
+      if (isSameColumn) {
+        const orderedIds = fetchColumnTaskIds(sourceColumnId).filter((id) => id !== taskId)
+        const insertIndex = normalizeIndex(toIndex, orderedIds.length)
+        orderedIds.splice(insertIndex, 0, taskId)
+        applyOrder(orderedIds)
+        return
+      }
+
+      const sourceIds = fetchColumnTaskIds(sourceColumnId).filter((id) => id !== taskId)
+      const destinationIds = fetchColumnTaskIds(toColumnId)
+      const insertIndex = normalizeIndex(toIndex, destinationIds.length)
+
+      destinationIds.splice(insertIndex, 0, taskId)
+
+      db.prepare('UPDATE tasks SET column_id = ?, updated_at = ? WHERE id = ?').run(
+        toColumnId,
+        now,
+        taskId
+      )
+
+      applyOrder(sourceIds)
+      applyOrder(destinationIds)
     })()
   }
 }

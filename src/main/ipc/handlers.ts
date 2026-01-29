@@ -9,10 +9,88 @@ import {
   UpdateProjectInputSchema,
   DeleteProjectInputSchema,
   CreateTaskInputSchema,
+  BoardGetDefaultInputSchema,
+  BoardGetDefaultResponseSchema,
+  BoardUpdateColumnsInputSchema,
+  BoardUpdateColumnsResponseSchema,
+  TaskListByBoardInputSchema,
+  TaskListByBoardResponseSchema,
+  TaskCreateResponseSchema,
+  TaskUpdateInputSchema,
+  TaskUpdateResponseSchema,
+  TaskMoveInputSchema,
+  TaskMoveResponseSchema,
+  GitStatusInputSchema,
+  GitStatusResponseSchema,
+  GitBranchCreateInputSchema,
+  GitBranchCreateResponseSchema,
+  GitBranchCheckoutInputSchema,
+  GitBranchCheckoutResponseSchema,
+  GitDiffInputSchema,
+  GitDiffResponseSchema,
+  GitCommitInputSchema,
+  GitCommitResponseSchema,
+  GitPushInputSchema,
+  GitPushResponseSchema,
+  PrCreateInputSchema,
+  PrCreateResponseSchema,
+  PrRefreshInputSchema,
+  PrRefreshResponseSchema,
+  PrMergeInputSchema,
+  PrMergeResponseSchema,
+  VcsConnectRepoInputSchema,
+  VcsConnectRepoResponseSchema,
+  IntegrationsSetProviderInputSchema,
+  IntegrationsSetProviderResponseSchema,
+  IntegrationsSetTokenInputSchema,
+  IntegrationsSetTokenResponseSchema,
+  RunStartInputSchema,
+  RunStartResponseSchema,
+  RunCancelInputSchema,
+  RunCancelResponseSchema,
+  RunListByTaskInputSchema,
+  RunListByTaskResponseSchema,
+  RunGetInputSchema,
+  RunGetResponseSchema,
+  RunEventsTailInputSchema,
+  RunEventsTailResponseSchema,
+  ArtifactListInputSchema,
+  ArtifactListResponseSchema,
+  ArtifactGetInputSchema,
+  ArtifactGetResponseSchema,
 } from '../../shared/types/ipc'
 import { projectRepo } from '../db/project-repository'
 import { boardRepo } from '../db/board-repository'
 import { taskRepo } from '../db/task-repository'
+import { taskVcsLinkRepo } from '../db/task-vcs-link-repository'
+import { vcsProjectRepo } from '../db/vcs-project-repository'
+import { runRepo } from '../db/run-repository'
+import { runEventRepo } from '../db/run-event-repository'
+import { artifactRepo } from '../db/artifact-repository'
+import { runService } from '../run/run-service'
+import { buildContextSnapshot } from '../run/context-snapshot-builder'
+import { createGitAdapter } from '../git/git-adapter'
+import { ensureTaskBranchName } from '../git/task-branch-service'
+import { createPullRequest, mergePullRequest, refreshPullRequest } from '../pr/pr-service'
+import { getSecretStore } from '../secrets/secret-store'
+
+const gitAdapter = createGitAdapter()
+
+const getProjectRepoPath = (projectId: string): string => {
+  const project = projectRepo.getById(projectId)
+  if (!project) {
+    throw new Error('Project not found')
+  }
+  return project.path
+}
+
+const getTaskRepoPath = (taskId: string): string => {
+  const task = taskRepo.getById(taskId)
+  if (!task) {
+    throw new Error('Task not found')
+  }
+  return getProjectRepoPath(task.projectId)
+}
 
 ipcHandlers.register('project:selectFolder', z.unknown(), async () => {
   const result = await dialog.showOpenDialog({
@@ -73,44 +151,199 @@ ipcHandlers.register('project:delete', DeleteProjectInputSchema, async (_, input
   return projectRepo.delete(input.id)
 })
 
-ipcHandlers.register('board:getDefault', z.string(), async (_, projectId) => {
-  return boardRepo.getDefault(projectId)
+ipcHandlers.register('board:getDefault', BoardGetDefaultInputSchema, async (_, { projectId }) => {
+  const { columns = [], ...board } = boardRepo.getDefault(projectId)
+  return BoardGetDefaultResponseSchema.parse({ board, columns })
 })
 
 ipcHandlers.register(
   'board:updateColumns',
-  z.object({ boardId: z.string(), columns: z.array(z.any()) }),
+  BoardUpdateColumnsInputSchema,
   async (_, { boardId, columns }) => {
     boardRepo.updateColumns(boardId, columns)
-    return { success: true }
+    const updatedColumns = boardRepo.getColumns(boardId)
+    return BoardUpdateColumnsResponseSchema.parse({ columns: updatedColumns })
   }
 )
 
 ipcHandlers.register('task:create', CreateTaskInputSchema, async (_, input) => {
-  return taskRepo.create(input)
+  const task = taskRepo.create(input)
+  return TaskCreateResponseSchema.parse({ task })
 })
 
-ipcHandlers.register('task:listByBoard', z.string(), async (_, boardId) => {
-  return taskRepo.listByBoard(boardId)
+ipcHandlers.register('task:listByBoard', TaskListByBoardInputSchema, async (_, { boardId }) => {
+  const tasks = taskRepo.listByBoard(boardId)
+  return TaskListByBoardResponseSchema.parse({ tasks })
 })
 
-ipcHandlers.register(
-  'task:update',
-  z.object({ id: z.string(), patch: z.any() }),
-  async (_, { id, patch }) => {
-    taskRepo.update(id, patch)
-    return { success: true }
+ipcHandlers.register('task:update', TaskUpdateInputSchema, async (_, { taskId, patch }) => {
+  taskRepo.update(taskId, patch)
+  const task = taskRepo.getById(taskId)
+  if (!task) {
+    throw new Error('Task not found')
   }
-)
+  return TaskUpdateResponseSchema.parse({ task })
+})
 
 ipcHandlers.register(
   'task:move',
-  z.object({ taskId: z.string(), toColumnId: z.string(), toIndex: z.number() }),
+  TaskMoveInputSchema,
   async (_, { taskId, toColumnId, toIndex }) => {
     taskRepo.move(taskId, toColumnId, toIndex)
-    return { success: true }
+    return TaskMoveResponseSchema.parse({ success: true })
   }
 )
+
+ipcHandlers.register('git:status', GitStatusInputSchema, async (_, { projectId }) => {
+  const repoPath = getProjectRepoPath(projectId)
+  await gitAdapter.ensureRepo(repoPath)
+  const status = await gitAdapter.getStatus(repoPath)
+  return GitStatusResponseSchema.parse({ status })
+})
+
+ipcHandlers.register('git:branch:create', GitBranchCreateInputSchema, async (_, { taskId }) => {
+  const repoPath = getTaskRepoPath(taskId)
+  await gitAdapter.ensureRepo(repoPath)
+  const branchName = ensureTaskBranchName(taskId)
+  const defaultBranch = await gitAdapter.getDefaultBranch(repoPath)
+  await gitAdapter.createBranch(repoPath, branchName, defaultBranch)
+  return GitBranchCreateResponseSchema.parse({ branchName })
+})
+
+ipcHandlers.register('git:branch:checkout', GitBranchCheckoutInputSchema, async (_, { taskId }) => {
+  const repoPath = getTaskRepoPath(taskId)
+  await gitAdapter.ensureRepo(repoPath)
+  const branchName = ensureTaskBranchName(taskId)
+  await gitAdapter.checkoutBranch(repoPath, branchName)
+  return GitBranchCheckoutResponseSchema.parse({ branchName })
+})
+
+ipcHandlers.register('git:diff', GitDiffInputSchema, async (_, { taskId }) => {
+  const repoPath = getTaskRepoPath(taskId)
+  await gitAdapter.ensureRepo(repoPath)
+  const diff = await gitAdapter.getDiff(repoPath)
+  return GitDiffResponseSchema.parse({ diff })
+})
+
+ipcHandlers.register('git:commit', GitCommitInputSchema, async (_, { taskId, message }) => {
+  const repoPath = getTaskRepoPath(taskId)
+  await gitAdapter.ensureRepo(repoPath)
+  const { sha } = await gitAdapter.commitAll(repoPath, message)
+  taskVcsLinkRepo.upsert(taskId, { lastCommitSha: sha })
+  return GitCommitResponseSchema.parse({ sha })
+})
+
+ipcHandlers.register('git:push', GitPushInputSchema, async (_, { taskId }) => {
+  const repoPath = getTaskRepoPath(taskId)
+  await gitAdapter.ensureRepo(repoPath)
+  const branchName = ensureTaskBranchName(taskId)
+  await gitAdapter.push(repoPath, branchName)
+  return GitPushResponseSchema.parse({ ok: true })
+})
+
+ipcHandlers.register(
+  'pr:create',
+  PrCreateInputSchema,
+  async (_, { taskId, title, body, draft }) => {
+    const result = await createPullRequest({ taskId, title, body, draft })
+    return PrCreateResponseSchema.parse(result)
+  }
+)
+
+ipcHandlers.register('pr:refresh', PrRefreshInputSchema, async (_, { taskId }) => {
+  const result = await refreshPullRequest(taskId)
+  return PrRefreshResponseSchema.parse(result)
+})
+
+ipcHandlers.register('pr:merge', PrMergeInputSchema, async (_, { taskId, method }) => {
+  const result = await mergePullRequest({ taskId, method })
+  return PrMergeResponseSchema.parse(result)
+})
+
+ipcHandlers.register(
+  'vcs:connectRepo',
+  VcsConnectRepoInputSchema,
+  async (_, { projectId, repoPath }) => {
+    await gitAdapter.ensureRepo(repoPath)
+    const defaultBranch = await gitAdapter.getDefaultBranch(repoPath)
+    vcsProjectRepo.upsert(projectId, { repoPath, defaultBranch })
+    return VcsConnectRepoResponseSchema.parse({ ok: true, defaultBranch })
+  }
+)
+
+ipcHandlers.register(
+  'integrations:setProvider',
+  IntegrationsSetProviderInputSchema,
+  async (_, { projectId, providerType, repoId }) => {
+    vcsProjectRepo.upsert(projectId, { providerType, providerRepoId: repoId })
+    return IntegrationsSetProviderResponseSchema.parse({ ok: true })
+  }
+)
+
+ipcHandlers.register(
+  'integrations:setToken',
+  IntegrationsSetTokenInputSchema,
+  async (_, { providerType, token }) => {
+    const service = providerType === 'github' ? 'provider/github' : 'provider/gitlab'
+    await getSecretStore().setPassword(service, 'token', token)
+    return IntegrationsSetTokenResponseSchema.parse({ ok: true })
+  }
+)
+
+ipcHandlers.register('run:start', RunStartInputSchema, async (_, input) => {
+  const snapshot = buildContextSnapshot({
+    taskId: input.taskId,
+    roleId: input.roleId,
+    mode: input.mode,
+  })
+  const run = runRepo.create({
+    taskId: input.taskId,
+    roleId: input.roleId,
+    mode: input.mode,
+    contextSnapshotId: snapshot.id,
+  })
+  runService.enqueue(run.id)
+  return RunStartResponseSchema.parse({ runId: run.id })
+})
+
+ipcHandlers.register('run:cancel', RunCancelInputSchema, async (_, { runId }) => {
+  await runService.cancel(runId)
+  return RunCancelResponseSchema.parse({ ok: true })
+})
+
+ipcHandlers.register('run:listByTask', RunListByTaskInputSchema, async (_, { taskId }) => {
+  const runs = runRepo.listByTask(taskId)
+  return RunListByTaskResponseSchema.parse({ runs })
+})
+
+ipcHandlers.register('run:get', RunGetInputSchema, async (_, { runId }) => {
+  const run = runRepo.getById(runId)
+  if (!run) {
+    throw new Error('Run not found')
+  }
+  return RunGetResponseSchema.parse({ run })
+})
+
+ipcHandlers.register('run:events:tail', RunEventsTailInputSchema, async (_, input) => {
+  const events = runEventRepo.listByRun(input.runId, {
+    afterTs: input.afterTs,
+    limit: input.limit,
+  })
+  return RunEventsTailResponseSchema.parse({ events })
+})
+
+ipcHandlers.register('artifact:list', ArtifactListInputSchema, async (_, { runId }) => {
+  const artifacts = artifactRepo.listByRun(runId)
+  return ArtifactListResponseSchema.parse({ artifacts })
+})
+
+ipcHandlers.register('artifact:get', ArtifactGetInputSchema, async (_, { artifactId }) => {
+  const artifact = artifactRepo.getById(artifactId)
+  if (!artifact) {
+    throw new Error('Artifact not found')
+  }
+  return ArtifactGetResponseSchema.parse({ artifact })
+})
 
 registerDiagnosticsHandlers()
 

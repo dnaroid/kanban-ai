@@ -5,9 +5,56 @@ import type {
   UpdateProjectInput,
   DeleteProjectInput,
   LogEntry,
-  Board,
-  KanbanTask,
   CreateTaskInput,
+  BoardGetDefaultInput,
+  BoardGetDefaultResponse,
+  BoardUpdateColumnsInput,
+  BoardUpdateColumnsResponse,
+  TaskListByBoardInput,
+  TaskListByBoardResponse,
+  TaskCreateResponse,
+  TaskUpdateInput,
+  TaskUpdateResponse,
+  TaskMoveInput,
+  TaskMoveResponse,
+  GitStatusInput,
+  GitStatusResponse,
+  GitBranchCreateInput,
+  GitBranchCreateResponse,
+  GitBranchCheckoutInput,
+  GitBranchCheckoutResponse,
+  GitDiffInput,
+  GitDiffResponse,
+  GitCommitInput,
+  GitCommitResponse,
+  GitPushInput,
+  GitPushResponse,
+  PrCreateInput,
+  PrCreateResponse,
+  PrRefreshInput,
+  PrRefreshResponse,
+  PrMergeInput,
+  PrMergeResponse,
+  VcsConnectRepoInput,
+  VcsConnectRepoResponse,
+  IntegrationsSetProviderInput,
+  IntegrationsSetProviderResponse,
+  IntegrationsSetTokenInput,
+  IntegrationsSetTokenResponse,
+  RunStartInput,
+  RunStartResponse,
+  RunCancelInput,
+  RunCancelResponse,
+  RunListByTaskInput,
+  RunListByTaskResponse,
+  RunGetInput,
+  RunGetResponse,
+  RunEventsTailInput,
+  RunEventsTailResponse,
+  ArtifactListInput,
+  ArtifactListResponse,
+  ArtifactGetInput,
+  ArtifactGetResponse,
 } from '../shared/types/ipc'
 
 export interface MainToRenderer {
@@ -23,20 +70,53 @@ export interface MainToRenderer {
     delete(input: DeleteProjectInput): Promise<boolean>
   }
   board: {
-    getDefault(projectId: string): Promise<Board>
-    updateColumns(boardId: string, columns: any[]): Promise<{ success: true }>
+    getDefault(input: BoardGetDefaultInput): Promise<BoardGetDefaultResponse>
+    updateColumns(input: BoardUpdateColumnsInput): Promise<BoardUpdateColumnsResponse>
   }
   task: {
-    create(input: CreateTaskInput): Promise<KanbanTask>
-    listByBoard(boardId: string): Promise<KanbanTask[]>
-    update(id: string, patch: any): Promise<{ success: true }>
-    move(taskId: string, toColumnId: string, toIndex: number): Promise<{ success: true }>
+    create(input: CreateTaskInput): Promise<TaskCreateResponse>
+    listByBoard(input: TaskListByBoardInput): Promise<TaskListByBoardResponse>
+    update(input: TaskUpdateInput): Promise<TaskUpdateResponse>
+    move(input: TaskMoveInput): Promise<TaskMoveResponse>
+  }
+  git: {
+    status(input: GitStatusInput): Promise<GitStatusResponse>
+    branchCreate(input: GitBranchCreateInput): Promise<GitBranchCreateResponse>
+    branchCheckout(input: GitBranchCheckoutInput): Promise<GitBranchCheckoutResponse>
+    diff(input: GitDiffInput): Promise<GitDiffResponse>
+    commit(input: GitCommitInput): Promise<GitCommitResponse>
+    push(input: GitPushInput): Promise<GitPushResponse>
+  }
+  pr: {
+    create(input: PrCreateInput): Promise<PrCreateResponse>
+    refresh(input: PrRefreshInput): Promise<PrRefreshResponse>
+    merge(input: PrMergeInput): Promise<PrMergeResponse>
+  }
+  vcs: {
+    connectRepo(input: VcsConnectRepoInput): Promise<VcsConnectRepoResponse>
+  }
+  integrations: {
+    setProvider(input: IntegrationsSetProviderInput): Promise<IntegrationsSetProviderResponse>
+    setToken(input: IntegrationsSetTokenInput): Promise<IntegrationsSetTokenResponse>
   }
   diagnostics: {
     getLogs(level?: string, limit?: number): Promise<LogEntry[]>
     getLogTail(lines?: number): Promise<string[]>
     getSystemInfo(): Promise<object>
     getDbInfo(): Promise<object>
+  }
+  run: {
+    start(input: RunStartInput): Promise<RunStartResponse>
+    cancel(input: RunCancelInput): Promise<RunCancelResponse>
+    listByTask(input: RunListByTaskInput): Promise<RunListByTaskResponse>
+    get(input: RunGetInput): Promise<RunGetResponse>
+  }
+  events: {
+    tail(input: RunEventsTailInput): Promise<RunEventsTailResponse>
+  }
+  artifact: {
+    list(input: ArtifactListInput): Promise<ArtifactListResponse>
+    get(input: ArtifactGetInput): Promise<ArtifactGetResponse>
   }
 }
 
@@ -53,19 +133,52 @@ export interface RendererToMain {
     delete(input: DeleteProjectInput): Promise<boolean>
   }
   board: {
-    getDefault(projectId: string): Promise<Board>
-    updateColumns(boardId: string, columns: any[]): Promise<{ success: true }>
+    getDefault(input: BoardGetDefaultInput): Promise<BoardGetDefaultResponse>
+    updateColumns(input: BoardUpdateColumnsInput): Promise<BoardUpdateColumnsResponse>
   }
   task: {
-    create(input: CreateTaskInput): Promise<KanbanTask>
-    listByBoard(boardId: string): Promise<KanbanTask[]>
-    update(id: string, patch: any): Promise<{ success: true }>
-    move(taskId: string, toColumnId: string, toIndex: number): Promise<{ success: true }>
+    create(input: CreateTaskInput): Promise<TaskCreateResponse>
+    listByBoard(input: TaskListByBoardInput): Promise<TaskListByBoardResponse>
+    update(input: TaskUpdateInput): Promise<TaskUpdateResponse>
+    move(input: TaskMoveInput): Promise<TaskMoveResponse>
+  }
+  git: {
+    status(input: GitStatusInput): Promise<GitStatusResponse>
+    branchCreate(input: GitBranchCreateInput): Promise<GitBranchCreateResponse>
+    branchCheckout(input: GitBranchCheckoutInput): Promise<GitBranchCheckoutResponse>
+    diff(input: GitDiffInput): Promise<GitDiffResponse>
+    commit(input: GitCommitInput): Promise<GitCommitResponse>
+    push(input: GitPushInput): Promise<GitPushResponse>
+  }
+  pr: {
+    create(input: PrCreateInput): Promise<PrCreateResponse>
+    refresh(input: PrRefreshInput): Promise<PrRefreshResponse>
+    merge(input: PrMergeInput): Promise<PrMergeResponse>
+  }
+  vcs: {
+    connectRepo(input: VcsConnectRepoInput): Promise<VcsConnectRepoResponse>
+  }
+  integrations: {
+    setProvider(input: IntegrationsSetProviderInput): Promise<IntegrationsSetProviderResponse>
+    setToken(input: IntegrationsSetTokenInput): Promise<IntegrationsSetTokenResponse>
   }
   diagnostics: {
     getLogs(level?: string, limit?: number): Promise<LogEntry[]>
     getLogTail(lines?: number): Promise<string[]>
     getSystemInfo(): Promise<object>
     getDbInfo(): Promise<object>
+  }
+  run: {
+    start(input: RunStartInput): Promise<RunStartResponse>
+    cancel(input: RunCancelInput): Promise<RunCancelResponse>
+    listByTask(input: RunListByTaskInput): Promise<RunListByTaskResponse>
+    get(input: RunGetInput): Promise<RunGetResponse>
+  }
+  events: {
+    tail(input: RunEventsTailInput): Promise<RunEventsTailResponse>
+  }
+  artifact: {
+    list(input: ArtifactListInput): Promise<ArtifactListResponse>
+    get(input: ArtifactGetInput): Promise<ArtifactGetResponse>
   }
 }

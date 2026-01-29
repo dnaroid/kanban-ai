@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import './ipc/handlers.js'
+import { startPrPolling } from './pr/pr-polling.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -34,6 +35,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow()
+  startPrPolling()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

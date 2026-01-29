@@ -20,15 +20,153 @@
 pnpm install
 ```
 
+## Troubleshooting
+
+### Проблема: Electron binary не устанавливается
+
+**Симптомы:**
+
+- `Error: Electron failed to install correctly`
+- Отсутствует директория `node_modules/.pnpm/electron@*/node_modules/electron/dist/`
+
+**Решение:**
+
+1. Удалите старую установку Electron:
+
+   ```bash
+   rm -rf node_modules/.pnpm/electron@* node_modules/electron
+   ```
+
+2. Переустановите Electron:
+
+   ```bash
+   pnpm install --force electron@40.0.0
+   ```
+
+3. Принудительно запустите скрипт установки бинарника:
+
+   ```bash
+   EPOCH=$(date +%s) node node_modules/.pnpm/electron@40.0.0/node_modules/electron/install.js
+   ```
+
+4. Проверьте, что бинарник скачался:
+   ```bash
+   ls -la node_modules/.pnpm/electron@40.0.0/node_modules/electron/dist/
+   ```
+   Должна быть директория `Electron.app` (macOS) или `electron` (Linux/Windows)
+
+### Проблема: Native модули не работают с Electron
+
+**Симптомы:**
+
+- Ошибки при импорте `better-sqlite3` или других native модулей
+- Error: `The module ... was compiled against a different Node.js version using NODE_MODULE_VERSION X. This version of Node.js requires NODE_MODULE_VERSION Y`
+- Тесты проходят, но Electron приложение падает при запуске
+
+**Корневая причина:**
+
+Тесты запускаются с системным Node.js (например, v22 с NODE_MODULE_VERSION 127), а Electron использует встроенный Node.js (в данном случае Electron 40.0.0 использует Node.js v20.x с NODE_MODULE_VERSION 143). Native модули нужно компилировать для каждого окружения отдельно.
+
+**Решение:**
+
+Добавил скрипт `rebuild:native` в package.json, который автоматически перестраивает native модули для Electron перед запуском:
+
+```json
+{
+  "scripts": {
+    "dev": "npm run rebuild:native && electron-vite dev",
+    "rebuild:native": "electron-rebuild -f -w better-sqlite3"
+  }
+}
+```
+
+Теперь команда `pnpm dev` автоматически пересобирает native модули перед запуском Electron.
+
+**Ручная пересборка (если нужно):**
+
+```bash
+# Пересобрать native модули для Electron
+npm run rebuild:native
+
+# Или с параметрами
+electron-rebuild -f -w better-sqlite3
+```
+
+Где:
+
+- `-f` - принудительная пересборка (force)
+- `-w better-sqlite3` - пересобрать только этот модуль
+
+### Проблема: Ошибка zsh при настройке pnpm config
+
+**Симптомы:**
+
+- `zsh: no matches found: ignored-built-dependencies[]`
+
+**Решение:**
+
+Используйте JSON формат:
+
+```bash
+pnpm config set ignored-built-dependencies --json '["better-sqlite3", "esbuild"]'
+```
+
+### Проблема: Тесты падают с ошибкой NODE_MODULE_VERSION
+
+**Симптомы:**
+
+- Error: `The module ... was compiled against a different Node.js version using NODE_MODULE_VERSION 143. This version of Node.js requires NODE_MODULE_VERSION 127`
+- Тесты better-sqlite3 не запускаются
+
+**Решение:**
+
+Пересоберите better-sqlite3 вручную:
+
+```bash
+# Перейдите в директорию better-sqlite3 и соберите модуль
+cd node_modules/.pnpm/better-sqlite3@12.6.2/node_modules/better-sqlite3
+npm run build-release
+cd -
+
+# Запустите тесты
+npm test
+```
+
+Или используйте `pnpm rebuild`:
+
+```bash
+pnpm rebuild better-sqlite3
+npm test
+```
+
+### Полная процедура переустановки при проблемах
+
+Если ничего не помогает, выполните полную переустановку:
+
+```bash
+# Удалите node_modules и lockfile
+rm -rf node_modules pnpm-lock.yaml
+
+# Установите зависимости
+pnpm install
+
+# Пересоберите native модули для Electron
+pnpm electron-rebuild
+
+# Принудительно установите Electron binary
+EPOCH=$(date +%s) node node_modules/.pnpm/electron@40.0.0/node_modules/electron/install.js
+
+# Запустите dev сервер
+pnpm dev
+```
+
 ## Разработка
 
 ```bash
-pnpm dev              # Vite dev server (localhost:5173)
-pnpm electron:dev     # Полная Electron dev среда
-pnpm typecheck        # Проверка типов TypeScript
-pnpm test             # Запуск тестов
-pnpm quality          # Все проверки качества
+pnpm dev
 ```
+
+Примечание: Команда `pnpm dev` автоматически перестраивает native модули для Electron перед запуском.
 
 ## Quality Gates
 
@@ -57,6 +195,7 @@ src/
 ## Фаза 0 завершена
 
 Следующие фазы будут включать:
+
 - Git integration (clone, status, branch-per-task)
 - AI agents (Sisyphus, Oracle, Librarian)
 - PR workflow (автоматизация через OpenCode)

@@ -28,8 +28,16 @@ import {
   AlertCircle,
   Clock,
   Play,
+  Edit2,
+  Trash2,
 } from 'lucide-react'
-import type { Board, KanbanTask, CreateTaskInput } from '../../shared/types/ipc'
+import type {
+  Board,
+  BoardColumn,
+  BoardColumnInput,
+  KanbanTask,
+  CreateTaskInput,
+} from '../../shared/types/ipc'
 import { cn } from '../lib/utils'
 import { TaskDrawer } from '../components/kanban/TaskDrawer'
 
@@ -135,6 +143,8 @@ interface SortableColumnProps {
   onAddTask: () => void
   onDeleteTask: (id: string) => void
   onTaskClick?: (task: KanbanTask) => void
+  onRename: (newName: string) => void
+  onDelete: () => void
 }
 
 function SortableColumn({
@@ -144,6 +154,8 @@ function SortableColumn({
   onAddTask,
   onDeleteTask,
   onTaskClick,
+  onRename,
+  onDelete,
 }: SortableColumnProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: id,
@@ -155,6 +167,27 @@ function SortableColumn({
   }
 
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editName, setEditName] = useState(name)
+
+  useEffect(() => {
+    setEditName(name)
+  }, [name])
+
+  const handleRename = () => {
+    if (editName.trim() && editName !== name) {
+      onRename(editName.trim())
+    }
+    setIsEditing(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleRename()
+    if (e.key === 'Escape') {
+      setEditName(name)
+      setIsEditing(false)
+    }
+  }
 
   return (
     <div
@@ -167,20 +200,54 @@ function SortableColumn({
     >
       <div className="p-4 border-b border-slate-800/50">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
             <button
               {...attributes}
               {...listeners}
-              className="text-slate-600 hover:text-slate-400 transition-colors"
+              className="text-slate-600 hover:text-slate-400 transition-colors shrink-0"
             >
               <GripVertical className="w-4 h-4" />
             </button>
-            <h3 className="text-sm font-bold text-slate-200">{name}</h3>
-            <span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-0.5 rounded-full">
+            {isEditing ? (
+              <input
+                autoFocus
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onBlur={handleRename}
+                onKeyDown={handleKeyDown}
+                className="bg-[#11151C] border border-blue-500/50 rounded px-2 py-0.5 text-sm font-bold text-slate-200 w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            ) : (
+              <h3
+                className="text-sm font-bold text-slate-200 truncate cursor-pointer hover:text-blue-400 transition-colors"
+                onClick={() => setIsEditing(true)}
+              >
+                {name}
+              </h3>
+            )}
+            <span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-0.5 rounded-full shrink-0">
               {tasks.length}
             </span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0 ml-2">
+            {!isEditing && (
+              <>
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="text-slate-600 hover:text-blue-400 transition-colors p-1"
+                  title="Rename Column"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={onDelete}
+                  className="text-slate-600 hover:text-red-400 transition-colors p-1"
+                  title="Delete Column"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </>
+            )}
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
               className="text-slate-600 hover:text-slate-400 transition-colors p-1"
@@ -383,6 +450,7 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
   const [board, setBoard] = useState<Board | null>(null)
   const [tasks, setTasks] = useState<KanbanTask[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [activeTask, setActiveTask] = useState<KanbanTask | null>(null)
   const [activeColumn, setActiveColumn] = useState<string | null>(null)
   const [selectedTask, setSelectedTask] = useState<KanbanTask | null>(null)
@@ -406,16 +474,27 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
     loadBoard()
   }, [projectId])
 
+  const normalizeColumns = (
+    columns: Array<{ id?: BoardColumn['id']; name: BoardColumn['name'] }>
+  ): BoardColumnInput[] =>
+    columns.map((col, index) => ({
+      id: col.id,
+      name: col.name,
+      orderIndex: index,
+    }))
+
   const loadBoard = async () => {
     try {
       setLoading(true)
-      const boardData = await window.api.board.getDefault(projectId)
-      setBoard(boardData)
+      setError(null)
+      const { board, columns } = await window.api.board.getDefault({ projectId })
+      setBoard({ ...board, columns })
 
-      const tasksData = await window.api.task.listByBoard(boardData.id)
-      setTasks(tasksData)
+      const { tasks } = await window.api.task.listByBoard({ boardId: board.id })
+      setTasks(tasks)
     } catch (error) {
       console.error('Failed to load board:', error)
+      setError(error instanceof Error ? error.message : 'An unknown error occurred')
     } finally {
       setLoading(false)
     }
@@ -449,10 +528,17 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
       const newIndex = columns.findIndex((c) => c.id === overId)
 
       if (oldIndex !== newIndex) {
-        const newColumns = arrayMove(columns, oldIndex, newIndex)
-        setBoard({ ...board, columns: newColumns })
+        const movedColumns = arrayMove(columns, oldIndex, newIndex).map((col, index) => ({
+          ...col,
+          orderIndex: index,
+        }))
+        setBoard({ ...board, columns: movedColumns })
 
-        await window.api.board.updateColumns(board.id, newColumns)
+        const response = await window.api.board.updateColumns({
+          boardId: board.id,
+          columns: normalizeColumns(movedColumns),
+        })
+        setBoard({ ...board, columns: response.columns })
       }
       return
     }
@@ -479,14 +565,18 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
         .findIndex((t) => t.id === overId)
 
       if (oldIndex !== newIndex && overTask) {
-        await window.api.task.move(activeId, activeColumnId, newIndex)
+        await window.api.task.move({
+          taskId: activeId,
+          toColumnId: activeColumnId,
+          toIndex: newIndex,
+        })
         loadBoard()
       }
     } else {
       const tasksInNewColumn = tasks.filter((t) => t.columnId === overColumnId)
       const newIndex = tasksInNewColumn.length
 
-      await window.api.task.move(activeId, overColumnId, newIndex)
+      await window.api.task.move({ taskId: activeId, toColumnId: overColumnId, toIndex: newIndex })
       loadBoard()
     }
   }
@@ -519,7 +609,7 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
     if (!confirm('Are you sure you want to delete this task?')) return
 
     try {
-      await window.api.task.update(taskId, { deletedAt: new Date().toISOString() })
+      await window.api.task.update({ taskId, patch: { deletedAt: new Date().toISOString() } })
       loadBoard()
     } catch (error) {
       console.error('Failed to delete task:', error)
@@ -538,10 +628,71 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
 
   const handleTaskUpdate = async (taskId: string, patch: Partial<KanbanTask>) => {
     try {
-      await window.api.task.update(taskId, patch)
+      await window.api.task.update({ taskId, patch })
       loadBoard()
     } catch (error) {
       console.error('Failed to update task:', error)
+    }
+  }
+
+  const handleAddColumn = async () => {
+    if (!board) return
+    const newName = prompt('Enter column name:')
+    if (!newName?.trim()) return
+
+    const currentColumns = (board.columns || []).map(({ id, name }) => ({ id, name }))
+    const newColumns = [...currentColumns, { name: newName.trim() }]
+
+    try {
+      const response = await window.api.board.updateColumns({
+        boardId: board.id,
+        columns: normalizeColumns(newColumns),
+      })
+      setBoard({ ...board, columns: response.columns })
+    } catch (error) {
+      console.error('Failed to add column:', error)
+    }
+  }
+
+  const handleRenameColumn = async (columnId: string, newName: string) => {
+    if (!board) return
+    const currentColumns = (board.columns || []).map(({ id, name }) => ({ id, name }))
+    const newColumns = currentColumns.map((col) =>
+      col.id === columnId ? { ...col, name: newName } : col
+    )
+
+    try {
+      const response = await window.api.board.updateColumns({
+        boardId: board.id,
+        columns: normalizeColumns(newColumns),
+      })
+      setBoard({ ...board, columns: response.columns })
+    } catch (error) {
+      console.error('Failed to rename column:', error)
+    }
+  }
+
+  const handleDeleteColumn = async (columnId: string) => {
+    if (!board) return
+    const columnTasks = tasks.filter((t) => t.columnId === columnId)
+    if (columnTasks.length > 0) {
+      alert('Cannot delete column with tasks. Please move or delete tasks first.')
+      return
+    }
+
+    if (!confirm('Are you sure you want to delete this column?')) return
+
+    const currentColumns = (board.columns || []).map(({ id, name }) => ({ id, name }))
+    const newColumns = currentColumns.filter((col) => col.id !== columnId)
+
+    try {
+      const response = await window.api.board.updateColumns({
+        boardId: board.id,
+        columns: normalizeColumns(newColumns),
+      })
+      setBoard({ ...board, columns: response.columns })
+    } catch (error) {
+      console.error('Failed to delete column:', error)
     }
   }
 
@@ -553,6 +704,26 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
             <Clock className="w-6 h-6 text-blue-400 animate-spin" />
           </div>
           <p className="text-slate-500">Loading board...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 bg-red-500/10 rounded-xl flex items-center justify-center mx-auto">
+            <AlertCircle className="w-6 h-6 text-red-400" />
+          </div>
+          <h2 className="text-xl font-bold text-white">Something went wrong</h2>
+          <p className="text-slate-400 max-w-sm">{error}</p>
+          <button
+            onClick={() => loadBoard()}
+            className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-semibold text-sm transition-all border border-slate-700/50"
+          >
+            Retry
+          </button>
         </div>
       </div>
     )
@@ -605,30 +776,61 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
           </div>
 
           <div className="flex-1 overflow-x-auto overflow-y-hidden custom-scrollbar">
-            <SortableContext
-              items={columns.map((c) => c.id)}
-              strategy={horizontalListSortingStrategy}
-            >
-              <div className="flex gap-4 h-full p-1">
-                {columns.map((column) => {
-                  const columnTasks = tasks
-                    .filter((t) => t.columnId === column.id)
-                    .sort((a, b) => a.orderInColumn - b.orderInColumn)
-
-                  return (
-                    <SortableColumn
-                      key={column.id}
-                      id={column.id}
-                      name={column.name}
-                      tasks={columnTasks}
-                      onAddTask={() => handleAddTask(column.id)}
-                      onDeleteTask={handleDeleteTask}
-                      onTaskClick={handleTaskClick}
-                    />
-                  )
-                })}
+            {columns.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-[#0B0E14] rounded-2xl border border-dashed border-slate-800/50 min-h-[400px]">
+                <div className="w-16 h-16 bg-slate-800/30 rounded-2xl flex items-center justify-center mb-4">
+                  <AlertCircle className="w-8 h-8 text-slate-500" />
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">No columns yet</h3>
+                <p className="text-slate-500 max-w-sm mb-8">
+                  Get started by creating columns to organize your tasks.
+                </p>
+                <button
+                  onClick={handleAddColumn}
+                  className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-all shadow-lg shadow-blue-600/20"
+                >
+                  <Plus className="w-5 h-5" />
+                  <span>Add First Column</span>
+                </button>
               </div>
-            </SortableContext>
+            ) : (
+              <SortableContext
+                items={columns.map((c) => c.id)}
+                strategy={horizontalListSortingStrategy}
+              >
+                <div className="flex gap-4 h-full p-1">
+                  {columns.map((column) => {
+                    const columnTasks = tasks
+                      .filter((t) => t.columnId === column.id)
+                      .sort((a, b) => a.orderInColumn - b.orderInColumn)
+
+                    return (
+                      <SortableColumn
+                        key={column.id}
+                        id={column.id}
+                        name={column.name}
+                        tasks={columnTasks}
+                        onAddTask={() => handleAddTask(column.id)}
+                        onDeleteTask={handleDeleteTask}
+                        onTaskClick={handleTaskClick}
+                        onRename={(newName) => handleRenameColumn(column.id, newName)}
+                        onDelete={() => handleDeleteColumn(column.id)}
+                      />
+                    )
+                  })}
+
+                  <div className="flex-shrink-0 w-80">
+                    <button
+                      onClick={handleAddColumn}
+                      className="w-full h-14 bg-[#0B0E14]/50 hover:bg-[#0B0E14] border border-dashed border-slate-800/50 hover:border-slate-700 rounded-2xl flex items-center justify-center gap-2 text-slate-500 hover:text-slate-300 transition-all group"
+                    >
+                      <Plus className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                      <span className="font-semibold text-sm">Add Column</span>
+                    </button>
+                  </div>
+                </div>
+              </SortableContext>
+            )}
           </div>
         </div>
 

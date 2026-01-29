@@ -23,6 +23,7 @@ class DatabaseManager {
     this.db.pragma('journal_mode = WAL')
 
     this.runMigrations()
+    this.seedAgentRoles()
 
     return this.db
   }
@@ -66,6 +67,71 @@ class DatabaseManager {
       .prepare('SELECT MAX(version) as version FROM schema_migrations')
       .get() as { version: number | null }
     console.log('[DB] Final max schema version:', finalVersion.version)
+  }
+
+  private seedAgentRoles(): void {
+    if (!this.db) return
+
+    const row = this.db.prepare('SELECT COUNT(*) as count FROM agent_roles').get() as {
+      count: number
+    }
+    if (row.count > 0) {
+      return
+    }
+
+    const now = new Date().toISOString()
+    const insert = this.db.prepare(
+      `INSERT INTO agent_roles (id, name, description, preset_json, created_at, updated_at)
+       VALUES (@id, @name, @description, @preset_json, @created_at, @updated_at)`
+    )
+
+    const roles = [
+      {
+        id: 'ba',
+        name: 'BA',
+        description: 'Business Analyst',
+        preset_json: JSON.stringify({
+          output: 'markdown',
+          template:
+            'User Story\n- As a ...\n- I want ...\n- So that ...\n\n' +
+            'Acceptance Criteria\n- ...\n\n' +
+            'Edge Cases\n- ...\n\n' +
+            'Questions/Assumptions\n- ...',
+        }),
+      },
+      {
+        id: 'dev',
+        name: 'DEV',
+        description: 'Developer',
+        preset_json: JSON.stringify({
+          output: 'markdown',
+          template: 'Implementation Plan\n- Files/modules\n- Steps\n\n' + 'Risks\n- ...',
+        }),
+      },
+      {
+        id: 'qa',
+        name: 'QA',
+        description: 'Quality Assurance',
+        preset_json: JSON.stringify({
+          output: 'markdown',
+          template:
+            'Test Plan\n- ...\n\n' + 'Negative Cases\n- ...\n\n' + 'Regression Checklist\n- ...',
+        }),
+      },
+    ]
+
+    const tx = this.db.transaction(() => {
+      for (const role of roles) {
+        insert.run({
+          ...role,
+          created_at: now,
+          updated_at: now,
+        })
+      }
+    })
+    tx()
+
+    console.log('[DB] Seeded agent roles:', roles.map((role) => role.id).join(', '))
   }
 }
 

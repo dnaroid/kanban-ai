@@ -66,6 +66,14 @@ export const BoardColumnSchema = z.object({
 
 export type BoardColumn = z.infer<typeof BoardColumnSchema>
 
+export const BoardColumnInputSchema = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().min(1),
+  orderIndex: z.number(),
+})
+
+export type BoardColumnInput = z.infer<typeof BoardColumnInputSchema>
+
 export const BoardSchema = z.object({
   id: z.string().uuid(),
   projectId: z.string().uuid(),
@@ -74,6 +82,32 @@ export const BoardSchema = z.object({
 })
 
 export type Board = z.infer<typeof BoardSchema>
+
+export const BoardGetDefaultInputSchema = z.object({
+  projectId: z.string().uuid(),
+})
+
+export type BoardGetDefaultInput = z.infer<typeof BoardGetDefaultInputSchema>
+
+export const BoardGetDefaultResponseSchema = z.object({
+  board: BoardSchema,
+  columns: z.array(BoardColumnSchema),
+})
+
+export type BoardGetDefaultResponse = z.infer<typeof BoardGetDefaultResponseSchema>
+
+export const BoardUpdateColumnsInputSchema = z.object({
+  boardId: z.string().uuid(),
+  columns: z.array(BoardColumnInputSchema),
+})
+
+export type BoardUpdateColumnsInput = z.infer<typeof BoardUpdateColumnsInputSchema>
+
+export const BoardUpdateColumnsResponseSchema = z.object({
+  columns: z.array(BoardColumnSchema),
+})
+
+export type BoardUpdateColumnsResponse = z.infer<typeof BoardUpdateColumnsResponseSchema>
 
 export const KanbanTaskSchema = z.object({
   id: z.string().uuid(),
@@ -109,3 +143,375 @@ export const CreateTaskInputSchema = z.object({
 })
 
 export type CreateTaskInput = z.infer<typeof CreateTaskInputSchema>
+
+export const TaskCreateResponseSchema = z.object({
+  task: KanbanTaskSchema,
+})
+
+export type TaskCreateResponse = z.infer<typeof TaskCreateResponseSchema>
+
+export const TaskListByBoardInputSchema = z.object({
+  boardId: z.string().uuid(),
+})
+
+export type TaskListByBoardInput = z.infer<typeof TaskListByBoardInputSchema>
+
+export const TaskListByBoardResponseSchema = z.object({
+  tasks: z.array(KanbanTaskSchema),
+})
+
+export type TaskListByBoardResponse = z.infer<typeof TaskListByBoardResponseSchema>
+
+export const TaskPatchSchema = z.object({
+  title: z.string().min(1).optional(),
+  description: z.string().optional(),
+  descriptionMd: z.string().optional(),
+  status: z.string().optional(),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  type: z.string().optional(),
+  columnId: z.string().uuid().optional(),
+  orderInColumn: z.number().optional(),
+  tags: z.array(z.string()).optional(),
+  deletedAt: z.string().datetime().optional(),
+})
+
+export type TaskPatch = z.infer<typeof TaskPatchSchema>
+
+export const TaskUpdateInputSchema = z.object({
+  taskId: z.string().uuid(),
+  patch: TaskPatchSchema,
+})
+
+export type TaskUpdateInput = z.infer<typeof TaskUpdateInputSchema>
+
+export const TaskUpdateResponseSchema = z.object({
+  task: KanbanTaskSchema,
+})
+
+export type TaskUpdateResponse = z.infer<typeof TaskUpdateResponseSchema>
+
+export const TaskMoveInputSchema = z.object({
+  taskId: z.string().uuid(),
+  toColumnId: z.string().uuid(),
+  toIndex: z.number(),
+})
+
+export type TaskMoveInput = z.infer<typeof TaskMoveInputSchema>
+
+export const TaskMoveResponseSchema = z.object({
+  success: z.literal(true),
+})
+
+export type TaskMoveResponse = z.infer<typeof TaskMoveResponseSchema>
+
+export const GitStatusSchema = z.object({
+  branch: z.string(),
+  isDirty: z.boolean(),
+  ahead: z.number().int().nonnegative(),
+  behind: z.number().int().nonnegative(),
+})
+
+export type GitStatus = z.infer<typeof GitStatusSchema>
+
+export const GitStatusInputSchema = z.object({
+  projectId: z.string().uuid(),
+})
+
+export type GitStatusInput = z.infer<typeof GitStatusInputSchema>
+
+export const GitStatusResponseSchema = z.object({
+  status: GitStatusSchema,
+})
+
+export type GitStatusResponse = z.infer<typeof GitStatusResponseSchema>
+
+export const GitBranchCreateInputSchema = z.object({
+  taskId: z.string().uuid(),
+})
+
+export type GitBranchCreateInput = z.infer<typeof GitBranchCreateInputSchema>
+
+export const GitBranchCreateResponseSchema = z.object({
+  branchName: z.string(),
+})
+
+export type GitBranchCreateResponse = z.infer<typeof GitBranchCreateResponseSchema>
+
+export const GitBranchCheckoutInputSchema = z.object({
+  taskId: z.string().uuid(),
+})
+
+export type GitBranchCheckoutInput = z.infer<typeof GitBranchCheckoutInputSchema>
+
+export const GitBranchCheckoutResponseSchema = z.object({
+  branchName: z.string(),
+})
+
+export type GitBranchCheckoutResponse = z.infer<typeof GitBranchCheckoutResponseSchema>
+
+export const GitDiffInputSchema = z.object({
+  taskId: z.string().uuid(),
+})
+
+export type GitDiffInput = z.infer<typeof GitDiffInputSchema>
+
+export const GitDiffResponseSchema = z.object({
+  diff: z.string(),
+})
+
+export type GitDiffResponse = z.infer<typeof GitDiffResponseSchema>
+
+export const GitCommitInputSchema = z.object({
+  taskId: z.string().uuid(),
+  message: z.string().min(1),
+})
+
+export type GitCommitInput = z.infer<typeof GitCommitInputSchema>
+
+export const GitCommitResponseSchema = z.object({
+  sha: z.string(),
+})
+
+export type GitCommitResponse = z.infer<typeof GitCommitResponseSchema>
+
+export const GitPushInputSchema = z.object({
+  taskId: z.string().uuid(),
+})
+
+export type GitPushInput = z.infer<typeof GitPushInputSchema>
+
+export const GitPushResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type GitPushResponse = z.infer<typeof GitPushResponseSchema>
+
+export const PrCreateInputSchema = z.object({
+  taskId: z.string().uuid(),
+  title: z.string().min(1),
+  body: z.string(),
+  draft: z.boolean().optional(),
+})
+
+export type PrCreateInput = z.infer<typeof PrCreateInputSchema>
+
+export const PrCreateResponseSchema = z.object({
+  providerPrId: z.string(),
+  url: z.string(),
+  state: z.string(),
+})
+
+export type PrCreateResponse = z.infer<typeof PrCreateResponseSchema>
+
+export const PrRefreshInputSchema = z.object({
+  taskId: z.string().uuid(),
+})
+
+export type PrRefreshInput = z.infer<typeof PrRefreshInputSchema>
+
+export const PrRefreshResponseSchema = z.object({
+  state: z.string(),
+  title: z.string(),
+  url: z.string(),
+  approvals: z.number().int().nonnegative(),
+  requiredApprovals: z.number().int().nonnegative(),
+  ciStatus: z.string(),
+})
+
+export type PrRefreshResponse = z.infer<typeof PrRefreshResponseSchema>
+
+export const PrMergeInputSchema = z.object({
+  taskId: z.string().uuid(),
+  method: z.enum(['merge', 'squash', 'rebase']),
+})
+
+export type PrMergeInput = z.infer<typeof PrMergeInputSchema>
+
+export const PrMergeResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type PrMergeResponse = z.infer<typeof PrMergeResponseSchema>
+
+export const VcsConnectRepoInputSchema = z.object({
+  projectId: z.string().uuid(),
+  repoPath: z.string().min(1),
+})
+
+export type VcsConnectRepoInput = z.infer<typeof VcsConnectRepoInputSchema>
+
+export const VcsConnectRepoResponseSchema = z.object({
+  ok: z.literal(true),
+  defaultBranch: z.string(),
+})
+
+export type VcsConnectRepoResponse = z.infer<typeof VcsConnectRepoResponseSchema>
+
+export const IntegrationsSetProviderInputSchema = z.object({
+  projectId: z.string().uuid(),
+  providerType: z.enum(['github', 'gitlab']),
+  repoId: z.string().min(1),
+})
+
+export type IntegrationsSetProviderInput = z.infer<typeof IntegrationsSetProviderInputSchema>
+
+export const IntegrationsSetProviderResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type IntegrationsSetProviderResponse = z.infer<typeof IntegrationsSetProviderResponseSchema>
+
+export const IntegrationsSetTokenInputSchema = z.object({
+  providerType: z.enum(['github', 'gitlab']),
+  token: z.string().min(1),
+})
+
+export type IntegrationsSetTokenInput = z.infer<typeof IntegrationsSetTokenInputSchema>
+
+export const IntegrationsSetTokenResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type IntegrationsSetTokenResponse = z.infer<typeof IntegrationsSetTokenResponseSchema>
+
+export const RunModeSchema = z.enum(['plan-only', 'execute', 'critique'])
+export const RunStatusSchema = z.enum(['queued', 'running', 'succeeded', 'failed', 'canceled'])
+
+export const RunSchema = z.object({
+  id: z.string().uuid(),
+  taskId: z.string().uuid(),
+  roleId: z.string(),
+  mode: RunModeSchema,
+  status: RunStatusSchema,
+  startedAt: z.string().datetime().optional(),
+  finishedAt: z.string().datetime().optional(),
+  errorText: z.string(),
+  budget: z.record(z.string(), z.unknown()).default({}),
+  contextSnapshotId: z.string().uuid(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+})
+
+export type Run = z.infer<typeof RunSchema>
+
+export const RunStartInputSchema = z.object({
+  taskId: z.string().uuid(),
+  roleId: z.string(),
+  mode: RunModeSchema.optional(),
+})
+
+export type RunStartInput = z.infer<typeof RunStartInputSchema>
+
+export const RunStartResponseSchema = z.object({
+  runId: z.string().uuid(),
+})
+
+export type RunStartResponse = z.infer<typeof RunStartResponseSchema>
+
+export const RunCancelInputSchema = z.object({
+  runId: z.string().uuid(),
+})
+
+export type RunCancelInput = z.infer<typeof RunCancelInputSchema>
+
+export const RunCancelResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type RunCancelResponse = z.infer<typeof RunCancelResponseSchema>
+
+export const RunListByTaskInputSchema = z.object({
+  taskId: z.string().uuid(),
+})
+
+export type RunListByTaskInput = z.infer<typeof RunListByTaskInputSchema>
+
+export const RunListByTaskResponseSchema = z.object({
+  runs: z.array(RunSchema),
+})
+
+export type RunListByTaskResponse = z.infer<typeof RunListByTaskResponseSchema>
+
+export const RunGetInputSchema = z.object({
+  runId: z.string().uuid(),
+})
+
+export type RunGetInput = z.infer<typeof RunGetInputSchema>
+
+export const RunGetResponseSchema = z.object({
+  run: RunSchema,
+})
+
+export type RunGetResponse = z.infer<typeof RunGetResponseSchema>
+
+export const RunEventTypeSchema = z.enum([
+  'stdout',
+  'stderr',
+  'message',
+  'tool',
+  'artifact',
+  'status',
+  'debug',
+])
+
+export const RunEventSchema = z.object({
+  id: z.string().uuid(),
+  runId: z.string().uuid(),
+  ts: z.string().datetime(),
+  eventType: RunEventTypeSchema,
+  payload: z.unknown(),
+})
+
+export type RunEvent = z.infer<typeof RunEventSchema>
+
+export const RunEventsTailInputSchema = z.object({
+  runId: z.string().uuid(),
+  afterTs: z.string().datetime().optional(),
+  limit: z.number().int().positive().optional(),
+})
+
+export type RunEventsTailInput = z.infer<typeof RunEventsTailInputSchema>
+
+export const RunEventsTailResponseSchema = z.object({
+  events: z.array(RunEventSchema),
+})
+
+export type RunEventsTailResponse = z.infer<typeof RunEventsTailResponseSchema>
+
+export const ArtifactKindSchema = z.enum(['markdown', 'json', 'patch', 'file_ref', 'link'])
+
+export const ArtifactSchema = z.object({
+  id: z.string().uuid(),
+  runId: z.string().uuid(),
+  kind: ArtifactKindSchema,
+  title: z.string(),
+  content: z.string(),
+  metadata: z.record(z.string(), z.unknown()).default({}),
+  createdAt: z.string().datetime(),
+})
+
+export type Artifact = z.infer<typeof ArtifactSchema>
+
+export const ArtifactListInputSchema = z.object({
+  runId: z.string().uuid(),
+})
+
+export type ArtifactListInput = z.infer<typeof ArtifactListInputSchema>
+
+export const ArtifactListResponseSchema = z.object({
+  artifacts: z.array(ArtifactSchema),
+})
+
+export type ArtifactListResponse = z.infer<typeof ArtifactListResponseSchema>
+
+export const ArtifactGetInputSchema = z.object({
+  artifactId: z.string().uuid(),
+})
+
+export type ArtifactGetInput = z.infer<typeof ArtifactGetInputSchema>
+
+export const ArtifactGetResponseSchema = z.object({
+  artifact: ArtifactSchema,
+})
+
+export type ArtifactGetResponse = z.infer<typeof ArtifactGetResponseSchema>
