@@ -270,10 +270,17 @@ function ExecutionLog({ runId }: { runId: string }) {
   const coerceText = (payload: unknown) => {
     if (typeof payload === 'string') return payload
     if (payload && typeof payload === 'object') {
+      const maybeContent = (payload as { content?: string }).content
+      if (typeof maybeContent === 'string') return maybeContent
       const maybeText = (payload as { text?: string }).text
       if (typeof maybeText === 'string') return maybeText
       const maybeStatus = (payload as { status?: string }).status
       if (typeof maybeStatus === 'string') return maybeStatus
+      const maybeParts = (payload as { parts?: Array<{ type?: string; text?: string }> }).parts
+      if (Array.isArray(maybeParts) && maybeParts.length > 0) {
+        const firstTextPart = maybeParts.find((p) => p.type === 'text' || p.type === 'reasoning')
+        if (firstTextPart?.text) return firstTextPart.text
+      }
       try {
         return JSON.stringify(payload)
       } catch (error) {
@@ -377,15 +384,31 @@ function ExecutionLog({ runId }: { runId: string }) {
     }
 
     if (event.eventType === 'message') {
+      const payload = event.payload as { parts?: Array<{ type?: string; text?: string }> }
+      const hasReasoning = payload?.parts?.some((p) => p.type === 'reasoning')
+      const hasText = payload?.parts?.some((p) => p.type === 'text')
+
       return (
         <div
           key={event.id}
-          className="flex gap-3 py-2 px-3 my-1 bg-blue-500/5 border-l-2 border-blue-500/30 rounded-r-lg"
+          className={cn(
+            'flex gap-3 py-2 px-3 my-1 border-l-2 rounded-r-lg',
+            hasReasoning && !hasText
+              ? 'bg-blue-500/5 border-blue-500/30'
+              : 'bg-blue-500/10 border-blue-500/50'
+          )}
         >
           <span className="text-[10px] font-mono text-blue-500/50 shrink-0 select-none w-16">
             {time}
           </span>
-          <p className="text-xs text-blue-300 font-medium">{coerceText(event.payload)}</p>
+          <p
+            className={cn(
+              'text-xs font-medium',
+              hasReasoning && !hasText ? 'text-blue-400/60' : 'text-blue-300'
+            )}
+          >
+            {coerceText(event.payload)}
+          </p>
         </div>
       )
     }

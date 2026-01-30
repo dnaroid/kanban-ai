@@ -3,6 +3,8 @@ import {
   Activity,
   AlertTriangle,
   ChevronRight,
+  ChevronLeft,
+  ChevronRight as ChevronRightIcon,
   FolderKanban,
   Layers,
   CalendarRange,
@@ -10,8 +12,6 @@ import {
   BarChart3,
   Layout,
   Settings,
-  Menu,
-  X,
 } from 'lucide-react'
 import { ProjectsScreen } from './screens/ProjectsScreen'
 import { DiagnosticsScreen } from './screens/DiagnosticsScreen'
@@ -166,19 +166,32 @@ export default function App() {
         className={`fixed top-0 left-0 h-full bg-[#11151C] border-r border-slate-800/50 flex flex-col z-50 transition-all duration-300 ${isSidebarCollapsed ? 'w-16' : 'w-64'}`}
       >
         <div
-          className={`flex items-center gap-3 border-b border-slate-800/50 ${isSidebarCollapsed ? 'justify-center py-4' : 'p-6'}`}
+          className={`flex items-center border-b border-slate-800/50 ${isSidebarCollapsed ? 'justify-center py-4' : 'justify-between p-6'}`}
         >
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-600/20 shrink-0">
-            <Layout className="w-5 h-5 text-white" />
-          </div>
-          {!isSidebarCollapsed && (
-            <div>
-              <h1 className="text-lg font-bold tracking-tight text-white">Kanban AI</h1>
-              <span className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">
-                Beta v0.1.0
-              </span>
+          <div className={`flex items-center ${isSidebarCollapsed ? '' : 'gap-3'}`}>
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-600/20 shrink-0">
+              <Layout className="w-5 h-5 text-white" />
             </div>
-          )}
+            {!isSidebarCollapsed && (
+              <div>
+                <h1 className="text-lg font-bold tracking-tight text-white">Kanban AI</h1>
+                <span className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">
+                  Beta v0.1.0
+                </span>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className="text-slate-500 hover:text-slate-300 transition-colors"
+            title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isSidebarCollapsed ? (
+              <ChevronRightIcon className="w-5 h-5" />
+            ) : (
+              <ChevronLeft className="w-5 h-5" />
+            )}
+          </button>
         </div>
 
         <nav className={`flex-1 ${isSidebarCollapsed ? 'p-2' : 'p-4'} space-y-1 mt-4`}>
@@ -230,39 +243,26 @@ export default function App() {
 
         <div className={`border-t border-slate-800/50 ${isSidebarCollapsed ? 'p-2' : 'p-4'}`}>
           <button
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-slate-500 hover:bg-slate-800/50 hover:text-slate-300 transition-colors"
-            title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {isSidebarCollapsed ? (
-              <Menu className="w-5 h-5" />
-            ) : (
-              <>
-                <X className="w-5 h-5" />
-                <span className="font-medium">Collapse</span>
-              </>
+            onClick={() => {
+              if (!activeProject) return
+              setScreen({
+                id: 'settings',
+                projectId: activeProject.id,
+                projectName: activeProject.name,
+              })
+            }}
+            disabled={!activeProject}
+            className={cn(
+              'w-full flex items-center rounded-xl transition-all duration-200 group',
+              isSidebarCollapsed ? 'justify-center w-12 h-12' : 'gap-3 px-4 py-3 w-full',
+              'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300',
+              !activeProject && 'opacity-50 cursor-not-allowed hover:bg-transparent'
             )}
+            title="Settings"
+          >
+            <Settings className="w-5 h-5" />
+            {!isSidebarCollapsed && <span className="font-medium">Settings</span>}
           </button>
-          {!isSidebarCollapsed && (
-            <button
-              onClick={() => {
-                if (!activeProject) return
-                setScreen({
-                  id: 'settings',
-                  projectId: activeProject.id,
-                  projectName: activeProject.name,
-                })
-              }}
-              disabled={!activeProject}
-              className={cn(
-                'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-slate-800/50 hover:text-slate-300 transition-colors mt-2',
-                !activeProject && 'opacity-50 cursor-not-allowed hover:bg-transparent'
-              )}
-            >
-              <Settings className="w-5 h-5" />
-              <span className="font-medium">Settings</span>
-            </button>
-          )}
         </div>
       </aside>
 
