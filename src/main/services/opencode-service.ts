@@ -16,9 +16,9 @@ export class OpencodeService {
 
   async isRunning(): Promise<boolean> {
     try {
-      const response = await fetch(`http://localhost:${this.config.port}/health`, {
+      const response = await fetch(`http://127.0.0.1:${this.config.port}/health`, {
         method: 'GET',
-        signal: AbortSignal.timeout(2000),
+        signal: AbortSignal.timeout(5000),
       })
       return response.ok
     } catch {

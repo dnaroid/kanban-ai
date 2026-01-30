@@ -137,6 +137,9 @@ export class RunRepository {
           errorText: string
           budgetJson: string
           contextSnapshotId: string
+          aiTokensIn: number
+          aiTokensOut: number
+          aiCostUsd: number
           createdAt: string
           updatedAt: string
         }
@@ -183,6 +186,9 @@ export class RunRepository {
       errorText: string
       budgetJson: string
       contextSnapshotId: string
+      aiTokensIn: number
+      aiTokensOut: number
+      aiCostUsd: number
       createdAt: string
       updatedAt: string
     }[]
@@ -232,6 +238,9 @@ export class RunRepository {
       errorText: string
       budgetJson: string
       contextSnapshotId: string
+      aiTokensIn: number
+      aiTokensOut: number
+      aiCostUsd: number
       createdAt: string
       updatedAt: string
     }[]

@@ -6,7 +6,6 @@ import {
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
   FolderKanban,
-  Layers,
   CalendarRange,
   Search,
   BarChart3,
@@ -16,7 +15,7 @@ import {
 import { ProjectsScreen } from './screens/ProjectsScreen'
 import { DiagnosticsScreen } from './screens/DiagnosticsScreen'
 import { BoardScreen } from './screens/BoardScreen'
-import { ReleasesScreen } from './screens/ReleasesScreen'
+
 import { TimelineScreen } from './screens/TimelineScreen'
 import { AnalyticsScreen } from './screens/AnalyticsScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
@@ -27,7 +26,6 @@ type Screen =
   | { id: 'projects' }
   | { id: 'diagnostics' }
   | { id: 'board'; projectId: string; projectName: string }
-  | { id: 'releases'; projectId: string; projectName: string }
   | { id: 'timeline'; projectId: string; projectName: string }
   | { id: 'analytics'; projectId: string; projectName: string }
   | { id: 'settings'; projectId: string; projectName: string }
@@ -157,7 +155,6 @@ export default function App() {
     { id: 'diagnostics' as const, label: 'Diagnostics', icon: Activity },
     { id: 'analytics' as const, label: 'Analytics', icon: BarChart3 },
     { id: 'timeline' as const, label: 'Timeline', icon: CalendarRange },
-    { id: 'releases' as const, label: 'Releases', icon: Layers },
   ]
   return (
     <div className="min-h-screen bg-[#0B0E14] text-slate-200 font-sans selection:bg-blue-500/30">
@@ -199,14 +196,13 @@ export default function App() {
             const Icon = item.icon
             const isActive = screen.id === item.id
             const isDisabled =
-              (item.id === 'releases' && !activeProject) ||
               (item.id === 'timeline' && !activeProject) ||
               (item.id === 'analytics' && !activeProject)
             return (
               <button
                 key={item.id}
                 onClick={() => {
-                  if (item.id === 'releases' || item.id === 'timeline' || item.id === 'analytics') {
+                  if (item.id === 'timeline' || item.id === 'analytics') {
                     if (!activeProject) return
                     setScreen({
                       id: item.id,
@@ -290,14 +286,7 @@ export default function App() {
                 <span className="text-slate-300 font-medium">Diagnostics</span>
               </>
             )}
-            {screen.id === 'releases' && (
-              <>
-                <ChevronRight className="w-4 h-4 text-slate-700" />
-                <span className="text-slate-300 font-medium">{screen.projectName}</span>
-                <ChevronRight className="w-4 h-4 text-slate-700" />
-                <span className="text-slate-300 font-medium">Releases</span>
-              </>
-            )}
+
             {screen.id === 'timeline' && (
               <>
                 <ChevronRight className="w-4 h-4 text-slate-700" />
@@ -357,9 +346,7 @@ export default function App() {
           )}
           {screen.id === 'diagnostics' && <DiagnosticsScreen />}
           {screen.id === 'board' && <BoardScreen projectId={screen.projectId} />}
-          {screen.id === 'releases' && (
-            <ReleasesScreen projectId={screen.projectId} projectName={screen.projectName} />
-          )}
+
           {screen.id === 'timeline' && (
             <TimelineScreen projectId={screen.projectId} projectName={screen.projectName} />
           )}

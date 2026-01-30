@@ -5,8 +5,6 @@ import { runEventRepo } from '../db/run-event-repository.js'
 import { taskRepo } from '../db/task-repository.js'
 import { runRepo } from '../db/run-repository.js'
 import type { RunRecord, RunEventType } from '../db/run-types'
-import { createGitAdapter } from '../git/git-adapter.js'
-import { ensureTaskBranchName } from '../git/task-branch-service.js'
 import type { RunExecutor } from './job-runner'
 import { buildSafeSpawnEnv, isDeniedPath, redactText, redactValue } from './run-security.js'
 
@@ -60,8 +58,6 @@ const applyUsageUpdate = (runId: string, usage: ReturnType<typeof extractUsage>)
   })
 }
 
-const gitAdapter = createGitAdapter()
-
 const buildTaskPrompt = (task: any, project: any): string => {
   return `
 ЗАДАЧА: ${task.title}
@@ -107,14 +103,6 @@ export class OpenCodeExecutor implements RunExecutor {
     }
 
     const repoPath = project.path
-    await gitAdapter.ensureRepo(repoPath)
-    const branchName = ensureTaskBranchName(task.id)
-    try {
-      await gitAdapter.checkoutBranch(repoPath, branchName)
-    } catch {
-      const defaultBranch = await gitAdapter.getDefaultBranch(repoPath)
-      await gitAdapter.createBranch(repoPath, branchName, defaultBranch)
-    }
 
     const command = process.env.OPENCODE_CMD || 'opencode'
     const extraArgs = (process.env.OPENCODE_ARGS || '').split(' ').filter(Boolean)

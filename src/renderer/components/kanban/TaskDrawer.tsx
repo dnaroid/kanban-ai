@@ -23,14 +23,10 @@ import {
   History,
   Terminal,
   RefreshCw,
-  ArrowLeft,
   ChevronsDown,
   FileJson,
   FileCode,
   Files,
-  GitBranch,
-  GitPullRequest,
-  ExternalLink,
   Link2,
   Settings,
   Tag,
@@ -41,9 +37,6 @@ import type {
   Run,
   RunEvent,
   Artifact,
-  GitStatus,
-  PrRefreshResponse,
-  MergeConflictPackage,
   TaskLink,
   TaskLinkType,
 } from '../../../shared/types/ipc'
@@ -265,50 +258,48 @@ function ExecutionLog({ runId }: { runId: string }) {
   const [isLoading, setIsLoading] = useState(true)
   const [autoScroll, setAutoScroll] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const lastTsRef = useRef<string | undefined>(undefined)
+  const lastTsRef = useRef<string | null>(null)
 
-  const coerceText = (payload: unknown) => {
-    if (typeof payload === 'string') return payload
-    if (payload && typeof payload === 'object') {
-      const maybeContent = (payload as { content?: string }).content
-      if (typeof maybeContent === 'string') return maybeContent
-      const maybeText = (payload as { text?: string }).text
-      if (typeof maybeText === 'string') return maybeText
-      const maybeStatus = (payload as { status?: string }).status
-      if (typeof maybeStatus === 'string') return maybeStatus
-      const maybeParts = (payload as { parts?: Array<{ type?: string; text?: string }> }).parts
-      if (Array.isArray(maybeParts) && maybeParts.length > 0) {
-        const firstTextPart = maybeParts.find((p) => p.type === 'text' || p.type === 'reasoning')
-        if (firstTextPart?.text) return firstTextPart.text
-      }
-      try {
-        return JSON.stringify(payload)
-      } catch (error) {
-        return String(payload)
-      }
+  const coerceText = (value: unknown): string => {
+    if (typeof value === 'string') return value
+    if (typeof value === 'number') return value.toString()
+    if (value === null || value === undefined) return ''
+    try {
+      return JSON.stringify(value, null, 2)
+    } catch {
+      return String(value)
     }
-    return payload == null ? '' : String(payload)
+  }
+
+  const handleScroll = () => {
+    setAutoScroll((prev) => !prev)
   }
 
   const handleJumpToEnd = () => {
-    setAutoScroll(true)
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }
 
-  const handleScroll = () => {
-    if (!scrollRef.current) return
-    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 50
-    setAutoScroll(isAtBottom)
-  }
-
   useEffect(() => {
-    setEvents([])
-    setIsLoading(true)
-    setAutoScroll(true)
-    lastTsRef.current = undefined
+    const cleanup = window.api.opencode.onEvent((event) => {
+      if (event.sessionId !== runId) return
+
+      if (event.type === 'message.part.updated') {
+        const part = event.part as { id: string }
+        const newEvent: RunEvent = {
+          id: `msg-part-${event.messageId}-${part.id}`,
+          runId,
+          ts: new Date().toISOString(),
+          eventType: 'stdout',
+          payload: event.part,
+        }
+        setEvents((prev) => [...prev, newEvent].slice(-500))
+        setIsLoading(false)
+      }
+    })
+
+    return cleanup
   }, [runId])
 
   useEffect(() => {
@@ -318,7 +309,7 @@ function ExecutionLog({ runId }: { runId: string }) {
       try {
         const response = await window.api.events.tail({
           runId,
-          afterTs: lastTsRef.current,
+          afterTs: lastTsRef.current ? lastTsRef.current.toString() : undefined,
           limit: 200,
         })
         if (!isActive) return
@@ -481,66 +472,13 @@ function ExecutionLog({ runId }: { runId: string }) {
 function RunDetailsView({
   runId,
   run,
-  task,
   onBack,
-  onOpenVcs,
 }: {
   runId: string
   run: Run | null
-  task: KanbanTask
   onBack: () => void
-  onOpenVcs: () => void
 }) {
   const [view, setView] = useState<'log' | 'artifacts'>('log')
-  const [postRunStatus, setPostRunStatus] = useState<GitStatus | null>(null)
-  const [postRunError, setPostRunError] = useState<string | null>(null)
-  const [postRunLoading, setPostRunLoading] = useState(false)
-  const [commitMessage, setCommitMessage] = useState('')
-  const [isCommitting, setIsCommitting] = useState(false)
-
-  const isRunFinished =
-    run?.status === 'succeeded' || run?.status === 'failed' || run?.status === 'canceled'
-
-  const fetchPostRunChanges = useCallback(async () => {
-    setPostRunLoading(true)
-    setPostRunError(null)
-    try {
-      const statusRes = await window.api.git.status({ projectId: task.projectId })
-      setPostRunStatus(statusRes.status)
-    } catch (err) {
-      console.error('Failed to check post-run changes:', err)
-      setPostRunError('Failed to check post-run changes')
-    } finally {
-      setPostRunLoading(false)
-    }
-  }, [task.projectId])
-
-  useEffect(() => {
-    if (!isRunFinished) return
-    fetchPostRunChanges()
-  }, [isRunFinished, fetchPostRunChanges])
-
-  const handleCommitChanges = async () => {
-    if (isCommitting) return
-    const trimmedMessage = commitMessage.trim()
-    if (!trimmedMessage) {
-      setPostRunError('Commit message is required')
-      return
-    }
-
-    setIsCommitting(true)
-    setPostRunError(null)
-    try {
-      await window.api.git.commit({ taskId: task.id, message: trimmedMessage })
-      setCommitMessage('')
-      await fetchPostRunChanges()
-    } catch (err) {
-      console.error('Failed to commit post-run changes:', err)
-      setPostRunError('Failed to commit changes')
-    } finally {
-      setIsCommitting(false)
-    }
-  }
 
   const statusTone =
     run?.status === 'failed'
@@ -568,7 +506,7 @@ function RunDetailsView({
             onClick={onBack}
             className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <X className="w-4 h-4" />
           </button>
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
@@ -624,819 +562,9 @@ function RunDetailsView({
         </div>
       </div>
 
-      {isRunFinished && (
-        <div className="px-4 py-3 border-b border-slate-800/50 bg-[#0B0E14]/60">
-          {postRunLoading ? (
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              Checking workspace changes...
-            </div>
-          ) : postRunStatus?.isDirty ? (
-            <div className="space-y-3">
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                <GitBranch className="w-3 h-3" />
-                Changes detected after run
-              </div>
-              <div className="flex flex-col gap-2">
-                <input
-                  value={commitMessage}
-                  onChange={(event) => setCommitMessage(event.target.value)}
-                  placeholder="Commit message"
-                  className="w-full px-3 py-2 bg-[#0B0E14] border border-slate-800/60 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 placeholder:text-slate-600"
-                />
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={handleCommitChanges}
-                    disabled={isCommitting || !commitMessage.trim()}
-                    className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    {isCommitting ? 'Committing...' : 'Commit changes'}
-                  </button>
-                  <button
-                    onClick={onOpenVcs}
-                    className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
-                  >
-                    <FileCode className="w-3.5 h-3.5" />
-                    Open VCS
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <Check className="w-3.5 h-3.5 text-emerald-500" />
-              No uncommitted changes detected
-            </div>
-          )}
-
-          {postRunError && (
-            <div className="mt-2 p-2 bg-red-500/5 border border-red-500/10 rounded-lg text-xs text-red-400 flex items-center gap-2">
-              <AlertTriangle className="w-3.5 h-3.5" />
-              {postRunError}
-            </div>
-          )}
-        </div>
-      )}
-
       <div className="flex-1 overflow-hidden">
         {view === 'log' ? <ExecutionLog runId={runId} /> : <ArtifactsPanel runId={runId} />}
       </div>
-    </div>
-  )
-}
-
-function DiffView({ diff }: { diff: string | null }) {
-  if (!diff) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 opacity-30">
-        <FileCode className="w-8 h-8 mb-2" />
-        <p className="text-xs font-mono">No changes detected</p>
-      </div>
-    )
-  }
-
-  const lines = diff.split('\n')
-  return (
-    <div className="font-mono text-[11px] overflow-auto max-h-full custom-scrollbar bg-slate-900/50 rounded-xl border border-slate-800/50 py-3 shadow-inner">
-      {lines.map((line, i) => {
-        let className = 'text-slate-400 px-4 py-0.5 block border-l-2 border-transparent'
-        if (line.startsWith('+'))
-          className =
-            'text-emerald-400 bg-emerald-500/10 px-4 py-0.5 block border-l-2 border-emerald-500/50'
-        if (line.startsWith('-'))
-          className = 'text-red-400 bg-red-500/10 px-4 py-0.5 block border-l-2 border-red-500/50'
-        if (line.startsWith('@@'))
-          className =
-            'text-blue-400/70 bg-blue-500/10 px-4 py-0.5 block italic border-l-2 border-blue-500/30'
-        if (
-          line.startsWith('diff') ||
-          line.startsWith('index') ||
-          line.startsWith('---') ||
-          line.startsWith('+++')
-        )
-          className = 'text-slate-500 px-4 py-1 block font-bold bg-slate-800/30'
-        return (
-          <span key={i} className={className}>
-            {line}
-          </span>
-        )
-      })}
-    </div>
-  )
-}
-
-function VcsPanel({ task }: { task: KanbanTask }) {
-  const [status, setStatus] = useState<GitStatus | null>(null)
-  const [diff, setDiff] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [taskBranchName, setTaskBranchName] = useState(task.branchName ?? '')
-  const [commitMessage, setCommitMessage] = useState('')
-  const [lastCommitSha, setLastCommitSha] = useState<string | null>(null)
-  const [prInfo, setPrInfo] = useState<PrRefreshResponse | null>(null)
-  const [prTitle, setPrTitle] = useState(task.title)
-  const [prBody, setPrBody] = useState('')
-  const [prError, setPrError] = useState<string | null>(null)
-  const [isPrLoading, setIsPrLoading] = useState(false)
-  const [isPrProcessing, setIsPrProcessing] = useState(false)
-  const [conflictId, setConflictId] = useState<string | null>(null)
-  const [conflictPackage, setConflictPackage] = useState<MergeConflictPackage | null>(null)
-  const [isConflictOpen, setIsConflictOpen] = useState(false)
-  const [isConflictLoading, setIsConflictLoading] = useState(false)
-  const [suggestRunId, setSuggestRunId] = useState<string | null>(null)
-  const [suggestArtifacts, setSuggestArtifacts] = useState<Artifact[]>([])
-  const [isSuggestLoading, setIsSuggestLoading] = useState(false)
-  const [conflictError, setConflictError] = useState<string | null>(null)
-  const [suggestError, setSuggestError] = useState<string | null>(null)
-
-  const fetchGitInfo = useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      const [statusRes, diffRes] = await Promise.all([
-        window.api.git.status({ projectId: task.projectId }),
-        window.api.git.diff({ taskId: task.id }),
-      ])
-      setStatus(statusRes.status)
-      setDiff(diffRes.diff)
-    } catch (err) {
-      console.error('Failed to fetch git info:', err)
-      setError('Failed to load VCS information')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [task.id, task.projectId])
-
-  const fetchPrInfo = useCallback(
-    async (silent = false) => {
-      setIsPrLoading(true)
-      if (!silent) {
-        setPrError(null)
-      }
-      try {
-        const result = await window.api.pr.refresh({ taskId: task.id })
-        setPrInfo(result)
-        if (!silent) {
-          setPrError(null)
-        }
-      } catch (err) {
-        if (!silent) {
-          console.error('Failed to refresh PR:', err)
-          setPrError('Failed to refresh PR')
-        }
-        setPrInfo(null)
-      } finally {
-        setIsPrLoading(false)
-      }
-    },
-    [task.id]
-  )
-
-  useEffect(() => {
-    fetchGitInfo()
-  }, [fetchGitInfo])
-
-  useEffect(() => {
-    fetchPrInfo(true)
-  }, [fetchPrInfo])
-
-  useEffect(() => {
-    setTaskBranchName(task.branchName ?? '')
-  }, [task.branchName])
-
-  useEffect(() => {
-    setPrTitle(task.title)
-  }, [task.title])
-
-  const handleCreateBranch = async () => {
-    if (isProcessing) return
-    setIsProcessing(true)
-    try {
-      const response = await window.api.git.branchCreate({ taskId: task.id })
-      setTaskBranchName(response.branchName)
-      await fetchGitInfo()
-    } catch (err) {
-      console.error('Failed to create branch:', err)
-      setError('Failed to create branch')
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const handleCheckoutBranch = async () => {
-    if (isProcessing) return
-    setIsProcessing(true)
-    try {
-      const response = await window.api.git.branchCheckout({ taskId: task.id })
-      setTaskBranchName(response.branchName)
-      await fetchGitInfo()
-    } catch (err) {
-      console.error('Failed to checkout branch:', err)
-      setError('Failed to checkout branch')
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const handleCommit = async () => {
-    if (isProcessing) return
-    const trimmedMessage = commitMessage.trim()
-    if (!trimmedMessage) {
-      setError('Commit message is required')
-      return
-    }
-
-    setIsProcessing(true)
-    setError(null)
-    try {
-      const response = await window.api.git.commit({
-        taskId: task.id,
-        message: trimmedMessage,
-      })
-      setLastCommitSha(response.sha)
-      setCommitMessage('')
-      await fetchGitInfo()
-    } catch (err) {
-      console.error('Failed to commit changes:', err)
-      setError('Failed to commit changes')
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const handlePush = async () => {
-    if (isProcessing) return
-    setIsProcessing(true)
-    setError(null)
-    try {
-      await window.api.git.push({ taskId: task.id })
-      await fetchGitInfo()
-    } catch (err) {
-      console.error('Failed to push branch:', err)
-      setError('Failed to push branch')
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const handleCreatePr = async () => {
-    if (isPrProcessing) return
-    const trimmedTitle = prTitle.trim()
-    if (!trimmedTitle) {
-      setPrError('PR title is required')
-      return
-    }
-
-    setIsPrProcessing(true)
-    setPrError(null)
-    try {
-      const response = await window.api.pr.create({
-        taskId: task.id,
-        title: trimmedTitle,
-        body: prBody,
-      })
-      setPrInfo({
-        state: response.state,
-        title: trimmedTitle,
-        url: response.url,
-        approvals: 0,
-        requiredApprovals: 1,
-        ciStatus: 'unknown',
-      })
-      await fetchPrInfo(true)
-    } catch (err) {
-      console.error('Failed to create PR:', err)
-      setPrError('Failed to create PR')
-    } finally {
-      setIsPrProcessing(false)
-    }
-  }
-
-  const handleRefreshPr = async () => {
-    if (isPrProcessing || isPrLoading) return
-    setIsPrProcessing(true)
-    try {
-      await fetchPrInfo(false)
-    } finally {
-      setIsPrProcessing(false)
-    }
-  }
-
-  const handleMergePr = async () => {
-    if (isPrProcessing || !prInfo) return
-    setIsPrProcessing(true)
-    setPrError(null)
-    try {
-      const result = await window.api.pr.merge({ taskId: task.id, method: 'merge' })
-      if (!result.ok && result.conflictId) {
-        const conflict = await window.api.merge.detect({ taskId: task.id })
-        if (conflict.conflictId) {
-          setConflictId(conflict.conflictId)
-          setConflictPackage(conflict.conflictPackage)
-          setIsConflictOpen(true)
-        }
-        return
-      }
-      await fetchPrInfo(false)
-    } catch (err) {
-      console.error('Failed to merge PR:', err)
-      setPrError('Failed to merge PR')
-    } finally {
-      setIsPrProcessing(false)
-    }
-  }
-
-  const handleDetectConflict = async () => {
-    if (isConflictLoading) return
-    setIsConflictLoading(true)
-    setConflictError(null)
-    setSuggestError(null)
-    try {
-      const result = await window.api.merge.detect({ taskId: task.id })
-      setConflictId(result.conflictId)
-      setConflictPackage(result.conflictPackage)
-      setSuggestRunId(null)
-      setSuggestArtifacts([])
-      if (result.conflictId) {
-        setIsConflictOpen(true)
-      } else {
-        setConflictError('No conflicts detected')
-      }
-    } catch (err) {
-      console.error('Failed to detect merge conflict:', err)
-      setConflictError('Failed to detect merge conflict')
-    } finally {
-      setIsConflictLoading(false)
-    }
-  }
-
-  const handleSuggestResolution = async () => {
-    if (!conflictId || isSuggestLoading) return
-    setIsSuggestLoading(true)
-    setSuggestError(null)
-    try {
-      const result = await window.api.merge.suggest({ conflictId })
-      setSuggestRunId(result.runId)
-      const response = await window.api.artifact.list({ runId: result.runId })
-      setSuggestArtifacts(response.artifacts)
-    } catch (err) {
-      console.error('Failed to generate suggestion:', err)
-      setSuggestError('Failed to generate suggestion')
-    } finally {
-      setIsSuggestLoading(false)
-    }
-  }
-
-  const handleRefreshArtifacts = async () => {
-    if (!suggestRunId || isSuggestLoading) return
-    setIsSuggestLoading(true)
-    try {
-      const response = await window.api.artifact.list({ runId: suggestRunId })
-      setSuggestArtifacts(response.artifacts)
-    } catch (err) {
-      console.error('Failed to refresh artifacts:', err)
-      setSuggestError('Failed to refresh artifacts')
-    } finally {
-      setIsSuggestLoading(false)
-    }
-  }
-
-  const handleApplyResolution = async () => {
-    if (!conflictId || !patchArtifact || isSuggestLoading) return
-    setIsSuggestLoading(true)
-    setSuggestError(null)
-    try {
-      await window.api.merge.apply({ conflictId, patchArtifactId: patchArtifact.id })
-      setIsConflictOpen(false)
-      await fetchPrInfo(false)
-    } catch (err) {
-      console.error('Failed to apply resolution:', err)
-      setSuggestError('Failed to apply resolution')
-    } finally {
-      setIsSuggestLoading(false)
-    }
-  }
-
-  const handleCloseConflict = () => {
-    setIsConflictOpen(false)
-  }
-
-  const patchArtifact = suggestArtifacts.find((artifact) => artifact.kind === 'patch')
-  const explanationArtifact = suggestArtifacts.find((artifact) => artifact.kind === 'markdown')
-  const conflictFiles = conflictPackage?.files ?? []
-
-  if (isLoading && !status) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full space-y-3 opacity-50">
-        <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
-        <p className="text-xs text-slate-400 font-mono uppercase tracking-widest">
-          Loading VCS Status...
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col h-full bg-[#0B0E14]/30 animate-in fade-in duration-300 overflow-hidden">
-      <div className="p-6 border-b border-slate-800/50 space-y-6 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-            <GitBranch className="w-3.5 h-3.5" />
-            Branch Status
-          </h3>
-          <button
-            onClick={fetchGitInfo}
-            disabled={isLoading || isProcessing}
-            className="p-1.5 text-slate-500 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
-            title="Refresh status"
-          >
-            <RefreshCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin')} />
-          </button>
-        </div>
-
-        {status && (
-          <div className="space-y-4">
-            <div className="bg-slate-900/40 border border-slate-800/50 rounded-2xl p-4 space-y-4">
-              <div className="flex items-start justify-between">
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                      Current Branch
-                    </span>
-                    {status.isDirty && (
-                      <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px] font-bold uppercase">
-                        Dirty
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-200 font-mono text-sm">
-                    <GitBranch className="w-4 h-4 text-blue-400" />
-                    {status.branch}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                      Sync
-                    </div>
-                    <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400">
-                      <span className="flex items-center gap-0.5">
-                        <ArrowUpRight className="w-3 h-3 text-emerald-500" />
-                        {status.ahead}
-                      </span>
-                      <span className="flex items-center gap-0.5">
-                        <ArrowUpRight className="w-3 h-3 text-red-500 rotate-180" />
-                        {status.behind}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-slate-800/50 flex gap-3">
-                {taskBranchName && status.branch !== taskBranchName ? (
-                  <button
-                    onClick={handleCheckoutBranch}
-                    disabled={isProcessing}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-blue-500/20"
-                  >
-                    <GitBranch className="w-3.5 h-3.5" />
-                    {isProcessing ? 'Switching...' : `Switch to ${taskBranchName}`}
-                  </button>
-                ) : !taskBranchName ? (
-                  <button
-                    onClick={handleCreateBranch}
-                    disabled={isProcessing}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-emerald-500/20"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    {isProcessing ? 'Creating...' : 'Create Task Branch'}
-                  </button>
-                ) : (
-                  <div className="flex-1 px-4 py-2 bg-slate-800/50 border border-slate-700/50 text-slate-400 text-xs font-medium rounded-xl text-center">
-                    Already on task branch
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-slate-900/40 border border-slate-800/50 rounded-2xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                  Commit & Push
-                </div>
-                {lastCommitSha && (
-                  <span className="text-[10px] text-slate-500 font-mono">
-                    {lastCommitSha.slice(0, 7)}
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-col gap-3">
-                <input
-                  value={commitMessage}
-                  onChange={(event) => setCommitMessage(event.target.value)}
-                  placeholder="Commit message"
-                  className="w-full px-3 py-2 bg-[#0B0E14] border border-slate-800/60 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 placeholder:text-slate-600"
-                />
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleCommit}
-                    disabled={isProcessing || !commitMessage.trim() || !status.isDirty}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-blue-500/20"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    {isProcessing ? 'Committing...' : 'Commit'}
-                  </button>
-                  <button
-                    onClick={handlePush}
-                    disabled={isProcessing || !taskBranchName}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 text-slate-200 text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    <ArrowUpRight className="w-3.5 h-3.5" />
-                    {isProcessing ? 'Pushing...' : 'Push'}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-slate-900/40 border border-slate-800/50 rounded-2xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                  <GitPullRequest className="w-3.5 h-3.5" />
-                  Pull Request
-                </div>
-                {prInfo?.url && (
-                  <a
-                    href={prInfo.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[10px] uppercase tracking-widest text-blue-400 hover:text-blue-300 flex items-center gap-1"
-                  >
-                    Open
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
-              </div>
-
-              {prInfo ? (
-                <div className="space-y-3">
-                  <div className="text-sm text-slate-200 font-medium line-clamp-2">
-                    {prInfo.title}
-                  </div>
-                  <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest text-slate-500">
-                    <span className="px-2 py-0.5 rounded-full border border-slate-700/60 text-slate-300">
-                      {prInfo.state}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full border border-slate-700/60">
-                      CI: {prInfo.ciStatus}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full border border-slate-700/60">
-                      Approvals: {prInfo.approvals} / {prInfo.requiredApprovals}
-                    </span>
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleRefreshPr}
-                      disabled={isPrProcessing || isPrLoading}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 text-slate-200 text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
-                    >
-                      <RefreshCw className={cn('w-3.5 h-3.5', isPrLoading && 'animate-spin')} />
-                      Refresh
-                    </button>
-                    <button
-                      onClick={handleMergePr}
-                      disabled={
-                        isPrProcessing ||
-                        prInfo.state !== 'open' ||
-                        prInfo.ciStatus !== 'success' ||
-                        prInfo.approvals < prInfo.requiredApprovals
-                      }
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      Merge
-                    </button>
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleDetectConflict}
-                      disabled={isConflictLoading}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-indigo-600/80 hover:bg-indigo-500/80 disabled:bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
-                    >
-                      <FileCode
-                        className={cn('w-3.5 h-3.5', isConflictLoading && 'animate-spin')}
-                      />
-                      Resolve Conflicts
-                    </button>
-                    {conflictId && (
-                      <button
-                        onClick={() => setIsConflictOpen(true)}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        Open Resolver
-                      </button>
-                    )}
-                  </div>
-                  {conflictError && (
-                    <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl flex items-center gap-2 text-amber-400 text-xs">
-                      <AlertTriangle className="w-4 h-4" />
-                      {conflictError}
-                    </div>
-                  )}
-                  {suggestError && (
-                    <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-xl flex items-center gap-2 text-red-400 text-xs">
-                      <AlertTriangle className="w-4 h-4" />
-                      {suggestError}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <input
-                    value={prTitle}
-                    onChange={(event) => setPrTitle(event.target.value)}
-                    placeholder="PR title"
-                    className="w-full px-3 py-2 bg-[#0B0E14] border border-slate-800/60 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 placeholder:text-slate-600"
-                  />
-                  <textarea
-                    value={prBody}
-                    onChange={(event) => setPrBody(event.target.value)}
-                    rows={3}
-                    placeholder="PR description"
-                    className="w-full px-3 py-2 bg-[#0B0E14] border border-slate-800/60 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 placeholder:text-slate-600 resize-none"
-                  />
-                  <button
-                    onClick={handleCreatePr}
-                    disabled={isPrProcessing || !prTitle.trim()}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
-                  >
-                    <GitPullRequest className="w-3.5 h-3.5" />
-                    {isPrProcessing ? 'Creating...' : 'Create PR'}
-                  </button>
-                </div>
-              )}
-
-              {prError && (
-                <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-xl flex items-center gap-2 text-red-400 text-xs">
-                  <AlertTriangle className="w-4 h-4" />
-                  {prError}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {error && (
-          <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-xl flex items-center gap-2 text-red-400 text-xs">
-            <AlertTriangle className="w-4 h-4" />
-            {error}
-          </div>
-        )}
-      </div>
-
-      <div className="flex-1 flex flex-col min-h-0">
-        <div className="px-6 py-4 flex items-center justify-between flex-shrink-0">
-          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-            <FileCode className="w-3.5 h-3.5" />
-            Changes (Diff)
-          </h3>
-        </div>
-        <div className="flex-1 px-6 pb-6 overflow-hidden">
-          <DiffView diff={diff} />
-        </div>
-      </div>
-
-      {isConflictOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/70" onClick={handleCloseConflict} />
-          <div className="relative z-10 w-full max-w-6xl mx-6 bg-[#0B0E14] border border-slate-800/60 rounded-3xl shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800/60 bg-slate-900/40">
-              <div className="flex items-center gap-3">
-                <FileCode className="w-4 h-4 text-indigo-400" />
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest text-slate-500">
-                    Merge Conflict Resolver
-                  </p>
-                  <p className="text-sm text-slate-200 font-semibold">
-                    {conflictFiles.length} files
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={handleCloseConflict}
-                className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-12 gap-0">
-              <div className="col-span-4 border-r border-slate-800/60 bg-slate-950/60 p-4 space-y-4">
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-2">
-                    Conflicting Files
-                  </p>
-                  <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
-                    {conflictFiles.map((file) => (
-                      <div
-                        key={file.path}
-                        className="text-xs text-slate-200 bg-slate-900/40 border border-slate-800/60 rounded-lg px-3 py-2"
-                      >
-                        {file.path}
-                      </div>
-                    ))}
-                    {conflictFiles.length === 0 && (
-                      <div className="text-xs text-slate-500">No conflicting files found</div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <button
-                    onClick={handleSuggestResolution}
-                    disabled={isSuggestLoading || !conflictId}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-indigo-600/80 hover:bg-indigo-500/80 disabled:bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
-                  >
-                    <Sparkles className={cn('w-3.5 h-3.5', isSuggestLoading && 'animate-spin')} />
-                    Suggest
-                  </button>
-                  <button
-                    onClick={handleRefreshArtifacts}
-                    disabled={isSuggestLoading || !suggestRunId}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 text-slate-200 text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
-                  >
-                    <RefreshCw className={cn('w-3.5 h-3.5', isSuggestLoading && 'animate-spin')} />
-                    Refresh Artifacts
-                  </button>
-                  <button
-                    onClick={handleApplyResolution}
-                    disabled={isSuggestLoading || !patchArtifact}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    Apply
-                  </button>
-                  <button
-                    onClick={handleCloseConflict}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                    Close
-                  </button>
-                </div>
-
-                {suggestRunId && (
-                  <div className="text-[10px] text-slate-500 font-mono">
-                    Run: {suggestRunId.slice(0, 8)}…
-                  </div>
-                )}
-              </div>
-
-              <div className="col-span-8 p-4 space-y-4 bg-[#0B0E14]/70">
-                <div className="border border-slate-800/60 rounded-xl overflow-hidden">
-                  <div className="px-4 py-2 border-b border-slate-800/60 bg-slate-900/40 flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-widest text-slate-500">
-                      Patch
-                    </span>
-                    {patchArtifact && (
-                      <button
-                        onClick={() => navigator.clipboard.writeText(patchArtifact.content)}
-                        className="text-[10px] uppercase tracking-widest text-blue-400 hover:text-blue-300"
-                      >
-                        Copy Patch
-                      </button>
-                    )}
-                  </div>
-                  <div className="p-4 max-h-72 overflow-auto">
-                    {patchArtifact ? (
-                      <ArtifactViewer artifact={patchArtifact} />
-                    ) : (
-                      <div className="text-xs text-slate-500">No patch artifact yet.</div>
-                    )}
-                  </div>
-                </div>
-
-                {explanationArtifact && (
-                  <div className="border border-slate-800/60 rounded-xl overflow-hidden">
-                    <div className="px-4 py-2 border-b border-slate-800/60 bg-slate-900/40">
-                      <span className="text-[10px] uppercase tracking-widest text-slate-500">
-                        Explanation
-                      </span>
-                    </div>
-                    <div className="p-4 max-h-48 overflow-auto">
-                      <ArtifactViewer artifact={explanationArtifact} />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -1949,19 +1077,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-blue-400 to-cyan-400" />
             )}
           </button>
-          <button
-            onClick={() => setActiveTab('vcs')}
-            className={cn(
-              'flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all relative',
-              activeTab === 'vcs' ? 'text-white' : 'text-slate-500 hover:text-slate-300'
-            )}
-          >
-            <GitBranch className="w-4 h-4" />
-            VCS
-            {activeTab === 'vcs' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 via-teal-400 to-blue-400" />
-            )}
-          </button>
+
           <button
             onClick={() => setActiveTab('runs')}
             className={cn(
@@ -2444,16 +1560,12 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
             </div>
           )}
 
-          {activeTab === 'vcs' && <VcsPanel task={task} />}
-
           {activeTab === 'runs' && (
             <div className="flex flex-col h-full bg-[#0B0E14]/30 animate-in fade-in duration-300">
               {selectedRunId ? (
                 <RunDetailsView
                   runId={selectedRunId}
                   run={runs.find((run) => run.id === selectedRunId) ?? null}
-                  task={task}
-                  onOpenVcs={() => setActiveTab('vcs')}
                   onBack={() => setSelectedRunId(null)}
                 />
               ) : (

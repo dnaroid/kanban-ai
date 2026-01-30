@@ -581,177 +581,6 @@ export const BackupImportResponseSchema = z.object({
 
 export type BackupImportResponse = z.infer<typeof BackupImportResponseSchema>
 
-export const GitStatusSchema = z.object({
-  branch: z.string(),
-  isDirty: z.boolean(),
-  ahead: z.number().int().nonnegative(),
-  behind: z.number().int().nonnegative(),
-})
-
-export type GitStatus = z.infer<typeof GitStatusSchema>
-
-export const GitStatusInputSchema = z.object({
-  projectId: z.string().uuid(),
-})
-
-export type GitStatusInput = z.infer<typeof GitStatusInputSchema>
-
-export const GitStatusResponseSchema = z.object({
-  status: GitStatusSchema,
-})
-
-export type GitStatusResponse = z.infer<typeof GitStatusResponseSchema>
-
-export const GitBranchCreateInputSchema = z.object({
-  taskId: z.string().uuid(),
-})
-
-export type GitBranchCreateInput = z.infer<typeof GitBranchCreateInputSchema>
-
-export const GitBranchCreateResponseSchema = z.object({
-  branchName: z.string(),
-})
-
-export type GitBranchCreateResponse = z.infer<typeof GitBranchCreateResponseSchema>
-
-export const GitBranchCheckoutInputSchema = z.object({
-  taskId: z.string().uuid(),
-})
-
-export type GitBranchCheckoutInput = z.infer<typeof GitBranchCheckoutInputSchema>
-
-export const GitBranchCheckoutResponseSchema = z.object({
-  branchName: z.string(),
-})
-
-export type GitBranchCheckoutResponse = z.infer<typeof GitBranchCheckoutResponseSchema>
-
-export const GitDiffInputSchema = z.object({
-  taskId: z.string().uuid(),
-})
-
-export type GitDiffInput = z.infer<typeof GitDiffInputSchema>
-
-export const GitDiffResponseSchema = z.object({
-  diff: z.string(),
-})
-
-export type GitDiffResponse = z.infer<typeof GitDiffResponseSchema>
-
-export const GitCommitInputSchema = z.object({
-  taskId: z.string().uuid(),
-  message: z.string().min(1),
-})
-
-export type GitCommitInput = z.infer<typeof GitCommitInputSchema>
-
-export const GitCommitResponseSchema = z.object({
-  sha: z.string(),
-})
-
-export type GitCommitResponse = z.infer<typeof GitCommitResponseSchema>
-
-export const GitPushInputSchema = z.object({
-  taskId: z.string().uuid(),
-})
-
-export type GitPushInput = z.infer<typeof GitPushInputSchema>
-
-export const GitPushResponseSchema = z.object({
-  ok: z.literal(true),
-})
-
-export type GitPushResponse = z.infer<typeof GitPushResponseSchema>
-
-export const PrCreateInputSchema = z.object({
-  taskId: z.string().uuid(),
-  title: z.string().min(1),
-  body: z.string(),
-  draft: z.boolean().optional(),
-})
-
-export type PrCreateInput = z.infer<typeof PrCreateInputSchema>
-
-export const PrCreateResponseSchema = z.object({
-  providerPrId: z.string(),
-  url: z.string(),
-  state: z.string(),
-})
-
-export type PrCreateResponse = z.infer<typeof PrCreateResponseSchema>
-
-export const PrRefreshInputSchema = z.object({
-  taskId: z.string().uuid(),
-})
-
-export type PrRefreshInput = z.infer<typeof PrRefreshInputSchema>
-
-export const PrRefreshResponseSchema = z.object({
-  state: z.string(),
-  title: z.string(),
-  url: z.string(),
-  approvals: z.number().int().nonnegative(),
-  requiredApprovals: z.number().int().nonnegative(),
-  ciStatus: z.string(),
-})
-
-export type PrRefreshResponse = z.infer<typeof PrRefreshResponseSchema>
-
-export const PrMergeInputSchema = z.object({
-  taskId: z.string().uuid(),
-  method: z.enum(['merge', 'squash', 'rebase']),
-})
-
-export type PrMergeInput = z.infer<typeof PrMergeInputSchema>
-
-export const PrMergeResponseSchema = z.object({
-  ok: z.boolean(),
-  conflictId: z.string().uuid().nullable().optional(),
-})
-
-export type PrMergeResponse = z.infer<typeof PrMergeResponseSchema>
-
-export const VcsConnectRepoInputSchema = z.object({
-  projectId: z.string().uuid(),
-  repoPath: z.string().min(1),
-})
-
-export type VcsConnectRepoInput = z.infer<typeof VcsConnectRepoInputSchema>
-
-export const VcsConnectRepoResponseSchema = z.object({
-  ok: z.literal(true),
-  defaultBranch: z.string(),
-})
-
-export type VcsConnectRepoResponse = z.infer<typeof VcsConnectRepoResponseSchema>
-
-export const IntegrationsSetProviderInputSchema = z.object({
-  projectId: z.string().uuid(),
-  providerType: z.enum(['github', 'gitlab']),
-  repoId: z.string().min(1),
-})
-
-export type IntegrationsSetProviderInput = z.infer<typeof IntegrationsSetProviderInputSchema>
-
-export const IntegrationsSetProviderResponseSchema = z.object({
-  ok: z.literal(true),
-})
-
-export type IntegrationsSetProviderResponse = z.infer<typeof IntegrationsSetProviderResponseSchema>
-
-export const IntegrationsSetTokenInputSchema = z.object({
-  providerType: z.enum(['github', 'gitlab']),
-  token: z.string().min(1),
-})
-
-export type IntegrationsSetTokenInput = z.infer<typeof IntegrationsSetTokenInputSchema>
-
-export const IntegrationsSetTokenResponseSchema = z.object({
-  ok: z.literal(true),
-})
-
-export type IntegrationsSetTokenResponse = z.infer<typeof IntegrationsSetTokenResponseSchema>
-
 export const RunModeSchema = z.enum(['plan-only', 'execute', 'critique'])
 export const RunStatusSchema = z.enum(['queued', 'running', 'succeeded', 'failed', 'canceled'])
 
@@ -898,219 +727,6 @@ export const ArtifactGetResponseSchema = z.object({
 
 export type ArtifactGetResponse = z.infer<typeof ArtifactGetResponseSchema>
 
-export const MergeConflictFileSchema = z.object({
-  path: z.string(),
-  base: z.string(),
-  ours: z.string(),
-  theirs: z.string(),
-  markers: z.string(),
-})
-
-export const MergeConflictPackageSchema = z.object({
-  task: z.object({
-    id: z.string().uuid(),
-    title: z.string(),
-  }),
-  pr: z.object({
-    id: z.string(),
-    base: z.string(),
-    head: z.string(),
-  }),
-  files: z.array(MergeConflictFileSchema),
-  rules: z.object({
-    style: z.string(),
-    denylist: z.array(z.string()),
-  }),
-})
-
-export type MergeConflictPackage = z.infer<typeof MergeConflictPackageSchema>
-
-export const MergeDetectInputSchema = z.object({
-  taskId: z.string().uuid(),
-})
-
-export type MergeDetectInput = z.infer<typeof MergeDetectInputSchema>
-
-export const MergeDetectResponseSchema = z.object({
-  conflictId: z.string().uuid().nullable(),
-  conflictPackage: MergeConflictPackageSchema.nullable(),
-})
-
-export type MergeDetectResponse = z.infer<typeof MergeDetectResponseSchema>
-
-export const MergeSuggestInputSchema = z.object({
-  conflictId: z.string().uuid(),
-})
-
-export type MergeSuggestInput = z.infer<typeof MergeSuggestInputSchema>
-
-export const MergeSuggestResponseSchema = z.object({
-  runId: z.string().uuid(),
-})
-
-export type MergeSuggestResponse = z.infer<typeof MergeSuggestResponseSchema>
-
-export const MergeApplyInputSchema = z.object({
-  conflictId: z.string().uuid(),
-  patchArtifactId: z.string().uuid(),
-})
-
-export type MergeApplyInput = z.infer<typeof MergeApplyInputSchema>
-
-export const MergeApplyResponseSchema = z.object({
-  ok: z.literal(true),
-})
-
-export type MergeApplyResponse = z.infer<typeof MergeApplyResponseSchema>
-
-export const MergeAbortInputSchema = z.object({
-  conflictId: z.string().uuid(),
-})
-
-export type MergeAbortInput = z.infer<typeof MergeAbortInputSchema>
-
-export const MergeAbortResponseSchema = z.object({
-  ok: z.literal(true),
-})
-
-export type MergeAbortResponse = z.infer<typeof MergeAbortResponseSchema>
-
-export const AutoMergeSettingsSchema = z.object({
-  projectId: z.string().uuid(),
-  enabled: z.boolean(),
-  method: z.enum(['merge', 'squash', 'rebase']),
-  requireCiSuccess: z.boolean(),
-  requiredApprovals: z.number().int().nonnegative(),
-  requireNoConflicts: z.boolean(),
-})
-
-export type AutoMergeSettings = z.infer<typeof AutoMergeSettingsSchema>
-
-export const AutoMergeSetInputSchema = AutoMergeSettingsSchema
-
-export type AutoMergeSetInput = z.infer<typeof AutoMergeSetInputSchema>
-
-export const AutoMergeSetResponseSchema = z.object({
-  settings: AutoMergeSettingsSchema,
-})
-
-export type AutoMergeSetResponse = z.infer<typeof AutoMergeSetResponseSchema>
-
-export const AutoMergeRunOnceInputSchema = z.object({
-  projectId: z.string().uuid(),
-})
-
-export type AutoMergeRunOnceInput = z.infer<typeof AutoMergeRunOnceInputSchema>
-
-export const AutoMergeRunOnceResponseSchema = z.object({
-  mergedCount: z.number().int().nonnegative(),
-  conflictsCount: z.number().int().nonnegative(),
-})
-
-export type AutoMergeRunOnceResponse = z.infer<typeof AutoMergeRunOnceResponseSchema>
-
-export const ReleaseSchema = z.object({
-  id: z.string().uuid(),
-  projectId: z.string().uuid(),
-  name: z.string(),
-  status: z.enum(['draft', 'in_progress', 'published', 'canceled']),
-  targetDate: z.string().nullable(),
-  notesMd: z.string(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-})
-
-export type Release = z.infer<typeof ReleaseSchema>
-
-export const ReleaseItemSchema = z.object({
-  id: z.string().uuid(),
-  releaseId: z.string().uuid(),
-  taskId: z.string().uuid(),
-  prId: z.string(),
-  state: z.enum(['planned', 'merged', 'dropped']),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-})
-
-export type ReleaseItem = z.infer<typeof ReleaseItemSchema>
-
-export const ReleaseCreateInputSchema = z.object({
-  projectId: z.string().uuid(),
-  name: z.string().min(1),
-  targetDate: z.string().nullable().optional(),
-})
-
-export type ReleaseCreateInput = z.infer<typeof ReleaseCreateInputSchema>
-
-export const ReleaseCreateResponseSchema = z.object({
-  releaseId: z.string().uuid(),
-})
-
-export type ReleaseCreateResponse = z.infer<typeof ReleaseCreateResponseSchema>
-
-export const ReleaseAddItemsInputSchema = z.object({
-  releaseId: z.string().uuid(),
-  taskIds: z.array(z.string().uuid()).min(1),
-})
-
-export type ReleaseAddItemsInput = z.infer<typeof ReleaseAddItemsInputSchema>
-
-export const ReleaseAddItemsResponseSchema = z.object({
-  ok: z.literal(true),
-})
-
-export type ReleaseAddItemsResponse = z.infer<typeof ReleaseAddItemsResponseSchema>
-
-export const ReleaseGenerateNotesInputSchema = z.object({
-  releaseId: z.string().uuid(),
-})
-
-export type ReleaseGenerateNotesInput = z.infer<typeof ReleaseGenerateNotesInputSchema>
-
-export const ReleaseGenerateNotesResponseSchema = z.object({
-  runId: z.string().uuid(),
-})
-
-export type ReleaseGenerateNotesResponse = z.infer<typeof ReleaseGenerateNotesResponseSchema>
-
-export const ReleasePublishInputSchema = z.object({
-  releaseId: z.string().uuid(),
-  notesMd: z.string(),
-})
-
-export type ReleasePublishInput = z.infer<typeof ReleasePublishInputSchema>
-
-export const ReleasePublishResponseSchema = z.object({
-  ok: z.literal(true),
-})
-
-export type ReleasePublishResponse = z.infer<typeof ReleasePublishResponseSchema>
-
-export const ReleaseListInputSchema = z.object({
-  projectId: z.string().uuid(),
-})
-
-export type ReleaseListInput = z.infer<typeof ReleaseListInputSchema>
-
-export const ReleaseListResponseSchema = z.object({
-  releases: z.array(ReleaseSchema),
-})
-
-export type ReleaseListResponse = z.infer<typeof ReleaseListResponseSchema>
-
-export const ReleaseGetInputSchema = z.object({
-  releaseId: z.string().uuid(),
-})
-
-export type ReleaseGetInput = z.infer<typeof ReleaseGetInputSchema>
-
-export const ReleaseGetResponseSchema = z.object({
-  release: ReleaseSchema,
-  items: z.array(ReleaseItemSchema),
-})
-
-export type ReleaseGetResponse = z.infer<typeof ReleaseGetResponseSchema>
-
 export const AppSettingGetLastProjectIdResponseSchema = z.object({
   projectId: z.string().nullable(),
 })
@@ -1132,3 +748,76 @@ export const AppSettingSetLastProjectIdResponseSchema = z.object({
 export type AppSettingSetLastProjectIdResponse = z.infer<
   typeof AppSettingSetLastProjectIdResponseSchema
 >
+
+// OpenCode event subscription types
+export const OpenCodeSubscribeInputSchema = z.object({
+  sessionID: z.string(),
+})
+
+export type OpenCodeSubscribeInput = z.infer<typeof OpenCodeSubscribeInputSchema>
+
+export const OpenCodeSubscribeResponseSchema = z.object({
+  ok: z.literal(true),
+  subscribed: z.literal(true),
+})
+
+export type OpenCodeSubscribeResponse = z.infer<typeof OpenCodeSubscribeResponseSchema>
+
+export const OpenCodeUnsubscribeInputSchema = z.object({
+  sessionID: z.string(),
+})
+
+export type OpenCodeUnsubscribeInput = z.infer<typeof OpenCodeUnsubscribeInputSchema>
+
+export const OpenCodeUnsubscribeResponseSchema = z.object({
+  ok: z.literal(true),
+  subscribed: z.literal(false),
+})
+
+export type OpenCodeUnsubscribeResponse = z.infer<typeof OpenCodeUnsubscribeResponseSchema>
+
+export const OpenCodeIsSubscribedInputSchema = z.object({
+  sessionID: z.string(),
+})
+
+export type OpenCodeIsSubscribedInput = z.infer<typeof OpenCodeIsSubscribedInputSchema>
+
+export const OpenCodeIsSubscribedResponseSchema = z.object({
+  ok: z.literal(true),
+  subscribed: z.boolean(),
+})
+
+export type OpenCodeIsSubscribedResponse = z.infer<typeof OpenCodeIsSubscribedResponseSchema>
+
+export const OpenCodeSessionEventSchema = z.union([
+  z.object({
+    type: z.literal('message.updated'),
+    sessionId: z.string(),
+    message: z.unknown(),
+  }),
+  z.object({
+    type: z.literal('message.removed'),
+    sessionId: z.string(),
+    messageId: z.string(),
+  }),
+  z.object({
+    type: z.literal('message.part.updated'),
+    sessionId: z.string(),
+    messageId: z.string(),
+    part: z.unknown(),
+    delta: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal('message.part.removed'),
+    sessionId: z.string(),
+    messageId: z.string(),
+    partId: z.string(),
+  }),
+  z.object({
+    type: z.literal('error'),
+    sessionId: z.string(),
+    error: z.string(),
+  }),
+])
+
+export type OpenCodeSessionEvent = z.infer<typeof OpenCodeSessionEventSchema>

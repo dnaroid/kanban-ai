@@ -1,5 +1,5 @@
 import { createOpencodeClient } from '@opencode-ai/sdk/v2/client'
-import type { Session, Message, TextPartInput } from '@opencode-ai/sdk/v2/client'
+import type { Session, Message, TextPartInput, Event, Part } from '@opencode-ai/sdk/v2/client'
 
 export interface SessionInfo {
   id: string
@@ -7,11 +7,50 @@ export interface SessionInfo {
   directory: string
 }
 
+export type SessionEvent =
+  | {
+      type: 'message.updated'
+      sessionId: string
+      message: Message
+    }
+  | {
+      type: 'message.removed'
+      sessionId: string
+      messageId: string
+    }
+  | {
+      type: 'message.part.updated'
+      sessionId: string
+      messageId: string
+      part: Part
+      delta?: string
+    }
+  | {
+      type: 'message.part.removed'
+      sessionId: string
+      messageId: string
+      partId: string
+    }
+  | {
+      type: 'error'
+      sessionId: string
+      error: string
+    }
+
 export interface SessionMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
   timestamp: number
+}
+
+function isMessageEvent(event: Event): boolean {
+  return (
+    event.type === 'message.updated' ||
+    event.type === 'message.removed' ||
+    event.type === 'message.part.updated' ||
+    event.type === 'message.part.removed'
+  )
 }
 
 /**
@@ -25,6 +64,8 @@ export class OpenCodeSessionManager {
   })
 
   private activeSessions = new Map<string, SessionInfo>()
+  private eventAbortControllers = new Map<string, AbortController>()
+  private eventProcessing = new Map<string, Promise<void>>()
 
   /**
    * Создать новую сессию для задачи
@@ -210,6 +251,125 @@ export class OpenCodeSessionManager {
    */
   isSessionActive(sessionID: string): boolean {
     return this.activeSessions.has(sessionID)
+  }
+
+  /**
+   * Подписаться на события сессии через SSE
+   */
+  async subscribeToSessionEvents(
+    sessionID: string,
+    callback: (event: SessionEvent) => void
+  ): Promise<void> {
+    if (this.eventAbortControllers.has(sessionID)) {
+      console.log(`[OpenCodeSessionManager] Already subscribed to session ${sessionID}`)
+      return
+    }
+
+    const abortController = new AbortController()
+    this.eventAbortControllers.set(sessionID, abortController)
+
+    const processEvents = async () => {
+      try {
+        const { signal } = abortController
+        const events = await Promise.resolve(this.client.event.subscribe({}, { signal })).catch(
+          () => undefined
+        )
+
+        if (!events) return
+
+        for await (const event of events.stream) {
+          if (signal.aborted) break
+
+          let sessionEvent: SessionEvent
+
+          if (isMessageEvent(event)) {
+            switch (event.type) {
+              case 'message.updated':
+                sessionEvent = {
+                  type: 'message.updated',
+                  sessionId: sessionID,
+                  message: event.properties.info,
+                }
+                break
+              case 'message.removed':
+                sessionEvent = {
+                  type: 'message.removed',
+                  sessionId: sessionID,
+                  messageId: event.properties.messageID,
+                }
+                break
+              case 'message.part.updated':
+                sessionEvent = {
+                  type: 'message.part.updated',
+                  sessionId: sessionID,
+                  messageId: event.properties.part.messageID,
+                  part: event.properties.part,
+                  delta: event.properties.delta,
+                }
+                break
+              case 'message.part.removed':
+                sessionEvent = {
+                  type: 'message.part.removed',
+                  sessionId: sessionID,
+                  messageId: event.properties.messageID,
+                  partId: event.properties.partID,
+                }
+                break
+              default:
+                continue
+            }
+          } else {
+            continue
+          }
+
+          callback(sessionEvent)
+        }
+      } catch (error) {
+        console.error(
+          `[OpenCodeSessionManager] Event stream error for session ${sessionID}:`,
+          error
+        )
+        callback({
+          type: 'error',
+          sessionId: sessionID,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      } finally {
+        this.eventAbortControllers.delete(sessionID)
+        this.eventProcessing.delete(sessionID)
+        console.log(`[OpenCodeSessionManager] Event stream ended for session ${sessionID}`)
+      }
+    }
+
+    const processingPromise = processEvents()
+    this.eventProcessing.set(sessionID, processingPromise)
+    console.log(`[OpenCodeSessionManager] Subscribed to events for session ${sessionID}`)
+
+    await processingPromise
+  }
+
+  /**
+   * Отписаться от событий сессии
+   */
+  async unsubscribeFromSessionEvents(sessionID: string): Promise<void> {
+    const abortController = this.eventAbortControllers.get(sessionID)
+    if (abortController) {
+      abortController.abort()
+      console.log(`[OpenCodeSessionManager] Unsubscribed from events for session ${sessionID}`)
+      this.eventAbortControllers.delete(sessionID)
+
+      const processingPromise = this.eventProcessing.get(sessionID)
+      if (processingPromise) {
+        await processingPromise.catch(() => {})
+      }
+    }
+  }
+
+  /**
+   * Проверить, есть ли активная подписка на события сессии
+   */
+  isSubscribedToSessionEvents(sessionID: string): boolean {
+    return this.eventAbortControllers.has(sessionID)
   }
 }
 

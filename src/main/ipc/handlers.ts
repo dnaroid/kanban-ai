@@ -3,6 +3,8 @@ import path from 'path'
 import { ipcHandlers } from './validation'
 import { z } from 'zod'
 import { registerDiagnosticsHandlers } from './diagnostics-handlers'
+import { sessionManager } from '../run/opencode-session-manager'
+import type { SessionEvent } from '../run/opencode-session-manager'
 import {
   AppInfoSchema,
   CreateProjectInputSchema,
@@ -49,30 +51,6 @@ import {
   BackupExportResponseSchema,
   BackupImportInputSchema,
   BackupImportResponseSchema,
-  GitStatusInputSchema,
-  GitStatusResponseSchema,
-  GitBranchCreateInputSchema,
-  GitBranchCreateResponseSchema,
-  GitBranchCheckoutInputSchema,
-  GitBranchCheckoutResponseSchema,
-  GitDiffInputSchema,
-  GitDiffResponseSchema,
-  GitCommitInputSchema,
-  GitCommitResponseSchema,
-  GitPushInputSchema,
-  GitPushResponseSchema,
-  PrCreateInputSchema,
-  PrCreateResponseSchema,
-  PrRefreshInputSchema,
-  PrRefreshResponseSchema,
-  PrMergeInputSchema,
-  PrMergeResponseSchema,
-  VcsConnectRepoInputSchema,
-  VcsConnectRepoResponseSchema,
-  IntegrationsSetProviderInputSchema,
-  IntegrationsSetProviderResponseSchema,
-  IntegrationsSetTokenInputSchema,
-  IntegrationsSetTokenResponseSchema,
   RunStartInputSchema,
   RunStartResponseSchema,
   RunCancelInputSchema,
@@ -87,31 +65,9 @@ import {
   ArtifactListResponseSchema,
   ArtifactGetInputSchema,
   ArtifactGetResponseSchema,
-  MergeDetectInputSchema,
-  MergeDetectResponseSchema,
-  MergeSuggestInputSchema,
-  MergeSuggestResponseSchema,
-  MergeApplyInputSchema,
-  MergeApplyResponseSchema,
-  AutoMergeSetInputSchema,
-  AutoMergeSetResponseSchema,
-  AutoMergeRunOnceInputSchema,
-  AutoMergeRunOnceResponseSchema,
   AppSettingGetLastProjectIdResponseSchema,
   AppSettingSetLastProjectIdInputSchema,
   AppSettingSetLastProjectIdResponseSchema,
-  ReleaseCreateInputSchema,
-  ReleaseCreateResponseSchema,
-  ReleaseAddItemsInputSchema,
-  ReleaseAddItemsResponseSchema,
-  ReleaseGenerateNotesInputSchema,
-  ReleaseGenerateNotesResponseSchema,
-  ReleasePublishInputSchema,
-  ReleasePublishResponseSchema,
-  ReleaseListInputSchema,
-  ReleaseListResponseSchema,
-  ReleaseGetInputSchema,
-  ReleaseGetResponseSchema,
 } from '../../shared/types/ipc.js'
 import { projectRepo } from '../db/project-repository'
 import { appSettingsRepo } from '../db/app-settings-repository.js'
@@ -124,50 +80,11 @@ import { analyticsService } from '../analytics/analytics-service'
 import { pluginService } from '../plugins/plugin-service'
 import { agentRoleRepo } from '../db/agent-role-repository'
 import { backupService } from '../backup/backup-service'
-import { taskVcsLinkRepo } from '../db/task-vcs-link-repository'
-import { vcsProjectRepo } from '../db/vcs-project-repository'
 import { runRepo } from '../db/run-repository'
 import { runEventRepo } from '../db/run-event-repository'
 import { artifactRepo } from '../db/artifact-repository'
-import { autoMergeSettingsRepo } from '../db/auto-merge-settings-repository'
 import { runService } from '../run/run-service'
 import { buildContextSnapshot } from '../run/context-snapshot-builder'
-import { createGitAdapter } from '../git/git-adapter'
-import { ensureTaskBranchName } from '../git/task-branch-service'
-import { createPullRequest, mergePullRequest, refreshPullRequest } from '../pr/pr-service'
-import { runAutoMergeOnce } from '../pr/auto-merge'
-import {
-  addReleaseItems,
-  createRelease,
-  generateReleaseNotes,
-  getRelease,
-  listReleases,
-  publishRelease,
-} from '../release/release-service'
-import {
-  applyMergeResolution,
-  detectMergeConflict,
-  suggestMergeResolution,
-} from '../merge/merge-service'
-import { getSecretStore } from '../secrets/secret-store'
-
-const gitAdapter = createGitAdapter()
-
-const getProjectRepoPath = (projectId: string): string => {
-  const project = projectRepo.getById(projectId)
-  if (!project) {
-    throw new Error('Project not found')
-  }
-  return project.path
-}
-
-const getTaskRepoPath = (taskId: string): string => {
-  const task = taskRepo.getById(taskId)
-  if (!task) {
-    throw new Error('Task not found')
-  }
-  return getProjectRepoPath(task.projectId)
-}
 
 ipcHandlers.register('project:selectFolder', z.unknown(), async () => {
   const result = await dialog.showOpenDialog({
@@ -379,124 +296,6 @@ ipcHandlers.register('backup:importProject', BackupImportInputSchema, async (_, 
   return BackupImportResponseSchema.parse(result)
 })
 
-ipcHandlers.register('git:status', GitStatusInputSchema, async (_, { projectId }) => {
-  const repoPath = getProjectRepoPath(projectId)
-  await gitAdapter.ensureRepo(repoPath)
-  const status = await gitAdapter.getStatus(repoPath)
-  return GitStatusResponseSchema.parse({ status })
-})
-
-ipcHandlers.register('git:branch:create', GitBranchCreateInputSchema, async (_, { taskId }) => {
-  const repoPath = getTaskRepoPath(taskId)
-  await gitAdapter.ensureRepo(repoPath)
-  const branchName = ensureTaskBranchName(taskId)
-  const defaultBranch = await gitAdapter.getDefaultBranch(repoPath)
-  await gitAdapter.createBranch(repoPath, branchName, defaultBranch)
-  return GitBranchCreateResponseSchema.parse({ branchName })
-})
-
-ipcHandlers.register('git:branch:checkout', GitBranchCheckoutInputSchema, async (_, { taskId }) => {
-  const repoPath = getTaskRepoPath(taskId)
-  await gitAdapter.ensureRepo(repoPath)
-  const branchName = ensureTaskBranchName(taskId)
-  await gitAdapter.checkoutBranch(repoPath, branchName)
-  return GitBranchCheckoutResponseSchema.parse({ branchName })
-})
-
-ipcHandlers.register('git:diff', GitDiffInputSchema, async (_, { taskId }) => {
-  const repoPath = getTaskRepoPath(taskId)
-  await gitAdapter.ensureRepo(repoPath)
-  const diff = await gitAdapter.getDiff(repoPath)
-  return GitDiffResponseSchema.parse({ diff })
-})
-
-ipcHandlers.register('git:commit', GitCommitInputSchema, async (_, { taskId, message }) => {
-  const repoPath = getTaskRepoPath(taskId)
-  await gitAdapter.ensureRepo(repoPath)
-  const { sha } = await gitAdapter.commitAll(repoPath, message)
-  taskVcsLinkRepo.upsert(taskId, { lastCommitSha: sha })
-  return GitCommitResponseSchema.parse({ sha })
-})
-
-ipcHandlers.register('git:push', GitPushInputSchema, async (_, { taskId }) => {
-  const repoPath = getTaskRepoPath(taskId)
-  await gitAdapter.ensureRepo(repoPath)
-  const branchName = ensureTaskBranchName(taskId)
-  await gitAdapter.push(repoPath, branchName)
-  return GitPushResponseSchema.parse({ ok: true })
-})
-
-ipcHandlers.register(
-  'pr:create',
-  PrCreateInputSchema,
-  async (_, { taskId, title, body, draft }) => {
-    const result = await createPullRequest({ taskId, title, body, draft })
-    return PrCreateResponseSchema.parse(result)
-  }
-)
-
-ipcHandlers.register('pr:refresh', PrRefreshInputSchema, async (_, { taskId }) => {
-  const result = await refreshPullRequest(taskId)
-  return PrRefreshResponseSchema.parse(result)
-})
-
-ipcHandlers.register('pr:merge', PrMergeInputSchema, async (_, { taskId, method }) => {
-  const result = await mergePullRequest({ taskId, method })
-  return PrMergeResponseSchema.parse(result)
-})
-
-ipcHandlers.register('merge:detect', MergeDetectInputSchema, async (_, { taskId }) => {
-  const result = await detectMergeConflict(taskId)
-  return MergeDetectResponseSchema.parse({
-    conflictId: result.conflictId,
-    conflictPackage: result.conflictPackage,
-  })
-})
-
-ipcHandlers.register('merge:suggest', MergeSuggestInputSchema, async (_, { conflictId }) => {
-  const result = await suggestMergeResolution(conflictId)
-  return MergeSuggestResponseSchema.parse(result)
-})
-
-ipcHandlers.register(
-  'merge:apply',
-  MergeApplyInputSchema,
-  async (_, { conflictId, patchArtifactId }) => {
-    const result = await applyMergeResolution({ conflictId, patchArtifactId })
-    return MergeApplyResponseSchema.parse(result)
-  }
-)
-
-ipcHandlers.register(
-  'vcs:connectRepo',
-  VcsConnectRepoInputSchema,
-  async (_, { projectId, repoPath }) => {
-    await gitAdapter.ensureRepo(repoPath)
-    const defaultBranch = await gitAdapter.getDefaultBranch(repoPath)
-    vcsProjectRepo.upsert(projectId, { repoPath, defaultBranch })
-    return VcsConnectRepoResponseSchema.parse({ ok: true, defaultBranch })
-  }
-)
-
-ipcHandlers.register(
-  'integrations:setProvider',
-  IntegrationsSetProviderInputSchema,
-  async (_, { projectId, providerType, repoId }) => {
-    vcsProjectRepo.upsert(projectId, { providerType, providerRepoId: repoId })
-    return IntegrationsSetProviderResponseSchema.parse({ ok: true })
-  }
-)
-
-ipcHandlers.register(
-  'integrations:setToken',
-  IntegrationsSetTokenInputSchema,
-  async (_, { providerType, token }) => {
-    const service = providerType === 'github' ? 'provider/github' : 'provider/gitlab'
-    await getSecretStore().setPassword(service, 'token', token)
-    return IntegrationsSetTokenResponseSchema.parse({ ok: true })
-  }
-)
-
 ipcHandlers.register('run:start', RunStartInputSchema, async (_, input) => {
   const snapshot = buildContextSnapshot({
     taskId: input.taskId,
@@ -552,52 +351,6 @@ ipcHandlers.register('artifact:get', ArtifactGetInputSchema, async (_, { artifac
   return ArtifactGetResponseSchema.parse({ artifact })
 })
 
-ipcHandlers.register('autoMerge:set', AutoMergeSetInputSchema, async (_, input) => {
-  const settings = autoMergeSettingsRepo.upsert(input.projectId, {
-    enabled: input.enabled,
-    method: input.method,
-    requireCiSuccess: input.requireCiSuccess,
-    requiredApprovals: input.requiredApprovals,
-    requireNoConflicts: input.requireNoConflicts,
-  })
-  return AutoMergeSetResponseSchema.parse({ settings })
-})
-
-ipcHandlers.register('autoMerge:runOnce', AutoMergeRunOnceInputSchema, async (_, { projectId }) => {
-  const result = await runAutoMergeOnce(projectId)
-  return AutoMergeRunOnceResponseSchema.parse(result)
-})
-
-ipcHandlers.register('release:create', ReleaseCreateInputSchema, async (_, input) => {
-  const result = await createRelease(input)
-  return ReleaseCreateResponseSchema.parse(result)
-})
-
-ipcHandlers.register('release:addItems', ReleaseAddItemsInputSchema, async (_, input) => {
-  const result = await addReleaseItems(input)
-  return ReleaseAddItemsResponseSchema.parse(result)
-})
-
-ipcHandlers.register('release:generateNotes', ReleaseGenerateNotesInputSchema, async (_, input) => {
-  const result = await generateReleaseNotes(input.releaseId)
-  return ReleaseGenerateNotesResponseSchema.parse(result)
-})
-
-ipcHandlers.register('release:publish', ReleasePublishInputSchema, async (_, input) => {
-  const result = await publishRelease(input)
-  return ReleasePublishResponseSchema.parse(result)
-})
-
-ipcHandlers.register('release:list', ReleaseListInputSchema, async (_, input) => {
-  const result = await listReleases(input.projectId)
-  return ReleaseListResponseSchema.parse(result)
-})
-
-ipcHandlers.register('release:get', ReleaseGetInputSchema, async (_, input) => {
-  const result = await getRelease(input.releaseId)
-  return ReleaseGetResponseSchema.parse(result)
-})
-
 ipcHandlers.register('appSetting:getLastProjectId', z.unknown(), async () => {
   const projectId = appSettingsRepo.getLastProjectId()
   return AppSettingGetLastProjectIdResponseSchema.parse({ projectId })
@@ -609,6 +362,41 @@ ipcHandlers.register(
   async (_, input) => {
     appSettingsRepo.setLastProjectId(input.projectId)
     return AppSettingSetLastProjectIdResponseSchema.parse({ ok: true })
+  }
+)
+
+ipcHandlers.register(
+  'opencode:subscribeToEvents',
+  z.object({ sessionID: z.string() }),
+  async (event, input) => {
+    const { sessionID } = input
+    const webContents = event.sender
+
+    await sessionManager.subscribeToSessionEvents(sessionID, (sessionEvent: SessionEvent) => {
+      webContents.send('opencode:event', sessionEvent)
+    })
+
+    return { ok: true, subscribed: true }
+  }
+)
+
+ipcHandlers.register(
+  'opencode:unsubscribeFromEvents',
+  z.object({ sessionID: z.string() }),
+  async (_, input) => {
+    const { sessionID } = input
+    await sessionManager.unsubscribeFromSessionEvents(sessionID)
+    return { ok: true, subscribed: false }
+  }
+)
+
+ipcHandlers.register(
+  'opencode:isSubscribed',
+  z.object({ sessionID: z.string() }),
+  async (_, input) => {
+    const { sessionID } = input
+    const subscribed = sessionManager.isSubscribedToSessionEvents(sessionID)
+    return { ok: true, subscribed }
   }
 )
 

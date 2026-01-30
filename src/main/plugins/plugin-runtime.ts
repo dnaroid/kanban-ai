@@ -15,7 +15,11 @@ type ExecutorFactory = () => unknown
 
 const executorRegistry = new Map<string, { pluginId: string; factory: ExecutorFactory }>()
 
-const registerRolePreset = (pluginId: string, roleId: string, definition: RolePresetDefinition) => {
+const registerRolePreset = (
+  _pluginId: string,
+  roleId: string,
+  definition: RolePresetDefinition
+) => {
   if (!roleId || !definition?.name || !definition?.preset) {
     throw new Error('Invalid role preset definition')
   }

@@ -3,8 +3,6 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { OpencodeService } from './services/opencode-service.js'
 import './ipc/handlers.js'
-import { startPrPolling } from './pr/pr-polling.js'
-import { startAutoMergeScheduler } from './pr/auto-merge.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -47,8 +45,6 @@ app.whenReady().then(async () => {
   }
 
   createWindow()
-  startPrPolling()
-  startAutoMergeScheduler()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

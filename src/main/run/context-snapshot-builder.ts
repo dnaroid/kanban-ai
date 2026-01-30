@@ -3,28 +3,11 @@ import { boardRepo } from '../db/board-repository.js'
 import { contextSnapshotRepo } from '../db/context-snapshot-repository.js'
 import { dbManager } from '../db/index.js'
 import { projectRepo } from '../db/project-repository.js'
-import { pullRequestRepo } from '../db/pull-request-repository.js'
-import { releaseItemRepo } from '../db/release-item-repository.js'
-import { releaseRepo } from '../db/release-repository.js'
 import { taskRepo } from '../db/task-repository.js'
 import type { RunMode } from '../db/run-types'
-import type { MergeConflictPackage } from '../../shared/types/merge'
 import { DENYLIST_PATTERNS, redactValue } from './run-security.js'
 
 type BuildContextSnapshotInput = {
-  taskId: string
-  roleId: string
-  mode?: RunMode
-}
-
-type BuildMergeConflictSnapshotInput = {
-  conflictPackage: MergeConflictPackage
-  roleId: string
-  mode?: RunMode
-}
-
-type BuildReleaseNotesSnapshotInput = {
-  releaseId: string
   taskId: string
   roleId: string
   mode?: RunMode
@@ -141,140 +124,6 @@ export const buildContextSnapshot = ({ taskId, roleId, mode }: BuildContextSnaps
     taskId: task.id,
     kind: 'run_input_v1',
     summary: task.title,
-    payload: sanitizedPayload,
-    hash,
-  })
-
-  return snapshot
-}
-
-export const buildMergeConflictSnapshot = ({
-  conflictPackage,
-  roleId,
-  mode,
-}: BuildMergeConflictSnapshotInput) => {
-  const task = taskRepo.getById(conflictPackage.task.id)
-  if (!task) {
-    throw new Error('Task not found for merge conflict snapshot')
-  }
-
-  const project = projectRepo.getById(task.projectId)
-  if (!project) {
-    throw new Error('Project not found for merge conflict snapshot')
-  }
-
-  const rolePreset = loadRolePreset(roleId)
-
-  const limits = {
-    maxTimeMs: Number(process.env.RUN_MAX_TIME_MS ?? 0),
-    maxOutputChars: Number(process.env.RUN_MAX_OUTPUT_CHARS ?? 0),
-  }
-
-  const payload = {
-    task: {
-      id: task.id,
-      title: task.title,
-    },
-    project: {
-      id: project.id,
-      name: project.name,
-      repoPath: project.path,
-    },
-    role: {
-      id: rolePreset.id,
-      name: rolePreset.name,
-      description: rolePreset.description,
-      preset: rolePreset.preset,
-    },
-    mode: mode ?? 'execute',
-    limits,
-    conflict: conflictPackage,
-    security: {
-      denylist: DENYLIST_PATTERNS.map((pattern) => pattern.source),
-      safeMode: process.env.OPENCODE_SAFE_MODE !== '0',
-    },
-  }
-
-  const sanitizedPayload = redactValue(payload)
-  const hash = createHash('sha256').update(JSON.stringify(sanitizedPayload)).digest('hex')
-
-  const snapshot = contextSnapshotRepo.create({
-    taskId: task.id,
-    kind: 'merge_conflict_input_v1',
-    summary: `Merge conflict: ${task.title}`,
-    payload: sanitizedPayload,
-    hash,
-  })
-
-  return snapshot
-}
-
-export const buildReleaseNotesSnapshot = ({
-  releaseId,
-  taskId,
-  roleId,
-  mode,
-}: BuildReleaseNotesSnapshotInput) => {
-  const task = taskRepo.getById(taskId)
-  if (!task) {
-    throw new Error('Task not found for release notes snapshot')
-  }
-
-  const project = projectRepo.getById(task.projectId)
-  if (!project) {
-    throw new Error('Project not found for release notes snapshot')
-  }
-
-  const release = releaseRepo.getById(releaseId)
-  if (!release) {
-    throw new Error('Release not found for release notes snapshot')
-  }
-
-  const rolePreset = loadRolePreset(roleId)
-  const limits = {
-    maxTimeMs: Number(process.env.RUN_MAX_TIME_MS ?? 0),
-    maxOutputChars: Number(process.env.RUN_MAX_OUTPUT_CHARS ?? 0),
-  }
-
-  const items = releaseItemRepo.listByRelease(releaseId).map((item) => {
-    const itemTask = taskRepo.getById(item.taskId)
-    const pr = pullRequestRepo.getByTaskId(item.taskId)
-    return {
-      ...item,
-      taskTitle: itemTask?.title ?? '',
-      prTitle: pr?.title ?? '',
-    }
-  })
-
-  const payload = {
-    release,
-    items,
-    project: {
-      id: project.id,
-      name: project.name,
-      repoPath: project.path,
-    },
-    role: {
-      id: rolePreset.id,
-      name: rolePreset.name,
-      description: rolePreset.description,
-      preset: rolePreset.preset,
-    },
-    mode: mode ?? 'execute',
-    limits,
-    security: {
-      denylist: DENYLIST_PATTERNS.map((pattern) => pattern.source),
-      safeMode: process.env.OPENCODE_SAFE_MODE !== '0',
-    },
-  }
-
-  const sanitizedPayload = redactValue(payload)
-  const hash = createHash('sha256').update(JSON.stringify(sanitizedPayload)).digest('hex')
-
-  const snapshot = contextSnapshotRepo.create({
-    taskId: task.id,
-    kind: 'release_notes_input_v1',
-    summary: `Release notes: ${release.name}`,
     payload: sanitizedPayload,
     hash,
   })

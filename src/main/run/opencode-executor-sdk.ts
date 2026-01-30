@@ -3,12 +3,8 @@ import { runEventRepo } from '../db/run-event-repository.js'
 import { taskRepo } from '../db/task-repository.js'
 import { opencodeSessionRepo } from '../db/opencode-session-repository.js'
 import type { RunRecord } from '../db/run-types'
-import { createGitAdapter } from '../git/git-adapter.js'
-import { ensureTaskBranchName } from '../git/task-branch-service.js'
 import type { RunExecutor } from './job-runner'
 import { sessionManager } from './opencode-session-manager.js'
-
-const gitAdapter = createGitAdapter()
 
 const buildTaskPrompt = (task: any, project: any): string => {
   return `
@@ -42,15 +38,6 @@ export class OpenCodeExecutorSDK implements RunExecutor {
     }
 
     const repoPath = project.path
-    await gitAdapter.ensureRepo(repoPath)
-    const branchName = ensureTaskBranchName(task.id)
-    try {
-      await gitAdapter.checkoutBranch(repoPath, branchName)
-    } catch {
-      const defaultBranch = await gitAdapter.getDefaultBranch(repoPath)
-      await gitAdapter.createBranch(repoPath, branchName, defaultBranch)
-    }
-
     const prompt = buildTaskPrompt(task, project)
     const sessionTitle = `Task ${task.id}: ${task.title}`
 

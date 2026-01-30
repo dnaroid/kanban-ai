@@ -22,7 +22,11 @@ const parseManifest = (manifestJson: string): PluginManifest => {
       version: '0.0.0',
       type: 'integration',
       entrypoint: 'index.js',
-      permissions: {},
+      permissions: {
+        canRegisterRoles: false,
+        canRegisterExecutors: false,
+        canCallNetwork: false,
+      },
     }
   }
 }
