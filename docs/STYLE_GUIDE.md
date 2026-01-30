@@ -39,25 +39,26 @@
 
 ```tsx
 // Очень маленький
-text-[10px]
+text - [10px]
 
 // Маленький (по умолчанию)
-text-xs
+text - xs
 
 // Маленький плюс
-text-sm
+text - sm
 
 // Средний
-text-base
+text - base
 
 // Большой
-text-lg
+text - lg
 
 // Большой плюс
-text-xl
+text - xl
 
 // Огромный
-text-2xl
+text - 2
+xl
 ```
 
 ### Стили
@@ -94,8 +95,8 @@ uppercase
 </button>
 
 // Отключенное состояние всегда
-disabled:bg-slate-800
-disabled:text-slate-500
+disabled:bg - slate - 800
+disabled:text - slate - 500
 ```
 
 ### Поля ввода
@@ -144,10 +145,10 @@ disabled:text-slate-500
 ```tsx
 // Фиксированный сайдбар + основной контент
 <div className="flex h-screen overflow-hidden">
-  <Sidebar className="w-64 flex-shrink-0" />
+  <Sidebar className="w-64 flex-shrink-0"/>
   <main className="flex-1 pl-64 overflow-hidden">
-    <Header className="sticky top-0 z-10 backdrop-blur-md" />
-    <Content className="h-full overflow-y-auto" />
+    <Header className="sticky top-0 z-10 backdrop-blur-md"/>
+    <Content className="h-full overflow-y-auto"/>
   </main>
 </div>
 ```
@@ -163,7 +164,7 @@ disabled:text-slate-500
 
 // Горизонтальный flex с отступами
 <div className="flex items-center gap-3">
-  <Icon />
+  <Icon/>
   <span>Text</span>
 </div>
 
@@ -190,13 +191,14 @@ border - slate - 800 / 50
 
 ```tsx
 // Скругленные карточки (большее)
-rounded-2xl
+rounded - 2
+xl
 
 // Стандартное скругление
-rounded-xl
+rounded - xl
 
 // Маленькое скругление (для input/button)
-rounded-lg
+rounded - lg
 ```
 
 ## Тени
@@ -213,16 +215,16 @@ shadow - blue - 600 / 20
 
 ```tsx
 // Транзиция для hover состояний
-transition-all
-duration-200
+transition - all
+duration - 200
 
 // Анимация появления
-animate-in
-fade-in
+animate - in
+fade - in
 
 // Задержка анимации
-delay-100
-delay-200
+delay - 100
+delay - 200
 ```
 
 ## Утилиты
@@ -232,10 +234,12 @@ delay-200
 Используйте функцию `cn()` для объединения className:
 
 ```tsx
-import { cn } from '@/lib/utils'
+import {cn} from '@/lib/utils'
 
 // Слияние Tailwind классов
-;<button className={cn('base-classes', condition && 'conditional-classes')}>Button</button>
+  ;
+
+<button className={cn('base-classes', condition && 'conditional-classes')}>Button</button>
 ```
 
 Эта функция использует `clsx` и `tailwind-merge` для:
@@ -266,7 +270,7 @@ import {
 // В компоненте доски
 const sensors = useSensors(
   useSensor(PointerSensor),
-  useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  useSensor(KeyboardSensor, {coordinateGetter: sortableKeyboardCoordinates})
 )
 
 return (
@@ -283,14 +287,18 @@ return (
 Используйте `lucide-react` для иконок:
 
 ```tsx
-import { Plus, Settings, Trash2 } from 'lucide-react'
+import {Plus, Settings, Trash2} from 'lucide-react'
 
 // Размер иконок обычно small или medium
-<Plus className="w-4 h-4" />
-<Settings className="w-5 h-5" />
+<
+Plus
+className = "w-4 h-4" / >
+  < Settings
+className = "w-5 h-5" / >
 
-// Цвет иконок обычно slate-400 или slate-500
-<Trash2 className="w-4 h-4 text-slate-400" />
+  // Цвет иконок обычно slate-400 или slate-500
+  < Trash2
+className = "w-4 h-4 text-slate-400" / >
 ```
 
 ## IPC Communication
@@ -345,7 +353,8 @@ try {
 const [isLoading, setIsLoading] = useState(false)
 
 // В кнопке
-<button disabled={isLoading}>
+< button
+disabled = {isLoading} >
   {isLoading ? 'Loading...' : 'Save'}
 </button>
 ```
@@ -374,7 +383,7 @@ type ComponentProps = {
   disabled?: boolean
 }
 
-export function Component({ value, onChange, disabled = false }: ComponentProps) {
+export function Component({value, onChange, disabled = false}: ComponentProps) {
   // ...
 }
 ```

@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process'
-import readline from 'node:readline'
 import { artifactRepo } from '../db/artifact-repository.js'
 import { projectRepo } from '../db/project-repository.js'
 import { runEventRepo } from '../db/run-event-repository.js'
@@ -63,6 +62,25 @@ const applyUsageUpdate = (runId: string, usage: ReturnType<typeof extractUsage>)
 
 const gitAdapter = createGitAdapter()
 
+const buildTaskPrompt = (task: any, project: any): string => {
+  return `
+ЗАДАЧА: ${task.title}
+
+Описание: ${task.description || 'Нет описания'}
+
+Контекст проекта:
+- Путь: ${project.path}
+- ID проекта: ${project.id}
+
+Требования:
+1. Выполните задачу в директории проекта: ${project.path}
+2. При завершении выведи в формате:
+   STATUS: done|fail|question
+3. Если STATUS=fail — опиши причину
+4. Если STATUS=question — задай конкретный вопрос пользователю
+`.trim()
+}
+
 type ParsedEvent = {
   eventType?: RunEventType
   payload?: unknown
@@ -100,7 +118,10 @@ export class OpenCodeExecutor implements RunExecutor {
 
     const command = process.env.OPENCODE_CMD || 'opencode'
     const extraArgs = (process.env.OPENCODE_ARGS || '').split(' ').filter(Boolean)
-    const args = ['run', '--role', run.roleId, '--mode', run.mode, ...extraArgs]
+    const prompt = buildTaskPrompt(task, project)
+    const baseArgs = ['run', '--format', 'json', '--agent', run.roleId]
+    const printLogsArgs = extraArgs.includes('--print-logs') ? [] : ['--print-logs']
+    const args = [...baseArgs, ...printLogsArgs, ...extraArgs, prompt]
 
     const child = spawn(command, args, {
       cwd: repoPath,
@@ -146,77 +167,156 @@ export class OpenCodeExecutor implements RunExecutor {
     }
 
     const parseJsonLine = (line: string): ParsedEvent | null => {
+      const trimmed = line.trim()
+      if (!trimmed) return null
       try {
-        return JSON.parse(line) as ParsedEvent
+        return JSON.parse(trimmed) as ParsedEvent
       } catch {
         return null
       }
     }
 
+    const extractEventType = (value: unknown): RunEventType | undefined => {
+      if (typeof value !== 'string') return undefined
+      if (ALLOWED_EVENT_TYPES.includes(value as RunEventType)) {
+        return value as RunEventType
+      }
+      const normalized = value.toLowerCase()
+      if (normalized === 'error' || normalized === 'warn' || normalized === 'warning') {
+        return 'stderr'
+      }
+      if (normalized === 'info' || normalized === 'log' || normalized === 'output') {
+        return 'stdout'
+      }
+      if (
+        normalized === 'assistant' ||
+        normalized === 'assistant_message' ||
+        normalized === 'message'
+      ) {
+        return 'message'
+      }
+      if (normalized === 'tool' || normalized === 'tool_call') {
+        return 'tool'
+      }
+      if (normalized === 'status') {
+        return 'status'
+      }
+      if (normalized === 'usage') {
+        return 'usage'
+      }
+      if (normalized === 'debug') {
+        return 'debug'
+      }
+      return undefined
+    }
+
     const handleLine = (line: string, fallbackType: RunEventType) => {
       if (!line.trim()) return
       const parsed = parseJsonLine(line)
-      if (parsed) {
-        const eventType =
-          parsed.eventType && ALLOWED_EVENT_TYPES.includes(parsed.eventType)
-            ? parsed.eventType
-            : undefined
-        if (eventType === 'artifact') {
-          handleArtifact(parsed.artifact ?? (parsed as ParsedEvent)['artifact'])
+      if (parsed && typeof parsed === 'object') {
+        const raw = parsed as Record<string, unknown>
+        const eventNode = (raw.event as Record<string, unknown> | undefined) ?? undefined
+        const rawEventType =
+          raw.eventType ?? raw.type ?? raw.event_type ?? eventNode?.type ?? eventNode?.eventType
+        const eventType = extractEventType(rawEventType)
+        const artifact =
+          raw.artifact ??
+          eventNode?.artifact ??
+          (raw.payload as Record<string, unknown> | undefined)?.artifact
+
+        if (eventType === 'artifact' || artifact) {
+          handleArtifact(artifact ?? (parsed as ParsedEvent).artifact)
           return
         }
-        const usage = extractUsage(parsed.payload ?? parsed)
+
+        const payload =
+          raw.payload ?? raw.data ?? eventNode?.payload ?? raw.message ?? raw.content ?? parsed
+
+        const usage = extractUsage(payload)
         if (usage) {
           applyUsageUpdate(run.id, usage)
           emitEvent('usage', usage)
         }
         if (eventType) {
-          emitEvent(eventType, parsed.payload ?? parsed)
+          emitEvent(eventType, payload)
           return
         }
-        if (parsed.artifact) {
-          handleArtifact(parsed.artifact)
-          return
-        }
+        emitEvent('message', payload)
+        return
       }
       emitEvent(fallbackType, redactText(line))
     }
 
-    const createLineReader = (stream: NodeJS.ReadableStream, eventType: RunEventType) => {
-      const rl = readline.createInterface({ input: stream })
-      rl.on('line', (line) => handleLine(line, eventType))
-      return rl
+    const stdOutChunks: string[] = []
+
+    const createLineReader = (
+      stream: NodeJS.ReadableStream,
+      eventType: RunEventType,
+      onChunk?: (chunk: string) => void
+    ) => {
+      let buffer = ''
+      stream.on('data', (data) => {
+        const chunk = data.toString()
+        if (onChunk) {
+          onChunk(chunk)
+        }
+        buffer += chunk
+        let newlineIndex = buffer.indexOf('\n')
+        while (newlineIndex !== -1) {
+          const line = buffer.slice(0, newlineIndex)
+          buffer = buffer.slice(newlineIndex + 1)
+          handleLine(line, eventType)
+          newlineIndex = buffer.indexOf('\n')
+        }
+      })
+      stream.on('end', () => {
+        if (buffer.trim()) {
+          handleLine(buffer, eventType)
+        }
+      })
     }
 
-    createLineReader(child.stdout, 'stdout')
-    createLineReader(child.stderr, 'stderr')
-
-    const payload = {
-      runId: run.id,
-      taskId: run.taskId,
-      roleId: run.roleId,
-      mode: run.mode,
-      contextSnapshotId: run.contextSnapshotId,
+    if (child.stdout) {
+      createLineReader(child.stdout, 'stdout', (chunk) => {
+        stdOutChunks.push(chunk)
+      })
     }
-    if (child.stdin) {
-      child.stdin.write(JSON.stringify(payload))
-      child.stdin.end()
+
+    if (child.stderr) {
+      createLineReader(child.stderr, 'stderr')
     }
 
     await new Promise<void>((resolve, reject) => {
       child.on('error', (error) => {
         reject(error)
       })
+
       child.on('close', (code, signal) => {
         this.processes.delete(run.id)
+
         if (signal) {
           resolve()
           return
         }
+
         if (code && code !== 0) {
           reject(new Error(`OpenCode exited with code ${code}`))
           return
         }
+
+        const output = stdOutChunks.join('')
+        const statusMatch = output.match(/STATUS:\s*(done|fail|question)/i)
+
+        if (statusMatch) {
+          const rawStatus = statusMatch[1].toLowerCase()
+          const statusMap: Record<string, 'todo' | 'in-progress' | 'done'> = {
+            done: 'done',
+            fail: 'todo',
+            question: 'in-progress',
+          }
+          taskRepo.update(task.id, { status: statusMap[rawStatus] })
+        }
+
         resolve()
       })
     })

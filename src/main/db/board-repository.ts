@@ -61,18 +61,18 @@ export class BoardRepository {
     return db
       .prepare(
         `
-      SELECT id, board_id as boardId, name, order_index as orderIndex
-      FROM board_columns
-      WHERE board_id = ?
-      ORDER BY order_index ASC
-    `
+        SELECT id, board_id as boardId, name, order_index as orderIndex, color
+        FROM board_columns
+        WHERE board_id = ?
+        ORDER BY order_index ASC
+      `
       )
       .all(boardId) as BoardColumn[]
   }
 
   updateColumns(
     boardId: string,
-    columns: { id?: string; name: string; orderIndex: number }[]
+    columns: { id?: string; name: string; orderIndex: number; color?: string }[]
   ): void {
     const db = dbManager.connect()
     const now = new Date().toISOString()
@@ -92,21 +92,29 @@ export class BoardRepository {
 
       const updateColumn = db.prepare(
         `
-        UPDATE board_columns SET name = ?, order_index = ?, updated_at = ?
+        UPDATE board_columns SET name = ?, order_index = ?, color = ?, updated_at = ?
         WHERE id = ? AND board_id = ?
       `
       )
       const insertColumn = db.prepare(
         `
-        INSERT INTO board_columns (id, board_id, name, order_index, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO board_columns (id, board_id, name, order_index, color, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `
       )
       columns.forEach((col) => {
         if (col.id) {
-          updateColumn.run(col.name, col.orderIndex, now, col.id, boardId)
+          updateColumn.run(col.name, col.orderIndex, col.color || '', now, col.id, boardId)
         } else {
-          insertColumn.run(randomUUID(), boardId, col.name, col.orderIndex, now, now)
+          insertColumn.run(
+            randomUUID(),
+            boardId,
+            col.name,
+            col.orderIndex,
+            col.color || '',
+            now,
+            now
+          )
         }
       })
     })()

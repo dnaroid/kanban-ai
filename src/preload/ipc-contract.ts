@@ -17,6 +17,8 @@ import type {
   TaskUpdateResponse,
   TaskMoveInput,
   TaskMoveResponse,
+  TaskDeleteInput,
+  TaskDeleteResponse,
   DepsListInput,
   DepsListResponse,
   DepsAddInput,
@@ -106,6 +108,9 @@ import type {
   ReleaseListResponse,
   ReleaseGetInput,
   ReleaseGetResponse,
+  AppSettingGetLastProjectIdResponse,
+  AppSettingSetLastProjectIdInput,
+  AppSettingSetLastProjectIdResponse,
 } from '../shared/types/ipc'
 
 export interface MainToRenderer {
@@ -129,6 +134,7 @@ export interface MainToRenderer {
     listByBoard(input: TaskListByBoardInput): Promise<TaskListByBoardResponse>
     update(input: TaskUpdateInput): Promise<TaskUpdateResponse>
     move(input: TaskMoveInput): Promise<TaskMoveResponse>
+    delete(input: TaskDeleteInput): Promise<TaskDeleteResponse>
   }
   deps: {
     list(input: DepsListInput): Promise<DepsListResponse>
@@ -215,6 +221,12 @@ export interface MainToRenderer {
     publish(input: ReleasePublishInput): Promise<ReleasePublishResponse>
     list(input: ReleaseListInput): Promise<ReleaseListResponse>
     get(input: ReleaseGetInput): Promise<ReleaseGetResponse>
+  }
+  appSetting: {
+    getLastProjectId(): Promise<AppSettingGetLastProjectIdResponse>
+    setLastProjectId(
+      input: AppSettingSetLastProjectIdInput
+    ): Promise<AppSettingSetLastProjectIdResponse>
   }
 }
 
@@ -239,6 +251,7 @@ export interface RendererToMain {
     listByBoard(input: TaskListByBoardInput): Promise<TaskListByBoardResponse>
     update(input: TaskUpdateInput): Promise<TaskUpdateResponse>
     move(input: TaskMoveInput): Promise<TaskMoveResponse>
+    delete(input: TaskDeleteInput): Promise<TaskDeleteResponse>
   }
   deps: {
     list(input: DepsListInput): Promise<DepsListResponse>
@@ -325,5 +338,11 @@ export interface RendererToMain {
     publish(input: ReleasePublishInput): Promise<ReleasePublishResponse>
     list(input: ReleaseListInput): Promise<ReleaseListResponse>
     get(input: ReleaseGetInput): Promise<ReleaseGetResponse>
+  }
+  appSetting: {
+    getLastProjectId(): Promise<AppSettingGetLastProjectIdResponse>
+    setLastProjectId(
+      input: AppSettingSetLastProjectIdInput
+    ): Promise<AppSettingSetLastProjectIdResponse>
   }
 }

@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { OpencodeService } from './services/opencode-service.js'
 import './ipc/handlers.js'
 import { startPrPolling } from './pr/pr-polling.js'
 import { startAutoMergeScheduler } from './pr/auto-merge.js'
@@ -9,6 +10,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 let mainWindow: BrowserWindow | null = null
+let opencodeService: OpencodeService | null = null
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -34,7 +36,16 @@ function createWindow() {
   })
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  const opencodePort = parseInt(process.env.OPENCODE_PORT || '4096', 10)
+
+  try {
+    opencodeService = new OpencodeService({ port: opencodePort })
+    await opencodeService.start()
+  } catch (error) {
+    console.error('[Main] Не удалось запустить OpenCode сервер:', error)
+  }
+
   createWindow()
   startPrPolling()
   startAutoMergeScheduler()
@@ -46,8 +57,18 @@ app.whenReady().then(() => {
   })
 })
 
-app.on('window-all-closed', () => {
+app.on('window-all-closed', async () => {
+  if (opencodeService) {
+    await opencodeService.shutdown()
+  }
+
   if (process.platform !== 'darwin') {
     app.quit()
+  }
+})
+
+app.on('before-quit', async () => {
+  if (opencodeService) {
+    await opencodeService.shutdown()
   }
 })

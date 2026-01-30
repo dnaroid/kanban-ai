@@ -2,9 +2,9 @@ import { dbManager } from '../db/index.js'
 import { runRepo } from '../db/run-repository.js'
 import type { RunRecord } from '../db/run-types'
 import { JobRunner } from './job-runner.js'
-import { OpenCodeExecutor } from './opencode-executor.js'
+import { OpenCodeExecutorSDK } from './opencode-executor-sdk.js'
 
-const executor = new OpenCodeExecutor()
+const executor = new OpenCodeExecutorSDK()
 const defaultConcurrency = Math.max(1, Number(process.env.RUN_CONCURRENCY ?? 1))
 const providerConcurrency = new Map<string, number>()
 const providerRunners = new Map<string, JobRunner>()

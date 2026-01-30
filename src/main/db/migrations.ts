@@ -890,6 +890,43 @@ export const migrations = [
       ALTER TABLE runs ADD COLUMN duration_sec REAL NOT NULL DEFAULT 0;
     `,
   },
+  {
+    version: 14,
+    sql: `
+      ALTER TABLE board_columns ADD COLUMN color TEXT NOT NULL DEFAULT '';
+    `,
+  },
+  {
+    version: 15,
+    sql: `
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_app_settings_key ON app_settings(key);
+    `,
+  },
+  {
+    version: 16,
+    sql: `
+      CREATE TABLE IF NOT EXISTS opencode_sessions (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL UNIQUE,
+        session_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        directory TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_opencode_sessions_run ON opencode_sessions(run_id);
+      CREATE INDEX IF NOT EXISTS idx_opencode_sessions_status ON opencode_sessions(status);
+    `,
+  },
 ]
 
 export type Migration = (typeof migrations)[number]

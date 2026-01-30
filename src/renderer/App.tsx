@@ -3,15 +3,15 @@ import {
   Activity,
   AlertTriangle,
   ChevronRight,
-  Database,
   FolderKanban,
   Layers,
   CalendarRange,
   Search,
   BarChart3,
-  Github,
   Layout,
   Settings,
+  Menu,
+  X,
 } from 'lucide-react'
 import { ProjectsScreen } from './screens/ProjectsScreen'
 import { DiagnosticsScreen } from './screens/DiagnosticsScreen'
@@ -36,6 +36,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>({ id: 'projects' })
   const [activeProject, setActiveProject] = useState<{ id: string; name: string } | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isSearchLoading, setIsSearchLoading] = useState(false)
@@ -94,6 +95,25 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    const loadLastProject = async () => {
+      try {
+        const { projectId } = await window.api.appSetting.getLastProjectId()
+        if (projectId) {
+          const project = await window.api.project.getById(projectId)
+          if (project) {
+            setActiveProject({ id: project.id, name: project.name })
+            setScreen({ id: 'board', projectId: project.id, projectName: project.name })
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load last project:', error)
+      }
+    }
+
+    loadLastProject()
+  }, [])
+
+  useEffect(() => {
     if (!isSearchOpen) return
     const query = searchQuery.trim()
     if (!query) {
@@ -142,20 +162,26 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#0B0E14] text-slate-200 font-sans selection:bg-blue-500/30">
       {/* Sidebar Navigation */}
-      <aside className="fixed top-0 left-0 h-full w-64 bg-[#11151C] border-r border-slate-800/50 flex flex-col z-50">
-        <div className="p-6 flex items-center gap-3 border-b border-slate-800/50">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-600/20">
+      <aside
+        className={`fixed top-0 left-0 h-full bg-[#11151C] border-r border-slate-800/50 flex flex-col z-50 transition-all duration-300 ${isSidebarCollapsed ? 'w-16' : 'w-64'}`}
+      >
+        <div
+          className={`flex items-center gap-3 border-b border-slate-800/50 ${isSidebarCollapsed ? 'justify-center py-4' : 'p-6'}`}
+        >
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-600/20 shrink-0">
             <Layout className="w-5 h-5 text-white" />
           </div>
-          <div>
-            <h1 className="text-lg font-bold tracking-tight text-white">Kanban AI</h1>
-            <span className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">
-              Beta v0.1.0
-            </span>
-          </div>
+          {!isSidebarCollapsed && (
+            <div>
+              <h1 className="text-lg font-bold tracking-tight text-white">Kanban AI</h1>
+              <span className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">
+                Beta v0.1.0
+              </span>
+            </div>
+          )}
         </div>
 
-        <nav className="flex-1 p-4 space-y-1 mt-4">
+        <nav className={`flex-1 ${isSidebarCollapsed ? 'p-2' : 'p-4'} space-y-1 mt-4`}>
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = screen.id === item.id
@@ -180,38 +206,44 @@ export default function App() {
                 }}
                 disabled={isDisabled}
                 className={cn(
-                  'w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group',
+                  'flex items-center rounded-xl transition-all duration-200 group',
+                  isSidebarCollapsed ? 'justify-center w-12 h-12' : 'gap-3 px-4 py-3 w-full',
                   isActive
                     ? 'bg-blue-600/10 text-blue-400 ring-1 ring-inset ring-blue-500/20'
                     : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200',
                   isDisabled && 'opacity-50 cursor-not-allowed hover:bg-transparent'
                 )}
+                title={item.label}
               >
                 <Icon
                   className={cn(
-                    'w-5 h-5 transition-transform duration-200',
+                    'transition-transform duration-200',
+                    isSidebarCollapsed ? 'w-6 h-6' : 'w-5 h-5',
                     isActive ? 'text-blue-400' : 'text-slate-500 group-hover:text-slate-300'
                   )}
                 />
-                <span className="font-medium">{item.label}</span>
+                {!isSidebarCollapsed && <span className="font-medium">{item.label}</span>}
               </button>
             )
           })}
         </nav>
 
-        <div className="p-4 border-t border-slate-800/50 space-y-4">
-          <div className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/30">
-            <div className="flex items-center gap-2 mb-2">
-              <Github className="w-4 h-4 text-slate-400" />
-              <span className="text-xs font-semibold text-slate-300">OpenCode Connection</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[11px] text-emerald-400 font-medium">Headless Link Active</span>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between px-2">
+        <div className={`border-t border-slate-800/50 ${isSidebarCollapsed ? 'p-2' : 'p-4'}`}>
+          <button
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-slate-500 hover:bg-slate-800/50 hover:text-slate-300 transition-colors"
+            title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isSidebarCollapsed ? (
+              <Menu className="w-5 h-5" />
+            ) : (
+              <>
+                <X className="w-5 h-5" />
+                <span className="font-medium">Collapse</span>
+              </>
+            )}
+          </button>
+          {!isSidebarCollapsed && (
             <button
               onClick={() => {
                 if (!activeProject) return
@@ -223,22 +255,21 @@ export default function App() {
               }}
               disabled={!activeProject}
               className={cn(
-                'text-slate-500 hover:text-slate-300 transition-colors',
-                !activeProject && 'opacity-50 cursor-not-allowed hover:text-slate-500'
+                'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-slate-800/50 hover:text-slate-300 transition-colors mt-2',
+                !activeProject && 'opacity-50 cursor-not-allowed hover:bg-transparent'
               )}
             >
               <Settings className="w-5 h-5" />
+              <span className="font-medium">Settings</span>
             </button>
-            <div className="flex items-center gap-2 text-slate-500 text-[11px] font-mono">
-              <Database className="w-3.5 h-3.5" />
-              SQLite
-            </div>
-          </div>
+          )}
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <main className="pl-64 min-h-screen flex flex-col">
+      <main
+        className={`min-h-screen flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'pl-16' : 'pl-64'}`}
+      >
         <header className="h-16 border-b border-slate-800/30 bg-[#0B0E14]/80 backdrop-blur-md sticky top-0 z-40 flex items-center px-8 justify-between shrink-0">
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <button
@@ -336,7 +367,14 @@ export default function App() {
             <AnalyticsScreen projectId={screen.projectId} projectName={screen.projectName} />
           )}
           {screen.id === 'settings' && (
-            <SettingsScreen projectId={screen.projectId} projectName={screen.projectName} />
+            <SettingsScreen
+              projectId={screen.projectId}
+              projectName={screen.projectName}
+              onProjectDeleted={() => {
+                setActiveProject(null)
+                setScreen({ id: 'projects' })
+              }}
+            />
           )}
         </div>
       </main>

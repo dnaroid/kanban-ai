@@ -22,6 +22,7 @@ const api: MainToRenderer = {
     listByBoard: (input) => ipcRenderer.invoke('task:listByBoard', input),
     update: (input) => ipcRenderer.invoke('task:update', input),
     move: (input) => ipcRenderer.invoke('task:move', input),
+    delete: (input) => ipcRenderer.invoke('task:delete', input),
   },
   deps: {
     list: (input) => ipcRenderer.invoke('deps:list', input),
@@ -108,6 +109,11 @@ const api: MainToRenderer = {
     publish: (input) => ipcRenderer.invoke('release:publish', input),
     list: (input) => ipcRenderer.invoke('release:list', input),
     get: (input) => ipcRenderer.invoke('release:get', input),
+  },
+  appSetting: {
+    getLastProjectId: () => ipcRenderer.invoke('appSetting:getLastProjectId'),
+    setLastProjectId: (input: { projectId: string }) =>
+      ipcRenderer.invoke('appSetting:setLastProjectId', input),
   },
 }
 

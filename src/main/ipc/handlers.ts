@@ -20,6 +20,8 @@ import {
   TaskUpdateResponseSchema,
   TaskMoveInputSchema,
   TaskMoveResponseSchema,
+  TaskDeleteInputSchema,
+  TaskDeleteResponseSchema,
   DepsListInputSchema,
   DepsListResponseSchema,
   DepsAddInputSchema,
@@ -95,6 +97,9 @@ import {
   AutoMergeSetResponseSchema,
   AutoMergeRunOnceInputSchema,
   AutoMergeRunOnceResponseSchema,
+  AppSettingGetLastProjectIdResponseSchema,
+  AppSettingSetLastProjectIdInputSchema,
+  AppSettingSetLastProjectIdResponseSchema,
   ReleaseCreateInputSchema,
   ReleaseCreateResponseSchema,
   ReleaseAddItemsInputSchema,
@@ -107,8 +112,9 @@ import {
   ReleaseListResponseSchema,
   ReleaseGetInputSchema,
   ReleaseGetResponseSchema,
-} from '../../shared/types/ipc'
+} from '../../shared/types/ipc.js'
 import { projectRepo } from '../db/project-repository'
+import { appSettingsRepo } from '../db/app-settings-repository.js'
 import { boardRepo } from '../db/board-repository'
 import { taskRepo } from '../db/task-repository'
 import { dependencyService } from '../deps/dependency-service'
@@ -264,6 +270,11 @@ ipcHandlers.register(
     return TaskMoveResponseSchema.parse({ success: true })
   }
 )
+
+ipcHandlers.register('task:delete', TaskDeleteInputSchema, async (_, { taskId }) => {
+  taskRepo.delete(taskId)
+  return TaskDeleteResponseSchema.parse({ ok: true })
+})
 
 ipcHandlers.register('deps:list', DepsListInputSchema, async (_, { taskId }) => {
   const links = dependencyService.list(taskId)
@@ -586,6 +597,20 @@ ipcHandlers.register('release:get', ReleaseGetInputSchema, async (_, input) => {
   const result = await getRelease(input.releaseId)
   return ReleaseGetResponseSchema.parse(result)
 })
+
+ipcHandlers.register('appSetting:getLastProjectId', z.unknown(), async () => {
+  const projectId = appSettingsRepo.getLastProjectId()
+  return AppSettingGetLastProjectIdResponseSchema.parse({ projectId })
+})
+
+ipcHandlers.register(
+  'appSetting:setLastProjectId',
+  AppSettingSetLastProjectIdInputSchema,
+  async (_, input) => {
+    appSettingsRepo.setLastProjectId(input.projectId)
+    return AppSettingSetLastProjectIdResponseSchema.parse({ ok: true })
+  }
+)
 
 registerDiagnosticsHandlers()
 

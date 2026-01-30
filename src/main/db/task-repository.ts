@@ -1,6 +1,6 @@
-import {randomUUID} from "node:crypto"
-import {dbManager} from "./index.js"
-import type {CreateTaskInput, KanbanTask} from "../../shared/types/ipc"
+import { randomUUID } from 'node:crypto'
+import { dbManager } from './index.js'
+import type { CreateTaskInput, KanbanTask } from '../../shared/types/ipc'
 
 export class TaskRepository {
   create(input: CreateTaskInput): KanbanTask {
@@ -9,7 +9,7 @@ export class TaskRepository {
     const id = randomUUID()
 
     const maxOrder = db
-      .prepare("SELECT MAX(order_in_column) as maxOrder FROM tasks WHERE column_id = ?")
+      .prepare('SELECT MAX(order_in_column) as maxOrder FROM tasks WHERE column_id = ?')
       .get(input.columnId) as { maxOrder: number | null }
     const orderIndex = (maxOrder.maxOrder ?? -1) + 1
 
@@ -26,7 +26,7 @@ export class TaskRepository {
       input.columnId,
       input.title,
       input.description ?? null,
-      "todo",
+      'todo',
       input.priority,
       input.type,
       orderIndex,
@@ -42,7 +42,7 @@ export class TaskRepository {
       columnId: input.columnId,
       title: input.title,
       description: input.description,
-      status: "todo",
+      status: 'todo',
       priority: input.priority,
       type: input.type,
       orderInColumn: orderIndex,
@@ -85,12 +85,12 @@ export class TaskRepository {
     return rows.map((row) => ({
       ...row,
       description: row.description ?? undefined,
-      descriptionMd: row.descriptionMd ?? "",
+      descriptionMd: row.descriptionMd ?? '',
       assignedAgent: row.assignedAgent ?? undefined,
       branchName: row.branchName ?? undefined,
       prNumber: row.prNumber ?? undefined,
       status: row.status,
-      tags: JSON.parse(row.tagsJson || "[]"),
+      tags: JSON.parse(row.tagsJson || '[]'),
     }))
   }
 
@@ -128,11 +128,11 @@ export class TaskRepository {
     return {
       ...row,
       description: row.description ?? undefined,
-      descriptionMd: row.descriptionMd ?? "",
+      descriptionMd: row.descriptionMd ?? '',
       assignedAgent: row.assignedAgent ?? undefined,
       branchName: row.branchName ?? undefined,
       prNumber: row.prNumber ?? undefined,
-      tags: JSON.parse(row.tagsJson || "[]"),
+      tags: JSON.parse(row.tagsJson || '[]'),
     }
   }
 
@@ -144,30 +144,30 @@ export class TaskRepository {
     const values: any[] = []
 
     const allowedFields: (keyof KanbanTask)[] = [
-      "title",
-      "description",
-      "descriptionMd",
-      "status",
-      "priority",
-      "type",
-      "columnId",
-      "orderInColumn",
-      "tags",
+      'title',
+      'description',
+      'descriptionMd',
+      'status',
+      'priority',
+      'type',
+      'columnId',
+      'orderInColumn',
+      'tags',
     ]
 
     allowedFields.forEach((field) => {
       if (patch[field] !== undefined) {
-        if (field === "tags") {
-          sets.push("tags_json = ?")
+        if (field === 'tags') {
+          sets.push('tags_json = ?')
           values.push(JSON.stringify(patch[field]))
-        } else if (field === "columnId") {
-          sets.push("column_id = ?")
+        } else if (field === 'columnId') {
+          sets.push('column_id = ?')
           values.push(patch[field])
-        } else if (field === "orderInColumn") {
-          sets.push("order_in_column = ?")
+        } else if (field === 'orderInColumn') {
+          sets.push('order_in_column = ?')
           values.push(patch[field])
-        } else if (field === "descriptionMd") {
-          sets.push("description_md = ?")
+        } else if (field === 'descriptionMd') {
+          sets.push('description_md = ?')
           values.push(patch[field])
         } else {
           sets.push(`${field} = ?`)
@@ -182,7 +182,7 @@ export class TaskRepository {
     db.prepare(
       `
           UPDATE tasks
-          SET ${sets.join(", ")},
+          SET ${sets.join(', ')},
               updated_at = ?
           WHERE id = ?
       `
@@ -194,7 +194,7 @@ export class TaskRepository {
     const now = new Date().toISOString()
 
     db.transaction(() => {
-      const task = db.prepare("SELECT column_id FROM tasks WHERE id = ?").get(taskId) as
+      const task = db.prepare('SELECT column_id FROM tasks WHERE id = ?').get(taskId) as
         | { column_id: string }
         | undefined
 
@@ -210,14 +210,14 @@ export class TaskRepository {
 
       const fetchColumnTaskIds = (columnId: string) => {
         const rows = db
-          .prepare("SELECT id FROM tasks WHERE column_id = ? ORDER BY order_in_column ASC")
+          .prepare('SELECT id FROM tasks WHERE column_id = ? ORDER BY order_in_column ASC')
           .all(columnId) as { id: string }[]
         return rows.map((row) => row.id)
       }
 
       const applyOrder = (orderedIds: string[]) => {
         const updateStmt = db.prepare(
-          "UPDATE tasks SET order_in_column = ?, updated_at = ? WHERE id = ?"
+          'UPDATE tasks SET order_in_column = ?, updated_at = ? WHERE id = ?'
         )
         orderedIds.forEach((id, index) => {
           updateStmt.run(index, now, id)
@@ -238,7 +238,7 @@ export class TaskRepository {
 
       destinationIds.splice(insertIndex, 0, taskId)
 
-      db.prepare("UPDATE tasks SET column_id = ?, updated_at = ? WHERE id = ?").run(
+      db.prepare('UPDATE tasks SET column_id = ?, updated_at = ? WHERE id = ?').run(
         toColumnId,
         now,
         taskId
@@ -247,6 +247,13 @@ export class TaskRepository {
       applyOrder(sourceIds)
       applyOrder(destinationIds)
     })()
+  }
+
+  delete(taskId: string): boolean {
+    const db = dbManager.connect()
+    const stmt = db.prepare('DELETE FROM tasks WHERE id = ?')
+    const result = stmt.run(taskId)
+    return result.changes > 0
   }
 }
 

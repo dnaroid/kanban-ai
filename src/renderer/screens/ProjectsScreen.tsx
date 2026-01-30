@@ -192,7 +192,10 @@ export function ProjectsScreen({ onProjectSelect }: ProjectsScreenProps) {
           {projects.map((project) => (
             <button
               key={project.id}
-              onClick={() => onProjectSelect(project.id, project.name)}
+              onClick={async () => {
+                await window.api.appSetting.setLastProjectId({ projectId: project.id })
+                onProjectSelect(project.id, project.name)
+              }}
               className="group bg-[#11151C] border border-slate-800/50 p-6 rounded-2xl hover:border-blue-500/50 hover:bg-slate-800/20 transition-all text-left relative overflow-hidden active:scale-[0.98]"
             >
               <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">

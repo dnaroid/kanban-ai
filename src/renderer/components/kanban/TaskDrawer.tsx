@@ -32,6 +32,9 @@ import {
   GitPullRequest,
   ExternalLink,
   Link2,
+  Settings,
+  Tag,
+  ChevronDown,
 } from 'lucide-react'
 import type {
   KanbanTask,
@@ -51,6 +54,7 @@ interface TaskDrawerProps {
   isOpen: boolean
   onClose: () => void
   onUpdate?: (id: string, patch: Partial<KanbanTask>) => void
+  columnName?: string
 }
 
 interface ChatMessage {
@@ -1414,10 +1418,11 @@ function VcsPanel({ task }: { task: KanbanTask }) {
   )
 }
 
-export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps) {
-  const [activeTab, setActiveTab] = useState<'details' | 'chat' | 'runs' | 'vcs'>('details')
+export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: TaskDrawerProps) {
+  const [activeTab, setActiveTab] = useState<'details' | 'vcs' | 'runs' | 'chat' | 'properties'>(
+    'details'
+  )
   const [isEditingTitle, setIsEditingTitle] = useState(false)
-  const [isEditingDescription, setIsEditingDescription] = useState(false)
   const [isPreviewMode, setIsPreviewMode] = useState(false)
   const [editedTitle, setEditedTitle] = useState('')
   const [editedDescription, setEditedDescription] = useState('')
@@ -1603,7 +1608,6 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
         description: editedDescription,
       })
     }
-    setIsEditingDescription(false)
   }
 
   const handleCancelEditTitle = () => {
@@ -1846,7 +1850,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
         className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] transition-opacity duration-300"
         onClick={onClose}
       />
-      <div className="fixed right-0 top-0 h-full w-[520px] max-w-full bg-gradient-to-b from-[#0B0E14] to-[#0A0C11] border-l border-slate-800/50 z-[70] shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 ease-out">
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[95%] h-[95%] bg-gradient-to-b from-[#0B0E14] to-[#0A0C11] border border-slate-800/50 z-[70] shadow-2xl rounded-3xl flex flex-col animate-in zoom-in-95 duration-300 ease-out overflow-hidden">
         <div className="flex items-start justify-between px-6 py-5 border-b border-slate-800/50 bg-[#11151C]/30 backdrop-blur-xl">
           <div className="flex-1 mr-4">
             {isEditingTitle ? (
@@ -1961,6 +1965,19 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-blue-400 to-cyan-400" />
             )}
           </button>
+          <button
+            onClick={() => setActiveTab('properties')}
+            className={cn(
+              'flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all relative',
+              activeTab === 'properties' ? 'text-white' : 'text-slate-500 hover:text-slate-300'
+            )}
+          >
+            <Settings className="w-4 h-4" />
+            Properties
+            {activeTab === 'properties' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-blue-400 to-cyan-400" />
+            )}
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -1974,7 +1991,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
                   )}
                 >
                   <div className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-                  {status.label}
+                  {columnName || status.label}
                 </span>
 
                 <div className="relative group/select">
@@ -1999,7 +2016,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
                       Urgent
                     </option>
                   </select>
-                  <ArrowUpRight className="w-3 h-3 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-current opacity-50 group-hover/select:opacity-100 transition-opacity" />
+                  <ChevronDown className="w-3 h-3 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-current opacity-50 group-hover/select:opacity-100 transition-opacity" />
                 </div>
 
                 <div className="relative group/select">
@@ -2021,31 +2038,16 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
                       Bug
                     </option>
                   </select>
-                  <Plus className="w-3 h-3 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-current opacity-50 group-hover/select:opacity-100 transition-opacity" />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                    <Hash className="w-3 h-3" />
-                    Tags
-                  </h3>
-                  {!isAddingTag && (
-                    <button
-                      onClick={() => setIsAddingTag(true)}
-                      className="p-1 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-md transition-all"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  <ChevronDown className="w-3 h-3 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-current opacity-50 group-hover/select:opacity-100 transition-opacity" />
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="h-4 w-px bg-slate-800/50 mx-1" />
+
+                <div className="flex flex-wrap items-center gap-2">
                   {task.tags.map((tag, i) => (
                     <span
                       key={i}
-                      className="group flex items-center gap-1.5 text-xs font-medium text-slate-300 bg-slate-800/40 px-3 py-1.5 rounded-lg border border-slate-700/40 hover:bg-slate-700/50 transition-colors"
+                      className="group flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-800/50 px-2 py-1 rounded-md border border-slate-700/50 hover:bg-slate-800 transition-colors"
                     >
                       {tag}
                       <button
@@ -2057,7 +2059,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
                     </span>
                   ))}
 
-                  {isAddingTag && (
+                  {isAddingTag ? (
                     <div className="flex items-center gap-1 bg-[#0B0E14] border border-blue-500/50 rounded-lg px-2 py-1 animate-in fade-in zoom-in-95 duration-200">
                       <input
                         ref={tagInputRef}
@@ -2071,15 +2073,89 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
                         onBlur={() => {
                           if (!newTag.trim()) setIsAddingTag(false)
                         }}
-                        className="bg-transparent text-xs text-white focus:outline-none w-20"
+                        className="bg-transparent text-[10px] text-white focus:outline-none w-20"
                         placeholder="Tag name..."
                       />
                       <button onClick={handleAddTag} className="text-blue-400 hover:text-blue-300">
                         <Check className="w-3 h-3" />
                       </button>
                     </div>
+                  ) : (
+                    <button
+                      onClick={() => setIsAddingTag(true)}
+                      className="p-1.5 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-all"
+                      title="Add tag"
+                    >
+                      <Tag className="w-3.5 h-3.5" />
+                    </button>
                   )}
                 </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                    <FileText className="w-3 h-3" />
+                    Description
+                  </h3>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setIsPreviewMode(!isPreviewMode)}
+                      className={cn(
+                        'flex items-center gap-1.5 text-xs transition-colors px-2 py-1 rounded-md hover:bg-slate-800',
+                        isPreviewMode
+                          ? 'text-blue-400 bg-blue-500/10'
+                          : 'text-slate-500 hover:text-slate-300'
+                      )}
+                      title={isPreviewMode ? 'Edit Mode' : 'Preview Mode'}
+                    >
+                      {isPreviewMode ? <Edit2 className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      {isPreviewMode ? 'Edit' : 'Preview'}
+                    </button>
+                    {!isPreviewMode && (
+                      <button
+                        onClick={handleSaveDescription}
+                        className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors group px-2 py-1 rounded-md hover:bg-slate-800"
+                      >
+                        <Check className="w-3 h-3 group-hover:scale-110 transition-transform" />
+                        Save
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {isPreviewMode ? (
+                  <div
+                    className={cn(
+                      'rounded-xl border border-slate-800/50 bg-slate-900/30 p-4 transition-all hover:border-slate-700/50 relative overflow-hidden min-h-[200px]',
+                      editedDescription ? '' : 'border-dashed'
+                    )}
+                  >
+                    {editedDescription ? (
+                      <div className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap font-sans custom-scrollbar max-h-[500px] overflow-y-auto">
+                        {editedDescription}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500 italic text-center py-8">
+                        No description provided
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <textarea
+                      value={editedDescription}
+                      onChange={(e) => setEditedDescription(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setEditedDescription(task.descriptionMd || task.description || '')
+                        }
+                      }}
+                      className="w-full min-h-[300px] px-4 py-3 bg-[#0B0E14] border border-slate-800 rounded-xl text-slate-200 text-sm leading-relaxed focus:outline-none focus:border-blue-500/60 focus:ring-4 focus:ring-blue-500/5 resize-none transition-all placeholder:text-slate-600 custom-scrollbar shadow-inner"
+                      placeholder="Add a detailed description..."
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3">
@@ -2267,159 +2343,79 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate }: TaskDrawerProps)
                   </div>
                 )}
               </div>
+            </div>
+          )}
 
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                    <FileText className="w-3 h-3" />
-                    Description
-                  </h3>
-                  <div className="flex items-center gap-3">
-                    {!isEditingDescription && (
-                      <button
-                        onClick={() => setIsPreviewMode(!isPreviewMode)}
-                        className={cn(
-                          'flex items-center gap-1.5 text-xs transition-colors px-2 py-1 rounded-md hover:bg-slate-800',
-                          isPreviewMode
-                            ? 'text-blue-400 bg-blue-500/10'
-                            : 'text-slate-500 hover:text-slate-300'
-                        )}
-                        title={isPreviewMode ? 'Edit Mode' : 'Preview Mode'}
-                      >
-                        {isPreviewMode ? (
-                          <Edit2 className="w-3 h-3" />
-                        ) : (
-                          <Eye className="w-3 h-3" />
-                        )}
-                        {isPreviewMode ? 'Edit' : 'Preview'}
-                      </button>
-                    )}
-                    {!isEditingDescription && (
-                      <button
-                        onClick={() => {
-                          setIsEditingDescription(true)
-                          setIsPreviewMode(false)
-                        }}
-                        className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-blue-400 transition-colors group px-2 py-1 rounded-md hover:bg-slate-800"
-                      >
-                        <Edit2 className="w-3 h-3 group-hover:scale-110 transition-transform" />
-                        Edit
-                      </button>
-                    )}
-                  </div>
+          {activeTab === 'properties' && (
+            <div className="p-8 space-y-8 animate-in fade-in duration-300">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 text-blue-400">
+                  <Settings className="w-5 h-5" />
                 </div>
-
-                {isEditingDescription ? (
-                  <div className="space-y-3">
-                    <textarea
-                      value={editedDescription}
-                      onChange={(e) => setEditedDescription(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') {
-                          setEditedDescription(task.descriptionMd || task.description || '')
-                          setIsEditingDescription(false)
-                        }
-                      }}
-                      className="w-full min-h-[180px] px-4 py-3 bg-[#0B0E14] border-2 border-blue-500/50 rounded-xl text-slate-200 text-sm leading-relaxed focus:outline-none focus:border-blue-500/80 focus:ring-4 focus:ring-blue-500/10 resize-none transition-all placeholder:text-slate-600 custom-scrollbar shadow-inner"
-                      placeholder="Add a detailed description..."
-                      autoFocus
-                    />
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleSaveDescription}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg transition-all hover:scale-105 active:scale-95 shadow-lg shadow-blue-500/20"
-                      >
-                        Save Changes
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditedDescription(task.descriptionMd || task.description || '')
-                          setIsEditingDescription(false)
-                        }}
-                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold rounded-lg transition-all hover:scale-105 active:scale-95"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    className={cn(
-                      'rounded-xl border border-slate-800/50 bg-slate-900/30 p-4 transition-all hover:border-slate-700/50 relative overflow-hidden',
-                      editedDescription ? '' : 'border-dashed'
-                    )}
-                  >
-                    {editedDescription ? (
-                      <div
-                        className={cn(
-                          'text-sm text-slate-300 leading-relaxed whitespace-pre-wrap custom-scrollbar max-h-64 overflow-y-auto',
-                          isPreviewMode && 'font-sans text-slate-200'
-                        )}
-                      >
-                        {editedDescription}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-slate-500 italic text-center py-4">
-                        No description provided
-                      </p>
-                    )}
-                    <div className="absolute top-0 right-0 p-2 opacity-10">
-                      <FileText className="w-12 h-12" />
-                    </div>
-                  </div>
-                )}
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                    Task Properties
+                  </h3>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-medium">
+                    Metadata and system information
+                  </p>
+                </div>
               </div>
 
-              <div className="pt-6 border-t border-slate-800/50">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2 mb-4">
-                  <Clock className="w-3 h-3" />
-                  Properties
-                </h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                      <Hash className="w-2.5 h-2.5" />
-                      Task ID
+              <div className="grid grid-cols-2 gap-8">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Hash className="w-2.5 h-2.5" />
+                    Task ID
+                  </label>
+                  <span className="block text-xs text-slate-400 font-mono bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
+                    {task.id}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <FolderKanban className="w-2.5 h-2.5" />
+                    Column ID
+                  </label>
+                  <span className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
+                    {task.columnId}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-2.5 h-2.5" />
+                    Created At
+                  </label>
+                  <span className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
+                    {formatDate(task.createdAt)}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-2.5 h-2.5" />
+                    Last Updated
+                  </label>
+                  <span className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
+                    {formatDate(task.updatedAt)}
+                  </span>
+                </div>
+                {task.orderInColumn !== undefined && (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                      Position in Column
                     </label>
-                    <span className="block text-xs text-slate-400 font-mono bg-slate-900/50 px-3 py-2 rounded-lg border border-slate-800/50">
-                      {task.id.slice(0, 12)}...
+                    <span className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
+                      #{task.orderInColumn + 1}
                     </span>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                      <FolderKanban className="w-2.5 h-2.5" />
-                      Column
-                    </label>
-                    <span className="block text-xs text-slate-400 bg-slate-900/50 px-3 py-2 rounded-lg border border-slate-800/50">
-                      {task.columnId}
-                    </span>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                      Created
-                    </label>
-                    <span className="block text-xs text-slate-400 bg-slate-900/50 px-3 py-2 rounded-lg border border-slate-800/50">
-                      {formatDate(task.createdAt)}
-                    </span>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                      Updated
-                    </label>
-                    <span className="block text-xs text-slate-400 bg-slate-900/50 px-3 py-2 rounded-lg border border-slate-800/50">
-                      {formatDate(task.updatedAt)}
-                    </span>
-                  </div>
-                  {task.orderInColumn !== undefined && (
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                        Position
-                      </label>
-                      <span className="block text-xs text-slate-400 bg-slate-900/50 px-3 py-2 rounded-lg border border-slate-800/50">
-                        #{task.orderInColumn + 1}
-                      </span>
-                    </div>
-                  )}
+                )}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                    Project ID
+                  </label>
+                  <span className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner font-mono">
+                    {task.projectId}
+                  </span>
                 </div>
               </div>
             </div>

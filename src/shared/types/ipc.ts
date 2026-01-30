@@ -68,6 +68,7 @@ export const BoardColumnSchema = z.object({
   boardId: z.string().uuid(),
   name: z.string().min(1),
   orderIndex: z.number(),
+  color: z.string().default(''),
 })
 
 export type BoardColumn = z.infer<typeof BoardColumnSchema>
@@ -76,6 +77,7 @@ export const BoardColumnInputSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1),
   orderIndex: z.number(),
+  color: z.string().default(''),
 })
 
 export type BoardColumnInput = z.infer<typeof BoardColumnInputSchema>
@@ -209,6 +211,18 @@ export const TaskMoveResponseSchema = z.object({
 })
 
 export type TaskMoveResponse = z.infer<typeof TaskMoveResponseSchema>
+
+export const TaskDeleteInputSchema = z.object({
+  taskId: z.string().uuid(),
+})
+
+export type TaskDeleteInput = z.infer<typeof TaskDeleteInputSchema>
+
+export const TaskDeleteResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type TaskDeleteResponse = z.infer<typeof TaskDeleteResponseSchema>
 
 export const TaskLinkTypeSchema = z.enum(['blocks', 'relates', 'duplicates'])
 
@@ -1096,3 +1110,25 @@ export const ReleaseGetResponseSchema = z.object({
 })
 
 export type ReleaseGetResponse = z.infer<typeof ReleaseGetResponseSchema>
+
+export const AppSettingGetLastProjectIdResponseSchema = z.object({
+  projectId: z.string().nullable(),
+})
+
+export type AppSettingGetLastProjectIdResponse = z.infer<
+  typeof AppSettingGetLastProjectIdResponseSchema
+>
+
+export const AppSettingSetLastProjectIdInputSchema = z.object({
+  projectId: z.string(),
+})
+
+export type AppSettingSetLastProjectIdInput = z.infer<typeof AppSettingSetLastProjectIdInputSchema>
+
+export const AppSettingSetLastProjectIdResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type AppSettingSetLastProjectIdResponse = z.infer<
+  typeof AppSettingSetLastProjectIdResponseSchema
+>
