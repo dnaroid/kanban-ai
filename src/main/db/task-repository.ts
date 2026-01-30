@@ -58,24 +58,21 @@ export class TaskRepository {
       .prepare(
         `
             SELECT t.id,
-                   t.project_id                             as projectId,
-                   t.board_id                               as boardId,
-                   t.column_id                              as columnId,
+                   t.project_id      as projectId,
+                   t.board_id        as boardId,
+                   t.column_id       as columnId,
                    t.title,
                    t.description,
-                   t.description_md                         as descriptionMd,
+                   t.description_md  as descriptionMd,
                    t.status,
                    t.priority,
                    t.type,
-                   t.order_in_column                        as orderInColumn,
-                   t.tags_json                              as tagsJson,
-                   t.assigned_agent                         as assignedAgent,
-                   COALESCE(tvl.branch_name, t.branch_name) as branchName,
-                   t.pr_number                              as prNumber,
-                   t.created_at                             as createdAt,
-                   t.updated_at                             as updatedAt
+                   t.order_in_column as orderInColumn,
+                   t.tags_json       as tagsJson,
+                   t.assigned_agent  as assignedAgent,
+                   t.created_at      as createdAt,
+                   t.updated_at      as updatedAt
             FROM tasks t
-                     LEFT JOIN task_vcs_links tvl ON tvl.task_id = t.id
             WHERE board_id = ?
             ORDER BY order_in_column ASC
         `
@@ -87,8 +84,6 @@ export class TaskRepository {
       description: row.description ?? undefined,
       descriptionMd: row.descriptionMd ?? '',
       assignedAgent: row.assignedAgent ?? undefined,
-      branchName: row.branchName ?? undefined,
-      prNumber: row.prNumber ?? undefined,
       status: row.status,
       tags: JSON.parse(row.tagsJson || '[]'),
     }))
@@ -100,24 +95,21 @@ export class TaskRepository {
       .prepare(
         `
             SELECT t.id,
-                   t.project_id                             as projectId,
-                   t.board_id                               as boardId,
-                   t.column_id                              as columnId,
+                   t.project_id      as projectId,
+                   t.board_id        as boardId,
+                   t.column_id       as columnId,
                    t.title,
                    t.description,
-                   t.description_md                         as descriptionMd,
+                   t.description_md  as descriptionMd,
                    t.status,
                    t.priority,
                    t.type,
-                   t.order_in_column                        as orderInColumn,
-                   t.tags_json                              as tagsJson,
-                   t.assigned_agent                         as assignedAgent,
-                   COALESCE(tvl.branch_name, t.branch_name) as branchName,
-                   t.pr_number                              as prNumber,
-                   t.created_at                             as createdAt,
-                   t.updated_at                             as updatedAt
+                   t.order_in_column as orderInColumn,
+                   t.tags_json       as tagsJson,
+                   t.assigned_agent  as assignedAgent,
+                   t.created_at      as createdAt,
+                   t.updated_at      as updatedAt
             FROM tasks t
-                     LEFT JOIN task_vcs_links tvl ON tvl.task_id = t.id
             WHERE id = ? LIMIT 1
         `
       )
@@ -130,8 +122,6 @@ export class TaskRepository {
       description: row.description ?? undefined,
       descriptionMd: row.descriptionMd ?? '',
       assignedAgent: row.assignedAgent ?? undefined,
-      branchName: row.branchName ?? undefined,
-      prNumber: row.prNumber ?? undefined,
       tags: JSON.parse(row.tagsJson || '[]'),
     }
   }

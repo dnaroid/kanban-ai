@@ -7,8 +7,6 @@ const mapTaskRow = (row: any): KanbanTask => {
     description: row.description ?? undefined,
     descriptionMd: row.descriptionMd ?? '',
     assignedAgent: row.assignedAgent ?? undefined,
-    branchName: row.branchName ?? undefined,
-    prNumber: row.prNumber ?? undefined,
     tags: JSON.parse(row.tagsJson || '[]'),
   }
 }
@@ -57,14 +55,11 @@ export const searchService = {
             t.order_in_column as orderInColumn,
             t.tags_json as tagsJson,
             t.assigned_agent as assignedAgent,
-            COALESCE(tvl.branch_name, t.branch_name) as branchName,
-            t.pr_number as prNumber,
             t.created_at as createdAt,
             t.updated_at as updatedAt,
             bm25(tasks_fts) as rank
           FROM tasks_fts
           JOIN tasks t ON t.id = tasks_fts.task_id
-          LEFT JOIN task_vcs_links tvl ON tvl.task_id = t.id
           WHERE ${where.join(' AND ')}
           ORDER BY rank
           LIMIT 50

@@ -131,8 +131,6 @@ export const KanbanTaskSchema = z.object({
   orderInColumn: z.number(),
   tags: z.array(z.string()).default([]),
   assignedAgent: z.string().optional(),
-  branchName: z.string().optional(),
-  prNumber: z.number().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 })
@@ -821,3 +819,52 @@ export const OpenCodeSessionEventSchema = z.union([
 ])
 
 export type OpenCodeSessionEvent = z.infer<typeof OpenCodeSessionEventSchema>
+
+// ---------------------------------------------------------------------------
+// TaskQueueManager schemas
+// ---------------------------------------------------------------------------
+export const TaskQueueStateSchema = z.enum([
+  'queued',
+  'running',
+  'waiting_user',
+  'paused',
+  'done',
+  'failed',
+])
+
+export type TaskQueueState = z.infer<typeof TaskQueueStateSchema>
+
+export const TaskQueueStageSchema = z.enum(['ba', 'fe', 'be', 'qa', 'kb'])
+
+export type TaskQueueStage = z.infer<typeof TaskQueueStageSchema>
+
+export const TaskQueueRowSchema = z.object({
+  task_id: z.string().uuid(),
+  state: TaskQueueStateSchema,
+  stage: TaskQueueStageSchema,
+  priority: z.number().int(),
+  enqueued_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
+  last_error: z.string(),
+  locked_by: z.string(),
+  locked_until: z.string().datetime().nullable(),
+})
+
+export type TaskQueueRow = z.infer<typeof TaskQueueRowSchema>
+
+export const RoleSlotRowSchema = z.object({
+  role_key: z.enum(['ba', 'fe', 'be', 'qa']),
+  max_concurrency: z.number().int().nonnegative(),
+  updated_at: z.string().datetime(),
+})
+
+export type RoleSlotRow = z.infer<typeof RoleSlotRowSchema>
+
+export const ResourceLockRowSchema = z.object({
+  lock_key: z.string(),
+  owner: z.string(),
+  acquired_at: z.string().datetime(),
+  expires_at: z.string().datetime(),
+})
+
+export type ResourceLockRow = z.infer<typeof ResourceLockRowSchema>
