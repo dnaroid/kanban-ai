@@ -15,15 +15,21 @@ export class OpencodeService {
   }
 
   async isRunning(): Promise<boolean> {
-    try {
-      const response = await fetch(`http://127.0.0.1:${this.config.port}/health`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(5000),
-      })
-      return response.ok
-    } catch {
-      return false
+    // Сначала пробуем /health, если не работает - пробуем корневой /
+    for (const path of ['/health', '/']) {
+      try {
+        const response = await fetch(`http://127.0.0.1:${this.config.port}${path}`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(5000),
+        })
+        if (response.ok) {
+          return true
+        }
+      } catch {
+        continue
+      }
     }
+    return false
   }
 
   async start(): Promise<void> {
