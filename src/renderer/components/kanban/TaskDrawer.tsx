@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AlertTriangle,
   ArrowUpRight,
+  Bot,
   Bug,
   Check,
   ChevronDown,
@@ -427,39 +428,56 @@ function ExecutionLog({ runId }: { runId: string }) {
         <div
           key={event.id}
           className={cn(
-            'flex gap-3 py-2.5 px-3 my-2 rounded-lg border',
-            isUser ? 'bg-blue-600/10 border-blue-500/30' : 'bg-slate-800/40 border-slate-700/40'
+            'flex gap-4 p-4 my-3 rounded-xl border transition-all duration-200 group',
+            isUser
+              ? 'bg-blue-500/[0.03] border-blue-500/20 hover:border-blue-500/30 shadow-sm shadow-blue-500/5'
+              : 'bg-slate-900/40 border-slate-800 hover:border-slate-700 shadow-sm shadow-black/20'
           )}
         >
-          <div className="shrink-0">
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+          <div className="shrink-0 pt-0.5">
+            <div
+              className={cn(
+                'w-8 h-8 rounded-xl flex items-center justify-center shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:rotate-3',
+                isUser
+                  ? 'bg-gradient-to-br from-violet-500 to-indigo-600 shadow-indigo-500/20'
+                  : 'bg-gradient-to-br from-blue-500 to-blue-600 shadow-blue-500/20'
+              )}
+            >
               {isUser ? (
-                <User className="w-3.5 h-3.5 text-white" />
+                <User className="w-4 h-4 text-white" />
               ) : (
-                <MessageSquare className="w-3.5 h-3.5 text-white" />
+                <Bot className="w-4 h-4 text-white" />
               )}
             </div>
           </div>
 
           <div className="flex-1 min-w-0">
-            <span className="text-[10px] font-mono text-slate-600 select-none block mb-1">
-              {time}
-            </span>
-            <div className="space-y-2 text-slate-100">
+            <div className="flex items-center justify-between mb-1.5">
+              <span
+                className={cn(
+                  'text-[10px] font-bold uppercase tracking-widest select-none',
+                  isUser ? 'text-indigo-400/80' : 'text-blue-500/80'
+                )}
+              >
+                {isUser ? 'User' : 'Assistant'}
+              </span>
+              <span className="text-[10px] font-mono text-slate-600/60 select-none">{time}</span>
+            </div>
+            <div className="space-y-3 text-[13px] leading-relaxed text-slate-200">
               {parts.map((part, idx) => {
                 if (part.type === 'text' && part.ignored) return null
 
                 switch (part.type) {
-                  case 'text':
-                    return <TextPart key={idx} part={part} />
-                  case 'file':
-                    return <FilePart key={idx} part={part} />
-                  case 'tool':
-                    return <ToolPart key={idx} part={part} />
                   case 'reasoning':
                     return <ReasoningPart key={idx} part={part} />
+                  case 'tool':
+                    return <ToolPart key={idx} part={part} />
+                  case 'file':
+                    return <FilePart key={idx} part={part} />
                   case 'agent':
                     return <AgentPart key={idx} part={part} />
+                  case 'text':
+                    return <TextPart key={idx} part={part} />
                   default:
                     return null
                 }
@@ -782,6 +800,12 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
       fetchRuns()
     }
   }, [activeTab, task])
+
+  useEffect(() => {
+    if (activeTab === 'runs' && runs.length > 0 && !selectedRunId) {
+      setSelectedRunId(runs[0].id)
+    }
+  }, [activeTab, runs, selectedRunId])
 
   if (!isOpen || !task) return null
 
