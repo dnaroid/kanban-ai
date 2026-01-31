@@ -316,6 +316,11 @@ export class RunRepository {
     `
     ).run(...values)
   }
+
+  delete(runId: string): void {
+    const db = dbManager.connect()
+    db.prepare('DELETE FROM runs WHERE id = ?').run(runId)
+  }
 }
 
 export interface RunRepository {

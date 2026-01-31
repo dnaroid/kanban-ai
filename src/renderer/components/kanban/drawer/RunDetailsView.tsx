@@ -36,7 +36,7 @@ export function RunDetailsView({
 
   return (
     <div className="flex flex-col h-full bg-[#0B0E14] overflow-hidden animate-in fade-in duration-300">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800/50 bg-[#11151C]/50 backdrop-blur-md shrink-0">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800/50 bg-[#11151C]/25 backdrop-blur-md shrink-0">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
@@ -44,12 +44,7 @@ export function RunDetailsView({
           >
             <X className="w-4 h-4" />
           </button>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-              Execution View
-            </span>
-            <span className="text-xs font-mono text-blue-400/80">{runId.slice(0, 8)}</span>
-          </div>
+          <span className="text-xs font-mono text-blue-400/80">{runId.slice(0, 8)}</span>
         </div>
 
         <div className="flex items-center gap-4">

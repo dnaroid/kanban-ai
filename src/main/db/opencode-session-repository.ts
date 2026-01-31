@@ -188,6 +188,11 @@ export class OpencodeSessionRepository {
 
     return rows.map(mapSessionRow)
   }
+
+  deleteBySessionId(sessionId: string): void {
+    const db = dbManager.connect()
+    db.prepare('DELETE FROM opencode_sessions WHERE session_id = ?').run(sessionId)
+  }
 }
 
 export const opencodeSessionRepo = new OpencodeSessionRepository()

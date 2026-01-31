@@ -413,7 +413,7 @@ interface QuickAddTaskModalProps {
 function QuickAddTaskModal({ isOpen, onClose, onSubmit, columnName }: QuickAddTaskModalProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium')
+  const [priority, setPriority] = useState<'postpone' | 'low' | 'normal' | 'urgent'>('normal')
   const [type, setType] = useState('task')
   const [tags, setTags] = useState('')
 
@@ -431,13 +431,14 @@ function QuickAddTaskModal({ isOpen, onClose, onSubmit, columnName }: QuickAddTa
       description: description.trim() || undefined,
       priority,
       type,
+      difficulty: 'medium',
       tags: tagArray,
       columnId: '',
     })
     setTitle('')
     setDescription('')
     setTags('')
-    setPriority('medium')
+    setPriority('normal')
     setType('task')
   }
 
@@ -667,7 +668,7 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
         boardId: board.id,
         columnId,
         title: 'New',
-        priority: 'medium',
+        priority: 'normal',
         difficulty: 'medium',
         type: 'feature',
         projectId,
