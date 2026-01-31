@@ -52,10 +52,12 @@ function parseInline(text: string, depth = 0): LmdInline[] {
       const closeBracket = text.indexOf(']', i + 1)
       if (closeBracket !== -1 && text[closeBracket + 1] === '(') {
         const closeParen = text.indexOf(')', closeBracket + 2)
-        if (closeParen !== -1) {
+
+        if (closeParen !== -1 && closeParen > closeBracket + 1) {
           const linkText = text.slice(i + 1, closeBracket)
           const url = text.slice(closeBracket + 2, closeParen)
 
+          // Добавляем текст перед ссылкой только если он есть
           if (i > lastTextStart) {
             inlines.push({ type: 'text', text: text.slice(lastTextStart, i) })
           }
@@ -63,7 +65,7 @@ function parseInline(text: string, depth = 0): LmdInline[] {
           if (isAllowedUrl(url)) {
             inlines.push({ type: 'link', text: linkText, url })
           } else {
-            // Неверный URL → рендерим как текст
+            // Небезопасная ссылка как обычный текст
             inlines.push({ type: 'text', text: `[${linkText}](${url})` })
           }
 
@@ -71,6 +73,10 @@ function parseInline(text: string, depth = 0): LmdInline[] {
           lastTextStart = i
           continue
         }
+      } else {
+        // Нет закрывающей скобки или неправильный формат - пропускаем символ
+        i++
+        continue
       }
     }
 
@@ -95,25 +101,23 @@ function parseInline(text: string, depth = 0): LmdInline[] {
     }
 
     // Italic: *...* (приоритет 4)
-    if (text[i] === '*') {
+    // Пропускаем первую * из **
+    if (text[i] === '*' && text[i + 1] !== '*') {
       const end = text.indexOf('*', i + 1)
-      if (end !== -1 && end !== i + 1) {
-        // Не путать с ** (bold)
-        if (text[end + 1] !== '*') {
-          if (i > lastTextStart) {
-            inlines.push({ type: 'text', text: text.slice(lastTextStart, i) })
-          }
-
-          const inner = text.slice(i + 1, end)
-          inlines.push({
-            type: 'italic',
-            children: parseInline(inner, depth + 1),
-          })
-
-          i = end + 1
-          lastTextStart = i
-          continue
+      if (end !== -1 && end !== i + 1 && text[end + 1] !== '*') {
+        if (i > lastTextStart) {
+          inlines.push({ type: 'text', text: text.slice(lastTextStart, i) })
         }
+
+        const inner = text.slice(i + 1, end)
+        inlines.push({
+          type: 'italic',
+          children: parseInline(inner, depth + 1),
+        })
+
+        i = end + 1
+        lastTextStart = i
+        continue
       }
     }
 

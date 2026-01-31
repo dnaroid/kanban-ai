@@ -1,46 +1,40 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import {useCallback, useEffect, useRef, useState} from "react"
 import {
-  X,
-  MessageSquare,
-  FileText,
-  Edit2,
-  Check,
-  Clock,
-  Hash,
-  FolderKanban,
-  ArrowUpRight,
-  Sparkles,
-  Plus,
-  Eye,
-  Send,
   AlertTriangle,
+  ArrowUpRight,
   Bug,
-  Zap,
-  Play,
-  Square,
-  RotateCcw,
-  User,
-  History,
-  Terminal,
-  RefreshCw,
-  ChevronsDown,
-  FileJson,
-  FileCode,
-  Files,
-  Link2,
-  Settings,
-  Tag,
+  Check,
   ChevronDown,
-} from 'lucide-react'
-import type {
-  KanbanTask,
-  Run,
-  RunEvent,
-  Artifact,
-  TaskLink,
-  TaskLinkType,
-} from '../../../shared/types/ipc'
-import { cn } from '../../lib/utils'
+  ChevronsDown,
+  Clock,
+  Edit2,
+  Eye,
+  FileCode,
+  FileJson,
+  Files,
+  FileText,
+  FolderKanban,
+  Hash,
+  History,
+  Link2,
+  MessageSquare,
+  Play,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  Send,
+  Settings,
+  Sparkles,
+  Square,
+  Tag,
+  Terminal,
+  User,
+  X,
+  Zap,
+} from "lucide-react"
+import {AgentPart, FilePart, MessagePartRenderer, ReasoningPart, TextPart, ToolPart} from "../chat/MessageParts"
+import {cn} from "../../lib/utils"
+import type {Artifact, KanbanTask, Part, Run, RunEvent, TaskLink, TaskLinkType,} from "@/shared/types/ipc.ts"
 
 interface TaskDrawerProps {
   task: KanbanTask | null
@@ -52,49 +46,52 @@ interface TaskDrawerProps {
 
 interface ChatMessage {
   id: string
-  role: 'user' | 'assistant'
-  content: string
+  role: "user" | "assistant"
+  parts: Part[]
   timestamp: Date
 }
 
-function ArtifactViewer({ artifact }: { artifact: Artifact }) {
-  if (artifact.kind === 'json') {
+function ArtifactViewer({artifact}: { artifact: Artifact }) {
+  if (artifact.kind === "json") {
     try {
       const formatted = JSON.stringify(JSON.parse(artifact.content), null, 2)
       return (
-        <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap p-4 bg-slate-900/50 rounded-lg border border-slate-800/50 overflow-auto max-h-full custom-scrollbar selection:bg-blue-500/30">
+        <pre
+          className="text-xs font-mono text-blue-300 whitespace-pre-wrap p-4 bg-slate-900/50 rounded-lg border border-slate-800/50 overflow-auto max-h-full custom-scrollbar selection:bg-blue-500/30">
           {formatted}
         </pre>
       )
     } catch (e) {
       return (
-        <pre className="text-xs font-mono text-slate-300 whitespace-pre-wrap p-4 bg-slate-900/50 rounded-lg border border-slate-800/50 overflow-auto max-h-full custom-scrollbar">
+        <pre
+          className="text-xs font-mono text-slate-300 whitespace-pre-wrap p-4 bg-slate-900/50 rounded-lg border border-slate-800/50 overflow-auto max-h-full custom-scrollbar">
           {artifact.content}
         </pre>
       )
     }
   }
 
-  if (artifact.kind === 'patch') {
-    const lines = artifact.content.split('\n')
+  if (artifact.kind === "patch") {
+    const lines = artifact.content.split("\n")
     return (
-      <div className="font-mono text-xs overflow-auto max-h-full custom-scrollbar bg-slate-900/50 rounded-lg border border-slate-800/50 py-2">
+      <div
+        className="font-mono text-xs overflow-auto max-h-full custom-scrollbar bg-slate-900/50 rounded-lg border border-slate-800/50 py-2">
         {lines.map((line, i) => {
-          let className = 'text-slate-400 px-4 py-0.5 block'
-          if (line.startsWith('+'))
+          let className = "text-slate-400 px-4 py-0.5 block"
+          if (line.startsWith("+"))
             className =
-              'text-emerald-400 bg-emerald-500/10 px-4 py-0.5 block border-l-2 border-emerald-500/50'
-          if (line.startsWith('-'))
-            className = 'text-red-400 bg-red-500/10 px-4 py-0.5 block border-l-2 border-red-500/50'
-          if (line.startsWith('@@'))
-            className = 'text-blue-400/70 bg-blue-500/10 px-4 py-0.5 block italic'
+              "text-emerald-400 bg-emerald-500/10 px-4 py-0.5 block border-l-2 border-emerald-500/50"
+          if (line.startsWith("-"))
+            className = "text-red-400 bg-red-500/10 px-4 py-0.5 block border-l-2 border-red-500/50"
+          if (line.startsWith("@@"))
+            className = "text-blue-400/70 bg-blue-500/10 px-4 py-0.5 block italic"
           if (
-            line.startsWith('diff') ||
-            line.startsWith('index') ||
-            line.startsWith('---') ||
-            line.startsWith('+++')
+            line.startsWith("diff") ||
+            line.startsWith("index") ||
+            line.startsWith("---") ||
+            line.startsWith("+++")
           )
-            className = 'text-slate-500 px-4 py-0.5 block font-bold'
+            className = "text-slate-500 px-4 py-0.5 block font-bold"
           return (
             <span key={i} className={className}>
               {line}
@@ -106,7 +103,8 @@ function ArtifactViewer({ artifact }: { artifact: Artifact }) {
   }
 
   return (
-    <div className="text-sm text-slate-300 overflow-auto max-h-full custom-scrollbar p-4 bg-slate-900/50 rounded-lg border border-slate-800/50">
+    <div
+      className="text-sm text-slate-300 overflow-auto max-h-full custom-scrollbar p-4 bg-slate-900/50 rounded-lg border border-slate-800/50">
       <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed selection:bg-blue-500/30">
         {artifact.content}
       </pre>
@@ -114,7 +112,7 @@ function ArtifactViewer({ artifact }: { artifact: Artifact }) {
   )
 }
 
-function ArtifactsPanel({ runId }: { runId: string }) {
+function ArtifactsPanel({runId}: { runId: string }) {
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(null)
   const [selectedArtifact, setSelectedArtifact] = useState<Artifact | null>(null)
@@ -124,13 +122,13 @@ function ArtifactsPanel({ runId }: { runId: string }) {
     async (isAuto = false) => {
       if (!isAuto) setIsLoading(true)
       try {
-        const response = await window.api.artifact.list({ runId })
+        const response = await window.api.artifact.list({runId})
         setArtifacts(response.artifacts)
         if (response.artifacts.length > 0 && !selectedArtifactId) {
           setSelectedArtifactId(response.artifacts[0].id)
         }
       } catch (error) {
-        console.error('Failed to fetch artifacts:', error)
+        console.error("Failed to fetch artifacts:", error)
       } finally {
         setIsLoading(false)
       }
@@ -147,11 +145,11 @@ function ArtifactsPanel({ runId }: { runId: string }) {
     let isActive = true
     const fetchContent = async () => {
       try {
-        const response = await window.api.artifact.get({ artifactId: selectedArtifactId })
+        const response = await window.api.artifact.get({artifactId: selectedArtifactId})
         if (!isActive) return
         setSelectedArtifact(response.artifact)
       } catch (error) {
-        console.error('Failed to fetch artifact content:', error)
+        console.error("Failed to fetch artifact content:", error)
       }
     }
     fetchContent()
@@ -163,7 +161,7 @@ function ArtifactsPanel({ runId }: { runId: string }) {
   if (isLoading && artifacts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full space-y-3 opacity-50">
-        <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
+        <RefreshCw className="w-6 h-6 animate-spin text-blue-500"/>
         <p className="text-xs text-slate-400 font-mono uppercase tracking-widest">
           Loading Artifacts...
         </p>
@@ -174,7 +172,7 @@ function ArtifactsPanel({ runId }: { runId: string }) {
   if (artifacts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full space-y-2 opacity-30">
-        <Files className="w-8 h-8" />
+        <Files className="w-8 h-8"/>
         <p className="text-xs text-slate-400 font-mono">No artifacts found for this run</p>
       </div>
     )
@@ -185,7 +183,7 @@ function ArtifactsPanel({ runId }: { runId: string }) {
       <div className="w-44 border-r border-slate-800/50 flex flex-col bg-slate-900/10 shrink-0">
         <div className="p-3 border-b border-slate-800/50 bg-slate-800/20 flex items-center justify-between">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-            <Files className="w-3 h-3" />
+            <Files className="w-3 h-3"/>
             Items ({artifacts.length})
           </span>
           <button
@@ -193,7 +191,7 @@ function ArtifactsPanel({ runId }: { runId: string }) {
             className="p-1 text-slate-500 hover:text-slate-300 hover:bg-slate-700/50 rounded transition-colors"
             title="Refresh artifacts"
           >
-            <RefreshCw className={cn('w-3 h-3', isLoading && 'animate-spin')} />
+            <RefreshCw className={cn("w-3 h-3", isLoading && "animate-spin")}/>
           </button>
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
@@ -202,16 +200,16 @@ function ArtifactsPanel({ runId }: { runId: string }) {
               key={a.id}
               onClick={() => setSelectedArtifactId(a.id)}
               className={cn(
-                'w-full text-left px-3 py-2 rounded-lg transition-all group relative overflow-hidden text-[11px]',
+                "w-full text-left px-3 py-2 rounded-lg transition-all group relative overflow-hidden text-[11px]",
                 selectedArtifactId === a.id
-                  ? 'bg-blue-600/20 border border-blue-500/30 text-blue-300'
-                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent'
+                  ? "bg-blue-600/20 border border-blue-500/30 text-blue-300"
+                  : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent"
               )}
             >
               <div className="flex items-center gap-2 relative z-10">
-                {a.kind === 'json' && <FileJson className="w-3 h-3 shrink-0 opacity-70" />}
-                {a.kind === 'patch' && <FileCode className="w-3 h-3 shrink-0 opacity-70" />}
-                {a.kind === 'markdown' && <FileText className="w-3 h-3 shrink-0 opacity-70" />}
+                {a.kind === "json" && <FileJson className="w-3 h-3 shrink-0 opacity-70"/>}
+                {a.kind === "patch" && <FileCode className="w-3 h-3 shrink-0 opacity-70"/>}
+                {a.kind === "markdown" && <FileText className="w-3 h-3 shrink-0 opacity-70"/>}
                 <span className="font-medium truncate">{a.title}</span>
               </div>
             </button>
@@ -222,29 +220,31 @@ function ArtifactsPanel({ runId }: { runId: string }) {
       <div className="flex-1 overflow-hidden flex flex-col bg-[#0B0E14]/40">
         {selectedArtifact ? (
           <div className="flex-1 overflow-hidden flex flex-col">
-            <div className="px-4 py-2 border-b border-slate-800/30 flex items-center justify-between bg-slate-900/20 backdrop-blur-sm">
+            <div
+              className="px-4 py-2 border-b border-slate-800/30 flex items-center justify-between bg-slate-900/20 backdrop-blur-sm">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-slate-300">
                   {selectedArtifact.title}
                 </span>
-                <span className="text-[9px] font-mono text-slate-500 uppercase px-1.5 py-0.5 bg-slate-800/50 rounded border border-slate-700/50 tracking-tighter">
+                <span
+                  className="text-[9px] font-mono text-slate-500 uppercase px-1.5 py-0.5 bg-slate-800/50 rounded border border-slate-700/50 tracking-tighter">
                   {selectedArtifact.kind}
                 </span>
               </div>
               <span className="text-[9px] text-slate-600 font-mono">
                 {new Date(selectedArtifact.createdAt).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
+                  hour: "2-digit",
+                  minute: "2-digit",
                 })}
               </span>
             </div>
             <div className="flex-1 overflow-hidden p-4">
-              <ArtifactViewer artifact={selectedArtifact} />
+              <ArtifactViewer artifact={selectedArtifact}/>
             </div>
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center space-y-2 opacity-30">
-            <Eye className="w-8 h-8 text-slate-700" />
+            <Eye className="w-8 h-8 text-slate-700"/>
             <p className="text-xs text-slate-500 font-mono italic">Select an artifact to view</p>
           </div>
         )}
@@ -253,7 +253,7 @@ function ArtifactsPanel({ runId }: { runId: string }) {
   )
 }
 
-function ExecutionLog({ runId }: { runId: string }) {
+function ExecutionLog({runId}: { runId: string }) {
   const [events, setEvents] = useState<RunEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [autoScroll, setAutoScroll] = useState(true)
@@ -261,9 +261,9 @@ function ExecutionLog({ runId }: { runId: string }) {
   const lastTsRef = useRef<string | null>(null)
 
   const coerceText = (value: unknown): string => {
-    if (typeof value === 'string') return value
-    if (typeof value === 'number') return value.toString()
-    if (value === null || value === undefined) return ''
+    if (typeof value === "string") return value
+    if (typeof value === "number") return value.toString()
+    if (value === null || value === undefined) return ""
     try {
       return JSON.stringify(value, null, 2)
     } catch {
@@ -272,40 +272,11 @@ function ExecutionLog({ runId }: { runId: string }) {
   }
 
   const formatStatusPayload = (payload: unknown): string => {
-    if (!payload || typeof payload !== 'object') return coerceText(payload)
+    if (!payload || typeof payload !== "object") return coerceText(payload)
     const typed = payload as { message?: string; status?: string }
     if (typed.message) return typed.message
     if (typed.status) return typed.status
     return coerceText(payload)
-  }
-
-  const formatMessagePayload = (
-    payload: unknown
-  ): {
-    text: string
-    role?: string
-    hasReasoning: boolean
-    hasText: boolean
-  } => {
-    if (!payload || typeof payload !== 'object') {
-      return { text: coerceText(payload), hasReasoning: false, hasText: true }
-    }
-
-    const typed = payload as {
-      role?: string
-      content?: string
-      parts?: Array<{ type?: string; text?: string }>
-    }
-
-    if (typeof typed.content === 'string') {
-      const hasReasoning = typed.content.includes('[thoughts]')
-      const hasText = typed.content.length > 0 && !typed.content.trim().startsWith('[thoughts]')
-      return { text: typed.content, role: typed.role, hasReasoning, hasText }
-    }
-
-    const hasReasoning = typed.parts?.some((part) => part.type === 'reasoning') ?? false
-    const hasText = typed.parts?.some((part) => part.type === 'text') ?? false
-    return { text: coerceText(payload), role: typed.role, hasReasoning, hasText }
   }
 
   const handleScroll = () => {
@@ -322,13 +293,13 @@ function ExecutionLog({ runId }: { runId: string }) {
     const cleanup = window.api.opencode.onEvent((event) => {
       if (event.sessionId !== runId) return
 
-      if (event.type === 'message.part.updated') {
+      if (event.type === "message.part.updated") {
         const part = event.part as { id: string }
         const newEvent: RunEvent = {
           id: `msg-part-${event.messageId}-${part.id}`,
           runId,
           ts: new Date().toISOString(),
-          eventType: 'stdout',
+          eventType: "stdout",
           payload: event.part,
         }
         setEvents((prev) => [...prev, newEvent].slice(-500))
@@ -355,7 +326,7 @@ function ExecutionLog({ runId }: { runId: string }) {
           lastTsRef.current = response.events[response.events.length - 1].ts
         }
       } catch (error) {
-        console.error('Failed to fetch events:', error)
+        console.error("Failed to fetch events:", error)
       } finally {
         if (isActive) {
           setIsLoading(false)
@@ -378,14 +349,14 @@ function ExecutionLog({ runId }: { runId: string }) {
   }, [events, autoScroll])
 
   const renderEvent = (event: RunEvent) => {
-    const time = new Date(event.ts).toLocaleTimeString('en-US', {
+    const time = new Date(event.ts).toLocaleTimeString("en-US", {
       hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
     })
 
-    if (event.eventType === 'stdout') {
+    if (event.eventType === "stdout") {
       return (
         <div key={event.id} className="flex gap-3 py-0.5 group">
           <span className="text-[10px] font-mono text-slate-600 mt-1 shrink-0 select-none w-16">
@@ -398,7 +369,7 @@ function ExecutionLog({ runId }: { runId: string }) {
       )
     }
 
-    if (event.eventType === 'stderr') {
+    if (event.eventType === "stderr") {
       return (
         <div key={event.id} className="flex gap-3 py-0.5 group bg-red-500/5">
           <span className="text-[10px] font-mono text-red-900/50 mt-1 shrink-0 select-none w-16">
@@ -411,39 +382,95 @@ function ExecutionLog({ runId }: { runId: string }) {
       )
     }
 
-    if (event.eventType === 'message') {
-      const messageInfo = formatMessagePayload(event.payload)
-      const label = messageInfo.role ? `${messageInfo.role}: ` : ''
+    if (event.eventType === "message") {
+      const messagePayload = event.payload as
+        | { role?: string; content?: string; parts?: Part[] }
+        | string
+
+      if (typeof messagePayload === "string") {
+        return (
+          <div
+            key={event.id}
+            className="flex gap-3 py-2 px-3 my-1 bg-slate-800/40 border-l-2 border-slate-700/40 rounded-r-lg"
+          >
+            <span className="text-[10px] font-mono text-slate-600 mt-1 shrink-0 select-none w-16">
+              {time}
+            </span>
+            <span className="text-xs font-mono text-slate-300 break-all whitespace-pre-wrap">
+              {messagePayload}
+            </span>
+          </div>
+        )
+      }
+
+      const {role = "assistant", content, parts: messageParts} = messagePayload
+
+      const parts = messageParts || (content ? [{type: "text" as const, text: content}] : [])
+
+      const isUser = role === "user"
 
       return (
         <div
           key={event.id}
           className={cn(
-            'flex gap-3 py-2 px-3 my-1 border-l-2 rounded-r-lg',
-            messageInfo.hasReasoning && !messageInfo.hasText
-              ? 'bg-blue-500/5 border-blue-500/30'
-              : 'bg-blue-500/10 border-blue-500/50'
+            "flex gap-3 py-2.5 px-3 my-2 rounded-lg border",
+            isUser
+              ? "flex-row-reverse bg-blue-600/10 border-blue-500/30"
+              : "flex-row bg-slate-800/40 border-slate-700/40"
           )}
         >
-          <span className="text-[10px] font-mono text-blue-500/50 shrink-0 select-none w-16">
-            {time}
-          </span>
-          <p
-            className={cn(
-              'text-xs font-medium',
-              messageInfo.hasReasoning && !messageInfo.hasText
-                ? 'text-blue-400/60'
-                : 'text-blue-300'
+          <div className="shrink-0">
+            {isUser ? (
+              <div
+                className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                <User className="w-3.5 h-3.5 text-white"/>
+              </div>
+            ) : (
+              <div
+                className="w-6 h-6 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                <MessageSquare className="w-3.5 h-3.5 text-white"/>
+              </div>
             )}
-          >
-            {label}
-            {messageInfo.text}
-          </p>
+          </div>
+
+          <div className={cn("flex-1 min-w-0 space-y-1", isUser && "text-right")}>
+            <div
+              className={cn(
+                "inline-block px-3 py-2 rounded-lg max-w-full",
+                isUser
+                  ? "bg-blue-600/20 text-blue-100 border border-blue-500/20"
+                  : "bg-slate-800 text-slate-100 border border-slate-700/40"
+              )}
+            >
+              <div className="space-y-2">
+                {parts.map((part, idx) => {
+                  if (part.type === "text" && part.ignored) return null
+
+                  switch (part.type) {
+                    case "text":
+                      return <TextPart key={idx} part={part}/>
+                    case "file":
+                      return <FilePart key={idx} part={part}/>
+                    case "tool":
+                      return <ToolPart key={idx} part={part}/>
+                    case "reasoning":
+                      return <ReasoningPart key={idx} part={part}/>
+                    case "agent":
+                      return <AgentPart key={idx} part={part}/>
+                    default:
+                      return null
+                  }
+                })}
+              </div>
+            </div>
+
+            <span className="text-[10px] font-mono text-slate-600 select-none">{time}</span>
+          </div>
         </div>
       )
     }
 
-    if (event.eventType === 'status') {
+    if (event.eventType === "status") {
       return (
         <div
           key={event.id}
@@ -480,14 +507,14 @@ function ExecutionLog({ runId }: { runId: string }) {
       >
         {isLoading && events.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full space-y-3 opacity-50">
-            <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
+            <RefreshCw className="w-6 h-6 animate-spin text-blue-500"/>
             <p className="text-xs text-slate-400 font-medium font-mono uppercase tracking-widest text-center">
               Initializing Stream...
             </p>
           </div>
         ) : events.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full space-y-2 opacity-30">
-            <Terminal className="w-8 h-8" />
+            <Terminal className="w-8 h-8"/>
             <p className="text-xs text-slate-400 font-mono">No events captured yet</p>
           </div>
         ) : (
@@ -500,7 +527,7 @@ function ExecutionLog({ runId }: { runId: string }) {
           onClick={handleJumpToEnd}
           className="absolute bottom-6 right-6 flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-full text-[10px] font-bold uppercase tracking-wider shadow-xl shadow-blue-500/20 animate-in fade-in slide-in-from-bottom-2 duration-300"
         >
-          <ChevronsDown className="w-3.5 h-3.5" />
+          <ChevronsDown className="w-3.5 h-3.5"/>
           Jump to End
         </button>
       )}
@@ -509,43 +536,44 @@ function ExecutionLog({ runId }: { runId: string }) {
 }
 
 function RunDetailsView({
-  runId,
-  run,
-  onBack,
-}: {
+                          runId,
+                          run,
+                          onBack,
+                        }: {
   runId: string
   run: Run | null
   onBack: () => void
 }) {
-  const [view, setView] = useState<'log' | 'artifacts'>('log')
+  const [view, setView] = useState<"log" | "artifacts">("log")
 
   const statusTone =
-    run?.status === 'failed'
-      ? 'text-red-400 border-red-500/20 bg-red-500/10'
-      : run?.status === 'canceled'
-        ? 'text-slate-400 border-slate-500/20 bg-slate-500/10'
-        : run?.status === 'queued'
-          ? 'text-amber-400 border-amber-500/20 bg-amber-500/10'
-          : 'text-emerald-500 border-emerald-500/20 bg-emerald-500/10'
+    run?.status === "failed"
+      ? "text-red-400 border-red-500/20 bg-red-500/10"
+      : run?.status === "canceled"
+        ? "text-slate-400 border-slate-500/20 bg-slate-500/10"
+        : run?.status === "queued"
+          ? "text-amber-400 border-amber-500/20 bg-amber-500/10"
+          : "text-emerald-500 border-emerald-500/20 bg-emerald-500/10"
 
   const statusDot =
-    run?.status === 'failed'
-      ? 'bg-red-500'
-      : run?.status === 'canceled'
-        ? 'bg-slate-400'
-        : run?.status === 'queued'
-          ? 'bg-amber-500'
-          : 'bg-emerald-500'
+    run?.status === "failed"
+      ? "bg-red-500"
+      : run?.status === "canceled"
+        ? "bg-slate-400"
+        : run?.status === "queued"
+          ? "bg-amber-500"
+          : "bg-emerald-500"
 
   return (
     <div className="flex flex-col h-full bg-[#0B0E14] overflow-hidden animate-in fade-in duration-300">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800/50 bg-[#11151C]/50 backdrop-blur-md shrink-0">
+      <div
+        className="flex items-center justify-between px-4 py-3 border-b border-slate-800/50 bg-[#11151C]/50 backdrop-blur-md shrink-0">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
             className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4"/>
           </button>
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
@@ -558,65 +586,65 @@ function RunDetailsView({
         <div className="flex items-center gap-4">
           <div className="flex bg-slate-900/80 rounded-lg p-0.5 border border-slate-800/50 shadow-inner">
             <button
-              onClick={() => setView('log')}
+              onClick={() => setView("log")}
               className={cn(
-                'flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200',
-                view === 'log'
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
-                  : 'text-slate-500 hover:text-slate-300'
+                "flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200",
+                view === "log"
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
+                  : "text-slate-500 hover:text-slate-300"
               )}
             >
-              <Terminal className="w-3 h-3" />
+              <Terminal className="w-3 h-3"/>
               Log
             </button>
             <button
-              onClick={() => setView('artifacts')}
+              onClick={() => setView("artifacts")}
               className={cn(
-                'flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200',
-                view === 'artifacts'
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
-                  : 'text-slate-500 hover:text-slate-300'
+                "flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200",
+                view === "artifacts"
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
+                  : "text-slate-500 hover:text-slate-300"
               )}
             >
-              <Files className="w-3 h-3" />
+              <Files className="w-3 h-3"/>
               Artifacts
             </button>
           </div>
 
           <div
             className={cn(
-              'flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border',
+              "flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border",
               statusTone
             )}
           >
             <div
               className={cn(
-                'w-1 h-1 rounded-full',
+                "w-1 h-1 rounded-full",
                 statusDot,
-                run?.status === 'running' && 'animate-pulse'
+                run?.status === "running" && "animate-pulse"
               )}
             />
-            {run?.status ?? 'running'}
+            {run?.status ?? "running"}
           </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-hidden">
-        {view === 'log' ? <ExecutionLog runId={runId} /> : <ArtifactsPanel runId={runId} />}
+        {view === "log" ? <ExecutionLog runId={runId}/> : <ArtifactsPanel runId={runId}/>}
       </div>
     </div>
   )
 }
 
-export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: TaskDrawerProps) {
-  const [activeTab, setActiveTab] = useState<'details' | 'vcs' | 'runs' | 'chat' | 'properties'>(
-    'details'
+export function TaskDrawer({task, isOpen, onClose, onUpdate, columnName}: TaskDrawerProps) {
+  const [activeTab, setActiveTab] = useState<"details" | "vcs" | "runs" | "chat" | "properties">(
+    "details"
   )
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [isPreviewMode, setIsPreviewMode] = useState(false)
-  const [editedTitle, setEditedTitle] = useState('')
-  const [editedDescription, setEditedDescription] = useState('')
-  const [newTag, setNewTag] = useState('')
+  const [editedTitle, setEditedTitle] = useState("")
+  const [editedDescription, setEditedDescription] = useState("")
+  const [newTag, setNewTag] = useState("")
   const [isAddingTag, setIsAddingTag] = useState(false)
 
   // Runs State
@@ -629,28 +657,32 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
   const [dependencyError, setDependencyError] = useState<string | null>(null)
   const [isLoadingDependencies, setIsLoadingDependencies] = useState(false)
   const [isAddingDependency, setIsAddingDependency] = useState(false)
-  const [dependencyQuery, setDependencyQuery] = useState('')
+  const [dependencyQuery, setDependencyQuery] = useState("")
   const [dependencyTargetId, setDependencyTargetId] = useState<string | null>(null)
   const [dependencyRelationship, setDependencyRelationship] = useState<
-    'blocks' | 'blocked-by' | 'relates' | 'duplicates'
-  >('blocks')
-  const [selectedRoleId, setSelectedRoleId] = useState('')
+    "blocks" | "blocked-by" | "relates" | "duplicates"
+  >("blocks")
+  const [selectedRoleId, setSelectedRoleId] = useState("")
   const [roles, setRoles] = useState<{ id: string; name: string; description?: string }[]>([])
   const [isLoadingRoles, setIsLoadingRoles] = useState(false)
 
   const initialMessages: ChatMessage[] = [
     {
-      id: '1',
-      role: 'assistant',
-      content:
-        'Hi! I can help you work on this task. Ask me questions, request code changes, or discuss implementation details.',
+      id: "1",
+      role: "assistant",
+      parts: [
+        {
+          type: "text",
+          text: "Hi! I can help you work on this task. Ask me questions, request code changes, or discuss implementation details.",
+        },
+      ],
       // eslint-disable-next-line react-hooks/purity -- Mock data, timestamp is acceptable for initial messages
       timestamp: new Date(Date.now() - 1000 * 60 * 5),
     },
   ]
 
   // Mock Chat State
-  const [chatInput, setChatInput] = useState('')
+  const [chatInput, setChatInput] = useState("")
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
 
   const titleInputRef = useRef<HTMLInputElement>(null)
@@ -661,14 +693,14 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
     if (!task) return
     setIsLoadingRuns(true)
     try {
-      const response = await window.api.run.listByTask({ taskId: task.id })
+      const response = await window.api.run.listByTask({taskId: task.id})
       setRuns(
         response.runs.sort(
           (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         )
       )
     } catch (error) {
-      console.error('Failed to fetch runs:', error)
+      console.error("Failed to fetch runs:", error)
     } finally {
       setIsLoadingRuns(false)
     }
@@ -684,7 +716,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
         setSelectedRoleId(response.roles[0].id)
       }
     } catch (error) {
-      console.error('Failed to fetch roles:', error)
+      console.error("Failed to fetch roles:", error)
     } finally {
       setIsLoadingRoles(false)
     }
@@ -693,10 +725,10 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
   const fetchBoardTasks = useCallback(async () => {
     if (!task) return
     try {
-      const response = await window.api.task.listByBoard({ boardId: task.boardId })
+      const response = await window.api.task.listByBoard({boardId: task.boardId})
       setBoardTasks(response.tasks.filter((candidate) => candidate.id !== task.id))
     } catch (error) {
-      console.error('Failed to fetch board tasks:', error)
+      console.error("Failed to fetch board tasks:", error)
     }
   }, [task])
 
@@ -705,11 +737,11 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
     setIsLoadingDependencies(true)
     setDependencyError(null)
     try {
-      const response = await window.api.deps.list({ taskId: task.id })
+      const response = await window.api.deps.list({taskId: task.id})
       setDependencyLinks(response.links)
     } catch (error) {
-      console.error('Failed to fetch dependencies:', error)
-      setDependencyError('Failed to load dependencies')
+      console.error("Failed to fetch dependencies:", error)
+      setDependencyError("Failed to load dependencies")
     } finally {
       setIsLoadingDependencies(false)
     }
@@ -718,9 +750,9 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
   useEffect(() => {
     if (task) {
       setEditedTitle(task.title)
-      setEditedDescription(task.descriptionMd || task.description || '')
+      setEditedDescription(task.descriptionMd || task.description || "")
       setSelectedRunId(null)
-      setDependencyQuery('')
+      setDependencyQuery("")
       setDependencyTargetId(null)
       setIsAddingDependency(false)
       fetchBoardTasks()
@@ -743,11 +775,11 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
   }, [isAddingTag])
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    chatEndRef.current?.scrollIntoView({behavior: "smooth"})
   }, [messages, activeTab])
 
   useEffect(() => {
-    if (activeTab === 'runs' && task) {
+    if (activeTab === "runs" && task) {
       fetchRuns()
     }
   }, [activeTab, task])
@@ -756,22 +788,22 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
 
   const dependencyResults = dependencyQuery.trim()
     ? boardTasks
-        .filter((candidate) => {
-          const haystack = `${candidate.title} ${candidate.tags.join(' ')}`.toLowerCase()
-          return haystack.includes(dependencyQuery.toLowerCase())
-        })
-        .slice(0, 6)
+      .filter((candidate) => {
+        const haystack = `${candidate.title} ${candidate.tags.join(" ")}`.toLowerCase()
+        return haystack.includes(dependencyQuery.toLowerCase())
+      })
+      .slice(0, 6)
     : []
 
   const blockedByLinks = dependencyLinks.filter(
-    (link) => link.linkType === 'blocks' && link.toTaskId === task.id
+    (link) => link.linkType === "blocks" && link.toTaskId === task.id
   )
   const blocksLinks = dependencyLinks.filter(
-    (link) => link.linkType === 'blocks' && link.fromTaskId === task.id
+    (link) => link.linkType === "blocks" && link.fromTaskId === task.id
   )
   const relatedLinks = dependencyLinks.filter(
     (link) =>
-      link.linkType !== 'blocks' && (link.fromTaskId === task.id || link.toTaskId === task.id)
+      link.linkType !== "blocks" && (link.fromTaskId === task.id || link.toTaskId === task.id)
   )
 
   const getTaskLabel = (taskId: string) => {
@@ -784,7 +816,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
 
   const handleSaveTitle = () => {
     if (editedTitle.trim() !== task.title && editedTitle.trim() && onUpdate) {
-      onUpdate(task.id, { title: editedTitle.trim() })
+      onUpdate(task.id, {title: editedTitle.trim()})
     } else {
       setEditedTitle(task.title)
     }
@@ -792,7 +824,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
   }
 
   const handleSaveDescription = () => {
-    if (editedDescription !== (task.descriptionMd || task.description || '') && onUpdate) {
+    if (editedDescription !== (task.descriptionMd || task.description || "") && onUpdate) {
       onUpdate(task.id, {
         descriptionMd: editedDescription,
         description: editedDescription,
@@ -807,15 +839,15 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
 
   const handleAddTag = () => {
     if (newTag.trim() && !task.tags.includes(newTag.trim()) && onUpdate) {
-      onUpdate(task.id, { tags: [...task.tags, newTag.trim()] })
-      setNewTag('')
+      onUpdate(task.id, {tags: [...task.tags, newTag.trim()]})
+      setNewTag("")
       setIsAddingTag(false)
     }
   }
 
   const handleRemoveTag = (tagToRemove: string) => {
     if (onUpdate) {
-      onUpdate(task.id, { tags: task.tags.filter((t) => t !== tagToRemove) })
+      onUpdate(task.id, {tags: task.tags.filter((t) => t !== tagToRemove)})
     }
   }
 
@@ -824,44 +856,44 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
     setDependencyError(null)
 
     const linkType: TaskLinkType =
-      dependencyRelationship === 'blocked-by' ? 'blocks' : dependencyRelationship
-    const fromTaskId = dependencyRelationship === 'blocked-by' ? dependencyTargetId : task.id
-    const toTaskId = dependencyRelationship === 'blocked-by' ? task.id : dependencyTargetId
+      dependencyRelationship === "blocked-by" ? "blocks" : dependencyRelationship
+    const fromTaskId = dependencyRelationship === "blocked-by" ? dependencyTargetId : task.id
+    const toTaskId = dependencyRelationship === "blocked-by" ? task.id : dependencyTargetId
 
     try {
-      const response = await window.api.deps.add({ fromTaskId, toTaskId, type: linkType })
+      const response = await window.api.deps.add({fromTaskId, toTaskId, type: linkType})
       setDependencyLinks((prev) => {
         if (prev.some((link) => link.id === response.link.id)) return prev
         return [...prev, response.link]
       })
       setIsAddingDependency(false)
-      setDependencyQuery('')
+      setDependencyQuery("")
       setDependencyTargetId(null)
     } catch (error) {
-      console.error('Failed to add dependency:', error)
-      setDependencyError('Failed to add dependency')
+      console.error("Failed to add dependency:", error)
+      setDependencyError("Failed to add dependency")
     }
   }
 
   const handleRemoveDependency = async (linkId: string) => {
     try {
-      await window.api.deps.remove({ linkId })
+      await window.api.deps.remove({linkId})
       setDependencyLinks((prev) => prev.filter((link) => link.id !== linkId))
     } catch (error) {
-      console.error('Failed to remove dependency:', error)
-      setDependencyError('Failed to remove dependency')
+      console.error("Failed to remove dependency:", error)
+      setDependencyError("Failed to remove dependency")
     }
   }
 
-  const handleUpdatePriority = (priority: KanbanTask['priority']) => {
+  const handleUpdatePriority = (priority: KanbanTask["priority"]) => {
     if (onUpdate && priority !== task.priority) {
-      onUpdate(task.id, { priority })
+      onUpdate(task.id, {priority})
     }
   }
 
   const handleUpdateType = (type: string) => {
     if (onUpdate && type !== task.type) {
-      onUpdate(task.id, { type })
+      onUpdate(task.id, {type})
     }
   }
 
@@ -870,20 +902,37 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
-      role: 'user',
-      content: chatInput.trim(),
+      role: "user",
+      parts: [{type: "text", text: chatInput.trim()}],
       timestamp: new Date(),
     }
 
     setMessages((prev) => [...prev, userMessage])
-    setChatInput('')
+    setChatInput("")
 
     // Mock AI Response
     setTimeout(() => {
       const aiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `I've received your message: "${userMessage.content}". This is a mock response as Phase 2 is under development.`,
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: `I've received your message. This is a mock response as Phase 2 is under development.`,
+          },
+          {
+            type: "reasoning",
+            text: "The user is interacting with the mock chat. I should provide a helpful response that demonstrates the new parts system including reasoning and potentially tool calls.",
+          },
+          {
+            type: "tool",
+            callID: "tool_1",
+            tool: "analyze_task_context",
+            state: "completed",
+            input: {taskId: task?.id},
+            output: {status: "success", findings: "Task is currently in Todo column."},
+          },
+        ],
         timestamp: new Date(),
       }
       setMessages((prev) => [...prev, aiMessage])
@@ -897,12 +946,12 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
       const response = await window.api.run.start({
         taskId: task.id,
         roleId: selectedRoleId,
-        mode: 'execute',
+        mode: "execute",
       })
       setSelectedRunId(response.runId)
       await fetchRuns()
     } catch (error) {
-      console.error('Failed to start run:', error)
+      console.error("Failed to start run:", error)
     } finally {
       setIsStartingRun(false)
     }
@@ -910,10 +959,10 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
 
   const handleCancelRun = async (runId: string) => {
     try {
-      await window.api.run.cancel({ runId })
+      await window.api.run.cancel({runId})
       await fetchRuns()
     } catch (error) {
-      console.error('Failed to cancel run:', error)
+      console.error("Failed to cancel run:", error)
     }
   }
 
@@ -927,104 +976,104 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
       })
       await fetchRuns()
     } catch (error) {
-      console.error('Failed to retry run:', error)
+      console.error("Failed to retry run:", error)
     } finally {
       setIsStartingRun(false)
     }
   }
 
   const formatDate = (dateString: string | undefined) => {
-    if (!dateString) return '—'
+    if (!dateString) return "—"
     const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    return date.toLocaleDateString("en-US", {month: "short", day: "numeric", year: "numeric"})
   }
 
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    return date.toLocaleTimeString("en-US", {hour: "2-digit", minute: "2-digit"})
   }
 
   const priorityConfig = {
     low: {
-      label: 'Low',
+      label: "Low",
       icon: ArrowUpRight,
-      className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25 hover:bg-emerald-500/20',
+      className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/25 hover:bg-emerald-500/20",
     },
     medium: {
-      label: 'Medium',
+      label: "Medium",
       icon: ArrowUpRight,
-      className: 'bg-amber-500/10 text-amber-400 border-amber-500/25 hover:bg-amber-500/20',
+      className: "bg-amber-500/10 text-amber-400 border-amber-500/25 hover:bg-amber-500/20",
     },
     high: {
-      label: 'High',
+      label: "High",
       icon: AlertTriangle,
-      className: 'bg-orange-500/10 text-orange-400 border-orange-500/25 hover:bg-orange-500/20',
+      className: "bg-orange-500/10 text-orange-400 border-orange-500/25 hover:bg-orange-500/20",
     },
     urgent: {
-      label: 'Urgent',
+      label: "Urgent",
       icon: Zap,
-      className: 'bg-red-500/10 text-red-400 border-red-500/25 hover:bg-red-500/20 animate-pulse',
+      className: "bg-red-500/10 text-red-400 border-red-500/25 hover:bg-red-500/20 animate-pulse",
     },
   }
 
   const typeConfig: Record<string, { label: string; icon: any; className: string }> = {
     task: {
-      label: 'Task',
+      label: "Task",
       icon: Check,
-      className: 'bg-blue-500/10 text-blue-400 border-blue-500/25',
+      className: "bg-blue-500/10 text-blue-400 border-blue-500/25",
     },
     bug: {
-      label: 'Bug',
+      label: "Bug",
       icon: Bug,
-      className: 'bg-purple-500/10 text-purple-400 border-purple-500/25',
+      className: "bg-purple-500/10 text-purple-400 border-purple-500/25",
     },
     feature: {
-      label: 'Feature',
+      label: "Feature",
       icon: Sparkles,
-      className: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/25',
+      className: "bg-cyan-500/10 text-cyan-400 border-cyan-500/25",
     },
     default: {
-      label: 'Task',
+      label: "Task",
       icon: Check,
-      className: 'bg-slate-500/10 text-slate-400 border-slate-500/25',
+      className: "bg-slate-500/10 text-slate-400 border-slate-500/25",
     },
   }
 
   const statusConfig = {
-    backlog: { label: 'Backlog', className: 'bg-slate-500/10 text-slate-400 border-slate-500/25' },
-    todo: { label: 'To Do', className: 'bg-slate-600/20 text-slate-300 border-slate-600/30' },
-    'in-progress': {
-      label: 'In Progress',
-      className: 'bg-blue-500/10 text-blue-400 border-blue-500/25',
+    backlog: {label: "Backlog", className: "bg-slate-500/10 text-slate-400 border-slate-500/25"},
+    todo: {label: "To Do", className: "bg-slate-600/20 text-slate-300 border-slate-600/30"},
+    "in-progress": {
+      label: "In Progress",
+      className: "bg-blue-500/10 text-blue-400 border-blue-500/25",
     },
-    review: { label: 'In Review', className: 'bg-amber-500/10 text-amber-400 border-amber-500/25' },
-    done: { label: 'Done', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25' },
-    default: { label: 'Active', className: 'bg-slate-500/10 text-slate-400 border-slate-500/25' },
+    review: {label: "In Review", className: "bg-amber-500/10 text-amber-400 border-amber-500/25"},
+    done: {label: "Done", className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/25"},
+    default: {label: "Active", className: "bg-slate-500/10 text-slate-400 border-slate-500/25"},
   }
 
   const runStatusConfig: Record<string, { label: string; className: string; icon: any }> = {
     queued: {
-      label: 'Queued',
-      className: 'bg-slate-500/10 text-slate-400 border-slate-500/25',
+      label: "Queued",
+      className: "bg-slate-500/10 text-slate-400 border-slate-500/25",
       icon: Clock,
     },
     running: {
-      label: 'Running',
-      className: 'bg-blue-500/10 text-blue-400 border-blue-500/25',
+      label: "Running",
+      className: "bg-blue-500/10 text-blue-400 border-blue-500/25",
       icon: RefreshCw,
     },
     succeeded: {
-      label: 'Succeeded',
-      className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25',
+      label: "Succeeded",
+      className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/25",
       icon: Check,
     },
     failed: {
-      label: 'Failed',
-      className: 'bg-red-500/10 text-red-400 border-red-500/25',
+      label: "Failed",
+      className: "bg-red-500/10 text-red-400 border-red-500/25",
       icon: AlertTriangle,
     },
     canceled: {
-      label: 'Canceled',
-      className: 'bg-orange-500/10 text-orange-400 border-orange-500/25',
+      label: "Canceled",
+      className: "bg-orange-500/10 text-orange-400 border-orange-500/25",
       icon: X,
     },
   }
@@ -1040,8 +1089,10 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
         className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] transition-opacity duration-300"
         onClick={onClose}
       />
-      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[95%] h-[95%] bg-gradient-to-b from-[#0B0E14] to-[#0A0C11] border border-slate-800/50 z-[70] shadow-2xl rounded-3xl flex flex-col animate-in zoom-in-95 duration-300 ease-out overflow-hidden">
-        <div className="flex items-start justify-between px-6 py-5 border-b border-slate-800/50 bg-[#11151C]/30 backdrop-blur-xl">
+      <div
+        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[95%] h-[95%] bg-gradient-to-b from-[#0B0E14] to-[#0A0C11] border border-slate-800/50 z-[70] shadow-2xl rounded-3xl flex flex-col animate-in zoom-in-95 duration-300 ease-out overflow-hidden">
+        <div
+          className="flex items-start justify-between px-6 py-5 border-b border-slate-800/50 bg-[#11151C]/30 backdrop-blur-xl">
           <div className="flex-1 mr-4">
             {isEditingTitle ? (
               <div className="flex items-center gap-2">
@@ -1051,8 +1102,8 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                   value={editedTitle}
                   onChange={(e) => setEditedTitle(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSaveTitle()
-                    if (e.key === 'Escape') handleCancelEditTitle()
+                    if (e.key === "Enter") handleSaveTitle()
+                    if (e.key === "Escape") handleCancelEditTitle()
                   }}
                   onBlur={handleSaveTitle}
                   className="flex-1 px-4 py-2.5 bg-[#0B0E14] border-2 border-blue-500/50 rounded-xl text-white text-lg font-semibold focus:outline-none focus:border-blue-500/80 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:text-slate-600"
@@ -1064,14 +1115,14 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                     className="p-2 text-blue-400 hover:bg-blue-500/15 rounded-xl transition-all hover:scale-105"
                     title="Save"
                   >
-                    <Check className="w-4 h-4" />
+                    <Check className="w-4 h-4"/>
                   </button>
                   <button
                     onClick={handleCancelEditTitle}
                     className="p-2 text-slate-500 hover:bg-slate-700/50 rounded-xl transition-all hover:scale-105"
                     title="Cancel"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-4 h-4"/>
                   </button>
                 </div>
               </div>
@@ -1088,7 +1139,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                   className="p-1.5 text-slate-600 hover:text-slate-300 hover:bg-slate-700/50 rounded-xl transition-all opacity-0 group-hover:opacity-100 hover:scale-105"
                   title="Edit title"
                 >
-                  <Edit2 className="w-3.5 h-3.5" />
+                  <Edit2 className="w-3.5 h-3.5"/>
                 </button>
               </div>
             )}
@@ -1098,77 +1149,81 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
             className="p-2 text-slate-500 hover:text-white hover:bg-slate-700/50 rounded-xl transition-all hover:scale-105"
             title="Close"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5"/>
           </button>
         </div>
 
         <div className="flex border-b border-slate-800/50 bg-[#0B0E14]">
           <button
-            onClick={() => setActiveTab('details')}
+            onClick={() => setActiveTab("details")}
             className={cn(
-              'flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all relative',
-              activeTab === 'details' ? 'text-white' : 'text-slate-500 hover:text-slate-300'
+              "flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all relative",
+              activeTab === "details" ? "text-white" : "text-slate-500 hover:text-slate-300"
             )}
           >
-            <FileText className="w-4 h-4" />
+            <FileText className="w-4 h-4"/>
             Details
-            {activeTab === 'details' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-blue-400 to-cyan-400" />
+            {activeTab === "details" && (
+              <div
+                className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-blue-400 to-cyan-400"/>
             )}
           </button>
 
           <button
-            onClick={() => setActiveTab('runs')}
+            onClick={() => setActiveTab("runs")}
             className={cn(
-              'flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all relative',
-              activeTab === 'runs' ? 'text-white' : 'text-slate-500 hover:text-slate-300'
+              "flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all relative",
+              activeTab === "runs" ? "text-white" : "text-slate-500 hover:text-slate-300"
             )}
           >
-            <History className="w-4 h-4" />
+            <History className="w-4 h-4"/>
             Runs
-            {activeTab === 'runs' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-blue-400 to-cyan-400" />
+            {activeTab === "runs" && (
+              <div
+                className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-blue-400 to-cyan-400"/>
             )}
           </button>
           <button
-            onClick={() => setActiveTab('chat')}
+            onClick={() => setActiveTab("chat")}
             className={cn(
-              'flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all relative',
-              activeTab === 'chat' ? 'text-white' : 'text-slate-500 hover:text-slate-300'
+              "flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all relative",
+              activeTab === "chat" ? "text-white" : "text-slate-500 hover:text-slate-300"
             )}
           >
-            <MessageSquare className="w-4 h-4" />
+            <MessageSquare className="w-4 h-4"/>
             Chat
-            {activeTab === 'chat' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-blue-400 to-cyan-400" />
+            {activeTab === "chat" && (
+              <div
+                className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-blue-400 to-cyan-400"/>
             )}
           </button>
           <button
-            onClick={() => setActiveTab('properties')}
+            onClick={() => setActiveTab("properties")}
             className={cn(
-              'flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all relative',
-              activeTab === 'properties' ? 'text-white' : 'text-slate-500 hover:text-slate-300'
+              "flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all relative",
+              activeTab === "properties" ? "text-white" : "text-slate-500 hover:text-slate-300"
             )}
           >
-            <Settings className="w-4 h-4" />
+            <Settings className="w-4 h-4"/>
             Properties
-            {activeTab === 'properties' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-blue-400 to-cyan-400" />
+            {activeTab === "properties" && (
+              <div
+                className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-blue-400 to-cyan-400"/>
             )}
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {activeTab === 'details' && (
+          {activeTab === "details" && (
             <div className="p-6 space-y-8">
               <div className="flex flex-wrap items-center gap-3">
                 <span
                   className={cn(
-                    'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold tracking-wide transition-all',
+                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold tracking-wide transition-all",
                     status.className
                   )}
                 >
-                  <div className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-current animate-pulse"/>
                   {columnName || status.label}
                 </span>
 
@@ -1177,7 +1232,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                     value={task.priority}
                     onChange={(e) => handleUpdatePriority(e.target.value as any)}
                     className={cn(
-                      'appearance-none cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 pr-8 rounded-lg border text-xs font-semibold uppercase tracking-wide transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20',
+                      "appearance-none cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 pr-8 rounded-lg border text-xs font-semibold uppercase tracking-wide transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20",
                       priority.className
                     )}
                   >
@@ -1194,7 +1249,8 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                       Urgent
                     </option>
                   </select>
-                  <ChevronDown className="w-3 h-3 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-current opacity-50 group-hover/select:opacity-100 transition-opacity" />
+                  <ChevronDown
+                    className="w-3 h-3 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-current opacity-50 group-hover/select:opacity-100 transition-opacity"/>
                 </div>
 
                 <div className="relative group/select">
@@ -1202,7 +1258,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                     value={task.type}
                     onChange={(e) => handleUpdateType(e.target.value)}
                     className={cn(
-                      'appearance-none cursor-pointer inline-flex items-center px-3 py-1.5 pr-8 rounded-lg border text-xs font-semibold uppercase tracking-wide transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20',
+                      "appearance-none cursor-pointer inline-flex items-center px-3 py-1.5 pr-8 rounded-lg border text-xs font-semibold uppercase tracking-wide transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20",
                       type.className
                     )}
                   >
@@ -1216,10 +1272,11 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                       Bug
                     </option>
                   </select>
-                  <ChevronDown className="w-3 h-3 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-current opacity-50 group-hover/select:opacity-100 transition-opacity" />
+                  <ChevronDown
+                    className="w-3 h-3 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-current opacity-50 group-hover/select:opacity-100 transition-opacity"/>
                 </div>
 
-                <div className="h-4 w-px bg-slate-800/50 mx-1" />
+                <div className="h-4 w-px bg-slate-800/50 mx-1"/>
 
                 <div className="flex flex-wrap items-center gap-2">
                   {task.tags.map((tag, i) => (
@@ -1232,21 +1289,22 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                         onClick={() => handleRemoveTag(tag)}
                         className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-red-400 transition-all"
                       >
-                        <X className="w-3 h-3" />
+                        <X className="w-3 h-3"/>
                       </button>
                     </span>
                   ))}
 
                   {isAddingTag ? (
-                    <div className="flex items-center gap-1 bg-[#0B0E14] border border-blue-500/50 rounded-lg px-2 py-1 animate-in fade-in zoom-in-95 duration-200">
+                    <div
+                      className="flex items-center gap-1 bg-[#0B0E14] border border-blue-500/50 rounded-lg px-2 py-1 animate-in fade-in zoom-in-95 duration-200">
                       <input
                         ref={tagInputRef}
                         type="text"
                         value={newTag}
                         onChange={(e) => setNewTag(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleAddTag()
-                          if (e.key === 'Escape') setIsAddingTag(false)
+                          if (e.key === "Enter") handleAddTag()
+                          if (e.key === "Escape") setIsAddingTag(false)
                         }}
                         onBlur={() => {
                           if (!newTag.trim()) setIsAddingTag(false)
@@ -1255,7 +1313,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                         placeholder="Tag name..."
                       />
                       <button onClick={handleAddTag} className="text-blue-400 hover:text-blue-300">
-                        <Check className="w-3 h-3" />
+                        <Check className="w-3 h-3"/>
                       </button>
                     </div>
                   ) : (
@@ -1264,7 +1322,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                       className="p-1.5 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-all"
                       title="Add tag"
                     >
-                      <Tag className="w-3.5 h-3.5" />
+                      <Tag className="w-3.5 h-3.5"/>
                     </button>
                   )}
                 </div>
@@ -1273,29 +1331,29 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                    <FileText className="w-3 h-3" />
+                    <FileText className="w-3 h-3"/>
                     Description
                   </h3>
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => setIsPreviewMode(!isPreviewMode)}
                       className={cn(
-                        'flex items-center gap-1.5 text-xs transition-colors px-2 py-1 rounded-md hover:bg-slate-800',
+                        "flex items-center gap-1.5 text-xs transition-colors px-2 py-1 rounded-md hover:bg-slate-800",
                         isPreviewMode
-                          ? 'text-blue-400 bg-blue-500/10'
-                          : 'text-slate-500 hover:text-slate-300'
+                          ? "text-blue-400 bg-blue-500/10"
+                          : "text-slate-500 hover:text-slate-300"
                       )}
-                      title={isPreviewMode ? 'Edit Mode' : 'Preview Mode'}
+                      title={isPreviewMode ? "Edit Mode" : "Preview Mode"}
                     >
-                      {isPreviewMode ? <Edit2 className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                      {isPreviewMode ? 'Edit' : 'Preview'}
+                      {isPreviewMode ? <Edit2 className="w-3 h-3"/> : <Eye className="w-3 h-3"/>}
+                      {isPreviewMode ? "Edit" : "Preview"}
                     </button>
                     {!isPreviewMode && (
                       <button
                         onClick={handleSaveDescription}
                         className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors group px-2 py-1 rounded-md hover:bg-slate-800"
                       >
-                        <Check className="w-3 h-3 group-hover:scale-110 transition-transform" />
+                        <Check className="w-3 h-3 group-hover:scale-110 transition-transform"/>
                         Save
                       </button>
                     )}
@@ -1305,12 +1363,13 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                 {isPreviewMode ? (
                   <div
                     className={cn(
-                      'rounded-xl border border-slate-800/50 bg-slate-900/30 p-4 transition-all hover:border-slate-700/50 relative overflow-hidden min-h-[200px]',
-                      editedDescription ? '' : 'border-dashed'
+                      "rounded-xl border border-slate-800/50 bg-slate-900/30 p-4 transition-all hover:border-slate-700/50 relative overflow-hidden min-h-[200px]",
+                      editedDescription ? "" : "border-dashed"
                     )}
                   >
                     {editedDescription ? (
-                      <div className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap font-sans custom-scrollbar max-h-[500px] overflow-y-auto">
+                      <div
+                        className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap font-sans custom-scrollbar max-h-[500px] overflow-y-auto">
                         {editedDescription}
                       </div>
                     ) : (
@@ -1325,8 +1384,8 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                       value={editedDescription}
                       onChange={(e) => setEditedDescription(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Escape') {
-                          setEditedDescription(task.descriptionMd || task.description || '')
+                        if (e.key === "Escape") {
+                          setEditedDescription(task.descriptionMd || task.description || "")
                         }
                       }}
                       className="w-full min-h-[300px] px-4 py-3 bg-[#0B0E14] border border-slate-800 rounded-xl text-slate-200 text-sm leading-relaxed focus:outline-none focus:border-blue-500/60 focus:ring-4 focus:ring-blue-500/5 resize-none transition-all placeholder:text-slate-600 custom-scrollbar shadow-inner"
@@ -1339,7 +1398,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                    <Link2 className="w-3 h-3" />
+                    <Link2 className="w-3 h-3"/>
                     Dependencies
                   </h3>
                   {!isAddingDependency && (
@@ -1347,7 +1406,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                       onClick={() => setIsAddingDependency(true)}
                       className="p-1 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-md transition-all"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus className="w-3.5 h-3.5"/>
                     </button>
                   )}
                 </div>
@@ -1380,7 +1439,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                             onClick={() => handleRemoveDependency(link.id)}
                             className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-red-400 transition-all"
                           >
-                            <X className="w-3 h-3" />
+                            <X className="w-3 h-3"/>
                           </button>
                         </div>
                       ))}
@@ -1406,7 +1465,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                             onClick={() => handleRemoveDependency(link.id)}
                             className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-red-400 transition-all"
                           >
-                            <X className="w-3 h-3" />
+                            <X className="w-3 h-3"/>
                           </button>
                         </div>
                       ))}
@@ -1447,7 +1506,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                         value={dependencyRelationship}
                         onChange={(e) =>
                           setDependencyRelationship(
-                            e.target.value as 'blocks' | 'blocked-by' | 'relates' | 'duplicates'
+                            e.target.value as "blocks" | "blocked-by" | "relates" | "duplicates"
                           )
                         }
                         className="bg-[#0B0E14] border border-slate-700/60 text-xs text-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
@@ -1471,7 +1530,8 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                         placeholder="Search tasks..."
                       />
                       {dependencyResults.length > 0 && (
-                        <div className="absolute z-10 mt-1 w-full bg-[#0B0E14] border border-slate-700/60 rounded-lg shadow-lg max-h-40 overflow-auto">
+                        <div
+                          className="absolute z-10 mt-1 w-full bg-[#0B0E14] border border-slate-700/60 rounded-lg shadow-lg max-h-40 overflow-auto">
                           {dependencyResults.map((candidate) => (
                             <button
                               key={candidate.id}
@@ -1499,10 +1559,10 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                         onClick={handleAddDependency}
                         disabled={!dependencyTargetId}
                         className={cn(
-                          'px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors',
+                          "px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors",
                           dependencyTargetId
-                            ? 'bg-blue-500/20 text-blue-200 hover:bg-blue-500/30'
-                            : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                            ? "bg-blue-500/20 text-blue-200 hover:bg-blue-500/30"
+                            : "bg-slate-800 text-slate-500 cursor-not-allowed"
                         )}
                       >
                         Add
@@ -1510,7 +1570,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                       <button
                         onClick={() => {
                           setIsAddingDependency(false)
-                          setDependencyQuery('')
+                          setDependencyQuery("")
                           setDependencyTargetId(null)
                         }}
                         className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors"
@@ -1524,11 +1584,12 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
             </div>
           )}
 
-          {activeTab === 'properties' && (
+          {activeTab === "properties" && (
             <div className="p-8 space-y-8 animate-in fade-in duration-300">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 text-blue-400">
-                  <Settings className="w-5 h-5" />
+                <div
+                  className="w-10 h-10 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 text-blue-400">
+                  <Settings className="w-5 h-5"/>
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-white uppercase tracking-wider">
@@ -1542,38 +1603,46 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
 
               <div className="grid grid-cols-2 gap-8">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <Hash className="w-2.5 h-2.5" />
+                  <label
+                    className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Hash className="w-2.5 h-2.5"/>
                     Task ID
                   </label>
-                  <span className="block text-xs text-slate-400 font-mono bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
+                  <span
+                    className="block text-xs text-slate-400 font-mono bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
                     {task.id}
                   </span>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <FolderKanban className="w-2.5 h-2.5" />
+                  <label
+                    className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <FolderKanban className="w-2.5 h-2.5"/>
                     Column ID
                   </label>
-                  <span className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
+                  <span
+                    className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
                     {task.columnId}
                   </span>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock className="w-2.5 h-2.5" />
+                  <label
+                    className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-2.5 h-2.5"/>
                     Created At
                   </label>
-                  <span className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
+                  <span
+                    className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
                     {formatDate(task.createdAt)}
                   </span>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock className="w-2.5 h-2.5" />
+                  <label
+                    className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-2.5 h-2.5"/>
                     Last Updated
                   </label>
-                  <span className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
+                  <span
+                    className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
                     {formatDate(task.updatedAt)}
                   </span>
                 </div>
@@ -1582,7 +1651,8 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                     <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
                       Position in Column
                     </label>
-                    <span className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
+                    <span
+                      className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
                       #{task.orderInColumn + 1}
                     </span>
                   </div>
@@ -1591,7 +1661,8 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                   <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
                     Project ID
                   </label>
-                  <span className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner font-mono">
+                  <span
+                    className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner font-mono">
                     {task.projectId}
                   </span>
                 </div>
@@ -1599,7 +1670,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
             </div>
           )}
 
-          {activeTab === 'runs' && (
+          {activeTab === "runs" && (
             <div className="flex flex-col h-full bg-[#0B0E14]/30 animate-in fade-in duration-300">
               {selectedRunId ? (
                 <RunDetailsView
@@ -1613,7 +1684,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                   <div className="p-6 border-b border-slate-800/50 space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                        <History className="w-3 h-3" />
+                        <History className="w-3 h-3"/>
                         Execution History
                       </h3>
                       <div className="flex items-center gap-2">
@@ -1624,7 +1695,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                           title="Refresh history"
                         >
                           <RefreshCw
-                            className={cn('w-3.5 h-3.5', isLoadingRuns && 'animate-spin')}
+                            className={cn("w-3.5 h-3.5", isLoadingRuns && "animate-spin")}
                           />
                         </button>
                       </div>
@@ -1632,8 +1703,9 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
 
                     <div className="flex items-center gap-3">
                       <div className="flex-1 relative group/select">
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-hover/select:text-blue-400 transition-colors pointer-events-none">
-                          <User className="w-3.5 h-3.5" />
+                        <div
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-hover/select:text-blue-400 transition-colors pointer-events-none">
+                          <User className="w-3.5 h-3.5"/>
                         </div>
                         <select
                           value={selectedRoleId}
@@ -1657,25 +1729,26 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                             </option>
                           ))}
                         </select>
-                        <Plus className="w-3 h-3 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600 group-hover/select:text-slate-400 transition-colors" />
+                        <Plus
+                          className="w-3 h-3 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600 group-hover/select:text-slate-400 transition-colors"/>
                       </div>
 
                       <button
                         onClick={handleStartRun}
                         disabled={isStartingRun || !selectedRoleId}
                         className={cn(
-                          'flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-lg',
+                          "flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-lg",
                           isStartingRun || !selectedRoleId
-                            ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50'
-                            : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98] border border-blue-500/30'
+                            ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50"
+                            : "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98] border border-blue-500/30"
                         )}
                       >
                         {isStartingRun ? (
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin"/>
                         ) : (
-                          <Play className="w-3.5 h-3.5 fill-current" />
+                          <Play className="w-3.5 h-3.5 fill-current"/>
                         )}
-                        {isStartingRun ? 'Starting...' : 'Start Run'}
+                        {isStartingRun ? "Starting..." : "Start Run"}
                       </button>
                     </div>
                   </div>
@@ -1684,7 +1757,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                     {isLoadingRuns && runs.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-12 space-y-3 opacity-50">
-                        <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
+                        <RefreshCw className="w-6 h-6 animate-spin text-blue-500"/>
                         <p className="text-xs text-slate-400 font-medium">Loading history...</p>
                       </div>
                     ) : runs.length > 0 ? (
@@ -1710,33 +1783,33 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                                   <div className="flex items-center gap-2">
                                     <span
                                       className={cn(
-                                        'inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider transition-all',
+                                        "inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider transition-all",
                                         runStatus.className
                                       )}
                                     >
                                       <runStatus.icon
                                         className={cn(
-                                          'w-2.5 h-2.5',
-                                          run.status === 'running' && 'animate-spin'
+                                          "w-2.5 h-2.5",
+                                          run.status === "running" && "animate-spin"
                                         )}
                                       />
                                       {runStatus.label}
                                     </span>
                                     <span className="text-[10px] text-slate-500 flex items-center gap-1">
-                                      <Clock className="w-2.5 h-2.5" />
+                                      <Clock className="w-2.5 h-2.5"/>
                                       {new Date(run.createdAt).toLocaleString()}
                                     </span>
                                   </div>
                                 </div>
 
                                 <div className="flex items-center gap-1.5">
-                                  {run.status === 'running' ? (
+                                  {run.status === "running" ? (
                                     <button
                                       onClick={() => handleCancelRun(run.id)}
                                       className="p-2 text-red-400 hover:bg-red-500/15 rounded-xl transition-all hover:scale-105"
                                       title="Cancel Run"
                                     >
-                                      <Square className="w-3.5 h-3.5 fill-current" />
+                                      <Square className="w-3.5 h-3.5 fill-current"/>
                                     </button>
                                   ) : (
                                     <button
@@ -1745,7 +1818,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                                       className="p-2 text-blue-400 hover:bg-blue-500/15 rounded-xl transition-all hover:scale-105 disabled:opacity-50"
                                       title="Retry Run"
                                     >
-                                      <RotateCcw className="w-3.5 h-3.5" />
+                                      <RotateCcw className="w-3.5 h-3.5"/>
                                     </button>
                                   )}
                                   <button
@@ -1753,7 +1826,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                                     className="p-2 text-slate-500 hover:text-white hover:bg-slate-700/50 rounded-xl transition-all"
                                     title="View details"
                                   >
-                                    <ArrowUpRight className="w-3.5 h-3.5" />
+                                    <ArrowUpRight className="w-3.5 h-3.5"/>
                                   </button>
                                 </div>
                               </div>
@@ -1766,8 +1839,9 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                                 </div>
                               )}
 
-                              <div className="absolute -right-1 -top-1 opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none">
-                                <Terminal className="w-16 h-16" />
+                              <div
+                                className="absolute -right-1 -top-1 opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none">
+                                <Terminal className="w-16 h-16"/>
                               </div>
                             </div>
                           )
@@ -1775,8 +1849,9 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                       </div>
                     ) : (
                       <div className="flex flex-col items-center justify-center py-16 px-6 text-center space-y-4">
-                        <div className="w-12 h-12 bg-slate-900/50 rounded-2xl flex items-center justify-center border border-slate-800/50 text-slate-600">
-                          <History className="w-6 h-6" />
+                        <div
+                          className="w-12 h-12 bg-slate-900/50 rounded-2xl flex items-center justify-center border border-slate-800/50 text-slate-600">
+                          <History className="w-6 h-6"/>
                         </div>
                         <div className="space-y-1">
                           <p className="text-sm font-semibold text-slate-300">No runs yet</p>
@@ -1792,50 +1867,50 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
             </div>
           )}
 
-          {activeTab === 'chat' && (
+          {activeTab === "chat" && (
             <div className="h-full flex flex-col">
               <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
                 {messages.map((msg) => (
                   <div
                     key={msg.id}
                     className={cn(
-                      'flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300',
-                      msg.role === 'user' ? 'flex-row-reverse' : ''
+                      "flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300",
+                      msg.role === "user" ? "flex-row-reverse" : ""
                     )}
                   >
                     <div
                       className={cn(
-                        'flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center border transition-all',
-                        msg.role === 'assistant'
-                          ? 'bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border-blue-500/30 shadow-lg shadow-blue-500/5'
-                          : 'bg-slate-700/50 border-slate-600/30'
+                        "flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center border transition-all",
+                        msg.role === "assistant"
+                          ? "bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border-blue-500/30 shadow-lg shadow-blue-500/5"
+                          : "bg-slate-700/50 border-slate-600/30"
                       )}
                     >
-                      {msg.role === 'assistant' ? (
-                        <Sparkles className="w-4 h-4 text-blue-400" />
+                      {msg.role === "assistant" ? (
+                        <Sparkles className="w-4 h-4 text-blue-400"/>
                       ) : (
                         <span className="text-xs font-semibold text-slate-400">Y</span>
                       )}
                     </div>
                     <div
                       className={cn(
-                        'flex-1 space-y-2 max-w-[85%]',
-                        msg.role === 'user' ? 'text-right' : ''
+                        "flex-1 space-y-2 max-w-[85%]",
+                        msg.role === "user" ? "text-right" : ""
                       )}
                     >
                       <div
                         className={cn(
-                          'flex items-center gap-2',
-                          msg.role === 'user' ? 'justify-end' : ''
+                          "flex items-center gap-2",
+                          msg.role === "user" ? "justify-end" : ""
                         )}
                       >
                         <span
                           className={cn(
-                            'text-xs font-semibold',
-                            msg.role === 'assistant' ? 'text-blue-400' : 'text-slate-300'
+                            "text-xs font-semibold",
+                            msg.role === "assistant" ? "text-blue-400" : "text-slate-300"
                           )}
                         >
-                          {msg.role === 'assistant' ? 'AI Assistant' : 'You'}
+                          {msg.role === "assistant" ? "AI Assistant" : "You"}
                         </span>
                         <span className="text-[10px] text-slate-600">
                           {formatTime(msg.timestamp)}
@@ -1843,18 +1918,20 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                       </div>
                       <div
                         className={cn(
-                          'rounded-2xl px-4 py-3 border transition-all hover:shadow-md',
-                          msg.role === 'assistant'
-                            ? 'bg-slate-800/40 border-slate-700/40 rounded-tl-sm'
-                            : 'bg-blue-600/20 border-blue-500/30 rounded-tr-sm text-left ml-auto shadow-inner'
+                          "rounded-2xl px-4 py-3 border transition-all hover:shadow-md space-y-3",
+                          msg.role === "assistant"
+                            ? "bg-slate-800/40 border-slate-700/40 rounded-tl-sm"
+                            : "bg-blue-600/20 border-blue-500/30 rounded-tr-sm text-left ml-auto shadow-inner"
                         )}
                       >
-                        <p className="text-sm text-slate-300 leading-relaxed">{msg.content}</p>
+                        {msg.parts.map((part, idx) => (
+                          <MessagePartRenderer key={idx} part={part}/>
+                        ))}
                       </div>
                     </div>
                   </div>
                 ))}
-                <div ref={chatEndRef} />
+                <div ref={chatEndRef}/>
               </div>
 
               <div className="p-6 border-t border-slate-800/50 bg-[#0B0E14]/50">
@@ -1863,7 +1940,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
+                      if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault()
                         handleSendMessage()
                       }
@@ -1876,13 +1953,13 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                     onClick={handleSendMessage}
                     disabled={!chatInput.trim()}
                     className={cn(
-                      'absolute right-2 top-1.5 p-2 rounded-lg transition-all',
+                      "absolute right-2 top-1.5 p-2 rounded-lg transition-all",
                       chatInput.trim()
-                        ? 'text-blue-400 hover:bg-blue-500/10 scale-110'
-                        : 'text-slate-600 opacity-50 cursor-not-allowed'
+                        ? "text-blue-400 hover:bg-blue-500/10 scale-110"
+                        : "text-slate-600 opacity-50 cursor-not-allowed"
                     )}
                   >
-                    <Send className="w-4 h-4" />
+                    <Send className="w-4 h-4"/>
                   </button>
                 </div>
                 <div className="mt-2 flex items-center justify-between">
@@ -1890,7 +1967,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                     Press Enter to send, Shift + Enter for new line
                   </p>
                   <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-                    <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                    <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"/>
                     AI Ready
                   </div>
                 </div>

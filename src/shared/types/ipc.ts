@@ -830,6 +830,7 @@ export const TaskQueueStateSchema = z.enum([
   'paused',
   'done',
   'failed',
+  'cancelled',
 ])
 
 export type TaskQueueState = z.infer<typeof TaskQueueStateSchema>
@@ -868,3 +869,31 @@ export const ResourceLockRowSchema = z.object({
 })
 
 export type ResourceLockRow = z.infer<typeof ResourceLockRowSchema>
+
+export type ToolState = 'pending' | 'running' | 'completed' | 'error'
+
+export type Part =
+  | { type: 'text'; text: string; synthetic?: boolean; ignored?: boolean }
+  | { type: 'file'; url: string; mime: string; filename?: string }
+  | { type: 'agent'; name: string }
+  | {
+      type: 'tool'
+      callID: string
+      tool: string
+      state: ToolState
+      input?: any
+      output?: any
+      error?: string
+    }
+  | { type: 'reasoning'; text: string }
+
+export type MessageInfo = {
+  id: string
+  sessionID: string
+  role: 'user' | 'assistant'
+  time: {
+    created: number
+    completed?: number
+  }
+  parts: Part[]
+}
