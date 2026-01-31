@@ -25,6 +25,7 @@ export type RunRecord = {
   aiTokensIn?: number
   aiTokensOut?: number
   aiCostUsd?: number
+  sessionId?: string
   createdAt: string
   updatedAt: string
 }

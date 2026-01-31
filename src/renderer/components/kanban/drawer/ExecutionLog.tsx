@@ -4,7 +4,7 @@ import { AgentPart, FilePart, ReasoningPart, TextPart, ToolPart } from '../../ch
 import { cn } from '../../../lib/utils'
 import type { Part, RunEvent } from '@/shared/types/ipc.ts'
 
-export function ExecutionLog({ sessionId }: { sessionId: string }) {
+export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: string }) {
   const [events, setEvents] = useState<RunEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [autoScroll, setAutoScroll] = useState(true)
@@ -72,7 +72,7 @@ export function ExecutionLog({ sessionId }: { sessionId: string }) {
     const fetchEvents = async () => {
       try {
         const response = await window.api.events.tail({
-          runId: sessionId,
+          runId: runId,
           afterTs: lastTsRef.current ? lastTsRef.current.toString() : undefined,
           limit: 200,
         })
@@ -96,7 +96,7 @@ export function ExecutionLog({ sessionId }: { sessionId: string }) {
       isActive = false
       clearInterval(interval)
     }
-  }, [sessionId])
+  }, [runId])
 
   useEffect(() => {
     if (autoScroll && scrollRef.current) {

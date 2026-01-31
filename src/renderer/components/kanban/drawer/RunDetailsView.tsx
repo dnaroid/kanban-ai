@@ -95,7 +95,7 @@ export function RunDetailsView({
 
       <div className="flex-1 overflow-hidden">
         {view === 'log' ? (
-          <ExecutionLog sessionId={run?.sessionId || ''} />
+          <ExecutionLog runId={runId} sessionId={run?.sessionId || ''} />
         ) : (
           <ArtifactsPanel runId={runId} />
         )}

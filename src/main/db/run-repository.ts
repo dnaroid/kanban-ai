@@ -26,6 +26,7 @@ const mapRunRow = (row: {
   aiTokensIn: number
   aiTokensOut: number
   aiCostUsd: number
+  sessionId: string | null
   createdAt: string
   updatedAt: string
 }): RunRecord => ({
@@ -42,6 +43,7 @@ const mapRunRow = (row: {
   aiTokensIn: row.aiTokensIn ?? 0,
   aiTokensOut: row.aiTokensOut ?? 0,
   aiCostUsd: row.aiCostUsd ?? 0,
+  sessionId: row.sessionId ?? undefined,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 })
@@ -105,23 +107,25 @@ export class RunRepository {
       .prepare(
         `
         SELECT
-          id,
-          task_id as taskId,
-          role_id as roleId,
-          mode,
-          status,
-          started_at as startedAt,
-          finished_at as finishedAt,
-          error_text as errorText,
-          budget_json as budgetJson,
-          context_snapshot_id as contextSnapshotId,
-          ai_tokens_in as aiTokensIn,
-          ai_tokens_out as aiTokensOut,
-          ai_cost_usd as aiCostUsd,
-          created_at as createdAt,
-          updated_at as updatedAt
-        FROM runs
-        WHERE id = ?
+          r.id,
+          r.task_id as taskId,
+          r.role_id as roleId,
+          r.mode,
+          r.status,
+          r.started_at as startedAt,
+          r.finished_at as finishedAt,
+          r.error_text as errorText,
+          r.budget_json as budgetJson,
+          r.context_snapshot_id as contextSnapshotId,
+          r.ai_tokens_in as aiTokensIn,
+          r.ai_tokens_out as aiTokensOut,
+          r.ai_cost_usd as aiCostUsd,
+          os.session_id as sessionId,
+          r.created_at as createdAt,
+          r.updated_at as updatedAt
+        FROM runs r
+        LEFT JOIN opencode_sessions os ON r.id = os.run_id
+        WHERE r.id = ?
         LIMIT 1
       `
       )
@@ -140,6 +144,7 @@ export class RunRepository {
           aiTokensIn: number
           aiTokensOut: number
           aiCostUsd: number
+          sessionId: string | null
           createdAt: string
           updatedAt: string
         }
@@ -155,24 +160,26 @@ export class RunRepository {
       .prepare(
         `
         SELECT
-          id,
-          task_id as taskId,
-          role_id as roleId,
-          mode,
-          status,
-          started_at as startedAt,
-          finished_at as finishedAt,
-          error_text as errorText,
-          budget_json as budgetJson,
-          context_snapshot_id as contextSnapshotId,
-          ai_tokens_in as aiTokensIn,
-          ai_tokens_out as aiTokensOut,
-          ai_cost_usd as aiCostUsd,
-          created_at as createdAt,
-          updated_at as updatedAt
-        FROM runs
-        WHERE task_id = ?
-        ORDER BY created_at DESC
+          r.id,
+          r.task_id as taskId,
+          r.role_id as roleId,
+          r.mode,
+          r.status,
+          r.started_at as startedAt,
+          r.finished_at as finishedAt,
+          r.error_text as errorText,
+          r.budget_json as budgetJson,
+          r.context_snapshot_id as contextSnapshotId,
+          r.ai_tokens_in as aiTokensIn,
+          r.ai_tokens_out as aiTokensOut,
+          r.ai_cost_usd as aiCostUsd,
+          os.session_id as sessionId,
+          r.created_at as createdAt,
+          r.updated_at as updatedAt
+        FROM runs r
+        LEFT JOIN opencode_sessions os ON r.id = os.run_id
+        WHERE r.task_id = ?
+        ORDER BY r.created_at DESC
       `
       )
       .all(taskId) as {
@@ -189,6 +196,7 @@ export class RunRepository {
       aiTokensIn: number
       aiTokensOut: number
       aiCostUsd: number
+      sessionId: string | null
       createdAt: string
       updatedAt: string
     }[]
@@ -202,24 +210,26 @@ export class RunRepository {
 
     let sql = `
         SELECT
-          id,
-          task_id as taskId,
-          role_id as roleId,
-          mode,
-          status,
-          started_at as startedAt,
-          finished_at as finishedAt,
-          error_text as errorText,
-          budget_json as budgetJson,
-          context_snapshot_id as contextSnapshotId,
-          ai_tokens_in as aiTokensIn,
-          ai_tokens_out as aiTokensOut,
-          ai_cost_usd as aiCostUsd,
-          created_at as createdAt,
-          updated_at as updatedAt
-        FROM runs
-        WHERE status = ?
-        ORDER BY created_at ASC
+          r.id,
+          r.task_id as taskId,
+          r.role_id as roleId,
+          r.mode,
+          r.status,
+          r.started_at as startedAt,
+          r.finished_at as finishedAt,
+          r.error_text as errorText,
+          r.budget_json as budgetJson,
+          r.context_snapshot_id as contextSnapshotId,
+          r.ai_tokens_in as aiTokensIn,
+          r.ai_tokens_out as aiTokensOut,
+          r.ai_cost_usd as aiCostUsd,
+          os.session_id as sessionId,
+          r.created_at as createdAt,
+          r.updated_at as updatedAt
+        FROM runs r
+        LEFT JOIN opencode_sessions os ON r.id = os.run_id
+        WHERE r.status = ?
+        ORDER BY r.created_at ASC
       `
 
     if (limit) {
@@ -241,6 +251,7 @@ export class RunRepository {
       aiTokensIn: number
       aiTokensOut: number
       aiCostUsd: number
+      sessionId: string | null
       createdAt: string
       updatedAt: string
     }[]
