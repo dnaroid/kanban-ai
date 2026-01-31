@@ -5,8 +5,10 @@ import {
   ChevronRight,
   FileText,
   Maximize2,
+  Minimize2,
   MoreVertical,
   Sparkles,
+  Trash2,
   X,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -58,6 +60,8 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editedTitle, setEditedTitle] = useState('')
   const titleInputRef = useRef<HTMLInputElement>(null)
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   useEffect(() => {
     if (task) {
@@ -105,7 +109,13 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
         className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity duration-300"
         onClick={onClose}
       />
-      <div className="fixed inset-y-0 right-0 w-[600px] bg-[#0B0E14] border-l border-slate-800 shadow-2xl transform transition-transform duration-300 z-50 flex flex-col">
+      <div
+        className={cn(
+          'fixed inset-y-0 right-0 bg-[#0B0E14] border-l border-slate-800 shadow-2xl transform transition-all duration-300 z-50 flex flex-col',
+          isExpanded ? 'w-[90vw]' : 'w-[600px]'
+        )}
+      >
+        {/* Header */}
         <div className="h-14 border-b border-slate-800 flex items-center justify-between px-4 bg-[#11151C] shrink-0">
           <div className="flex items-center gap-2 flex-1 min-w-0 mr-4">
             <div className="p-1.5 bg-blue-500/10 rounded-md border border-blue-500/20 text-blue-400 shrink-0">
@@ -132,12 +142,41 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
             )}
           </div>
           <div className="flex items-center gap-1">
-            <button className="p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded transition-colors">
-              <Maximize2 className="w-4 h-4" />
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded transition-colors"
+              title={isExpanded ? 'Collapse' : 'Expand'}
+            >
+              {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
-            <button className="p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded transition-colors">
-              <MoreVertical className="w-4 h-4" />
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className={cn(
+                  'p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded transition-colors',
+                  isMenuOpen && 'text-slate-300 bg-slate-800'
+                )}
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+
+              {isMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setIsMenuOpen(false)} />
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-[#161B26] border border-slate-700 rounded-lg shadow-xl z-20 py-1 animate-in fade-in zoom-in-95 duration-200">
+                    <button
+                      onClick={() => {
+                        setIsMenuOpen(false)
+                      }}
+                      className="w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete Task
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
             <div className="w-px h-4 bg-slate-800 mx-1" />
             <button
               onClick={onClose}
@@ -148,6 +187,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
           </div>
         </div>
 
+        {/* Tabs */}
         <div className="flex items-center px-4 border-b border-slate-800 bg-[#11151C] shrink-0">
           {tabs.map((tab) => (
             <button
@@ -165,6 +205,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
           ))}
         </div>
 
+        {/* Content */}
         <div className="flex-1 overflow-hidden relative">
           <div
             className={cn('absolute inset-0 flex flex-col', activeTab !== 'details' && 'hidden')}

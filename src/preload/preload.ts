@@ -87,6 +87,9 @@ const api: MainToRenderer = {
     getLastProjectId: () => ipcRenderer.invoke('appSetting:getLastProjectId'),
     setLastProjectId: (input: { projectId: string }) =>
       ipcRenderer.invoke('appSetting:setLastProjectId', input),
+    getSidebarCollapsed: () => ipcRenderer.invoke('appSetting:getSidebarCollapsed'),
+    setSidebarCollapsed: (input: { collapsed: boolean }) =>
+      ipcRenderer.invoke('appSetting:setSidebarCollapsed', input),
   },
 }
 

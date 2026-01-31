@@ -8,6 +8,7 @@ interface AppSetting {
 
 export class AppSettingsRepository {
   private static readonly LAST_PROJECT_KEY = 'last_project_id'
+  private static readonly SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed'
 
   set(key: string, value: string): void {
     const db = dbManager.connect()
@@ -44,6 +45,15 @@ export class AppSettingsRepository {
     const db = dbManager.connect()
     const stmt = db.prepare('DELETE FROM app_settings WHERE key = ?')
     stmt.run(AppSettingsRepository.LAST_PROJECT_KEY)
+  }
+
+  getSidebarCollapsed(): boolean {
+    const value = this.get(AppSettingsRepository.SIDEBAR_COLLAPSED_KEY)
+    return value === 'true'
+  }
+
+  setSidebarCollapsed(collapsed: boolean): void {
+    this.set(AppSettingsRepository.SIDEBAR_COLLAPSED_KEY, String(collapsed))
   }
 }
 

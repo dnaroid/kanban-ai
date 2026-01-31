@@ -747,6 +747,30 @@ export type AppSettingSetLastProjectIdResponse = z.infer<
   typeof AppSettingSetLastProjectIdResponseSchema
 >
 
+export const AppSettingGetSidebarCollapsedResponseSchema = z.object({
+  collapsed: z.boolean(),
+})
+
+export type AppSettingGetSidebarCollapsedResponse = z.infer<
+  typeof AppSettingGetSidebarCollapsedResponseSchema
+>
+
+export const AppSettingSetSidebarCollapsedInputSchema = z.object({
+  collapsed: z.boolean(),
+})
+
+export type AppSettingSetSidebarCollapsedInput = z.infer<
+  typeof AppSettingSetSidebarCollapsedInputSchema
+>
+
+export const AppSettingSetSidebarCollapsedResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type AppSettingSetSidebarCollapsedResponse = z.infer<
+  typeof AppSettingSetSidebarCollapsedResponseSchema
+>
+
 // OpenCode event subscription types
 export const OpenCodeSubscribeInputSchema = z.object({
   sessionID: z.string(),

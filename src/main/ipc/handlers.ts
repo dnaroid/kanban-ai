@@ -68,6 +68,9 @@ import {
   AppSettingGetLastProjectIdResponseSchema,
   AppSettingSetLastProjectIdInputSchema,
   AppSettingSetLastProjectIdResponseSchema,
+  AppSettingGetSidebarCollapsedResponseSchema,
+  AppSettingSetSidebarCollapsedInputSchema,
+  AppSettingSetSidebarCollapsedResponseSchema,
 } from '../../shared/types/ipc.js'
 import { projectRepo } from '../db/project-repository'
 import { appSettingsRepo } from '../db/app-settings-repository.js'
@@ -362,6 +365,20 @@ ipcHandlers.register(
   async (_, input) => {
     appSettingsRepo.setLastProjectId(input.projectId)
     return AppSettingSetLastProjectIdResponseSchema.parse({ ok: true })
+  }
+)
+
+ipcHandlers.register('appSetting:getSidebarCollapsed', z.object({}), async () => {
+  const collapsed = appSettingsRepo.getSidebarCollapsed()
+  return AppSettingGetSidebarCollapsedResponseSchema.parse({ collapsed })
+})
+
+ipcHandlers.register(
+  'appSetting:setSidebarCollapsed',
+  AppSettingSetSidebarCollapsedInputSchema,
+  async (_, input) => {
+    appSettingsRepo.setSidebarCollapsed(input.collapsed)
+    return AppSettingSetSidebarCollapsedResponseSchema.parse({ ok: true })
   }
 )
 

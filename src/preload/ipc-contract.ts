@@ -63,6 +63,9 @@ import type {
   AppSettingGetLastProjectIdResponse,
   AppSettingSetLastProjectIdInput,
   AppSettingSetLastProjectIdResponse,
+  AppSettingGetSidebarCollapsedResponse,
+  AppSettingSetSidebarCollapsedInput,
+  AppSettingSetSidebarCollapsedResponse,
   OpenCodeSessionEvent,
 } from '../shared/types/ipc'
 
@@ -147,6 +150,10 @@ export interface MainToRenderer {
     setLastProjectId(
       input: AppSettingSetLastProjectIdInput
     ): Promise<AppSettingSetLastProjectIdResponse>
+    getSidebarCollapsed(): Promise<AppSettingGetSidebarCollapsedResponse>
+    setSidebarCollapsed(
+      input: AppSettingSetSidebarCollapsedInput
+    ): Promise<AppSettingSetSidebarCollapsedResponse>
   }
 }
 
@@ -226,5 +233,9 @@ export interface RendererToMain {
     setLastProjectId(
       input: AppSettingSetLastProjectIdInput
     ): Promise<AppSettingSetLastProjectIdResponse>
+    getSidebarCollapsed(): Promise<AppSettingGetSidebarCollapsedResponse>
+    setSidebarCollapsed(
+      input: AppSettingSetSidebarCollapsedInput
+    ): Promise<AppSettingSetSidebarCollapsedResponse>
   }
 }

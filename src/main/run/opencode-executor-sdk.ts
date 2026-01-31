@@ -1,16 +1,16 @@
-import { projectRepo } from '../db/project-repository.js'
-import { runEventRepo } from '../db/run-event-repository.js'
-import { taskRepo } from '../db/task-repository.js'
-import { opencodeSessionRepo } from '../db/opencode-session-repository.js'
-import type { RunRecord } from '../db/run-types'
-import type { RunExecutor } from './job-runner'
-import { sessionManager } from './opencode-session-manager.js'
+import {projectRepo} from "../db/project-repository.js"
+import {runEventRepo} from "../db/run-event-repository.js"
+import {taskRepo} from "../db/task-repository.js"
+import {opencodeSessionRepo} from "../db/opencode-session-repository.js"
+import type {RunRecord} from "../db/run-types"
+import type {RunExecutor} from "./job-runner"
+import {sessionManager} from "./opencode-session-manager.js"
 
 const buildTaskPrompt = (task: any, project: any): string => {
   return `
 ЗАДАЧА: ${task.title}
 
-Описание: ${task.description || 'Нет описания'}
+Описание: ${task.description || "Нет описания"}
 
 Контекст проекта:
 - Путь: ${project.path}
@@ -18,7 +18,7 @@ const buildTaskPrompt = (task: any, project: any): string => {
 
 Требования:
 1. Выполните задачу в директории проекта: ${project.path}
-2. При завершении выведи в формате:
+2. При завершении в самом конце выведи в формате:
    STATUS: done|fail|question
 3. Если STATUS=fail — опиши причину
 4. Если STATUS=question — задай конкретный вопрос пользователю
@@ -29,12 +29,12 @@ export class OpenCodeExecutorSDK implements RunExecutor {
   async start(run: RunRecord): Promise<void> {
     const task = taskRepo.getById(run.taskId)
     if (!task) {
-      throw new Error('Task not found for run')
+      throw new Error("Task not found for run")
     }
 
     const project = projectRepo.getById(task.projectId)
     if (!project) {
-      throw new Error('Project not found for run')
+      throw new Error("Project not found for run")
     }
 
     const repoPath = project.path
@@ -52,8 +52,8 @@ export class OpenCodeExecutorSDK implements RunExecutor {
 
     runEventRepo.create({
       runId: run.id,
-      eventType: 'status',
-      payload: { message: 'OpenCode session created', sessionId: sessionInfo.id },
+      eventType: "status",
+      payload: {message: "OpenCode session created", sessionId: sessionInfo.id},
     })
 
     try {
@@ -74,9 +74,9 @@ export class OpenCodeExecutorSDK implements RunExecutor {
         for (const msg of messages) {
           const previousContent = messageContentById.get(msg.id)
           const currentContent = msg.parts
-            .filter((p) => p.type === 'text' && !p.ignored)
+            .filter((p) => p.type === "text" && !p.ignored)
             .map((p) => (p as { text: string }).text)
-            .join('\n')
+            .join("\n")
 
           if (previousContent === undefined) {
             messageContentById.set(msg.id, currentContent)
@@ -89,7 +89,7 @@ export class OpenCodeExecutorSDK implements RunExecutor {
 
           runEventRepo.create({
             runId: run.id,
-            eventType: 'message',
+            eventType: "message",
             payload: {
               role: msg.role,
               parts: msg.parts,
@@ -99,23 +99,23 @@ export class OpenCodeExecutorSDK implements RunExecutor {
         }
 
         const lastMessage = messages[messages.length - 1]
-        if (lastMessage && lastMessage.role === 'assistant') {
+        if (lastMessage && lastMessage.role === "assistant") {
           const content = lastMessage.parts
-            .filter((p) => p.type === 'text' && !p.ignored)
+            .filter((p) => p.type === "text" && !p.ignored)
             .map((p) => (p as { text: string }).text)
-            .join('\n')
+            .join("\n")
           const statusMatch = content.match(/STATUS:\s*(done|fail|question)/i)
 
           if (statusMatch) {
             const rawStatus = statusMatch[1].toLowerCase()
-            const statusMap: Record<string, 'todo' | 'in-progress' | 'done'> = {
-              done: 'done',
-              fail: 'todo',
-              question: 'in-progress',
+            const statusMap: Record<string, "todo" | "in-progress" | "done"> = {
+              done: "done",
+              fail: "todo",
+              question: "in-progress",
             }
-            taskRepo.update(task.id, { status: statusMap[rawStatus] })
+            taskRepo.update(task.id, {status: statusMap[rawStatus]})
 
-            opencodeSessionRepo.updateStatus(run.id, 'completed')
+            opencodeSessionRepo.updateStatus(run.id, "completed")
             break
           }
         }
@@ -124,12 +124,12 @@ export class OpenCodeExecutorSDK implements RunExecutor {
       if (elapsed >= maxPollTime) {
         runEventRepo.create({
           runId: run.id,
-          eventType: 'status',
-          payload: { message: 'Session polling timeout' },
+          eventType: "status",
+          payload: {message: "Session polling timeout"},
         })
       }
     } catch (error) {
-      opencodeSessionRepo.updateStatus(run.id, 'aborted')
+      opencodeSessionRepo.updateStatus(run.id, "aborted")
       throw error
     }
   }
@@ -140,9 +140,9 @@ export class OpenCodeExecutorSDK implements RunExecutor {
 
     try {
       await sessionManager.abortSession(sessionRecord.sessionId)
-      opencodeSessionRepo.updateStatus(runId, 'aborted')
+      opencodeSessionRepo.updateStatus(runId, "aborted")
     } catch (error) {
-      console.error('[OpenCodeExecutorSDK] Failed to abort session:', error)
+      console.error("[OpenCodeExecutorSDK] Failed to abort session:", error)
     }
   }
 }

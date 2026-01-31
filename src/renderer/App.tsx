@@ -2,14 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Activity,
   AlertTriangle,
-  ChevronRight,
-  ChevronLeft,
-  ChevronRight as ChevronRightIcon,
-  FolderKanban,
-  CalendarRange,
-  Search,
   BarChart3,
+  CalendarRange,
+  ChevronLeft,
+  ChevronRight,
+  FolderKanban,
   Layout,
+  Search,
   Settings,
 } from 'lucide-react'
 import { ProjectsScreen } from './screens/ProjectsScreen'
@@ -112,6 +111,31 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    const loadSidebarState = async () => {
+      try {
+        const { collapsed } = await window.api.appSetting.getSidebarCollapsed()
+        setIsSidebarCollapsed(collapsed)
+      } catch (error) {
+        console.error('Failed to load sidebar state:', error)
+      }
+    }
+
+    loadSidebarState()
+  }, [])
+
+  useEffect(() => {
+    const saveSidebarState = async () => {
+      try {
+        await window.api.appSetting.setSidebarCollapsed({ collapsed: isSidebarCollapsed })
+      } catch (error) {
+        console.error('Failed to save sidebar state:', error)
+      }
+    }
+
+    saveSidebarState()
+  }, [isSidebarCollapsed])
+
+  useEffect(() => {
     if (!isSearchOpen) return
     const query = searchQuery.trim()
     if (!query) {
@@ -163,30 +187,43 @@ export default function App() {
         className={`fixed top-0 left-0 h-full bg-[#11151C] border-r border-slate-800/50 flex flex-col z-50 transition-all duration-300 ${isSidebarCollapsed ? 'w-16' : 'w-64'}`}
       >
         <div
-          className={`flex items-center border-b border-slate-800/50 ${isSidebarCollapsed ? 'justify-center py-4' : 'justify-between p-6'}`}
+          className={cn(
+            'flex items-center shrink-0 transition-all duration-300 ease-in-out border-b border-slate-800/50',
+            isSidebarCollapsed ? 'flex-col justify-center gap-4 py-4' : 'justify-between px-6 py-5'
+          )}
         >
-          <div className={`flex items-center ${isSidebarCollapsed ? '' : 'gap-3'}`}>
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-600/20 shrink-0">
+          <div
+            className={cn(
+              'flex items-center',
+              isSidebarCollapsed ? 'justify-center w-full' : 'gap-3'
+            )}
+          >
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20 shrink-0">
               <Layout className="w-5 h-5 text-white" />
             </div>
             {!isSidebarCollapsed && (
-              <div>
-                <h1 className="text-lg font-bold tracking-tight text-white">Kanban AI</h1>
-                <span className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">
-                  Beta v0.1.0
+              <div className="flex flex-col animate-in fade-in duration-300">
+                <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+                  Kanban AI
+                </span>
+                <span className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">
+                  v1.0.0-beta
                 </span>
               </div>
             )}
           </div>
+
           <button
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className="text-slate-500 hover:text-slate-300 transition-colors"
-            title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className={cn(
+              'p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all duration-200',
+              isSidebarCollapsed ? '' : ''
+            )}
           >
             {isSidebarCollapsed ? (
-              <ChevronRightIcon className="w-5 h-5" />
+              <ChevronRight className="w-4 h-4" />
             ) : (
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-4 h-4" />
             )}
           </button>
         </div>

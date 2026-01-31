@@ -1,32 +1,32 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import {
-  DndContext,
-  DragOverlay,
   closestCorners,
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
-  DragStartEvent,
-  DragEndEvent,
 } from '@dnd-kit/core'
 import {
-  SortableContext,
   arrayMove,
-  sortableKeyboardCoordinates,
   horizontalListSortingStrategy,
-  verticalListSortingStrategy,
+  SortableContext,
+  sortableKeyboardCoordinates,
   useSortable,
+  verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Plus, X, AlertCircle, Clock, Play, Edit2, Trash2 } from 'lucide-react'
+import { AlertCircle, Clock, Edit2, GripVertical, Play, Plus, Trash2, X } from 'lucide-react'
 import type {
   Board,
   BoardColumn,
   BoardColumnInput,
-  KanbanTask,
   CreateTaskInput,
-} from '../../shared/types/ipc'
+  KanbanTask,
+} from '@/shared/types/ipc.ts'
 import { cn } from '../lib/utils'
 import { TaskDrawer } from '../components/kanban/TaskDrawer'
 
@@ -659,9 +659,27 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
     }
   }
 
-  const handleAddTask = (columnId: string) => {
-    setQuickAddColumnId(columnId)
-    setQuickAddModalOpen(true)
+  const handleAddTask = async (columnId: string) => {
+    if (!board) return
+
+    try {
+      const response = await window.api.task.create({
+        boardId: board.id,
+        columnId,
+        title: 'New',
+        status: 'todo',
+        priority: 'medium',
+        type: 'feature',
+        projectId,
+      })
+
+      setSelectedTask(response.task)
+      setDrawerOpen(true)
+
+      loadBoard()
+    } catch (error) {
+      console.error('Failed to create draft task:', error)
+    }
   }
 
   const handleQuickAddSubmit = async (taskData: Omit<CreateTaskInput, 'boardId' | 'projectId'>) => {
