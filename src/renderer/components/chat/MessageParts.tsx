@@ -177,7 +177,7 @@ export function ReasoningPart({ part }: { part: { text: string } }) {
           )}
         </button>
         {isExpanded && (
-          <div className="text-xs text-slate-400/90 leading-relaxed font-serif italic border-l border-violet-500/10 pl-3 py-1 bg-violet-500/[0.02] rounded-r-lg">
+          <div className="text-xs text-slate-400/60 leading-relaxed font-serif italic border-l border-violet-500/10 pl-3 py-1 bg-violet-500/[0.02] rounded-r-lg">
             {part.text}
           </div>
         )}
