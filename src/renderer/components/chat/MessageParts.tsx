@@ -14,10 +14,11 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { Part, ToolState } from '@/shared/types/ipc'
+import { LightMarkdown } from '../LightMarkdown'
 
 export function TextPart({ part }: { part: { text: string } }) {
   if (!part.text) return null
-  return <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{part.text}</p>
+  return <LightMarkdown text={part.text} className="text-sm text-slate-300 leading-relaxed" />
 }
 
 export function FilePart({ part }: { part: { url: string; mime: string; filename?: string } }) {
@@ -176,9 +177,10 @@ export function ReasoningPart({ part }: { part: { text: string } }) {
           )}
         </button>
         {isExpanded && (
-          <div className="text-xs text-slate-400/60 leading-relaxed font-serif italic border-l border-violet-500/10 pl-3 py-1 bg-violet-500/[0.02] rounded-r-lg">
-            {part.text}
-          </div>
+          <LightMarkdown
+            text={part.text}
+            className="text-xs text-slate-400/60 leading-relaxed font-serif italic border-l border-violet-500/10 pl-3 py-1 bg-violet-500/[0.02] rounded-r-lg"
+          />
         )}
       </div>
     </div>

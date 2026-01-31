@@ -3,6 +3,7 @@ import { Bot, ChevronsDown, RefreshCw, Terminal, User } from 'lucide-react'
 import { AgentPart, FilePart, ReasoningPart, TextPart, ToolPart } from '../../chat/MessageParts'
 import { cn } from '../../../lib/utils'
 import type { Part, RunEvent } from '@/shared/types/ipc.ts'
+import { LightMarkdown } from '../../LightMarkdown'
 
 export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: string }) {
   const [events, setEvents] = useState<RunEvent[]>([])
@@ -152,9 +153,12 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
             <span className="text-[10px] font-mono text-slate-600 mt-1 shrink-0 select-none w-16">
               {time}
             </span>
-            <span className="text-xs font-mono text-slate-300 break-all whitespace-pre-wrap">
-              {messagePayload}
-            </span>
+            <div className="flex-1 min-w-0">
+              <LightMarkdown
+                text={messagePayload}
+                className="text-xs text-slate-300 leading-relaxed"
+              />
+            </div>
           </div>
         )
       }
