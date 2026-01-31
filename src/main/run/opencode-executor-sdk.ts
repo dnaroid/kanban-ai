@@ -69,17 +69,22 @@ export class OpenCodeExecutorSDK implements RunExecutor {
         await new Promise((resolve) => setTimeout(resolve, pollInterval))
         elapsed += pollInterval
 
-        const messages = await sessionManager.getMessages(sessionInfo.id)
+        const messages = await sessionManager.getMessagesRaw(sessionInfo.id)
 
         for (const msg of messages) {
           const previousContent = messageContentById.get(msg.id)
+          const currentContent = msg.parts
+            .filter((p) => p.type === 'text' && !p.ignored)
+            .map((p) => (p as { text: string }).text)
+            .join('\n')
+
           if (previousContent === undefined) {
-            messageContentById.set(msg.id, msg.content)
-            if (!msg.content) continue
-          } else if (previousContent === msg.content) {
+            messageContentById.set(msg.id, currentContent)
+            if (!currentContent) continue
+          } else if (previousContent === currentContent) {
             continue
           } else {
-            messageContentById.set(msg.id, msg.content)
+            messageContentById.set(msg.id, currentContent)
           }
 
           runEventRepo.create({
@@ -87,7 +92,7 @@ export class OpenCodeExecutorSDK implements RunExecutor {
             eventType: 'message',
             payload: {
               role: msg.role,
-              content: msg.content,
+              parts: msg.parts,
               timestamp: msg.timestamp,
             },
           })
@@ -95,7 +100,10 @@ export class OpenCodeExecutorSDK implements RunExecutor {
 
         const lastMessage = messages[messages.length - 1]
         if (lastMessage && lastMessage.role === 'assistant') {
-          const content = lastMessage.content
+          const content = lastMessage.parts
+            .filter((p) => p.type === 'text' && !p.ignored)
+            .map((p) => (p as { text: string }).text)
+            .join('\n')
           const statusMatch = content.match(/STATUS:\s*(done|fail|question)/i)
 
           if (statusMatch) {

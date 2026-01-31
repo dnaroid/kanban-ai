@@ -188,6 +188,43 @@ export class OpenCodeSessionManager {
   }
 
   /**
+   * Получить все сообщения из сессии (сырые части)
+   */
+  async getMessagesRaw(
+    sessionID: string,
+    limit?: number
+  ): Promise<
+    Array<{
+      id: string
+      role: 'user' | 'assistant'
+      timestamp: number
+      parts: Part[]
+    }>
+  > {
+    const response = await this.client.session.messages({
+      sessionID,
+      limit,
+    })
+
+    if (response.error) {
+      throw new Error(`Failed to get messages: ${response.error}`)
+    }
+
+    const messages = response.data as Array<{ info: Message; parts: unknown[] }>
+
+    return messages.map((item) => {
+      const msg = item.info
+
+      return {
+        id: msg.id,
+        role: msg.role,
+        parts: item.parts as Part[],
+        timestamp: msg.time.created,
+      }
+    })
+  }
+
+  /**
    * Получить информацию о сессии
    */
   async getSessionInfo(sessionID: string): Promise<SessionInfo | null> {

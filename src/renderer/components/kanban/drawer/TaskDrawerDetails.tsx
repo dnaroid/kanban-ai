@@ -181,7 +181,7 @@ export function TaskDrawerDetails({ task, onUpdate, columnName }: TaskDrawerDeta
     // Determine from/to based on relationship
     // blocks: current blocks target (current -> target)
     // blocked_by: target blocks current (target -> current)
-    // relates_to: current relates to target (current <-> target)
+    // relates: current relates to target (current <-> target)
 
     let fromTaskId = task.id
     let toTaskId = dependencyTargetId
@@ -281,7 +281,13 @@ export function TaskDrawerDetails({ task, onUpdate, columnName }: TaskDrawerDeta
                 value={task.priority}
                 onChange={(e) => handleUpdatePriority(e.target.value)}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-              />
+              >
+                {Object.keys(priorityConfig).map((p) => (
+                  <option key={p} value={p}>
+                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                  </option>
+                ))}
+              </select>
               <div
                 className={cn(
                   'flex items-center gap-2 p-2 rounded-lg border transition-all group-hover:brightness-110',
@@ -310,7 +316,13 @@ export function TaskDrawerDetails({ task, onUpdate, columnName }: TaskDrawerDeta
                 value={task.type}
                 onChange={(e) => handleUpdateType(e.target.value)}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-              />
+              >
+                {Object.keys(typeConfig).map((t) => (
+                  <option key={t} value={t}>
+                    {t.charAt(0).toUpperCase() + t.slice(1)}
+                  </option>
+                ))}
+              </select>
               <div
                 className={cn(
                   'flex items-center gap-2 p-2 rounded-lg border transition-all group-hover:brightness-110',
@@ -464,7 +476,7 @@ export function TaskDrawerDetails({ task, onUpdate, columnName }: TaskDrawerDeta
                 >
                   <option value="blocks">Blocks</option>
                   <option value="blocked_by">Blocked By</option>
-                  <option value="relates_to">Relates To</option>
+                  <option value="relates">Relates To</option>
                 </select>
                 <div className="flex-1 relative">
                   <input
