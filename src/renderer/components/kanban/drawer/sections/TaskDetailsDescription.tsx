@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { AlertTriangle, FileText, Loader2, Wand2, X } from 'lucide-react'
+import { AlertTriangle, FileText, Loader2, Wand2, X, Pencil, Eye } from 'lucide-react'
 import { cn } from '../../../../lib/utils'
 import type { KanbanTask } from '@/shared/types/ipc.ts'
+import { LightMarkdown } from '../../../LightMarkdown'
 
 interface TaskDetailsDescriptionProps {
   task: KanbanTask
@@ -12,6 +13,7 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
   const [editedDescription, setEditedDescription] = useState(task.description || '')
   const [isGeneratingStory, setIsGeneratingStory] = useState(false)
   const [generationError, setGenerationError] = useState<string | null>(null)
+  const [isEditing, setIsEditing] = useState(false)
 
   useEffect(() => {
     setEditedDescription(task.description || '')
@@ -21,6 +23,7 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
     if (editedDescription !== task.description) {
       onUpdate?.(task.id, { description: editedDescription })
     }
+    setIsEditing(false)
   }
 
   const handleImproveDescription = async () => {
@@ -43,9 +46,12 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
       if (descriptionText.trim().length > 0) {
         setEditedDescription(descriptionText)
         setGenerationError(null)
+        if (!isEditing) {
+          setIsEditing(true)
+        }
       }
-    } catch (error: any) {
-      if (error.message === 'TIMEOUT') {
+    } catch (error) {
+      if (error instanceof Error && error.message === 'TIMEOUT') {
         setGenerationError('AI generation timed out (45s). The service might be busy.')
       } else {
         console.error('Failed to generate user story:', error)
@@ -65,6 +71,14 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
           Description
         </label>
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => setIsEditing(!isEditing)}
+            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded transition-colors"
+            title={isEditing ? 'Preview' : 'Edit'}
+          >
+            {isEditing ? <Eye className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
+          </button>
+
           <button
             onClick={handleImproveDescription}
             disabled={isGeneratingStory}
@@ -100,17 +114,33 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
       )}
 
       <div className="relative flex-1 min-h-0">
-        <textarea
-          value={editedDescription}
-          onChange={(e) => setEditedDescription(e.target.value)}
-          onBlur={handleSaveDescription}
-          disabled={isGeneratingStory}
-          placeholder="Add a description..."
-          className={cn(
-            'w-full h-full bg-[#161B26] border border-slate-800 rounded-xl p-4 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all resize-none',
-            isGeneratingStory && 'opacity-50 cursor-not-allowed'
-          )}
-        />
+        {isEditing ? (
+          <textarea
+            value={editedDescription}
+            onChange={(e) => setEditedDescription(e.target.value)}
+            onBlur={handleSaveDescription}
+            disabled={isGeneratingStory}
+            autoFocus
+            placeholder="Add a description..."
+            className={cn(
+              'w-full h-full bg-[#161B26] border border-slate-800 rounded-xl p-4 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all resize-none font-mono',
+              isGeneratingStory && 'opacity-50 cursor-not-allowed'
+            )}
+          />
+        ) : (
+          <div
+            onClick={() => setIsEditing(true)}
+            className="w-full h-full bg-[#161B26]/50 border border-transparent hover:border-slate-800 rounded-xl p-4 text-sm text-slate-300 overflow-y-auto cursor-pointer transition-colors"
+          >
+            {editedDescription ? (
+              <LightMarkdown text={editedDescription} />
+            ) : (
+              <span className="text-slate-600 italic">
+                No description provided. Click to add...
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

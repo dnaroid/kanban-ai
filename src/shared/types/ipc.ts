@@ -599,6 +599,7 @@ export const RunSchema = z.object({
   errorText: z.string(),
   budget: z.record(z.string(), z.unknown()).default({}),
   contextSnapshotId: z.string().uuid(),
+  sessionId: z.string().optional(),
   aiTokensIn: z.number().default(0),
   aiTokensOut: z.number().default(0),
   aiCostUsd: z.number().default(0),
@@ -680,7 +681,7 @@ export const RunEventSchema = z.object({
 export type RunEvent = z.infer<typeof RunEventSchema>
 
 export const RunEventsTailInputSchema = z.object({
-  runId: z.string().uuid(),
+  runId: z.string(),
   afterTs: z.string().datetime().optional(),
   limit: z.number().int().positive().optional(),
 })

@@ -1,30 +1,35 @@
-import { defineConfig } from 'electron-vite'
+import { resolve } from 'path'
+import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import tailwindcss from '@tailwindcss/vite'
+import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
-    build: {
-      outDir: 'out/main',
-      rollupOptions: {
-        external: ['electron', 'better-sqlite3']
+    plugins: [externalizeDepsPlugin()],
+    resolve: {
+      alias: {
+        '@': resolve('src'),
       },
-      target: 'node18',
-      minify: false
-    }
+    },
   },
   preload: {
-    build: {
-      outDir: 'out/preload',
-      rollupOptions: {
-        external: ['electron']
-      }
-    }
+    plugins: [externalizeDepsPlugin()],
+    resolve: {
+      alias: {
+        '@': resolve('src'),
+      },
+    },
   },
   renderer: {
     root: 'src/renderer',
-    plugins: [tailwindcss()],
+    resolve: {
+      alias: {
+        '@': resolve('src'),
+      },
+    },
+    plugins: [react(), tailwindcss()],
     build: {
-      outDir: 'dist'
-    }
-  }
+      outDir: '../../dist',
+    },
+  },
 })

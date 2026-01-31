@@ -4,7 +4,7 @@ import { AgentPart, FilePart, ReasoningPart, TextPart, ToolPart } from '../../ch
 import { cn } from '../../../lib/utils'
 import type { Part, RunEvent } from '@/shared/types/ipc.ts'
 
-export function ExecutionLog({ runId }: { runId: string }) {
+export function ExecutionLog({ sessionId }: { sessionId: string }) {
   const [events, setEvents] = useState<RunEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [autoScroll, setAutoScroll] = useState(true)
@@ -47,13 +47,13 @@ export function ExecutionLog({ runId }: { runId: string }) {
 
   useEffect(() => {
     const cleanup = window.api.opencode.onEvent((event) => {
-      if (event.sessionId !== runId) return
+      if (event.sessionId !== sessionId) return
 
       if (event.type === 'message.part.updated') {
         const part = event.part as { id: string }
         const newEvent: RunEvent = {
           id: `msg-part-${event.messageId}-${part.id}`,
-          runId,
+          runId: sessionId,
           ts: new Date().toISOString(),
           eventType: 'stdout',
           payload: event.part,
@@ -64,7 +64,7 @@ export function ExecutionLog({ runId }: { runId: string }) {
     })
 
     return cleanup
-  }, [runId])
+  }, [sessionId])
 
   useEffect(() => {
     let isActive = true
@@ -72,7 +72,7 @@ export function ExecutionLog({ runId }: { runId: string }) {
     const fetchEvents = async () => {
       try {
         const response = await window.api.events.tail({
-          runId,
+          runId: sessionId,
           afterTs: lastTsRef.current ? lastTsRef.current.toString() : undefined,
           limit: 200,
         })
@@ -96,7 +96,7 @@ export function ExecutionLog({ runId }: { runId: string }) {
       isActive = false
       clearInterval(interval)
     }
-  }, [runId])
+  }, [sessionId])
 
   useEffect(() => {
     if (autoScroll && scrollRef.current) {

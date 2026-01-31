@@ -93,6 +93,7 @@ import { runEventRepo } from '../db/run-event-repository'
 import { artifactRepo } from '../db/artifact-repository'
 import { runService } from '../run/run-service'
 import { buildContextSnapshot } from '../run/context-snapshot-builder'
+import { opencodeSessionRepo } from '../db/opencode-session-repository'
 
 ipcHandlers.register('project:selectFolder', z.unknown(), async () => {
   const result = await dialog.showOpenDialog({
@@ -335,7 +336,12 @@ ipcHandlers.register('run:get', RunGetInputSchema, async (_, { runId }) => {
   if (!run) {
     throw new Error('Run not found')
   }
-  return RunGetResponseSchema.parse({ run })
+  const sessionRecord = opencodeSessionRepo.getByRunId(runId)
+  const runWithSessionId = {
+    ...run,
+    sessionId: sessionRecord?.sessionId,
+  }
+  return RunGetResponseSchema.parse({ run: runWithSessionId })
 })
 
 ipcHandlers.register('run:events:tail', RunEventsTailInputSchema, async (_, input) => {

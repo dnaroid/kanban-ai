@@ -99,7 +99,11 @@ export function RunDetailsView({
       </div>
 
       <div className="flex-1 overflow-hidden">
-        {view === 'log' ? <ExecutionLog runId={runId} /> : <ArtifactsPanel runId={runId} />}
+        {view === 'log' ? (
+          <ExecutionLog sessionId={run?.sessionId || ''} />
+        ) : (
+          <ArtifactsPanel runId={runId} />
+        )}
       </div>
     </div>
   )
