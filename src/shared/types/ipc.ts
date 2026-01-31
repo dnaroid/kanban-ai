@@ -127,6 +127,7 @@ export const KanbanTaskSchema = z.object({
   descriptionMd: z.string().optional(),
   status: z.enum(['todo', 'in-progress', 'done']),
   priority: z.enum(['low', 'medium', 'high', 'urgent']),
+  difficulty: z.enum(['easy', 'medium', 'hard', 'epic']).optional(),
   type: z.string(),
   orderInColumn: z.number(),
   tags: z.array(z.string()).default([]),
@@ -144,6 +145,7 @@ export const CreateTaskInputSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
+  difficulty: z.enum(['easy', 'medium', 'hard', 'epic']).default('medium'),
   type: z.string().default('task'),
   tags: z.array(z.string()).optional(),
 })
@@ -174,6 +176,7 @@ export const TaskPatchSchema = z.object({
   descriptionMd: z.string().optional(),
   status: z.enum(['todo', 'in-progress', 'done']).optional(),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  difficulty: z.enum(['easy', 'medium', 'hard', 'epic']).optional(),
   type: z.string().optional(),
   columnId: z.string().uuid().optional(),
   orderInColumn: z.number().optional(),
@@ -769,6 +772,20 @@ export const AppSettingSetSidebarCollapsedResponseSchema = z.object({
 
 export type AppSettingSetSidebarCollapsedResponse = z.infer<
   typeof AppSettingSetSidebarCollapsedResponseSchema
+>
+
+export const OpenCodeGenerateUserStoryInputSchema = z.object({
+  taskId: z.string().uuid(),
+})
+
+export type OpenCodeGenerateUserStoryInput = z.infer<typeof OpenCodeGenerateUserStoryInputSchema>
+
+export const OpenCodeGenerateUserStoryResponseSchema = z.object({
+  description: z.string(),
+})
+
+export type OpenCodeGenerateUserStoryResponse = z.infer<
+  typeof OpenCodeGenerateUserStoryResponseSchema
 >
 
 // OpenCode event subscription types

@@ -123,7 +123,14 @@ export default function App() {
     loadSidebarState()
   }, [])
 
+  const [sidebarInitialized, setSidebarInitialized] = useState(false)
+
   useEffect(() => {
+    if (!sidebarInitialized) {
+      setSidebarInitialized(true)
+      return
+    }
+
     const saveSidebarState = async () => {
       try {
         await window.api.appSetting.setSidebarCollapsed({ collapsed: isSidebarCollapsed })
@@ -133,7 +140,7 @@ export default function App() {
     }
 
     saveSidebarState()
-  }, [isSidebarCollapsed])
+  }, [isSidebarCollapsed, sidebarInitialized])
 
   useEffect(() => {
     if (!isSearchOpen) return

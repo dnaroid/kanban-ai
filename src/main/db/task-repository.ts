@@ -15,8 +15,8 @@ export class TaskRepository {
 
     const stmt = db.prepare(`
         INSERT INTO tasks (id, project_id, board_id, column_id, title, description,
-                           status, priority, type, order_in_column, tags_json, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           status, priority, difficulty, type, order_in_column, tags_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
 
     stmt.run(
@@ -28,6 +28,7 @@ export class TaskRepository {
       input.description ?? null,
       'todo',
       input.priority,
+      input.difficulty ?? 'medium',
       input.type,
       orderIndex,
       JSON.stringify(input.tags ?? []),
@@ -44,6 +45,7 @@ export class TaskRepository {
       description: input.description,
       status: 'todo',
       priority: input.priority,
+      difficulty: input.difficulty,
       type: input.type,
       orderInColumn: orderIndex,
       tags: input.tags ?? [],
@@ -66,6 +68,7 @@ export class TaskRepository {
                    t.description_md  as descriptionMd,
                    t.status,
                    t.priority,
+                   t.difficulty,
                    t.type,
                    t.order_in_column as orderInColumn,
                    t.tags_json       as tagsJson,
@@ -85,6 +88,7 @@ export class TaskRepository {
       descriptionMd: row.descriptionMd ?? '',
       assignedAgent: row.assignedAgent ?? undefined,
       status: row.status,
+      difficulty: row.difficulty ?? 'medium',
       tags: JSON.parse(row.tagsJson || '[]'),
     }))
   }
@@ -103,6 +107,7 @@ export class TaskRepository {
                    t.description_md  as descriptionMd,
                    t.status,
                    t.priority,
+                   t.difficulty,
                    t.type,
                    t.order_in_column as orderInColumn,
                    t.tags_json       as tagsJson,
@@ -122,6 +127,7 @@ export class TaskRepository {
       description: row.description ?? undefined,
       descriptionMd: row.descriptionMd ?? '',
       assignedAgent: row.assignedAgent ?? undefined,
+      difficulty: row.difficulty ?? 'medium',
       tags: JSON.parse(row.tagsJson || '[]'),
     }
   }
@@ -139,6 +145,7 @@ export class TaskRepository {
       'descriptionMd',
       'status',
       'priority',
+      'difficulty',
       'type',
       'columnId',
       'orderInColumn',

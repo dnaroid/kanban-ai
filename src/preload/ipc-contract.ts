@@ -66,6 +66,8 @@ import type {
   AppSettingGetSidebarCollapsedResponse,
   AppSettingSetSidebarCollapsedInput,
   AppSettingSetSidebarCollapsedResponse,
+  OpenCodeGenerateUserStoryInput,
+  OpenCodeGenerateUserStoryResponse,
   OpenCodeSessionEvent,
 } from '../shared/types/ipc'
 
@@ -77,6 +79,9 @@ export interface MainToRenderer {
   }
   opencode: {
     onEvent(callback: (event: OpenCodeSessionEvent) => void): () => void
+    generateUserStory(
+      input: OpenCodeGenerateUserStoryInput
+    ): Promise<OpenCodeGenerateUserStoryResponse>
   }
   project: {
     selectFolder(): Promise<{ path: string; name: string } | null>

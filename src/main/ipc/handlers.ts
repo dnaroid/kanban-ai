@@ -71,6 +71,8 @@ import {
   AppSettingGetSidebarCollapsedResponseSchema,
   AppSettingSetSidebarCollapsedInputSchema,
   AppSettingSetSidebarCollapsedResponseSchema,
+  OpenCodeGenerateUserStoryInputSchema,
+  OpenCodeGenerateUserStoryResponseSchema,
 } from '../../shared/types/ipc.js'
 import { projectRepo } from '../db/project-repository'
 import { appSettingsRepo } from '../db/app-settings-repository.js'
@@ -79,6 +81,9 @@ import { taskRepo } from '../db/task-repository'
 import { dependencyService } from '../deps/dependency-service'
 import { taskScheduleRepo } from '../db/task-schedule-repository'
 import { searchService } from '../search/search-service'
+import { OpenCodeExecutorSDK } from '../run/opencode-executor-sdk'
+
+const opencodeExecutor = new OpenCodeExecutorSDK()
 import { analyticsService } from '../analytics/analytics-service'
 import { pluginService } from '../plugins/plugin-service'
 import { agentRoleRepo } from '../db/agent-role-repository'
@@ -368,7 +373,7 @@ ipcHandlers.register(
   }
 )
 
-ipcHandlers.register('appSetting:getSidebarCollapsed', z.object({}), async () => {
+ipcHandlers.register('appSetting:getSidebarCollapsed', z.unknown(), async () => {
   const collapsed = appSettingsRepo.getSidebarCollapsed()
   return AppSettingGetSidebarCollapsedResponseSchema.parse({ collapsed })
 })
@@ -379,6 +384,15 @@ ipcHandlers.register(
   async (_, input) => {
     appSettingsRepo.setSidebarCollapsed(input.collapsed)
     return AppSettingSetSidebarCollapsedResponseSchema.parse({ ok: true })
+  }
+)
+
+ipcHandlers.register(
+  'opencode:generateUserStory',
+  OpenCodeGenerateUserStoryInputSchema,
+  async (_, input) => {
+    const description = await opencodeExecutor.generateUserStory(input.taskId)
+    return OpenCodeGenerateUserStoryResponseSchema.parse({ description })
   }
 )
 

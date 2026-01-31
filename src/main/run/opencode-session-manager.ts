@@ -37,6 +37,16 @@ export type SessionEvent =
       error: string
     }
 
+const resolveOpencodeEventList = (
+  client: unknown
+): ((params: unknown, options?: unknown) => AsyncIterable<unknown>) | null => {
+  const event = (client as Record<string, unknown>)['event'] as Record<string, unknown> | undefined
+  const list = event?.['list']
+  return typeof list === 'function'
+    ? (list as (params: unknown, options?: unknown) => AsyncIterable<unknown>)
+    : null
+}
+
 export interface SessionMessage {
   id: string
   role: 'user' | 'assistant'
@@ -166,21 +176,31 @@ export class OpenCodeSessionManager {
    */
   async getMessage(sessionID: string, messageID: string): Promise<SessionMessage | null> {
     try {
-      const response = await this.client.session.message({
+      const response = (await this.client.session.message({
         sessionID,
         messageID,
-      })
+      })) as unknown as {
+        data: { info: Record<string, unknown> }
+        error?: { message?: string }
+      }
 
       if (response.error) return null
 
-      const msg = response.data.info
-      const content = this.buildMessageContent(response.data.parts as Part[])
+      const info = response.data.info as Record<string, unknown>
+      const rawContent = info['content']
+      const content = typeof rawContent === 'string' ? rawContent : ''
+      const id = String(info['id'] ?? '')
+      const role = info['role'] === 'user' ? 'user' : 'assistant'
+      const time = (info['time'] as Record<string, unknown>) ?? {}
+      const timestampValue = time['created']
+      const timestamp =
+        typeof timestampValue === 'number' ? timestampValue : Number(timestampValue ?? 0)
 
       return {
-        id: msg.id,
-        role: msg.role,
+        id,
+        role,
         content,
-        timestamp: msg.time.created,
+        timestamp,
       }
     } catch {
       return null
@@ -303,15 +323,14 @@ export class OpenCodeSessionManager {
     const processEvents = async () => {
       try {
         const { signal } = abortController
-        const stream = await Promise.resolve(this.client.event.list({}, { signal })).catch(
-          () => undefined
-        )
+        const listEvents = resolveOpencodeEventList(this.client)
+        if (!listEvents) return
+        const stream = await Promise.resolve(listEvents({}, { signal })).catch(() => undefined)
 
         if (!stream) return
 
-        for await (const event of stream) {
+        for await (const event of stream as AsyncIterable<Event>) {
           if (signal.aborted) break
-
           let sessionEvent: SessionEvent
 
           if (isMessageEvent(event)) {

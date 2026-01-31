@@ -13,7 +13,6 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import type { KanbanTask } from '@/shared/types/ipc.ts'
-import { TaskDrawerChat } from './drawer/TaskDrawerChat'
 import { TaskDrawerDetails } from './drawer/TaskDrawerDetails'
 import { TaskDrawerProperties } from './drawer/TaskDrawerProperties'
 import { TaskDrawerRuns } from './drawer/TaskDrawerRuns'
@@ -97,7 +96,6 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
     { id: 'details', label: 'Details' },
     { id: 'runs', label: 'Runs' },
     { id: 'vcs', label: 'VCS' },
-    { id: 'chat', label: 'Chat' },
     { id: 'properties', label: 'Properties' },
   ] as const
 
@@ -215,10 +213,6 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
 
           <div className={cn('absolute inset-0 flex flex-col', activeTab !== 'runs' && 'hidden')}>
             <TaskDrawerRuns task={task} isActive={activeTab === 'runs'} />
-          </div>
-
-          <div className={cn('absolute inset-0 flex flex-col', activeTab !== 'chat' && 'hidden')}>
-            <TaskDrawerChat task={task} />
           </div>
 
           <div

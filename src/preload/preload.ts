@@ -15,6 +15,7 @@ const api: MainToRenderer = {
         ipcRenderer.removeListener('opencode:event', listener)
       }
     },
+    generateUserStory: (input) => ipcRenderer.invoke('opencode:generateUserStory', input),
   },
   project: {
     selectFolder: () => ipcRenderer.invoke('project:selectFolder'),

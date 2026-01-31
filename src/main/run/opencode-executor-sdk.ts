@@ -1,16 +1,63 @@
-import {projectRepo} from "../db/project-repository.js"
-import {runEventRepo} from "../db/run-event-repository.js"
-import {taskRepo} from "../db/task-repository.js"
-import {opencodeSessionRepo} from "../db/opencode-session-repository.js"
-import type {RunRecord} from "../db/run-types"
-import type {RunExecutor} from "./job-runner"
-import {sessionManager} from "./opencode-session-manager.js"
+import { projectRepo } from '../db/project-repository.js'
+import { runEventRepo } from '../db/run-event-repository.js'
+import { taskRepo } from '../db/task-repository.js'
+import { opencodeSessionRepo } from '../db/opencode-session-repository.js'
+import type { RunRecord } from '../db/run-types'
+import type { RunExecutor } from './job-runner'
+import { sessionManager } from './opencode-session-manager.js'
+
+const buildUserStoryPrompt = (task: any, project: any): string => {
+  return `
+Сформируй техническую user story ДЛЯ КОД-АГЕНТА на русском языке. Это не текст для человека-заказчика, а четкое задание для LLM-исполнителя.
+
+ЗАДАЧА: ${task.title}
+Текущее описание: ${task.description || 'Нет описания'}
+
+Контекст проекта:
+- Путь: ${project.path}
+- Название: ${project.name}
+- ID проекта: ${project.id}
+
+Требования к формату (строго придерживайся структуры):
+**Название:** [кратко и технически точно]
+
+**Цель:** [что именно должно измениться/появиться]
+
+**Контекст проекта:**
+- [1-3 пункта о домене/типе проекта, если можно предположить по пути]
+
+**Скоуп:**
+- Включено: [2-4 конкретных пункта]
+- Исключено: [1-3 пункта, что делать не нужно]
+
+**Требования:**
+- [функциональное требование 1]
+- [функциональное требование 2]
+- [техническое требование 3]
+
+**Ограничения:**
+- [ограничение 1]
+- [ограничение 2]
+
+**Критерии приемки (проверяемые):**
+- [критерий 1]
+- [критерий 2]
+- [критерий 3]
+
+**Ожидаемый результат:** [конкретный итог, который должен получить агент]
+
+Правила:
+1. Пиши коротко, без «воды», ориентируйся на выполнение задачи код-агентом.
+2. Не предлагай решения на уровне кода, только требования и критерии.
+3. Не добавляй никаких вступлений, выводов или пояснений. Верни ТОЛЬКО текст по структуре выше.
+`.trim()
+}
 
 const buildTaskPrompt = (task: any, project: any): string => {
   return `
 ЗАДАЧА: ${task.title}
 
-Описание: ${task.description || "Нет описания"}
+Описание: ${task.description || 'Нет описания'}
 
 Контекст проекта:
 - Путь: ${project.path}
@@ -26,15 +73,51 @@ const buildTaskPrompt = (task: any, project: any): string => {
 }
 
 export class OpenCodeExecutorSDK implements RunExecutor {
-  async start(run: RunRecord): Promise<void> {
-    const task = taskRepo.getById(run.taskId)
+  async generateUserStory(taskId: string): Promise<string> {
+    const task = taskRepo.getById(taskId)
     if (!task) {
-      throw new Error("Task not found for run")
+      throw new Error('Task not found')
     }
 
     const project = projectRepo.getById(task.projectId)
     if (!project) {
-      throw new Error("Project not found for run")
+      throw new Error('Project not found for task')
+    }
+
+    const prompt = buildUserStoryPrompt(task, project)
+    const sessionTitle = `User Story: ${task.title}`
+
+    const sessionInfo = await sessionManager.createSession(sessionTitle, project.path)
+
+    try {
+      const message = await sessionManager.sendPrompt(sessionInfo.id, prompt)
+      const resolvedMessage = await sessionManager.getMessage(sessionInfo.id, message.id)
+      const content = resolvedMessage?.content?.trim()
+
+      if (!content) {
+        throw new Error('Empty response from OpenCode')
+      }
+
+      taskRepo.update(taskId, { description: content })
+
+      return content
+    } finally {
+      try {
+        await sessionManager.deleteSession(sessionInfo.id)
+      } catch (error) {
+        console.error('[OpenCodeExecutorSDK] Failed to delete temporary session:', error)
+      }
+    }
+  }
+  async start(run: RunRecord): Promise<void> {
+    const task = taskRepo.getById(run.taskId)
+    if (!task) {
+      throw new Error('Task not found for run')
+    }
+
+    const project = projectRepo.getById(task.projectId)
+    if (!project) {
+      throw new Error('Project not found for run')
     }
 
     const repoPath = project.path
@@ -52,8 +135,8 @@ export class OpenCodeExecutorSDK implements RunExecutor {
 
     runEventRepo.create({
       runId: run.id,
-      eventType: "status",
-      payload: {message: "OpenCode session created", sessionId: sessionInfo.id},
+      eventType: 'status',
+      payload: { message: 'OpenCode session created', sessionId: sessionInfo.id },
     })
 
     try {
@@ -74,9 +157,9 @@ export class OpenCodeExecutorSDK implements RunExecutor {
         for (const msg of messages) {
           const previousContent = messageContentById.get(msg.id)
           const currentContent = msg.parts
-            .filter((p) => p.type === "text" && !p.ignored)
+            .filter((p) => p.type === 'text' && !p.ignored)
             .map((p) => (p as { text: string }).text)
-            .join("\n")
+            .join('\n')
 
           if (previousContent === undefined) {
             messageContentById.set(msg.id, currentContent)
@@ -89,7 +172,7 @@ export class OpenCodeExecutorSDK implements RunExecutor {
 
           runEventRepo.create({
             runId: run.id,
-            eventType: "message",
+            eventType: 'message',
             payload: {
               role: msg.role,
               parts: msg.parts,
@@ -99,23 +182,23 @@ export class OpenCodeExecutorSDK implements RunExecutor {
         }
 
         const lastMessage = messages[messages.length - 1]
-        if (lastMessage && lastMessage.role === "assistant") {
+        if (lastMessage && lastMessage.role === 'assistant') {
           const content = lastMessage.parts
-            .filter((p) => p.type === "text" && !p.ignored)
+            .filter((p) => p.type === 'text' && !p.ignored)
             .map((p) => (p as { text: string }).text)
-            .join("\n")
+            .join('\n')
           const statusMatch = content.match(/STATUS:\s*(done|fail|question)/i)
 
           if (statusMatch) {
             const rawStatus = statusMatch[1].toLowerCase()
-            const statusMap: Record<string, "todo" | "in-progress" | "done"> = {
-              done: "done",
-              fail: "todo",
-              question: "in-progress",
+            const statusMap: Record<string, 'todo' | 'in-progress' | 'done'> = {
+              done: 'done',
+              fail: 'todo',
+              question: 'in-progress',
             }
-            taskRepo.update(task.id, {status: statusMap[rawStatus]})
+            taskRepo.update(task.id, { status: statusMap[rawStatus] })
 
-            opencodeSessionRepo.updateStatus(run.id, "completed")
+            opencodeSessionRepo.updateStatus(run.id, 'completed')
             break
           }
         }
@@ -124,12 +207,12 @@ export class OpenCodeExecutorSDK implements RunExecutor {
       if (elapsed >= maxPollTime) {
         runEventRepo.create({
           runId: run.id,
-          eventType: "status",
-          payload: {message: "Session polling timeout"},
+          eventType: 'status',
+          payload: { message: 'Session polling timeout' },
         })
       }
     } catch (error) {
-      opencodeSessionRepo.updateStatus(run.id, "aborted")
+      opencodeSessionRepo.updateStatus(run.id, 'aborted')
       throw error
     }
   }
@@ -140,9 +223,9 @@ export class OpenCodeExecutorSDK implements RunExecutor {
 
     try {
       await sessionManager.abortSession(sessionRecord.sessionId)
-      opencodeSessionRepo.updateStatus(runId, "aborted")
+      opencodeSessionRepo.updateStatus(runId, 'aborted')
     } catch (error) {
-      console.error("[OpenCodeExecutorSDK] Failed to abort session:", error)
+      console.error('[OpenCodeExecutorSDK] Failed to abort session:', error)
     }
   }
 }

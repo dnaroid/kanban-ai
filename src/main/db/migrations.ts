@@ -420,6 +420,10 @@ export const migrations = [
     version: 0,
     sql: INIT_DB_SQL,
   },
+  {
+    version: 1,
+    sql: `ALTER TABLE tasks ADD COLUMN difficulty TEXT;`,
+  },
 ] as const
 
 export type Migration = (typeof migrations)[number]
