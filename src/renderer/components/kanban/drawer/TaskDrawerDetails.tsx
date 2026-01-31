@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from "react"
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -18,9 +18,9 @@ import {
   X,
   XCircle,
   Zap,
-} from "lucide-react"
-import {cn} from "../../../lib/utils"
-import type {KanbanTask, TaskLink, TaskLinkType} from "@/shared/types/ipc.ts"
+} from 'lucide-react'
+import { cn } from '../../../lib/utils'
+import type { KanbanTask, TaskLink, TaskLinkType } from '@/shared/types/ipc.ts'
 
 interface TaskDrawerDetailsProps {
   task: KanbanTask
@@ -31,122 +31,122 @@ interface TaskDrawerDetailsProps {
 const difficultyConfig = {
   easy: {
     icon: Check,
-    color: "text-emerald-400",
-    bg: "bg-emerald-400/10",
-    border: "border-emerald-400/20",
+    color: 'text-emerald-400',
+    bg: 'bg-emerald-400/10',
+    border: 'border-emerald-400/20',
   },
   medium: {
     icon: ArrowUpRight,
-    color: "text-blue-400",
-    bg: "bg-blue-400/10",
-    border: "border-blue-400/20",
+    color: 'text-blue-400',
+    bg: 'bg-blue-400/10',
+    border: 'border-blue-400/20',
   },
   hard: {
     icon: AlertTriangle,
-    color: "text-amber-400",
-    bg: "bg-amber-400/10",
-    border: "border-amber-400/20",
+    color: 'text-amber-400',
+    bg: 'bg-amber-400/10',
+    border: 'border-amber-400/20',
   },
   epic: {
     icon: Zap,
-    color: "text-purple-400",
-    bg: "bg-purple-400/10",
-    border: "border-purple-400/20",
+    color: 'text-purple-400',
+    bg: 'bg-purple-400/10',
+    border: 'border-purple-400/20',
   },
 }
 
 const priorityConfig = {
   postpone: {
     icon: Clock,
-    color: "text-slate-400",
-    bg: "bg-slate-400/10",
-    border: "border-slate-400/20",
+    color: 'text-slate-400',
+    bg: 'bg-slate-400/10',
+    border: 'border-slate-400/20',
   },
   low: {
     icon: ChevronDown,
-    color: "text-emerald-400",
-    bg: "bg-emerald-400/10",
-    border: "border-emerald-400/20",
+    color: 'text-emerald-400',
+    bg: 'bg-emerald-400/10',
+    border: 'border-emerald-400/20',
   },
   normal: {
     icon: ArrowUpRight,
-    color: "text-blue-400",
-    bg: "bg-blue-400/10",
-    border: "border-blue-400/20",
+    color: 'text-blue-400',
+    bg: 'bg-blue-400/10',
+    border: 'border-blue-400/20',
   },
   urgent: {
     icon: AlertTriangle,
-    color: "text-red-400",
-    bg: "bg-red-400/10",
-    border: "border-red-400/20",
+    color: 'text-red-400',
+    bg: 'bg-red-400/10',
+    border: 'border-red-400/20',
   },
 }
 
 const typeConfig = {
   feature: {
     icon: Sparkles,
-    color: "text-purple-400",
-    bg: "bg-purple-400/10",
-    border: "border-purple-400/20",
+    color: 'text-purple-400',
+    bg: 'bg-purple-400/10',
+    border: 'border-purple-400/20',
   },
-  bug: {icon: Bug, color: "text-red-400", bg: "bg-red-400/10", border: "border-red-400/20"},
+  bug: { icon: Bug, color: 'text-red-400', bg: 'bg-red-400/10', border: 'border-red-400/20' },
   chore: {
     icon: FileText,
-    color: "text-slate-400",
-    bg: "bg-slate-400/10",
-    border: "border-slate-400/20",
+    color: 'text-slate-400',
+    bg: 'bg-slate-400/10',
+    border: 'border-slate-400/20',
   },
   improvement: {
     icon: ArrowUpRight,
-    color: "text-blue-400",
-    bg: "bg-blue-400/10",
-    border: "border-blue-400/20",
+    color: 'text-blue-400',
+    bg: 'bg-blue-400/10',
+    border: 'border-blue-400/20',
   },
 }
 
 const statusConfig = {
   queued: {
     icon: Clock,
-    color: "text-slate-400",
-    bg: "bg-slate-400/10",
-    border: "border-slate-400/20",
+    color: 'text-slate-400',
+    bg: 'bg-slate-400/10',
+    border: 'border-slate-400/20',
   },
   running: {
     icon: Play,
-    color: "text-blue-400",
-    bg: "bg-blue-400/10",
-    border: "border-blue-400/20",
+    color: 'text-blue-400',
+    bg: 'bg-blue-400/10',
+    border: 'border-blue-400/20',
   },
   question: {
     icon: HelpCircle,
-    color: "text-orange-400",
-    bg: "bg-orange-400/10",
-    border: "border-orange-400/20",
+    color: 'text-orange-400',
+    bg: 'bg-orange-400/10',
+    border: 'border-orange-400/20',
   },
   paused: {
     icon: Pause,
-    color: "text-yellow-400",
-    bg: "bg-yellow-400/10",
-    border: "border-yellow-400/20",
+    color: 'text-yellow-400',
+    bg: 'bg-yellow-400/10',
+    border: 'border-yellow-400/20',
   },
   done: {
     icon: Check,
-    color: "text-emerald-400",
-    bg: "bg-emerald-400/10",
-    border: "border-emerald-400/20",
+    color: 'text-emerald-400',
+    bg: 'bg-emerald-400/10',
+    border: 'border-emerald-400/20',
   },
   failed: {
     icon: XCircle,
-    color: "text-red-400",
-    bg: "bg-red-400/10",
-    border: "border-red-400/20",
+    color: 'text-red-400',
+    bg: 'bg-red-400/10',
+    border: 'border-red-400/20',
   },
 }
 
-export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
-  const [editedDescription, setEditedDescription] = useState(task.description || "")
+export function TaskDrawerDetails({ task, onUpdate }: TaskDrawerDetailsProps) {
+  const [editedDescription, setEditedDescription] = useState(task.description || '')
 
-  const [newTag, setNewTag] = useState("")
+  const [newTag, setNewTag] = useState('')
   const [isAddingTag, setIsAddingTag] = useState(false)
   const tagInputRef = useRef<HTMLInputElement>(null)
 
@@ -157,14 +157,14 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
   const [isAddingDependency, setIsAddingDependency] = useState(false)
   const [isGeneratingStory, setIsGeneratingStory] = useState(false)
   const [generationError, setGenerationError] = useState<string | null>(null)
-  const [dependencyQuery, setDependencyQuery] = useState("")
-  const [dependencyTargetId, setDependencyTargetId] = useState<string>("")
-  const [dependencyRelationship, setDependencyRelationship] = useState<TaskLinkType | "blocked_by">(
-    "blocks"
+  const [dependencyQuery, setDependencyQuery] = useState('')
+  const [dependencyTargetId, setDependencyTargetId] = useState<string>('')
+  const [dependencyRelationship, setDependencyRelationship] = useState<TaskLinkType | 'blocked_by'>(
+    'blocks'
   )
 
   useEffect(() => {
-    setEditedDescription(task.description || "")
+    setEditedDescription(task.description || '')
   }, [task.description])
 
   useEffect(() => {
@@ -179,14 +179,14 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
     setDependencyError(null)
     try {
       const [tasksRes, depsRes] = await Promise.all([
-        window.api.task.listByBoard({boardId: task.boardId}),
-        window.api.deps.list({taskId: task.id}),
+        window.api.task.listByBoard({ boardId: task.boardId }),
+        window.api.deps.list({ taskId: task.id }),
       ])
       setBoardTasks(tasksRes.tasks)
       setDependencyLinks(depsRes.links)
     } catch (error) {
-      console.error("Failed to load dependency data:", error)
-      setDependencyError("Failed to load dependency data")
+      console.error('Failed to load dependency data:', error)
+      setDependencyError('Failed to load dependency data')
     } finally {
       setIsLoadingDependencies(false)
     }
@@ -197,41 +197,41 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
   }, [fetchDependencyData])
 
   const handleUpdateStatus = (status: string) => {
-    onUpdate?.(task.id, {status: status as KanbanTask["status"]})
+    onUpdate?.(task.id, { status: status as KanbanTask['status'] })
   }
 
   const handleUpdateDifficulty = (difficulty: string) => {
-    onUpdate?.(task.id, {difficulty: difficulty as KanbanTask["difficulty"]})
+    onUpdate?.(task.id, { difficulty: difficulty as KanbanTask['difficulty'] })
   }
 
   const handleUpdatePriority = (priority: string) => {
-    onUpdate?.(task.id, {priority: priority as KanbanTask["priority"]})
+    onUpdate?.(task.id, { priority: priority as KanbanTask['priority'] })
   }
 
   const handleUpdateType = (type: string) => {
-    onUpdate?.(task.id, {type: type as KanbanTask["type"]})
+    onUpdate?.(task.id, { type: type as KanbanTask['type'] })
   }
 
   const handleAddTag = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && newTag.trim()) {
+    if (e.key === 'Enter' && newTag.trim()) {
       const updatedTags = [...(task.tags || []), newTag.trim()]
-      onUpdate?.(task.id, {tags: updatedTags})
-      setNewTag("")
+      onUpdate?.(task.id, { tags: updatedTags })
+      setNewTag('')
       setIsAddingTag(false)
-    } else if (e.key === "Escape") {
+    } else if (e.key === 'Escape') {
       setIsAddingTag(false)
-      setNewTag("")
+      setNewTag('')
     }
   }
 
   const handleRemoveTag = (tagToRemove: string) => {
     const updatedTags = (task.tags || []).filter((tag) => tag !== tagToRemove)
-    onUpdate?.(task.id, {tags: updatedTags})
+    onUpdate?.(task.id, { tags: updatedTags })
   }
 
   const handleSaveDescription = () => {
     if (editedDescription !== task.description) {
-      onUpdate?.(task.id, {description: editedDescription})
+      onUpdate?.(task.id, { description: editedDescription })
     }
   }
 
@@ -242,26 +242,26 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
     let timer: ReturnType<typeof setTimeout>
     const timeoutPromise = new Promise<never>((_, reject) => {
       timer = setTimeout(() => {
-        reject(new Error("TIMEOUT"))
+        reject(new Error('TIMEOUT'))
       }, 120000)
     })
 
     try {
       const response = await Promise.race([
-        window.api.opencode.generateUserStory({taskId: task.id}),
+        window.api.opencode.generateUserStory({ taskId: task.id }),
         timeoutPromise,
       ])
-      const descriptionText = String((response as Record<string, unknown>)["description"] ?? "")
+      const descriptionText = String((response as Record<string, unknown>)['description'] ?? '')
       if (descriptionText.trim().length > 0) {
         setEditedDescription(descriptionText)
         setGenerationError(null)
       }
     } catch (error: any) {
-      if (error.message === "TIMEOUT") {
-        setGenerationError("AI generation timed out (45s). The service might be busy.")
+      if (error.message === 'TIMEOUT') {
+        setGenerationError('AI generation timed out (45s). The service might be busy.')
       } else {
-        console.error("Failed to generate user story:", error)
-        setGenerationError("Failed to generate user story. Please try again.")
+        console.error('Failed to generate user story:', error)
+        setGenerationError('Failed to generate user story. Please try again.')
       }
     } finally {
       clearTimeout(timer!)
@@ -281,33 +281,33 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
     let fromTaskId = task.id
     let toTaskId = dependencyTargetId
     let linkType: TaskLinkType =
-      dependencyRelationship === "blocked_by" ? "blocks" : dependencyRelationship
+      dependencyRelationship === 'blocked_by' ? 'blocks' : dependencyRelationship
 
-    if (dependencyRelationship === "blocked_by") {
+    if (dependencyRelationship === 'blocked_by') {
       fromTaskId = dependencyTargetId
       toTaskId = task.id
-      linkType = "blocks" // The API likely uses 'blocks' for direction
+      linkType = 'blocks' // The API likely uses 'blocks' for direction
     }
 
     try {
-      await window.api.deps.add({fromTaskId, toTaskId, type: linkType})
+      await window.api.deps.add({ fromTaskId, toTaskId, type: linkType })
       await fetchDependencyData()
       setIsAddingDependency(false)
-      setDependencyTargetId("")
-      setDependencyQuery("")
+      setDependencyTargetId('')
+      setDependencyQuery('')
     } catch (error) {
-      console.error("Failed to add dependency:", error)
-      setDependencyError("Failed to add dependency")
+      console.error('Failed to add dependency:', error)
+      setDependencyError('Failed to add dependency')
     }
   }
 
   const handleRemoveDependency = async (linkId: string) => {
     try {
-      await window.api.deps.remove({linkId})
+      await window.api.deps.remove({ linkId })
       await fetchDependencyData()
     } catch (error) {
-      console.error("Failed to remove dependency:", error)
-      setDependencyError("Failed to remove dependency")
+      console.error('Failed to remove dependency:', error)
+      setDependencyError('Failed to remove dependency')
     }
   }
 
@@ -321,12 +321,12 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
   }
 
   const blocksLinks = dependencyLinks.filter(
-    (l) => l.fromTaskId === task.id && l.linkType === "blocks"
+    (l) => l.fromTaskId === task.id && l.linkType === 'blocks'
   )
   const blockedByLinks = dependencyLinks.filter(
-    (l) => l.toTaskId === task.id && l.linkType === "blocks"
+    (l) => l.toTaskId === task.id && l.linkType === 'blocks'
   )
-  const relatedLinks = dependencyLinks.filter((l) => l.linkType === "relates")
+  const relatedLinks = dependencyLinks.filter((l) => l.linkType === 'relates')
 
   const dependencyResults = boardTasks.filter(
     (t) =>
@@ -336,7 +336,7 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
   )
 
   const priorityStyle = priorityConfig[task.priority] || priorityConfig.normal
-  const difficultyStyle = difficultyConfig[task.difficulty || "medium"] || difficultyConfig.medium
+  const difficultyStyle = difficultyConfig[task.difficulty || 'medium'] || difficultyConfig.medium
   const typeStyle = typeConfig[task.type as keyof typeof typeConfig] || typeConfig.feature
   const statusStyle = statusConfig[task.status] || statusConfig.queued
 
@@ -358,22 +358,22 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
               >
                 {Object.keys(statusConfig).map((s) => (
                   <option key={s} value={s}>
-                    {s.charAt(0).toUpperCase() + s.replace("_", " ").slice(1)}
+                    {s.charAt(0).toUpperCase() + s.replace('_', ' ').slice(1)}
                   </option>
                 ))}
               </select>
               <div
                 className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all hover:brightness-110 cursor-pointer",
+                  'flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all hover:brightness-110 cursor-pointer',
                   statusStyle.bg,
                   statusStyle.border
                 )}
               >
-                <statusStyle.icon className={cn("w-3.5 h-3.5", statusStyle.color)}/>
+                <statusStyle.icon className={cn('w-3.5 h-3.5', statusStyle.color)} />
                 <span
-                  className={cn("text-xs font-bold uppercase tracking-wider", statusStyle.color)}
+                  className={cn('text-xs font-bold uppercase tracking-wider', statusStyle.color)}
                 >
-                  {task.status.replace("_", " ")}
+                  {task.status.replace('_', ' ')}
                 </span>
               </div>
             </div>
@@ -398,20 +398,20 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
               </select>
               <div
                 className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all hover:brightness-110 cursor-pointer",
-                  typeStyle?.bg || "bg-slate-800/50",
-                  typeStyle?.border || "border-slate-700/50"
+                  'flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all hover:brightness-110 cursor-pointer',
+                  typeStyle?.bg || 'bg-slate-800/50',
+                  typeStyle?.border || 'border-slate-700/50'
                 )}
               >
                 {typeStyle?.icon && (
                   <typeStyle.icon
-                    className={cn("w-3.5 h-3.5", typeStyle.color || "text-slate-400")}
+                    className={cn('w-3.5 h-3.5', typeStyle.color || 'text-slate-400')}
                   />
                 )}
                 <span
                   className={cn(
-                    "text-xs font-bold uppercase tracking-wider",
-                    typeStyle?.color || "text-slate-400"
+                    'text-xs font-bold uppercase tracking-wider',
+                    typeStyle?.color || 'text-slate-400'
                   )}
                 >
                   {task.type}
@@ -427,7 +427,7 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
             </span>
             <div className="relative group">
               <select
-                value={task.difficulty || "medium"}
+                value={task.difficulty || 'medium'}
                 onChange={(e) => handleUpdateDifficulty(e.target.value)}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
               >
@@ -439,19 +439,19 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
               </select>
               <div
                 className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all hover:brightness-110 cursor-pointer",
+                  'flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all hover:brightness-110 cursor-pointer',
                   difficultyStyle.bg,
                   difficultyStyle.border
                 )}
               >
-                <difficultyStyle.icon className={cn("w-3.5 h-3.5", difficultyStyle.color)}/>
+                <difficultyStyle.icon className={cn('w-3.5 h-3.5', difficultyStyle.color)} />
                 <span
                   className={cn(
-                    "text-xs font-bold uppercase tracking-wider",
+                    'text-xs font-bold uppercase tracking-wider',
                     difficultyStyle.color
                   )}
                 >
-                  {task.difficulty || "Medium"}
+                  {task.difficulty || 'Medium'}
                 </span>
               </div>
             </div>
@@ -476,14 +476,14 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
               </select>
               <div
                 className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all hover:brightness-110 cursor-pointer",
+                  'flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all hover:brightness-110 cursor-pointer',
                   priorityStyle.bg,
                   priorityStyle.border
                 )}
               >
-                <priorityStyle.icon className={cn("w-3.5 h-3.5", priorityStyle.color)}/>
+                <priorityStyle.icon className={cn('w-3.5 h-3.5', priorityStyle.color)} />
                 <span
-                  className={cn("text-xs font-bold uppercase tracking-wider", priorityStyle.color)}
+                  className={cn('text-xs font-bold uppercase tracking-wider', priorityStyle.color)}
                 >
                   {task.priority}
                 </span>
@@ -504,7 +504,7 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
                 onClick={() => handleRemoveTag(tag)}
                 className="p-0.5 hover:bg-slate-700 rounded-sm text-slate-500 hover:text-red-400 transition-colors"
               >
-                <X className="w-3 h-3"/>
+                <X className="w-3 h-3" />
               </button>
             </span>
           ))}
@@ -526,7 +526,7 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
               onClick={() => setIsAddingTag(true)}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-800/50 text-slate-400 border border-dashed border-slate-700 hover:text-blue-400 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all"
             >
-              <Plus className="w-3 h-3"/>
+              <Plus className="w-3 h-3" />
               Add Tag
             </button>
           )}
@@ -537,7 +537,7 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
       <div className="flex flex-col flex-1 min-h-0 space-y-3 px-6">
         <div className="flex items-center justify-between">
           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-            <FileText className="w-3 h-3"/>
+            <FileText className="w-3 h-3" />
             Description
           </label>
           <div className="flex items-center gap-1">
@@ -545,33 +545,32 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
               onClick={handleImproveDescription}
               disabled={isGeneratingStory}
               className={cn(
-                "p-1.5 text-purple-400 hover:text-white hover:bg-purple-500/10 rounded transition-colors flex items-center gap-1.5",
-                isGeneratingStory && "opacity-50 cursor-not-allowed"
+                'p-1.5 text-purple-400 hover:text-white hover:bg-purple-500/10 rounded transition-colors flex items-center gap-1.5',
+                isGeneratingStory && 'opacity-50 cursor-not-allowed'
               )}
               title="Improve with AI"
             >
               {isGeneratingStory ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin"/>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                <Wand2 className="w-3.5 h-3.5"/>
+                <Wand2 className="w-3.5 h-3.5" />
               )}
               <span className="text-[10px] font-bold">
-                {isGeneratingStory ? "Generating..." : "AI Improve"}
+                {isGeneratingStory ? 'Generating...' : 'AI Improve'}
               </span>
             </button>
           </div>
         </div>
 
         {generationError && (
-          <div
-            className="text-[10px] text-red-400 bg-red-400/10 border border-red-400/20 px-3 py-2 rounded-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
-            <AlertTriangle className="w-3 h-3 shrink-0"/>
+          <div className="text-[10px] text-red-400 bg-red-400/10 border border-red-400/20 px-3 py-2 rounded-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
+            <AlertTriangle className="w-3 h-3 shrink-0" />
             <span className="flex-1">{generationError}</span>
             <button
               onClick={() => setGenerationError(null)}
               className="p-0.5 hover:bg-red-400/20 rounded transition-colors"
             >
-              <X className="w-3 h-3"/>
+              <X className="w-3 h-3" />
             </button>
           </div>
         )}
@@ -584,30 +583,30 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
             disabled={isGeneratingStory}
             placeholder="Add a description..."
             className={cn(
-              "w-full h-full bg-[#161B26] border border-slate-800 rounded-xl p-4 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all resize-none",
-              isGeneratingStory && "opacity-50 cursor-not-allowed"
+              'w-full h-full bg-[#161B26] border border-slate-800 rounded-xl p-4 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all resize-none',
+              isGeneratingStory && 'opacity-50 cursor-not-allowed'
             )}
           />
         </div>
       </div>
 
       {/* Dependencies */}
-      <div className="space-y-4 pt-4 border-t border-slate-800/50 -mx-6 px-6 pb-6">
+      <div className="space-y-4 pt-4 px-6 pb-6">
         <div className="flex items-center justify-between">
           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-            <Link2 className="w-3 h-3"/>
+            <Link2 className="w-3 h-3" />
             Dependencies
           </label>
           <button
             onClick={() => setIsAddingDependency(!isAddingDependency)}
             className={cn(
-              "p-1.5 rounded transition-colors",
+              'p-1.5 rounded transition-colors',
               isAddingDependency
-                ? "bg-blue-500/10 text-blue-400"
-                : "text-slate-400 hover:text-white hover:bg-slate-800"
+                ? 'bg-blue-500/10 text-blue-400'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800'
             )}
           >
-            <Plus className="w-4 h-4"/>
+            <Plus className="w-4 h-4" />
           </button>
         </div>
 
@@ -618,8 +617,7 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
         )}
 
         {isAddingDependency && (
-          <div
-            className="bg-slate-900/50 p-3 rounded-lg border border-slate-800 space-y-3 animate-in fade-in slide-in-from-top-2">
+          <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800 space-y-3 animate-in fade-in slide-in-from-top-2">
             <div className="flex gap-2">
               <select
                 value={dependencyRelationship}
@@ -639,8 +637,7 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
                   className="w-full bg-[#161B26] border border-slate-700 text-xs text-slate-300 rounded px-2 py-1.5 focus:outline-none focus:border-blue-500/50"
                 />
                 {dependencyQuery && (
-                  <div
-                    className="absolute top-full left-0 right-0 mt-1 max-h-40 overflow-y-auto bg-[#161B26] border border-slate-700 rounded shadow-xl z-20">
+                  <div className="absolute top-full left-0 right-0 mt-1 max-h-40 overflow-y-auto bg-[#161B26] border border-slate-700 rounded shadow-xl z-20">
                     {dependencyResults.map((t) => (
                       <div
                         key={t.id}
@@ -669,27 +666,27 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
         )}
 
         <div className="space-y-2">
-          {(["blocks", "blocked_by", "relates_to"] as const).map((type) => {
+          {(['blocks', 'blocked_by', 'relates_to'] as const).map((type) => {
             const links =
-              type === "blocks"
+              type === 'blocks'
                 ? blocksLinks
-                : type === "blocked_by"
+                : type === 'blocked_by'
                   ? blockedByLinks
                   : relatedLinks
             if (links.length === 0) return null
 
             const label =
-              type === "blocks" ? "Blocks" : type === "blocked_by" ? "Blocked By" : "Relates To"
+              type === 'blocks' ? 'Blocks' : type === 'blocked_by' ? 'Blocked By' : 'Relates To'
             const color =
-              type === "blocks"
-                ? "text-amber-400"
-                : type === "blocked_by"
-                  ? "text-red-400"
-                  : "text-blue-400"
+              type === 'blocks'
+                ? 'text-amber-400'
+                : type === 'blocked_by'
+                  ? 'text-red-400'
+                  : 'text-blue-400'
 
             return (
               <div key={type} className="space-y-1">
-                <span className={cn("text-[10px] font-bold uppercase tracking-wider px-2", color)}>
+                <span className={cn('text-[10px] font-bold uppercase tracking-wider px-2', color)}>
                   {label}
                 </span>
                 <div className="space-y-1">
@@ -705,7 +702,7 @@ export function TaskDrawerDetails({task, onUpdate}: TaskDrawerDetailsProps) {
                         onClick={() => handleRemoveDependency(link.id)}
                         className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-red-400 transition-opacity"
                       >
-                        <X className="w-3 h-3"/>
+                        <X className="w-3 h-3" />
                       </button>
                     </div>
                   ))}
