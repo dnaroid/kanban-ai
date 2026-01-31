@@ -430,8 +430,8 @@ function ExecutionLog({ runId }: { runId: string }) {
           className={cn(
             'flex gap-4 p-4 my-3 rounded-xl border transition-all duration-200 group',
             isUser
-              ? 'bg-blue-500/[0.03] border-blue-500/20 hover:border-blue-500/30 shadow-sm shadow-blue-500/5'
-              : 'bg-slate-900/40 border-slate-800 hover:border-slate-700 shadow-sm shadow-black/20'
+              ? 'bg-gradient-to-br from-blue-500/[0.01] to-transparent border-blue-500/5 hover:border-blue-500/15'
+              : 'bg-gradient-to-br from-slate-500/[0.01] to-transparent border-slate-800/30 hover:border-slate-700/40'
           )}
         >
           <div className="shrink-0 pt-0.5">

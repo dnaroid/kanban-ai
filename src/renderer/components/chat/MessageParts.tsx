@@ -166,10 +166,9 @@ export function ReasoningPart({ part }: { part: { text: string } }) {
       <div className="space-y-2">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2 text-[10px] font-bold text-violet-400/80 hover:text-violet-400 transition-colors uppercase tracking-widest px-1"
+          className="flex items-center gap-2 text-violet-400/80 hover:text-violet-400 transition-colors px-1"
         >
           <BrainCircuit className="w-3 h-3" />
-          Reasoning
           {isExpanded ? (
             <ChevronDown className="w-2.5 h-2.5" />
           ) : (
