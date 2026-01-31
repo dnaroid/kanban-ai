@@ -90,9 +90,11 @@ export class OpenCodeExecutorSDK implements RunExecutor {
     const sessionInfo = await sessionManager.createSession(sessionTitle, project.path)
 
     try {
+      console.log('[OpenCode] Request:', prompt)
       const message = await sessionManager.sendPrompt(sessionInfo.id, prompt)
       const resolvedMessage = await sessionManager.getMessage(sessionInfo.id, message.id)
       const content = resolvedMessage?.content?.trim()
+      console.log('[OpenCode] Response:', content)
 
       if (!content) {
         throw new Error('Empty response from OpenCode')
@@ -140,6 +142,7 @@ export class OpenCodeExecutorSDK implements RunExecutor {
     })
 
     try {
+      console.log('[OpenCode] Request:', prompt)
       await sessionManager.sendPromptAsync(sessionInfo.id, prompt)
 
       const pollInterval = 2000
@@ -187,16 +190,23 @@ export class OpenCodeExecutorSDK implements RunExecutor {
             .filter((p) => p.type === 'text' && !p.ignored)
             .map((p) => (p as { text: string }).text)
             .join('\n')
+          console.log('[OpenCode] Response:', content)
           const statusMatch = content.match(/STATUS:\s*(done|fail|question)/i)
 
           if (statusMatch) {
             const rawStatus = statusMatch[1].toLowerCase()
-            const statusMap: Record<string, 'todo' | 'in-progress' | 'done'> = {
+            const statusMap: Record<
+              string,
+              'queued' | 'running' | 'question' | 'paused' | 'done' | 'failed'
+            > = {
               done: 'done',
-              fail: 'todo',
-              question: 'in-progress',
+              fail: 'failed',
+              question: 'question',
             }
-            taskRepo.update(task.id, { status: statusMap[rawStatus] })
+            const newStatus = statusMap[rawStatus]
+            if (newStatus) {
+              taskRepo.update(task.id, { status: newStatus })
+            }
 
             opencodeSessionRepo.updateStatus(run.id, 'completed')
             break

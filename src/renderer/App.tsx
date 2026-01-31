@@ -38,9 +38,11 @@ export default function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isSearchLoading, setIsSearchLoading] = useState(false)
   const [searchEntity, setSearchEntity] = useState<'all' | 'task' | 'run' | 'artifact'>('all')
-  const [searchStatus, setSearchStatus] = useState<'all' | 'todo' | 'in-progress' | 'done'>('all')
+  const [searchStatus, setSearchStatus] = useState<
+    'all' | 'queued' | 'running' | 'question' | 'paused' | 'done' | 'failed'
+  >('all')
   const [searchPriority, setSearchPriority] = useState<
-    'all' | 'low' | 'medium' | 'high' | 'urgent'
+    'all' | 'postpone' | 'low' | 'normal' | 'urgent'
   >('all')
   const [searchRole, setSearchRole] = useState('')
   const [searchTags, setSearchTags] = useState('')
@@ -454,28 +456,40 @@ export default function App() {
               <select
                 value={searchStatus}
                 onChange={(event) =>
-                  setSearchStatus(event.target.value as 'all' | 'todo' | 'in-progress' | 'done')
+                  setSearchStatus(
+                    event.target.value as
+                      | 'all'
+                      | 'queued'
+                      | 'running'
+                      | 'question'
+                      | 'paused'
+                      | 'done'
+                      | 'failed'
+                  )
                 }
                 className="bg-[#0B0E14] border border-slate-700/60 text-xs text-slate-200 rounded-lg px-2 py-1"
               >
                 <option value="all">All statuses</option>
-                <option value="todo">Todo</option>
-                <option value="in-progress">In progress</option>
+                <option value="queued">Queued</option>
+                <option value="running">Running</option>
+                <option value="question">Question</option>
+                <option value="paused">Paused</option>
                 <option value="done">Done</option>
+                <option value="failed">Failed</option>
               </select>
               <select
                 value={searchPriority}
                 onChange={(event) =>
                   setSearchPriority(
-                    event.target.value as 'all' | 'low' | 'medium' | 'high' | 'urgent'
+                    event.target.value as 'all' | 'postpone' | 'low' | 'normal' | 'urgent'
                   )
                 }
                 className="bg-[#0B0E14] border border-slate-700/60 text-xs text-slate-200 rounded-lg px-2 py-1"
               >
                 <option value="all">All priorities</option>
+                <option value="postpone">Postpone</option>
                 <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
+                <option value="normal">Normal</option>
                 <option value="urgent">Urgent</option>
               </select>
               <input

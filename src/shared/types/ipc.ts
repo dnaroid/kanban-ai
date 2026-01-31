@@ -1,9 +1,11 @@
 import { z } from 'zod'
 
-export const TaskStatusSchema = z.enum(['todo', 'in-progress', 'done']).describe('TaskStatus')
+export const TaskStatusSchema = z
+  .enum(['queued', 'running', 'question', 'paused', 'done', 'failed'])
+  .describe('TaskStatus')
 
 export const TaskPrioritySchema = z
-  .enum(['low', 'medium', 'high', 'urgent'])
+  .enum(['postpone', 'low', 'normal', 'urgent'])
   .describe('TaskPriority')
 
 export const LogLevelSchema = z.enum(['info', 'warn', 'error', 'debug'])
@@ -125,13 +127,18 @@ export const KanbanTaskSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   descriptionMd: z.string().optional(),
-  status: z.enum(['todo', 'in-progress', 'done']),
-  priority: z.enum(['low', 'medium', 'high', 'urgent']),
-  difficulty: z.enum(['easy', 'medium', 'hard', 'epic']).optional(),
+  status: z.enum(['queued', 'running', 'question', 'paused', 'done', 'failed']),
+  priority: z.enum(['postpone', 'low', 'normal', 'urgent']),
+  difficulty: z.enum(['easy', 'medium', 'hard', 'epic']).default('medium'),
   type: z.string(),
-  orderInColumn: z.number(),
-  tags: z.array(z.string()).default([]),
-  assignedAgent: z.string().optional(),
+  orderInColumn: z.number().optional(),
+
+  tags: z.array(z.string()),
+  startDate: z.string().nullable().optional(),
+  dueDate: z.string().nullable().optional(),
+  estimatePoints: z.number().optional(),
+  estimateHours: z.number().optional(),
+  assignee: z.string().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 })
@@ -144,10 +151,10 @@ export const CreateTaskInputSchema = z.object({
   columnId: z.string().uuid(),
   title: z.string().min(1),
   description: z.string().optional(),
-  priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
-  difficulty: z.enum(['easy', 'medium', 'hard', 'epic']).default('medium'),
   type: z.string().default('task'),
-  tags: z.array(z.string()).optional(),
+  priority: z.enum(['postpone', 'low', 'normal', 'urgent']).default('normal'),
+  difficulty: z.enum(['easy', 'medium', 'hard', 'epic']).default('medium'),
+  tags: z.array(z.string()).default([]),
 })
 
 export type CreateTaskInput = z.infer<typeof CreateTaskInputSchema>
@@ -158,60 +165,63 @@ export const TaskCreateResponseSchema = z.object({
 
 export type TaskCreateResponse = z.infer<typeof TaskCreateResponseSchema>
 
-export const TaskListByBoardInputSchema = z.object({
-  boardId: z.string().uuid(),
-})
-
-export type TaskListByBoardInput = z.infer<typeof TaskListByBoardInputSchema>
-
-export const TaskListByBoardResponseSchema = z.object({
-  tasks: z.array(KanbanTaskSchema),
-})
-
-export type TaskListByBoardResponse = z.infer<typeof TaskListByBoardResponseSchema>
-
 export const TaskPatchSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().optional(),
   descriptionMd: z.string().optional(),
-  status: z.enum(['todo', 'in-progress', 'done']).optional(),
-  priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  status: z.enum(['queued', 'running', 'question', 'paused', 'done', 'failed']).optional(),
+  priority: z.enum(['postpone', 'low', 'normal', 'urgent']).optional(),
   difficulty: z.enum(['easy', 'medium', 'hard', 'epic']).optional(),
   type: z.string().optional(),
   columnId: z.string().uuid().optional(),
   orderInColumn: z.number().optional(),
   tags: z.array(z.string()).optional(),
-  deletedAt: z.string().datetime().optional(),
+  startDate: z.string().nullable().optional(),
+  dueDate: z.string().nullable().optional(),
+  estimatePoints: z.number().optional(),
+  estimateHours: z.number().optional(),
+  assignee: z.string().optional(),
 })
 
 export type TaskPatch = z.infer<typeof TaskPatchSchema>
+
+export const TaskListInputSchema = z.object({
+  projectId: z.string().uuid().optional(),
+  boardId: z.string().uuid().optional(),
+})
+
+export type TaskListInput = z.infer<typeof TaskListInputSchema>
+
+export const TaskListResponseSchema = z.object({
+  tasks: z.array(KanbanTaskSchema),
+})
+
+export const TaskListByBoardInputSchema = TaskListInputSchema
+export type TaskListByBoardInput = TaskListInput
+
+export const TaskListByBoardResponseSchema = TaskListResponseSchema
+export type TaskListByBoardResponse = TaskListResponse
 
 export const TaskUpdateInputSchema = z.object({
   taskId: z.string().uuid(),
   patch: TaskPatchSchema,
 })
-
 export type TaskUpdateInput = z.infer<typeof TaskUpdateInputSchema>
 
-export const TaskUpdateResponseSchema = z.object({
+export const TaskUpdateResponseSchema = TaskCreateResponseSchema
+export type TaskUpdateResponse = TaskCreateResponse
+
+export const TaskGetInputSchema = z.object({
+  taskId: z.string().uuid(),
+})
+
+export type TaskGetInput = z.infer<typeof TaskGetInputSchema>
+
+export const TaskGetResponseSchema = z.object({
   task: KanbanTaskSchema,
 })
 
-export type TaskUpdateResponse = z.infer<typeof TaskUpdateResponseSchema>
-
-export const TaskMoveInputSchema = z.object({
-  taskId: z.string().uuid(),
-  toColumnId: z.string().uuid(),
-  toIndex: z.number(),
-})
-
-export type TaskMoveInput = z.infer<typeof TaskMoveInputSchema>
-
-export const TaskMoveResponseSchema = z.object({
-  success: z.literal(true),
-})
-
-export type TaskMoveResponse = z.infer<typeof TaskMoveResponseSchema>
+export type TaskGetResponse = z.infer<typeof TaskGetResponseSchema>
 
 export const TaskDeleteInputSchema = z.object({
   taskId: z.string().uuid(),
@@ -225,33 +235,37 @@ export const TaskDeleteResponseSchema = z.object({
 
 export type TaskDeleteResponse = z.infer<typeof TaskDeleteResponseSchema>
 
-export const TaskLinkTypeSchema = z.enum(['blocks', 'relates', 'duplicates'])
+export const TaskMoveInputSchema = z.object({
+  taskId: z.string().uuid(),
+  toColumnId: z.string().uuid(),
+  toIndex: z.number(),
+})
+
+export type TaskMoveInput = z.infer<typeof TaskMoveInputSchema>
+
+export const TaskMoveResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type TaskMoveResponse = z.infer<typeof TaskMoveResponseSchema>
+
+export const TaskDependencyTypeSchema = z.enum(['blocks', 'blocked_by', 'relates'])
+
+export type TaskDependencyType = z.infer<typeof TaskDependencyTypeSchema>
+
+export const TaskLinkTypeSchema = z.enum(['blocks', 'relates'])
 
 export type TaskLinkType = z.infer<typeof TaskLinkTypeSchema>
 
 export const TaskLinkSchema = z.object({
   id: z.string().uuid(),
-  projectId: z.string().uuid(),
   fromTaskId: z.string().uuid(),
   toTaskId: z.string().uuid(),
   linkType: TaskLinkTypeSchema,
   createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
 })
 
 export type TaskLink = z.infer<typeof TaskLinkSchema>
-
-export const DepsListInputSchema = z.object({
-  taskId: z.string().uuid(),
-})
-
-export type DepsListInput = z.infer<typeof DepsListInputSchema>
-
-export const DepsListResponseSchema = z.object({
-  links: z.array(TaskLinkSchema),
-})
-
-export type DepsListResponse = z.infer<typeof DepsListResponseSchema>
 
 export const DepsAddInputSchema = z.object({
   fromTaskId: z.string().uuid(),
@@ -279,34 +293,23 @@ export const DepsRemoveResponseSchema = z.object({
 
 export type DepsRemoveResponse = z.infer<typeof DepsRemoveResponseSchema>
 
-export const TaskScheduleSchema = z.object({
+export const DepsListInputSchema = z.object({
   taskId: z.string().uuid(),
-  startDate: z.string().nullable(),
-  dueDate: z.string().nullable(),
-  estimatePoints: z.number(),
-  estimateHours: z.number(),
-  assignee: z.string(),
-  updatedAt: z.string().datetime(),
 })
 
-export type TaskSchedule = z.infer<typeof TaskScheduleSchema>
+export type DepsListInput = z.infer<typeof DepsListInputSchema>
 
-export const TimelineTaskSchema = z.object({
-  id: z.string().uuid(),
-  projectId: z.string().uuid(),
-  title: z.string(),
-  status: z.enum(['todo', 'in-progress', 'done']),
-  priority: z.enum(['low', 'medium', 'high', 'urgent']),
-  tags: z.array(z.string()),
-  startDate: z.string().nullable(),
-  dueDate: z.string().nullable(),
-  estimatePoints: z.number(),
-  estimateHours: z.number(),
-  assignee: z.string(),
-  updatedAt: z.string().datetime(),
+export const DepsListResponseSchema = z.object({
+  links: z.array(TaskLinkSchema),
 })
+
+export type DepsListResponse = z.infer<typeof DepsListResponseSchema>
+
+export const TimelineTaskSchema = KanbanTaskSchema
+export const TaskScheduleSchema = KanbanTaskSchema
 
 export type TimelineTask = z.infer<typeof TimelineTaskSchema>
+export type TaskSchedule = z.infer<typeof TaskScheduleSchema>
 
 export const ScheduleGetInputSchema = z.object({
   projectId: z.string().uuid(),
@@ -344,9 +347,9 @@ export type SearchEntity = z.infer<typeof SearchEntitySchema>
 export const SearchFiltersSchema = z.object({
   projectId: z.string().uuid().optional(),
   entity: SearchEntitySchema.optional(),
-  status: z.enum(['todo', 'in-progress', 'done']).optional(),
+  status: z.enum(['queued', 'running', 'question', 'paused', 'done', 'failed']).optional(),
   tags: z.array(z.string()).optional(),
-  priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  priority: z.enum(['postpone', 'low', 'normal', 'urgent']).optional(),
   role: z.string().optional(),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),

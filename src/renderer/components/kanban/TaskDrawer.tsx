@@ -116,9 +116,6 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
         {/* Header */}
         <div className="h-14 border-b border-slate-800 flex items-center justify-between px-4 bg-[#11151C] shrink-0">
           <div className="flex items-center gap-2 flex-1 min-w-0 mr-4">
-            <div className="p-1.5 bg-blue-500/10 rounded-md border border-blue-500/20 text-blue-400 shrink-0">
-              <TypeIcon className="w-4 h-4" />
-            </div>
             {isEditingTitle ? (
               <input
                 ref={titleInputRef}

@@ -60,7 +60,8 @@ describe('TaskRepository.move', () => {
         boardId: board.id,
         columnId,
         title: 'First',
-        priority: 'medium',
+        priority: 'normal',
+        difficulty: 'medium',
         type: 'task',
         tags: [],
       })
@@ -69,7 +70,8 @@ describe('TaskRepository.move', () => {
         boardId: board.id,
         columnId,
         title: 'Second',
-        priority: 'medium',
+        priority: 'normal',
+        difficulty: 'medium',
         type: 'task',
         tags: [],
       })
@@ -78,7 +80,8 @@ describe('TaskRepository.move', () => {
         boardId: board.id,
         columnId,
         title: 'Third',
-        priority: 'medium',
+        priority: 'normal',
+        difficulty: 'medium',
         type: 'task',
         tags: [],
       })
@@ -107,7 +110,8 @@ describe('TaskRepository.move', () => {
         boardId: board.id,
         columnId: sourceColumn.id,
         title: 'Source A',
-        priority: 'medium',
+        priority: 'normal',
+        difficulty: 'medium',
         type: 'task',
         tags: [],
       })
@@ -116,7 +120,8 @@ describe('TaskRepository.move', () => {
         boardId: board.id,
         columnId: sourceColumn.id,
         title: 'Source B',
-        priority: 'medium',
+        priority: 'normal',
+        difficulty: 'medium',
         type: 'task',
         tags: [],
       })
@@ -125,7 +130,8 @@ describe('TaskRepository.move', () => {
         boardId: board.id,
         columnId: destinationColumn.id,
         title: 'Destination A',
-        priority: 'medium',
+        priority: 'normal',
+        difficulty: 'medium',
         type: 'task',
         tags: [],
       })

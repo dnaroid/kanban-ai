@@ -61,7 +61,8 @@ describe('searchService.queryTasks', () => {
         boardId: board.id,
         columnId,
         title: 'Alpha Task',
-        priority: 'medium',
+        priority: 'normal',
+        difficulty: 'medium',
         type: 'task',
         tags: ['frontend'],
       })
@@ -70,7 +71,8 @@ describe('searchService.queryTasks', () => {
         boardId: board.id,
         columnId,
         title: 'Beta Task',
-        priority: 'medium',
+        priority: 'normal',
+        difficulty: 'medium',
         type: 'task',
         tags: ['backend'],
       })

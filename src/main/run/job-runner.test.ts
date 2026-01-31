@@ -38,7 +38,8 @@ const createRun = () => {
     boardId: board.id,
     columnId,
     title: 'Test Task',
-    priority: 'medium',
+    priority: 'normal',
+    difficulty: 'medium',
     type: 'task',
     tags: [],
   })

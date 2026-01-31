@@ -26,7 +26,7 @@ export class TaskRepository {
       input.columnId,
       input.title,
       input.description ?? null,
-      'todo',
+      'queued',
       input.priority,
       input.difficulty ?? 'medium',
       input.type,
@@ -43,7 +43,7 @@ export class TaskRepository {
       columnId: input.columnId,
       title: input.title,
       description: input.description,
-      status: 'todo',
+      status: 'queued',
       priority: input.priority,
       difficulty: input.difficulty,
       type: input.type,
@@ -74,8 +74,14 @@ export class TaskRepository {
                    t.tags_json       as tagsJson,
                    t.assigned_agent  as assignedAgent,
                    t.created_at      as createdAt,
-                   t.updated_at      as updatedAt
+                   t.updated_at      as updatedAt,
+                   t.start_date      as startDate,
+                   t.due_date        as dueDate,
+                   t.estimate_points as estimatePoints,
+                   t.estimate_hours  as estimateHours,
+                   t.assignee        as assignee
             FROM tasks t
+
             WHERE board_id = ?
             ORDER BY order_in_column ASC
         `
@@ -90,6 +96,11 @@ export class TaskRepository {
       status: row.status,
       difficulty: row.difficulty ?? 'medium',
       tags: JSON.parse(row.tagsJson || '[]'),
+      startDate: row.startDate ?? null,
+      dueDate: row.dueDate ?? null,
+      estimatePoints: row.estimatePoints ?? undefined,
+      estimateHours: row.estimateHours ?? undefined,
+      assignee: row.assignee ?? undefined,
     }))
   }
 
@@ -113,8 +124,14 @@ export class TaskRepository {
                    t.tags_json       as tagsJson,
                    t.assigned_agent  as assignedAgent,
                    t.created_at      as createdAt,
-                   t.updated_at      as updatedAt
+                   t.updated_at      as updatedAt,
+                   t.start_date      as startDate,
+                   t.due_date        as dueDate,
+                   t.estimate_points as estimatePoints,
+                   t.estimate_hours  as estimateHours,
+                   t.assignee        as assignee
             FROM tasks t
+
             WHERE id = ? LIMIT 1
         `
       )
@@ -129,6 +146,11 @@ export class TaskRepository {
       assignedAgent: row.assignedAgent ?? undefined,
       difficulty: row.difficulty ?? 'medium',
       tags: JSON.parse(row.tagsJson || '[]'),
+      startDate: row.startDate ?? null,
+      dueDate: row.dueDate ?? null,
+      estimatePoints: row.estimatePoints ?? undefined,
+      estimateHours: row.estimateHours ?? undefined,
+      assignee: row.assignee ?? undefined,
     }
   }
 
@@ -150,6 +172,11 @@ export class TaskRepository {
       'columnId',
       'orderInColumn',
       'tags',
+      'estimatePoints',
+      'estimateHours',
+      'assignee',
+      'startDate',
+      'dueDate',
     ]
 
     allowedFields.forEach((field) => {
@@ -165,6 +192,18 @@ export class TaskRepository {
           values.push(patch[field])
         } else if (field === 'descriptionMd') {
           sets.push('description_md = ?')
+          values.push(patch[field])
+        } else if (field === 'startDate') {
+          sets.push('start_date = ?')
+          values.push(patch[field])
+        } else if (field === 'dueDate') {
+          sets.push('due_date = ?')
+          values.push(patch[field])
+        } else if (field === 'estimatePoints') {
+          sets.push('estimate_points = ?')
+          values.push(patch[field])
+        } else if (field === 'estimateHours') {
+          sets.push('estimate_hours = ?')
           values.push(patch[field])
         } else {
           sets.push(`${field} = ?`)

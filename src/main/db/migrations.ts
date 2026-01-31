@@ -424,6 +424,32 @@ export const migrations = [
     version: 1,
     sql: `ALTER TABLE tasks ADD COLUMN difficulty TEXT;`,
   },
+  {
+    version: 2,
+    sql: `
+      UPDATE tasks SET status = 'queued' WHERE status = 'todo';
+      UPDATE tasks SET status = 'running' WHERE status = 'in-progress';
+      -- done remains done, others are new
+    `,
+  },
+  {
+    version: 3,
+    sql: `
+      ALTER TABLE tasks ADD COLUMN start_date TEXT;
+      ALTER TABLE tasks ADD COLUMN due_date TEXT;
+      ALTER TABLE tasks ADD COLUMN estimate_points REAL;
+      ALTER TABLE tasks ADD COLUMN estimate_hours REAL;
+      ALTER TABLE tasks ADD COLUMN assignee TEXT;
+    `,
+  },
+  {
+    version: 4,
+    sql: `
+      UPDATE tasks SET priority = 'normal' WHERE priority = 'medium';
+      UPDATE tasks SET priority = 'urgent' WHERE priority = 'high';
+      -- low and urgent remain
+    `,
+  },
 ] as const
 
 export type Migration = (typeof migrations)[number]

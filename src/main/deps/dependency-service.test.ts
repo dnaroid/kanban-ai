@@ -61,7 +61,8 @@ describe('dependencyService', () => {
         boardId: board.id,
         columnId,
         title: 'Task A',
-        priority: 'medium',
+        priority: 'normal',
+        difficulty: 'medium',
         type: 'task',
         tags: [],
       })
@@ -70,7 +71,8 @@ describe('dependencyService', () => {
         boardId: board.id,
         columnId,
         title: 'Task B',
-        priority: 'medium',
+        priority: 'normal',
+        difficulty: 'medium',
         type: 'task',
         tags: [],
       })

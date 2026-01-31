@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import { useEffect, useState } from 'react'
 import {
   closestCorners,
   DndContext,
@@ -9,7 +9,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-} from "@dnd-kit/core"
+} from '@dnd-kit/core'
 import {
   arrayMove,
   horizontalListSortingStrategy,
@@ -17,12 +17,18 @@ import {
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from "@dnd-kit/sortable"
-import {CSS} from "@dnd-kit/utilities"
-import {AlertCircle, Clock, Edit2, GripVertical, Play, Plus, Trash2, X} from "lucide-react"
-import type {Board, BoardColumn, BoardColumnInput, CreateTaskInput, KanbanTask,} from "@/shared/types/ipc.ts"
-import {cn} from "../lib/utils"
-import {TaskDrawer} from "../components/kanban/TaskDrawer"
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { AlertCircle, Clock, Edit2, GripVertical, Play, Plus, Trash2, X } from 'lucide-react'
+import type {
+  Board,
+  BoardColumn,
+  BoardColumnInput,
+  CreateTaskInput,
+  KanbanTask,
+} from '@/shared/types/ipc.ts'
+import { cn } from '../lib/utils'
+import { TaskDrawer } from '../components/kanban/TaskDrawer'
 
 interface BoardScreenProps {
   projectId: string
@@ -34,11 +40,11 @@ interface SortableTaskProps {
   onClick?: (task: KanbanTask) => void
 }
 
-function SortableTask({task, onDelete, onClick}: SortableTaskProps) {
-  const {attributes, listeners, setNodeRef, transform, transition, isDragging} = useSortable({
+function SortableTask({ task, onDelete, onClick }: SortableTaskProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: {
-      type: "task",
+      type: 'task',
       task,
     },
   })
@@ -54,14 +60,14 @@ function SortableTask({task, onDelete, onClick}: SortableTaskProps) {
     let isMounted = true
     const fetchBlockedState = async () => {
       try {
-        const response = await window.api.deps.list({taskId: task.id})
+        const response = await window.api.deps.list({ taskId: task.id })
         if (!isMounted) return
         const blocked = response.links.some(
-          (link) => link.linkType === "blocks" && link.toTaskId === task.id
+          (link) => link.linkType === 'blocks' && link.toTaskId === task.id
         )
         setIsBlocked(blocked)
       } catch (error) {
-        console.error("Failed to fetch dependencies for task:", error)
+        console.error('Failed to fetch dependencies for task:', error)
       }
     }
     fetchBlockedState()
@@ -71,10 +77,10 @@ function SortableTask({task, onDelete, onClick}: SortableTaskProps) {
   }, [task.id])
 
   const priorityColors = {
-    low: "border-emerald-500/30 text-emerald-400 bg-emerald-500/5",
-    medium: "border-amber-500/30 text-amber-400 bg-amber-500/5",
-    high: "border-orange-500/30 text-orange-400 bg-orange-500/5",
-    urgent: "border-red-500/30 text-red-400 bg-red-500/5",
+    postpone: 'border-slate-500/30 text-slate-400 bg-slate-500/5',
+    low: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5',
+    normal: 'border-blue-500/30 text-blue-400 bg-blue-500/5',
+    urgent: 'border-red-500/30 text-red-400 bg-red-500/5',
   }
 
   return (
@@ -83,8 +89,8 @@ function SortableTask({task, onDelete, onClick}: SortableTaskProps) {
       style={style}
       onClick={() => onClick?.(task)}
       className={cn(
-        "bg-[#11151C] border border-slate-700 rounded-xl mb-3 group hover:border-slate-600 hover:shadow-lg hover:shadow-black/20 transition-all cursor-grab active:cursor-grabbing overflow-hidden",
-        isDragging && "opacity-50 shadow-2xl scale-105"
+        'bg-[#11151C] border border-slate-700 rounded-xl mb-3 group hover:border-slate-600 hover:shadow-lg hover:shadow-black/20 transition-all cursor-grab active:cursor-grabbing overflow-hidden',
+        isDragging && 'opacity-50 shadow-2xl scale-105'
       )}
     >
       <div className="flex items-stretch gap-0">
@@ -93,7 +99,7 @@ function SortableTask({task, onDelete, onClick}: SortableTaskProps) {
           {...listeners}
           className="px-2 flex items-center justify-center text-slate-700 hover:text-slate-400 hover:bg-slate-800/50 transition-colors"
         >
-          <GripVertical className="w-5 h-5"/>
+          <GripVertical className="w-5 h-5" />
         </button>
 
         <div className="flex-1 min-w-0 p-3 pl-1">
@@ -109,27 +115,25 @@ function SortableTask({task, onDelete, onClick}: SortableTaskProps) {
               className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all p-1 rounded-md hover:bg-red-500/10"
               title="Delete Task"
             >
-              <Trash2 className="w-4 h-4"/>
+              <Trash2 className="w-4 h-4" />
             </button>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mb-2">
             <span
               className={cn(
-                "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border",
+                'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border',
                 priorityColors[task.priority]
               )}
             >
               {task.priority}
             </span>
-            <span
-              className="text-[10px] text-slate-500 font-bold uppercase tracking-wider bg-slate-800/50 px-2 py-0.5 rounded-md">
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider bg-slate-800/50 px-2 py-0.5 rounded-md">
               {task.type}
             </span>
             {isBlocked && (
-              <span
-                className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border bg-red-500/10 text-red-400 border-red-500/20 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3"/>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border bg-red-500/10 text-red-400 border-red-500/20 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
                 Blocked
               </span>
             )}
@@ -171,20 +175,20 @@ interface SortableColumnProps {
 }
 
 function SortableColumn({
-                          id,
-                          name,
-                          color,
-                          tasks,
-                          onAddTask,
-                          onDeleteTask,
-                          onTaskClick,
-                          onEdit,
-                          onDelete,
-                        }: SortableColumnProps) {
-  const {attributes, listeners, setNodeRef, transform, transition, isDragging} = useSortable({
+  id,
+  name,
+  color,
+  tasks,
+  onAddTask,
+  onDeleteTask,
+  onTaskClick,
+  onEdit,
+  onDelete,
+}: SortableColumnProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: id,
     data: {
-      type: "column",
+      type: 'column',
     },
   })
 
@@ -200,12 +204,12 @@ function SortableColumn({
         ...style,
         borderColor: color ? `${color}40` : undefined,
         boxShadow: color ? `0 0 25px -10px ${color}20` : undefined,
-        backgroundColor: color ? `color-mix(in srgb, ${color} 3%, #0B0E14)` : "#0B0E14",
+        backgroundColor: color ? `color-mix(in srgb, ${color} 3%, #0B0E14)` : '#0B0E14',
       }}
       className={cn(
-        "flex-shrink-0 w-80 rounded-2xl border flex flex-col max-h-full transition-all duration-300",
-        !color && "border-slate-800/50",
-        isDragging && "opacity-50"
+        'flex-shrink-0 w-80 rounded-2xl border flex flex-col max-h-full transition-all duration-300',
+        !color && 'border-slate-800/50',
+        isDragging && 'opacity-50'
       )}
     >
       <div className="p-4 border-b border-slate-800/50">
@@ -216,7 +220,7 @@ function SortableColumn({
               {...listeners}
               className="text-slate-600 hover:text-slate-300 transition-colors shrink-0 p-2 hover:bg-slate-800/50 rounded-lg -ml-1"
             >
-              <GripVertical className="w-5 h-5"/>
+              <GripVertical className="w-5 h-5" />
             </button>
             <h3
               className="text-sm font-bold text-slate-200 truncate cursor-pointer hover:text-blue-400 transition-colors px-1"
@@ -234,21 +238,21 @@ function SortableColumn({
               className="text-slate-600 hover:text-blue-400 transition-colors p-1"
               title="Edit Column"
             >
-              <Edit2 className="w-4 h-4"/>
+              <Edit2 className="w-4 h-4" />
             </button>
             <button
               onClick={onDelete}
               className="text-slate-600 hover:text-red-400 transition-colors p-1"
               title="Delete Column"
             >
-              <Trash2 className="w-4 h-4"/>
+              <Trash2 className="w-4 h-4" />
             </button>
             <button
               onClick={onAddTask}
               className="text-slate-600 hover:text-blue-400 hover:bg-blue-400/10 transition-colors p-1"
               title="Quick Add Task"
             >
-              <Plus className="w-5 h-5"/>
+              <Plus className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -259,7 +263,7 @@ function SortableColumn({
           {tasks.length === 0 ? (
             <div className="text-center py-12 text-slate-600">
               <div className="w-10 h-10 bg-slate-800/50 rounded-xl flex items-center justify-center mx-auto mb-3">
-                <AlertCircle className="w-5 h-5"/>
+                <AlertCircle className="w-5 h-5" />
               </div>
               <p className="text-sm">No tasks yet</p>
               <p className="text-xs mt-1">Click + to add a task</p>
@@ -281,18 +285,18 @@ function SortableColumn({
 }
 
 const COLUMN_COLORS = [
-  {name: "Blue", value: "#3B82F6", bg: "bg-blue-500", hover: "hover:bg-blue-400"},
-  {name: "Green", value: "#10B981", bg: "bg-emerald-500", hover: "hover:bg-emerald-400"},
-  {name: "Purple", value: "#8B5CF6", bg: "bg-violet-500", hover: "hover:bg-violet-400"},
-  {name: "Red", value: "#EF4444", bg: "bg-red-500", hover: "hover:bg-red-400"},
-  {name: "Orange", value: "#F59E0B", bg: "bg-amber-500", hover: "hover:bg-amber-400"},
-  {name: "Cyan", value: "#06B6D4", bg: "bg-cyan-500", hover: "hover:bg-cyan-400"},
-  {name: "Pink", value: "#EC4899", bg: "bg-pink-500", hover: "hover:bg-pink-400"},
-  {name: "Teal", value: "#14B8A6", bg: "bg-teal-500", hover: "hover:bg-teal-400"},
-  {name: "Indigo", value: "#6366F1", bg: "bg-indigo-500", hover: "hover:bg-indigo-400"},
-  {name: "Yellow", value: "#EAB308", bg: "bg-yellow-500", hover: "hover:bg-yellow-400"},
-  {name: "Rose", value: "#F43F5E", bg: "bg-rose-500", hover: "hover:bg-rose-400"},
-  {name: "Sky", value: "#0EA5E9", bg: "bg-sky-500", hover: "hover:bg-sky-400"},
+  { name: 'Blue', value: '#3B82F6', bg: 'bg-blue-500', hover: 'hover:bg-blue-400' },
+  { name: 'Green', value: '#10B981', bg: 'bg-emerald-500', hover: 'hover:bg-emerald-400' },
+  { name: 'Purple', value: '#8B5CF6', bg: 'bg-violet-500', hover: 'hover:bg-violet-400' },
+  { name: 'Red', value: '#EF4444', bg: 'bg-red-500', hover: 'hover:bg-red-400' },
+  { name: 'Orange', value: '#F59E0B', bg: 'bg-amber-500', hover: 'hover:bg-amber-400' },
+  { name: 'Cyan', value: '#06B6D4', bg: 'bg-cyan-500', hover: 'hover:bg-cyan-400' },
+  { name: 'Pink', value: '#EC4899', bg: 'bg-pink-500', hover: 'hover:bg-pink-400' },
+  { name: 'Teal', value: '#14B8A6', bg: 'bg-teal-500', hover: 'hover:bg-teal-400' },
+  { name: 'Indigo', value: '#6366F1', bg: 'bg-indigo-500', hover: 'hover:bg-indigo-400' },
+  { name: 'Yellow', value: '#EAB308', bg: 'bg-yellow-500', hover: 'hover:bg-yellow-400' },
+  { name: 'Rose', value: '#F43F5E', bg: 'bg-rose-500', hover: 'hover:bg-rose-400' },
+  { name: 'Sky', value: '#0EA5E9', bg: 'bg-sky-500', hover: 'hover:bg-sky-400' },
 ]
 
 interface ColumnModalProps {
@@ -303,13 +307,13 @@ interface ColumnModalProps {
   title: string
 }
 
-function ColumnModal({isOpen, onClose, onSubmit, initialData, title}: ColumnModalProps) {
-  const [name, setName] = useState("")
+function ColumnModal({ isOpen, onClose, onSubmit, initialData, title }: ColumnModalProps) {
+  const [name, setName] = useState('')
   const [selectedColor, setSelectedColor] = useState(COLUMN_COLORS[0].value)
 
   useEffect(() => {
     if (isOpen) {
-      setName(initialData?.name || "")
+      setName(initialData?.name || '')
       setSelectedColor(initialData?.color || COLUMN_COLORS[0].value)
     }
   }, [isOpen, initialData])
@@ -331,7 +335,7 @@ function ColumnModal({isOpen, onClose, onSubmit, initialData, title}: ColumnModa
             onClick={onClose}
             className="text-slate-500 hover:text-slate-300 transition-colors"
           >
-            <X className="w-5 h-5"/>
+            <X className="w-5 h-5" />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -360,20 +364,19 @@ function ColumnModal({isOpen, onClose, onSubmit, initialData, title}: ColumnModa
                   type="button"
                   onClick={() => setSelectedColor(color.value)}
                   className={cn(
-                    "aspect-square rounded-xl transition-all relative flex items-center justify-center group",
+                    'aspect-square rounded-xl transition-all relative flex items-center justify-center group',
                     color.bg,
                     color.hover,
                     selectedColor === color.value
-                      ? "ring-2 ring-white ring-offset-2 ring-offset-[#11151C]"
-                      : "opacity-80 hover:opacity-100"
+                      ? 'ring-2 ring-white ring-offset-2 ring-offset-[#11151C]'
+                      : 'opacity-80 hover:opacity-100'
                   )}
                   title={color.name}
                 >
                   {selectedColor === color.value && (
-                    <div className="w-2.5 h-2.5 bg-white rounded-full shadow-lg"/>
+                    <div className="w-2.5 h-2.5 bg-white rounded-full shadow-lg" />
                   )}
-                  <div
-                    className="absolute inset-0 rounded-xl ring-1 ring-inset ring-black/10 group-hover:ring-black/20"/>
+                  <div className="absolute inset-0 rounded-xl ring-1 ring-inset ring-black/10 group-hover:ring-black/20" />
                 </button>
               ))}
             </div>
@@ -391,7 +394,7 @@ function ColumnModal({isOpen, onClose, onSubmit, initialData, title}: ColumnModa
               disabled={!name.trim()}
               className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-600/20"
             >
-              {initialData ? "Save Changes" : "Add Column"}
+              {initialData ? 'Save Changes' : 'Add Column'}
             </button>
           </div>
         </form>
@@ -403,16 +406,16 @@ function ColumnModal({isOpen, onClose, onSubmit, initialData, title}: ColumnModa
 interface QuickAddTaskModalProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (task: Omit<CreateTaskInput, "boardId" | "projectId">) => void
+  onSubmit: (task: Omit<CreateTaskInput, 'boardId' | 'projectId'>) => void
   columnName?: string
 }
 
-function QuickAddTaskModal({isOpen, onClose, onSubmit, columnName}: QuickAddTaskModalProps) {
-  const [title, setTitle] = useState("")
-  const [description, setDescription] = useState("")
-  const [priority, setPriority] = useState<"low" | "medium" | "high" | "urgent">("medium")
-  const [type, setType] = useState("task")
-  const [tags, setTags] = useState("")
+function QuickAddTaskModal({ isOpen, onClose, onSubmit, columnName }: QuickAddTaskModalProps) {
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium')
+  const [type, setType] = useState('task')
+  const [tags, setTags] = useState('')
 
   if (!isOpen) return null
 
@@ -420,7 +423,7 @@ function QuickAddTaskModal({isOpen, onClose, onSubmit, columnName}: QuickAddTask
     e.preventDefault()
     if (!title.trim()) return
     const tagArray = tags
-      .split(",")
+      .split(',')
       .map((t) => t.trim())
       .filter((t) => t.length > 0)
     onSubmit({
@@ -429,13 +432,13 @@ function QuickAddTaskModal({isOpen, onClose, onSubmit, columnName}: QuickAddTask
       priority,
       type,
       tags: tagArray,
-      columnId: "",
+      columnId: '',
     })
-    setTitle("")
-    setDescription("")
-    setTags("")
-    setPriority("medium")
-    setType("task")
+    setTitle('')
+    setDescription('')
+    setTags('')
+    setPriority('medium')
+    setType('task')
   }
 
   return (
@@ -443,14 +446,14 @@ function QuickAddTaskModal({isOpen, onClose, onSubmit, columnName}: QuickAddTask
       <div className="bg-[#11151C] border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-white">
-            Quick Add Task{" "}
+            Quick Add Task{' '}
             {columnName && <span className="text-slate-400 font-normal ml-2">→ {columnName}</span>}
           </h2>
           <button
             onClick={onClose}
             className="text-slate-500 hover:text-slate-300 transition-colors"
           >
-            <X className="w-5 h-5"/>
+            <X className="w-5 h-5" />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -489,9 +492,9 @@ function QuickAddTaskModal({isOpen, onClose, onSubmit, columnName}: QuickAddTask
                 onChange={(e) => setPriority(e.target.value as any)}
                 className="w-full px-4 py-3 bg-[#0B0E14] border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
               >
+                <option value="postpone">Postpone</option>
                 <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
+                <option value="normal">Normal</option>
                 <option value="urgent">Urgent</option>
               </select>
             </div>
@@ -542,7 +545,7 @@ function QuickAddTaskModal({isOpen, onClose, onSubmit, columnName}: QuickAddTask
   )
 }
 
-export function BoardScreen({projectId}: BoardScreenProps) {
+export function BoardScreen({ projectId }: BoardScreenProps) {
   const [board, setBoard] = useState<Board | null>(null)
   const [tasks, setTasks] = useState<KanbanTask[]>([])
   const [loading, setLoading] = useState(true)
@@ -557,8 +560,8 @@ export function BoardScreen({projectId}: BoardScreenProps) {
   const [editingColumnId, setEditingColumnId] = useState<string | null>(null)
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {activationConstraint: {distance: 5}}),
-    useSensor(KeyboardSensor, {coordinateGetter: sortableKeyboardCoordinates})
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
   useEffect(() => {
@@ -566,33 +569,33 @@ export function BoardScreen({projectId}: BoardScreenProps) {
   }, [projectId])
 
   const normalizeColumns = (
-    columns: Array<{ id?: BoardColumn["id"]; name: BoardColumn["name"]; color?: string }>
+    columns: Array<{ id?: BoardColumn['id']; name: BoardColumn['name']; color?: string }>
   ): BoardColumnInput[] =>
     columns.map((col, index) => ({
       id: col.id,
       name: col.name,
       orderIndex: index,
-      color: col.color || "",
+      color: col.color || '',
     }))
 
   const loadBoard = async () => {
     try {
       setLoading(true)
       setError(null)
-      const {board, columns} = await window.api.board.getDefault({projectId})
-      setBoard({...board, columns})
-      const {tasks} = await window.api.task.listByBoard({boardId: board.id})
+      const { board, columns } = await window.api.board.getDefault({ projectId })
+      setBoard({ ...board, columns })
+      const { tasks } = await window.api.task.listByBoard({ boardId: board.id })
       setTasks(tasks)
     } catch (error) {
-      console.error("Failed to load board:", error)
-      setError(error instanceof Error ? error.message : "An unknown error occurred")
+      console.error('Failed to load board:', error)
+      setError(error instanceof Error ? error.message : 'An unknown error occurred')
     } finally {
       setLoading(false)
     }
   }
 
   const handleDragStart = (event: DragStartEvent) => {
-    if (event.active.data.current?.type === "task") {
+    if (event.active.data.current?.type === 'task') {
       setActiveTask(tasks.find((t) => t.id === event.active.id) || null)
     } else {
       setActiveColumn(event.active.id as string)
@@ -600,7 +603,7 @@ export function BoardScreen({projectId}: BoardScreenProps) {
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
-    const {active, over} = event
+    const { active, over } = event
     setActiveTask(null)
     setActiveColumn(null)
     if (!over || !board) return
@@ -617,12 +620,12 @@ export function BoardScreen({projectId}: BoardScreenProps) {
           ...col,
           orderIndex: index,
         }))
-        setBoard({...board, columns: movedColumns})
+        setBoard({ ...board, columns: movedColumns })
         const response = await window.api.board.updateColumns({
           boardId: board.id,
           columns: normalizeColumns(movedColumns),
         })
-        setBoard({...board, columns: response.columns})
+        setBoard({ ...board, columns: response.columns })
       }
       return
     }
@@ -651,7 +654,7 @@ export function BoardScreen({projectId}: BoardScreenProps) {
       }
     } else {
       const newIndex = tasks.filter((t) => t.columnId === overColumnId).length
-      await window.api.task.move({taskId: activeId, toColumnId: overColumnId, toIndex: newIndex})
+      await window.api.task.move({ taskId: activeId, toColumnId: overColumnId, toIndex: newIndex })
       loadBoard()
     }
   }
@@ -663,10 +666,12 @@ export function BoardScreen({projectId}: BoardScreenProps) {
       const response = await window.api.task.create({
         boardId: board.id,
         columnId,
-        title: "New",
-        priority: "medium",
-        type: "feature",
+        title: 'New',
+        priority: 'medium',
+        difficulty: 'medium',
+        type: 'feature',
         projectId,
+        tags: [],
       })
 
       setSelectedTask(response.task)
@@ -674,11 +679,11 @@ export function BoardScreen({projectId}: BoardScreenProps) {
 
       loadBoard()
     } catch (error) {
-      console.error("Failed to create draft task:", error)
+      console.error('Failed to create draft task:', error)
     }
   }
 
-  const handleQuickAddSubmit = async (taskData: Omit<CreateTaskInput, "boardId" | "projectId">) => {
+  const handleQuickAddSubmit = async (taskData: Omit<CreateTaskInput, 'boardId' | 'projectId'>) => {
     if (!board || !quickAddColumnId) return
     try {
       await window.api.task.create({
@@ -686,22 +691,23 @@ export function BoardScreen({projectId}: BoardScreenProps) {
         columnId: quickAddColumnId,
         projectId,
         boardId: board.id,
+        difficulty: 'medium',
       })
       setQuickAddModalOpen(false)
       setQuickAddColumnId(null)
       loadBoard()
     } catch (error) {
-      console.error("Failed to create task:", error)
+      console.error('Failed to create task:', error)
     }
   }
 
   const handleDeleteTask = async (taskId: string) => {
-    if (!confirm("Are you sure you want to delete this task?")) return
+    if (!confirm('Are you sure you want to delete this task?')) return
     try {
-      await window.api.task.delete({taskId})
+      await window.api.task.delete({ taskId })
       loadBoard()
     } catch (error) {
-      console.error("Failed to delete task:", error)
+      console.error('Failed to delete task:', error)
     }
   }
 
@@ -710,33 +716,33 @@ export function BoardScreen({projectId}: BoardScreenProps) {
     if (editingColumnId) {
       const currentColumns = (board.columns || []).map((col) =>
         col.id === editingColumnId
-          ? {...col, name: name.trim(), color}
-          : {id: col.id, name: col.name, color: col.color, orderIndex: col.orderIndex}
+          ? { ...col, name: name.trim(), color }
+          : { id: col.id, name: col.name, color: col.color, orderIndex: col.orderIndex }
       )
       setBoard({
         ...board,
         columns: board.columns?.map((c) =>
-          c.id === editingColumnId ? {...c, name: name.trim(), color} : c
+          c.id === editingColumnId ? { ...c, name: name.trim(), color } : c
         ),
       })
       const response = await window.api.board.updateColumns({
         boardId: board.id,
         columns: normalizeColumns(currentColumns),
       })
-      setBoard({...board, columns: response.columns})
+      setBoard({ ...board, columns: response.columns })
     } else {
-      const currentColumns = (board.columns || []).map(({id, name, color}) => ({
+      const currentColumns = (board.columns || []).map(({ id, name, color }) => ({
         id,
         name,
         color,
       }))
-      const newColumns = [...currentColumns, {name: name.trim(), color}]
+      const newColumns = [...currentColumns, { name: name.trim(), color }]
       setBoard({
         ...board,
         columns: [
           ...(board.columns || []),
           {
-            id: "temp-" + Date.now(),
+            id: 'temp-' + Date.now(),
             boardId: board.id,
             name: name.trim(),
             color,
@@ -748,7 +754,7 @@ export function BoardScreen({projectId}: BoardScreenProps) {
         boardId: board.id,
         columns: normalizeColumns(newColumns),
       })
-      setBoard({...board, columns: response.columns})
+      setBoard({ ...board, columns: response.columns })
     }
     setIsColumnModalOpen(false)
     setEditingColumnId(null)
@@ -757,34 +763,34 @@ export function BoardScreen({projectId}: BoardScreenProps) {
   const handleDeleteColumn = async (columnId: string) => {
     if (!board) return
     if (tasks.filter((t) => t.columnId === columnId).length > 0) {
-      alert("Cannot delete column with tasks.")
+      alert('Cannot delete column with tasks.')
       return
     }
-    if (!confirm("Are you sure you want to delete this column?")) return
+    if (!confirm('Are you sure you want to delete this column?')) return
     const newColumns = (board.columns || [])
       .filter((col) => col.id !== columnId)
-      .map(({id, name, color}) => ({id, name, color}))
+      .map(({ id, name, color }) => ({ id, name, color }))
     try {
       const response = await window.api.board.updateColumns({
         boardId: board.id,
         columns: normalizeColumns(newColumns),
       })
-      setBoard({...board, columns: response.columns})
+      setBoard({ ...board, columns: response.columns })
     } catch (error) {
-      console.error("Failed to delete column:", error)
+      console.error('Failed to delete column:', error)
     }
   }
 
   if (loading)
     return (
       <div className="h-full flex items-center justify-center animate-pulse">
-        <Clock className="w-8 h-8 text-blue-400 animate-spin"/>
+        <Clock className="w-8 h-8 text-blue-400 animate-spin" />
       </div>
     )
   if (error || !board)
     return (
       <div className="h-full flex items-center justify-center text-red-400">
-        <AlertCircle className="w-8 h-8 mr-2"/> {error || "Board not found"}
+        <AlertCircle className="w-8 h-8 mr-2" /> {error || 'Board not found'}
       </div>
     )
 
@@ -810,20 +816,19 @@ export function BoardScreen({projectId}: BoardScreenProps) {
               disabled
               className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-sm font-semibold rounded-xl opacity-50 cursor-not-allowed shadow-lg"
             >
-              <Play className="w-4 h-4"/> <span>Start Run</span>
+              <Play className="w-4 h-4" /> <span>Start Run</span>
             </button>
           </div>
           <div className="flex-1 overflow-x-auto overflow-y-hidden custom-scrollbar -mr-6 pr-6">
             {columns.length === 0 ? (
-              <div
-                className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-[#0B0E14] rounded-2xl border border-dashed border-slate-800/50 min-h-[400px]">
-                <AlertCircle className="w-12 h-12 text-slate-500 mb-4"/>
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-[#0B0E14] rounded-2xl border border-dashed border-slate-800/50 min-h-[400px]">
+                <AlertCircle className="w-12 h-12 text-slate-500 mb-4" />
                 <h3 className="text-xl font-bold text-white mb-2">No columns yet</h3>
                 <button
                   onClick={() => setIsColumnModalOpen(true)}
                   className="mt-4 flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl shadow-lg"
                 >
-                  <Plus className="w-5 h-5"/> <span>Add First Column</span>
+                  <Plus className="w-5 h-5" /> <span>Add First Column</span>
                 </button>
               </div>
             ) : (
@@ -837,10 +842,10 @@ export function BoardScreen({projectId}: BoardScreenProps) {
                       key={column.id}
                       id={column.id}
                       name={column.name}
-                      color={column.color || ""}
+                      color={column.color || ''}
                       tasks={tasks
                         .filter((t) => t.columnId === column.id)
-                        .sort((a, b) => a.orderInColumn - b.orderInColumn)}
+                        .sort((a, b) => (a.orderInColumn || 0) - (b.orderInColumn || 0))}
                       onAddTask={() => handleAddTask(column.id)}
                       onDeleteTask={handleDeleteTask}
                       onTaskClick={(task) => {
@@ -862,7 +867,7 @@ export function BoardScreen({projectId}: BoardScreenProps) {
                       }}
                       className="w-full h-14 bg-[#0B0E14]/50 hover:bg-[#0B0E14] border border-dashed border-slate-800/50 hover:border-slate-700 rounded-2xl flex items-center justify-center gap-2 text-slate-500 hover:text-slate-300 transition-all"
                     >
-                      <Plus className="w-5 h-5"/>{" "}
+                      <Plus className="w-5 h-5" />{' '}
                       <span className="font-semibold text-sm">Add Column</span>
                     </button>
                   </div>
@@ -903,7 +908,7 @@ export function BoardScreen({projectId}: BoardScreenProps) {
         }}
         onSubmit={handleColumnSubmit}
         initialData={editingColumnId ? columns.find((c) => c.id === editingColumnId) : undefined}
-        title={editingColumnId ? "Edit Column" : "Add New Column"}
+        title={editingColumnId ? 'Edit Column' : 'Add New Column'}
       />
       <TaskDrawer
         task={selectedTask}
@@ -914,15 +919,15 @@ export function BoardScreen({projectId}: BoardScreenProps) {
         }}
         columnName={board?.columns?.find((c) => c.id === selectedTask?.columnId)?.name}
         onUpdate={async (taskId, patch) => {
-          await window.api.task.update({taskId, patch})
+          await window.api.task.update({ taskId, patch })
           setTasks((prev) =>
             prev.map((t) =>
-              t.id === taskId ? {...t, ...patch, updatedAt: new Date().toISOString()} : t
+              t.id === taskId ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t
             )
           )
           if (selectedTask?.id === taskId) {
             setSelectedTask((prev) =>
-              prev ? {...prev, ...patch, updatedAt: new Date().toISOString()} : null
+              prev ? { ...prev, ...patch, updatedAt: new Date().toISOString() } : null
             )
           }
         }}
