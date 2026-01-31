@@ -450,6 +450,13 @@ export const migrations = [
       -- low and urgent remain
     `,
   },
+  {
+    version: 5,
+    sql: `
+      ALTER TABLE run_events ADD COLUMN message_id TEXT;
+      CREATE INDEX IF NOT EXISTS idx_run_events_message ON run_events(message_id);
+    `,
+  },
 ] as const
 
 export type Migration = (typeof migrations)[number]

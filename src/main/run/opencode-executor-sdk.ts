@@ -185,9 +185,10 @@ export class OpenCodeExecutorSDK implements RunExecutor {
             messageContentById.set(msg.id, currentContent)
           }
 
-          runEventRepo.create({
+          runEventRepo.upsertMessage({
             runId: run.id,
             eventType: 'message',
+            messageId: msg.id,
             payload: {
               role: msg.role,
               parts: msg.parts,

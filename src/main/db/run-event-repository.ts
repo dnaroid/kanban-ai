@@ -18,12 +18,14 @@ const mapRunEventRow = (row: {
   ts: string
   eventType: RunEventRecord['eventType']
   payloadJson: string
+  messageId: string | null
 }): RunEventRecord => ({
   id: row.id,
   runId: row.runId,
   ts: row.ts,
   eventType: row.eventType,
   payload: parseJson(row.payloadJson),
+  messageId: row.messageId ?? undefined,
 })
 
 export class RunEventRepository {
@@ -65,7 +67,8 @@ export class RunEventRepository {
         run_id as runId,
         ts,
         event_type as eventType,
-        payload_json as payloadJson
+        payload_json as payloadJson,
+        message_id as messageId
       FROM run_events
       WHERE ${filters.join(' AND ')}
       ORDER BY ts ASC
@@ -82,9 +85,63 @@ export class RunEventRepository {
       ts: string
       eventType: RunEventRecord['eventType']
       payloadJson: string
+      messageId: string | null
     }[]
 
     return rows.map(mapRunEventRow)
+  }
+
+  upsertMessage(input: CreateRunEventInput & { messageId: string }): RunEventRecord {
+    const db = dbManager.connect()
+    const ts = input.ts ?? new Date().toISOString()
+    const payloadJson = JSON.stringify(input.payload ?? null)
+
+    const existingRow = db
+      .prepare(
+        `
+        SELECT id
+        FROM run_events
+        WHERE run_id = ? AND message_id = ? AND event_type = 'message'
+        LIMIT 1
+      `
+      )
+      .get(input.runId, input.messageId) as { id: string } | undefined
+
+    if (existingRow) {
+      db.prepare(
+        `
+        UPDATE run_events
+        SET ts = ?, payload_json = ?
+        WHERE id = ?
+      `
+      ).run(ts, payloadJson, existingRow.id)
+
+      return {
+        id: existingRow.id,
+        runId: input.runId,
+        ts,
+        eventType: input.eventType,
+        payload: input.payload ?? null,
+        messageId: input.messageId,
+      }
+    } else {
+      const id = randomUUID()
+      db.prepare(
+        `
+        INSERT INTO run_events (id, run_id, ts, event_type, payload_json, message_id)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `
+      ).run(id, input.runId, ts, input.eventType, payloadJson, input.messageId)
+
+      return {
+        id,
+        runId: input.runId,
+        ts,
+        eventType: input.eventType,
+        payload: input.payload ?? null,
+        messageId: input.messageId,
+      }
+    }
   }
 }
 

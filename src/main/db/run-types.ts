@@ -45,6 +45,7 @@ export type RunEventRecord = {
   ts: string
   eventType: RunEventType
   payload: unknown
+  messageId?: string
 }
 
 export type CreateRunEventInput = {
@@ -52,6 +53,7 @@ export type CreateRunEventInput = {
   eventType: RunEventType
   payload: unknown
   ts?: string
+  messageId?: string
 }
 
 export type ArtifactRecord = {
