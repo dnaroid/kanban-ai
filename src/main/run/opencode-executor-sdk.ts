@@ -92,7 +92,7 @@ export class OpenCodeExecutorSDK implements RunExecutor {
     try {
       console.log("[OpenCode] Request:", prompt)
       const message = await sessionManager.sendPrompt(sessionInfo.id, prompt)
-      console.log("[OpenCode] message:", message)
+      console.log("[OpenCode] raw message:\n", message)
       const resolvedMessage = await sessionManager.getMessage(sessionInfo.id, message.id)
       const content = resolvedMessage?.content?.trim()
       console.log("[OpenCode] Response:", content)
