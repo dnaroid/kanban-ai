@@ -66,6 +66,7 @@ export class OpenCodeSessionManager {
   private activeSessions = new Map<string, SessionInfo>()
   private eventAbortControllers = new Map<string, AbortController>()
   private eventProcessing = new Map<string, Promise<void>>()
+  private messageSessionIndex = new Map<string, string>()
 
   /**
    * Создать новую сессию для задачи
@@ -149,15 +150,12 @@ export class OpenCodeSessionManager {
 
     return messages.map((item) => {
       const msg = item.info
-      const textParts = item.parts
-        .filter((p: any) => p.type === 'text')
-        .map((p: any) => p.text)
-        .join('\n')
+      const content = this.buildMessageContent(item.parts as Part[])
 
       return {
         id: msg.id,
         role: msg.role,
-        content: textParts || '',
+        content,
         timestamp: msg.time.created,
       }
     })
@@ -176,15 +174,12 @@ export class OpenCodeSessionManager {
       if (response.error) return null
 
       const msg = response.data.info
-      const textParts = response.data.parts
-        .filter((p: any) => p.type === 'text')
-        .map((p: any) => p.text)
-        .join('\n')
+      const content = this.buildMessageContent(response.data.parts as Part[])
 
       return {
         id: msg.id,
         role: msg.role,
-        content: textParts || '',
+        content,
         timestamp: msg.time.created,
       }
     } catch {
@@ -271,20 +266,29 @@ export class OpenCodeSessionManager {
     const processEvents = async () => {
       try {
         const { signal } = abortController
-        const events = await Promise.resolve(this.client.event.subscribe({}, { signal })).catch(
+        const stream = await Promise.resolve(this.client.event.list({}, { signal })).catch(
           () => undefined
         )
 
-        if (!events) return
+        if (!stream) return
 
-        for await (const event of events.stream) {
+        for await (const event of stream) {
           if (signal.aborted) break
 
           let sessionEvent: SessionEvent
 
           if (isMessageEvent(event)) {
+            if (!this.shouldHandleSessionEvent(sessionID, event)) {
+              continue
+            }
             switch (event.type) {
               case 'message.updated':
+                if (event.properties.info.sessionID) {
+                  this.messageSessionIndex.set(
+                    event.properties.info.id,
+                    event.properties.info.sessionID
+                  )
+                }
                 sessionEvent = {
                   type: 'message.updated',
                   sessionId: sessionID,
@@ -292,6 +296,9 @@ export class OpenCodeSessionManager {
                 }
                 break
               case 'message.removed':
+                if (event.properties.messageID) {
+                  this.messageSessionIndex.delete(event.properties.messageID)
+                }
                 sessionEvent = {
                   type: 'message.removed',
                   sessionId: sessionID,
@@ -370,6 +377,67 @@ export class OpenCodeSessionManager {
    */
   isSubscribedToSessionEvents(sessionID: string): boolean {
     return this.eventAbortControllers.has(sessionID)
+  }
+
+  private shouldHandleSessionEvent(sessionID: string, event: Event): boolean {
+    switch (event.type) {
+      case 'message.updated':
+        return event.properties.info.sessionID === sessionID
+      case 'message.removed':
+        return event.properties.sessionID === sessionID
+      case 'message.part.updated': {
+        const messageId = event.properties.part.messageID
+        const knownSession = this.messageSessionIndex.get(messageId)
+        return !knownSession || knownSession === sessionID
+      }
+      case 'message.part.removed': {
+        const messageId = event.properties.messageID
+        const knownSession = this.messageSessionIndex.get(messageId)
+        return !knownSession || knownSession === sessionID
+      }
+      default:
+        return false
+    }
+  }
+
+  private buildMessageContent(parts: Part[]): string {
+    const textParts: string[] = []
+    const reasoningParts: string[] = []
+
+    for (const part of parts) {
+      if (part.type === 'text') {
+        if (!part.ignored) {
+          textParts.push(part.text)
+        }
+        continue
+      }
+      if (part.type === 'reasoning') {
+        reasoningParts.push(part.text)
+      }
+    }
+
+    const text = textParts.join('\n').trim()
+    const reasoning = reasoningParts.join('\n').trim()
+
+    if (!text && !reasoning && parts.length > 0) {
+      const first = parts[0]
+      const messageId = first.messageID
+      const sessionId = first.sessionID
+      const partTypes = parts.map((part) => part.type).join(', ')
+      console.log(
+        `[OpenCodeSessionManager] Empty content for message ${messageId} in session ${sessionId}. Parts: ${partTypes}`
+      )
+    }
+
+    if (!reasoning) {
+      return text
+    }
+
+    if (!text) {
+      return `[thoughts]\n${reasoning}`
+    }
+
+    return `${text}\n\n[thoughts]\n${reasoning}`
   }
 }
 

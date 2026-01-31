@@ -22,7 +22,7 @@ const api: MainToRenderer = {
     getAll: () => ipcRenderer.invoke('project:getAll'),
     getById: (id) => ipcRenderer.invoke('project:getById', id),
     update: (input) => ipcRenderer.invoke('project:update', input),
-    delete: (id) => ipcRenderer.invoke('project:delete', { id }),
+    delete: (input) => ipcRenderer.invoke('project:delete', input),
   },
   board: {
     getDefault: (input) => ipcRenderer.invoke('board:getDefault', input),

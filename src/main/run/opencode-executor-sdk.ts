@@ -63,7 +63,7 @@ export class OpenCodeExecutorSDK implements RunExecutor {
       const maxPollTime = 3600000
 
       let elapsed = 0
-      let lastMessageCount = 0
+      const messageContentById = new Map<string, string>()
 
       while (elapsed < maxPollTime) {
         await new Promise((resolve) => setTimeout(resolve, pollInterval))
@@ -71,20 +71,26 @@ export class OpenCodeExecutorSDK implements RunExecutor {
 
         const messages = await sessionManager.getMessages(sessionInfo.id)
 
-        if (messages.length > lastMessageCount) {
-          for (let i = lastMessageCount; i < messages.length; i++) {
-            const msg = messages[i]
-            runEventRepo.create({
-              runId: run.id,
-              eventType: 'message',
-              payload: {
-                role: msg.role,
-                content: msg.content,
-                timestamp: msg.timestamp,
-              },
-            })
+        for (const msg of messages) {
+          const previousContent = messageContentById.get(msg.id)
+          if (previousContent === undefined) {
+            messageContentById.set(msg.id, msg.content)
+            if (!msg.content) continue
+          } else if (previousContent === msg.content) {
+            continue
+          } else {
+            messageContentById.set(msg.id, msg.content)
           }
-          lastMessageCount = messages.length
+
+          runEventRepo.create({
+            runId: run.id,
+            eventType: 'message',
+            payload: {
+              role: msg.role,
+              content: msg.content,
+              timestamp: msg.timestamp,
+            },
+          })
         }
 
         const lastMessage = messages[messages.length - 1]

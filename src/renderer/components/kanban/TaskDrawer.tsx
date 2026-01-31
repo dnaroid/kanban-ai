@@ -271,6 +271,43 @@ function ExecutionLog({ runId }: { runId: string }) {
     }
   }
 
+  const formatStatusPayload = (payload: unknown): string => {
+    if (!payload || typeof payload !== 'object') return coerceText(payload)
+    const typed = payload as { message?: string; status?: string }
+    if (typed.message) return typed.message
+    if (typed.status) return typed.status
+    return coerceText(payload)
+  }
+
+  const formatMessagePayload = (
+    payload: unknown
+  ): {
+    text: string
+    role?: string
+    hasReasoning: boolean
+    hasText: boolean
+  } => {
+    if (!payload || typeof payload !== 'object') {
+      return { text: coerceText(payload), hasReasoning: false, hasText: true }
+    }
+
+    const typed = payload as {
+      role?: string
+      content?: string
+      parts?: Array<{ type?: string; text?: string }>
+    }
+
+    if (typeof typed.content === 'string') {
+      const hasReasoning = typed.content.includes('[thoughts]')
+      const hasText = typed.content.length > 0 && !typed.content.trim().startsWith('[thoughts]')
+      return { text: typed.content, role: typed.role, hasReasoning, hasText }
+    }
+
+    const hasReasoning = typed.parts?.some((part) => part.type === 'reasoning') ?? false
+    const hasText = typed.parts?.some((part) => part.type === 'text') ?? false
+    return { text: coerceText(payload), role: typed.role, hasReasoning, hasText }
+  }
+
   const handleScroll = () => {
     setAutoScroll((prev) => !prev)
   }
@@ -375,16 +412,15 @@ function ExecutionLog({ runId }: { runId: string }) {
     }
 
     if (event.eventType === 'message') {
-      const payload = event.payload as { parts?: Array<{ type?: string; text?: string }> }
-      const hasReasoning = payload?.parts?.some((p) => p.type === 'reasoning')
-      const hasText = payload?.parts?.some((p) => p.type === 'text')
+      const messageInfo = formatMessagePayload(event.payload)
+      const label = messageInfo.role ? `${messageInfo.role}: ` : ''
 
       return (
         <div
           key={event.id}
           className={cn(
             'flex gap-3 py-2 px-3 my-1 border-l-2 rounded-r-lg',
-            hasReasoning && !hasText
+            messageInfo.hasReasoning && !messageInfo.hasText
               ? 'bg-blue-500/5 border-blue-500/30'
               : 'bg-blue-500/10 border-blue-500/50'
           )}
@@ -395,10 +431,13 @@ function ExecutionLog({ runId }: { runId: string }) {
           <p
             className={cn(
               'text-xs font-medium',
-              hasReasoning && !hasText ? 'text-blue-400/60' : 'text-blue-300'
+              messageInfo.hasReasoning && !messageInfo.hasText
+                ? 'text-blue-400/60'
+                : 'text-blue-300'
             )}
           >
-            {coerceText(event.payload)}
+            {label}
+            {messageInfo.text}
           </p>
         </div>
       )
@@ -414,7 +453,7 @@ function ExecutionLog({ runId }: { runId: string }) {
             {time}
           </span>
           <p className="text-xs text-emerald-400 font-bold uppercase tracking-wider">
-            Status Changed: {coerceText(event.payload)}
+            Status Changed: {formatStatusPayload(event.payload)}
           </p>
         </div>
       )
