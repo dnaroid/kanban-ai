@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Mic, MicOff, AlertCircle, Loader2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { STTWorkerController, type STTStatus } from '../../voice/STTWorkerController'
+import { type STTStatus } from '../../voice/STTWorkerController'
 import { VoiceCapture } from '../../voice/VoiceCapture'
+import { getSTTController } from '../../voice/sttControllerSingleton'
 
 interface VoiceInputButtonProps {
   onTranscript?: (text: string) => void
@@ -26,7 +27,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
   const onDeltaRef = useRef<((text: string) => void) | undefined>(onDelta)
   const onTranscriptRef = useRef<((text: string) => void) | undefined>(onTranscript)
 
-  const sttControllerRef = useRef<STTWorkerController | null>(null)
+  const sttControllerRef = useRef<ReturnType<typeof getSTTController> | null>(null)
   const voiceCaptureRef = useRef<VoiceCapture | null>(null)
 
   useEffect(() => {
@@ -35,41 +36,48 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
   }, [onDelta, onTranscript])
 
   useEffect(() => {
-    sttControllerRef.current = new STTWorkerController(modelPaths)
+    const controller = getSTTController(modelPaths)
+    sttControllerRef.current = controller
 
-    const controller = sttControllerRef.current
-
-    controller.on('status', (newStatus) => {
+    const handleStatus = (newStatus: STTStatus) => {
       setStatus(newStatus)
       if (newStatus === 'idle' || newStatus === 'error') {
         setIsRecording(false)
         isRecordingRef.current = false
       }
-    })
+    }
 
-    controller.on('partial', (text) => {
+    const handlePartial = (text: string) => {
       setLiveText(text)
       onDeltaRef.current?.(text)
-    })
+    }
 
-    controller.on('final', (text) => {
+    const handleFinal = (text: string) => {
       onTranscriptRef.current?.(text)
       setLiveText('')
       onDeltaRef.current?.('')
-    })
+    }
 
-    controller.on('error', (message) => {
+    const handleError = (message: string) => {
       setError(message)
       setStatus('error')
       setIsRecording(false)
       isRecordingRef.current = false
-    })
+    }
+
+    controller.on('status', handleStatus)
+    controller.on('partial', handlePartial)
+    controller.on('final', handleFinal)
+    controller.on('error', handleError)
 
     return () => {
       if (voiceCaptureRef.current) {
         voiceCaptureRef.current.dispose()
       }
-      controller.dispose()
+      controller.off('status', handleStatus)
+      controller.off('partial', handlePartial)
+      controller.off('final', handleFinal)
+      controller.off('error', handleError)
     }
   }, [modelPaths])
 
