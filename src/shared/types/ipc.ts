@@ -954,7 +954,15 @@ export type STTLanguage = z.infer<typeof STTLanguageSchema>
 export const STTModeSchema = z.enum(['ptt', 'toggle'])
 export type STTMode = z.infer<typeof STTModeSchema>
 
-export const STTStatusSchema = z.enum(['idle', 'listening', 'speech', 'finalizing', 'error'])
+export const STTStatusSchema = z.enum([
+  'idle',
+  'requesting_mic',
+  'connecting',
+  'listening',
+  'speech',
+  'finalizing',
+  'error',
+])
 export type STTStatus = z.infer<typeof STTStatusSchema>
 
 export const STTStartInputSchema = z.object({
@@ -995,12 +1003,29 @@ export const STTDeltaEventSchema = z.object({
 })
 export type STTDeltaEvent = z.infer<typeof STTDeltaEventSchema>
 
+export const STTCommittedEventSchema = z.object({
+  editorId: z.string(),
+  itemId: z.string(),
+  previousItemId: z.string().optional(),
+})
+export type STTCommittedEvent = z.infer<typeof STTCommittedEventSchema>
+
 export const STTFinalEventSchema = z.object({
   editorId: z.string(),
   itemId: z.string(),
   transcript: z.string(),
 })
 export type STTFinalEvent = z.infer<typeof STTFinalEventSchema>
+
+export const STTFailedEventSchema = z.object({
+  editorId: z.string(),
+  itemId: z.string(),
+  error: z.object({
+    code: z.string().optional(),
+    message: z.string(),
+  }),
+})
+export type STTFailedEvent = z.infer<typeof STTFailedEventSchema>
 
 export const STTErrorEventSchema = z.object({
   editorId: z.string(),

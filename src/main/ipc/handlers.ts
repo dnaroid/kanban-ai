@@ -96,9 +96,10 @@ import { artifactRepo } from '../db/artifact-repository'
 import { runService } from '../run/run-service'
 import { buildContextSnapshot } from '../run/context-snapshot-builder'
 import { opencodeSessionRepo } from '../db/opencode-session-repository'
-import { sttController } from '../stt/STTController'
+import { STTController } from '../stt/STTController'
 
 const opencodeExecutor = new OpenCodeExecutorSDK()
+const sttController = new STTController()
 
 ipcHandlers.register('project:selectFolder', z.unknown(), async () => {
   const result = await dialog.showOpenDialog({

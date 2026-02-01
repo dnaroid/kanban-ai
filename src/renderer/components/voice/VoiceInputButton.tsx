@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Mic, MicOff, AlertCircle, Loader2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { voiceCapture } from '../../voice/VoiceCapture'
@@ -10,17 +10,22 @@ import {
   STTAudioInput,
   STTStatusEvent,
   STTDeltaEvent,
+  STTCommittedEvent,
   STTFinalEvent,
+  STTFailedEvent,
   STTErrorEvent,
 } from '@/shared/types/ipc'
 
 interface STTApi {
   start(input: STTStartInput): Promise<void>
   stop(input: STTStopInput): Promise<void>
+  setLanguage(input: { editorId: string; language: STTLanguage }): Promise<void>
   sendAudio(input: STTAudioInput): Promise<void>
   onStatus(callback: (event: STTStatusEvent) => void): () => void
   onDelta(callback: (event: STTDeltaEvent) => void): () => void
+  onCommitted(callback: (event: STTCommittedEvent) => void): () => void
   onFinal(callback: (event: STTFinalEvent) => void): () => void
+  onFailed(callback: (event: STTFailedEvent) => void): () => void
   onError(callback: (event: STTErrorEvent) => void): () => void
 }
 
@@ -41,6 +46,21 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
   const [language, setLanguage] = useState<STTLanguage>('ru')
   const [error, setError] = useState<string | null>(null)
   const [isRecording, setIsRecording] = useState(false)
+  const [liveText, setLiveText] = useState('')
+  const liveTextByItemIdRef = useRef<Map<string, string>>(new Map())
+  const currentItemIdRef = useRef<string | null>(null)
+  const lastStatusRef = useRef<STTStatus>('idle')
+
+  const handleLanguageChange = useCallback(
+    (nextLanguage: STTLanguage) => {
+      setLanguage(nextLanguage)
+      if (isRecording) {
+        const stt = (window.api as any).stt as STTApi
+        stt.setLanguage({ editorId, language: nextLanguage })
+      }
+    },
+    [editorId, isRecording]
+  )
 
   const handleToggleRecording = useCallback(async () => {
     if (isRecording) {
@@ -49,6 +69,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
     } else {
       setError(null)
       try {
+        setStatus('requesting_mic')
         await voiceCapture.start(editorId, language)
         setIsRecording(true)
       } catch (err) {
@@ -64,23 +85,68 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
 
     const unsubStatus = stt.onStatus((event: STTStatusEvent) => {
       if (event.editorId === editorId) {
+        const previousStatus = lastStatusRef.current
         setStatus(event.status)
+        lastStatusRef.current = event.status
         if (event.status === 'error') {
           setError(event.details || 'Transcription error')
           setIsRecording(false)
+        }
+
+        if (event.status === 'idle') {
+          if (previousStatus === 'finalizing' && liveText.trim().length > 0) {
+            onTranscript?.(liveText)
+          }
+          setLiveText('')
+          liveTextByItemIdRef.current.clear()
+          currentItemIdRef.current = null
         }
       }
     })
 
     const unsubDelta = stt.onDelta((event: STTDeltaEvent) => {
       if (event.editorId === editorId) {
-        onDelta?.(event.textDelta)
+        const updated = event.textDelta
+        liveTextByItemIdRef.current.set(event.itemId, updated)
+        if (!currentItemIdRef.current) {
+          currentItemIdRef.current = event.itemId
+        }
+        if (currentItemIdRef.current === event.itemId) {
+          setLiveText(updated)
+          onDelta?.(updated)
+        }
+      }
+    })
+
+    const unsubCommitted = stt.onCommitted((event: STTCommittedEvent) => {
+      if (event.editorId === editorId) {
+        currentItemIdRef.current = event.itemId
+        const existing = liveTextByItemIdRef.current.get(event.itemId) ?? ''
+        setLiveText(existing)
+        onDelta?.(existing)
       }
     })
 
     const unsubFinal = stt.onFinal((event: STTFinalEvent) => {
       if (event.editorId === editorId) {
+        liveTextByItemIdRef.current.delete(event.itemId)
+        if (currentItemIdRef.current === event.itemId) {
+          currentItemIdRef.current = null
+          setLiveText('')
+          onDelta?.('')
+        }
         onTranscript?.(event.transcript)
+      }
+    })
+
+    const unsubFailed = stt.onFailed((event: STTFailedEvent) => {
+      if (event.editorId === editorId) {
+        liveTextByItemIdRef.current.delete(event.itemId)
+        if (currentItemIdRef.current === event.itemId) {
+          currentItemIdRef.current = null
+          setLiveText('')
+          onDelta?.('')
+        }
       }
     })
 
@@ -95,18 +161,23 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
     return () => {
       unsubStatus()
       unsubDelta()
+      unsubCommitted()
       unsubFinal()
+      unsubFailed()
       unsubError()
       if (isRecording) {
         voiceCapture.stop()
       }
     }
-  }, [editorId, onDelta, onTranscript, isRecording])
+  }, [editorId, onDelta, onTranscript, isRecording, liveText])
 
   const getStatusColor = () => {
     switch (status) {
       case 'listening':
         return 'text-blue-400'
+      case 'requesting_mic':
+      case 'connecting':
+        return 'text-slate-300'
       case 'speech':
         return 'text-green-400'
       case 'finalizing':
@@ -122,6 +193,10 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
     switch (status) {
       case 'listening':
         return 'Listening...'
+      case 'requesting_mic':
+        return 'Requesting mic...'
+      case 'connecting':
+        return 'Connecting...'
       case 'speech':
         return 'Speaking...'
       case 'finalizing':
@@ -137,23 +212,19 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
     <div className={cn('flex items-center gap-3', className)}>
       <div className="flex bg-[#161B22] rounded-lg p-1 border border-slate-800">
         <button
-          onClick={() => setLanguage('ru')}
-          disabled={isRecording}
+          onClick={() => handleLanguageChange('ru')}
           className={cn(
             'px-2 py-1 text-[10px] font-bold rounded transition-all',
-            language === 'ru' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300',
-            isRecording && 'opacity-50 cursor-not-allowed'
+            language === 'ru' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300'
           )}
         >
           RU
         </button>
         <button
-          onClick={() => setLanguage('en')}
-          disabled={isRecording}
+          onClick={() => handleLanguageChange('en')}
           className={cn(
             'px-2 py-1 text-[10px] font-bold rounded transition-all',
-            language === 'en' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300',
-            isRecording && 'opacity-50 cursor-not-allowed'
+            language === 'en' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300'
           )}
         >
           EN
@@ -185,7 +256,10 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
             getStatusColor()
           )}
         >
-          {status === 'listening' || status === 'finalizing' ? (
+          {status === 'requesting_mic' ||
+          status === 'connecting' ||
+          status === 'listening' ||
+          status === 'finalizing' ? (
             <Loader2 className="w-2.5 h-2.5 animate-spin" />
           ) : status === 'error' ? (
             <AlertCircle className="w-2.5 h-2.5" />

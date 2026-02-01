@@ -107,10 +107,20 @@ const api: MainToRenderer = {
       ipcRenderer.on('stt:delta', listener)
       return () => ipcRenderer.removeListener('stt:delta', listener)
     },
+    onCommitted: (callback) => {
+      const listener = (_event: unknown, data: unknown) => callback(data as any)
+      ipcRenderer.on('stt:committed', listener)
+      return () => ipcRenderer.removeListener('stt:committed', listener)
+    },
     onFinal: (callback) => {
       const listener = (_event: unknown, data: unknown) => callback(data as any)
       ipcRenderer.on('stt:final', listener)
       return () => ipcRenderer.removeListener('stt:final', listener)
+    },
+    onFailed: (callback) => {
+      const listener = (_event: unknown, data: unknown) => callback(data as any)
+      ipcRenderer.on('stt:failed', listener)
+      return () => ipcRenderer.removeListener('stt:failed', listener)
     },
     onError: (callback) => {
       const listener = (_event: unknown, data: unknown) => callback(data as any)

@@ -2,13 +2,13 @@ class PCM16Processor extends AudioWorkletProcessor {
   constructor() {
     super()
     this.sourceSampleRate = sampleRate
-    this.targetSampleRate = 24000
+    this.targetSampleRate = 16000
     this.resamplingRatio = this.sourceSampleRate / this.targetSampleRate
 
     this.resamplingTimeOffset = 0
     this.previousSample = 0
 
-    this.samplesPerChunk = 480
+    this.samplesPerChunk = 320
     this.chunkBuffer = new Int16Array(this.samplesPerChunk)
     this.chunkBufferPointer = 0
   }

@@ -75,7 +75,9 @@ import type {
   STTAudioInput,
   STTStatusEvent,
   STTDeltaEvent,
+  STTCommittedEvent,
   STTFinalEvent,
+  STTFailedEvent,
   STTErrorEvent,
 } from '../shared/types/ipc'
 
@@ -175,7 +177,9 @@ export interface MainToRenderer {
     sendAudio(input: STTAudioInput): Promise<void>
     onStatus(callback: (event: STTStatusEvent) => void): () => void
     onDelta(callback: (event: STTDeltaEvent) => void): () => void
+    onCommitted(callback: (event: STTCommittedEvent) => void): () => void
     onFinal(callback: (event: STTFinalEvent) => void): () => void
+    onFailed(callback: (event: STTFailedEvent) => void): () => void
     onError(callback: (event: STTErrorEvent) => void): () => void
   }
 }

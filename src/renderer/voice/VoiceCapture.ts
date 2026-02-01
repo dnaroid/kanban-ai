@@ -5,7 +5,9 @@ import {
   STTAudioInput,
   STTStatusEvent,
   STTDeltaEvent,
+  STTCommittedEvent,
   STTFinalEvent,
+  STTFailedEvent,
   STTErrorEvent,
 } from '@/shared/types/ipc'
 
@@ -14,11 +16,11 @@ class PCM16Processor extends AudioWorkletProcessor {
   constructor() {
     super()
     this.sourceSampleRate = sampleRate
-    this.targetSampleRate = 24000
+    this.targetSampleRate = 16000
     this.resamplingRatio = this.sourceSampleRate / this.targetSampleRate
     this.resamplingTimeOffset = 0
     this.previousSample = 0
-    this.samplesPerChunk = 480
+    this.samplesPerChunk = 320
     this.chunkBuffer = new Int16Array(this.samplesPerChunk)
     this.chunkBufferPointer = 0
   }
@@ -28,26 +30,26 @@ class PCM16Processor extends AudioWorkletProcessor {
     const monoChannel = inputChannels && inputChannels[0]
     if (!monoChannel) return true
 
-    for (let i = 0; i < monoChannel.length; i++) {
-      while (this.resamplingTimeOffset < i + 1) {
-        const previousIndex = Math.floor(this.resamplingTimeOffset)
-        const nextIndex = Math.min(previousIndex + 1, monoChannel.length - 1)
-        const interpolationFactor = this.resamplingTimeOffset - previousIndex
-        const previousValue = previousIndex >= 0 ? monoChannel[previousIndex] : this.previousSample
-        const nextValue = monoChannel[nextIndex]
-        const interpolatedSample = previousValue + (nextValue - previousValue) * interpolationFactor
-        const clampedSample = Math.max(-1, Math.min(1, interpolatedSample))
-        const pcm16Sample = clampedSample < 0 ? Math.round(clampedSample * 0x8000) : Math.round(clampedSample * 0x7fff)
-        this.chunkBuffer[this.chunkBufferPointer++] = pcm16Sample
-        if (this.chunkBufferPointer >= this.samplesPerChunk) {
-          const chunk = new Int16Array(this.chunkBuffer)
-          this.port.postMessage(chunk, [chunk.buffer])
-          this.chunkBufferPointer = 0
-        }
-        this.resamplingTimeOffset += this.resamplingRatio
+    let offset = this.resamplingTimeOffset
+    while (offset < monoChannel.length) {
+      const previousIndex = Math.floor(offset)
+      const nextIndex = Math.min(previousIndex + 1, monoChannel.length - 1)
+      const interpolationFactor = offset - previousIndex
+      const previousValue = previousIndex >= 0 ? monoChannel[previousIndex] : this.previousSample
+      const nextValue = monoChannel[nextIndex]
+      const interpolatedSample = previousValue + (nextValue - previousValue) * interpolationFactor
+      const clampedSample = Math.max(-1, Math.min(1, interpolatedSample))
+      const pcm16Sample = clampedSample < 0 ? Math.round(clampedSample * 0x8000) : Math.round(clampedSample * 0x7fff)
+      this.chunkBuffer[this.chunkBufferPointer++] = pcm16Sample
+      if (this.chunkBufferPointer >= this.samplesPerChunk) {
+        const chunk = new Int16Array(this.chunkBuffer)
+        this.port.postMessage(chunk, [chunk.buffer])
+        this.chunkBufferPointer = 0
       }
-      this.resamplingTimeOffset -= monoChannel.length
+      offset += this.resamplingRatio
     }
+
+    this.resamplingTimeOffset = offset - monoChannel.length
     if (monoChannel.length > 0) {
       this.previousSample = monoChannel[monoChannel.length - 1]
     }
@@ -67,10 +69,13 @@ try {
 interface STTApi {
   start(input: STTStartInput): Promise<void>
   stop(input: STTStopInput): Promise<void>
+  setLanguage(input: { editorId: string; language: STTLanguage }): Promise<void>
   sendAudio(input: STTAudioInput): Promise<void>
   onStatus(callback: (event: STTStatusEvent) => void): () => void
   onDelta(callback: (event: STTDeltaEvent) => void): () => void
+  onCommitted(callback: (event: STTCommittedEvent) => void): () => void
   onFinal(callback: (event: STTFinalEvent) => void): () => void
+  onFailed(callback: (event: STTFailedEvent) => void): () => void
   onError(callback: (event: STTErrorEvent) => void): () => void
 }
 
@@ -78,6 +83,7 @@ export class VoiceCapture {
   private audioContext: AudioContext | null = null
   private sourceNode: MediaStreamAudioSourceNode | null = null
   private workletNode: AudioWorkletNode | null = null
+  private outputNode: GainNode | null = null
   private stream: MediaStream | null = null
   private currentEditorId: string | null = null
   private workletModuleLoaded = false
@@ -111,6 +117,8 @@ export class VoiceCapture {
       this.sourceNode = this.audioContext.createMediaStreamSource(this.stream)
 
       this.workletNode = new AudioWorkletNode(this.audioContext, 'pcm16-processor')
+      this.outputNode = this.audioContext.createGain()
+      this.outputNode.gain.value = 0
 
       this.workletNode.port.onmessage = (event) => {
         const pcm16Data = event.data as Int16Array
@@ -118,8 +126,10 @@ export class VoiceCapture {
       }
 
       this.sourceNode.connect(this.workletNode)
+      this.workletNode.connect(this.outputNode)
+      this.outputNode.connect(this.audioContext.destination)
 
-      await this.stt.start({ editorId, language })
+      await this.stt.start({ editorId, language, mode: 'toggle' })
     } catch (error) {
       console.error('Failed to start VoiceCapture:', error)
       throw error
@@ -127,9 +137,7 @@ export class VoiceCapture {
   }
 
   async stop(): Promise<void> {
-    if (this.currentEditorId) {
-      await this.stt.stop({ editorId: this.currentEditorId })
-    }
+    const editorId = this.currentEditorId
 
     if (this.sourceNode) {
       this.sourceNode.disconnect()
@@ -141,9 +149,18 @@ export class VoiceCapture {
       this.workletNode = null
     }
 
+    if (this.outputNode) {
+      this.outputNode.disconnect()
+      this.outputNode = null
+    }
+
     if (this.stream) {
       this.stream.getTracks().forEach((track) => track.stop())
       this.stream = null
+    }
+
+    if (editorId) {
+      await this.stt.stop({ editorId })
     }
 
     this.currentEditorId = null
