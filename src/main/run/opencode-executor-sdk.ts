@@ -6,72 +6,8 @@ import { opencodeSessionRepo } from '../db/opencode-session-repository.js'
 import type { RunRecord } from '../db/run-types'
 import type { RunExecutor } from './job-runner'
 import { sessionManager } from './opencode-session-manager.js'
-
-const buildUserStoryPrompt = (task: any, project: any): string => {
-  return `
-Сформируй техническую user story ДЛЯ КОД-АГЕНТА на русском языке. Это не текст для человека-заказчика, а четкое задание для LLM-исполнителя.
-
-ЗАДАЧА: ${task.title}
-Текущее описание: ${task.description || 'Нет описания'}
-
-Контекст проекта:
-- Путь: ${project.path}
-- Название: ${project.name}
-- ID проекта: ${project.id}
-
-Требования к формату (строго придерживайся структуры):
-**Название:** [кратко и технически точно]
-
-**Цель:** [что именно должно измениться/появиться]
-
-**Контекст проекта:**
-- [1-3 пункта о домене/типе проекта, если можно предположить по пути]
-
-**Скоуп:**
-- Включено: [2-4 конкретных пункта]
-- Исключено: [1-3 пункта, что делать не нужно]
-
-**Требования:**
-- [функциональное требование 1]
-- [функциональное требование 2]
-- [техническое требование 3]
-
-**Ограничения:**
-- [ограничение 1]
-- [ограничение 2]
-
-**Критерии приемки (проверяемые):**
-- [критерий 1]
-- [критерий 2]
-- [критерий 3]
-
-**Ожидаемый результат:** [конкретный итог, который должен получить агент]
-
-Правила:
-1. Пиши коротко, без «воды», ориентируйся на выполнение задачи код-агентом.
-2. Не предлагай решения на уровне кода, только требования и критерии.
-3. Не добавляй никаких вступлений, выводов или пояснений. Верни ТОЛЬКО текст по структуре выше.
-`.trim()
-}
-
-const buildTaskPrompt = (task: any, project: any): string => {
-  return `
-ЗАДАЧА: ${task.title}
-
-Описание: ${task.description || 'Нет описания'}
-
-Контекст проекта:
-- Путь: ${project.path}
-- ID проекта: ${project.id}
-
-Требования:
-1. Выполните задачу в директории проекта: ${project.path}
-2. При завершении в самом конце выведи в формате:
-   STATUS: done|fail|question
-3. Если STATUS=fail — опиши причину
-4. Если STATUS=question — задай конкретный вопрос пользователю
-`.trim()
-}
+import { buildUserStoryPrompt } from './prompts/user-story.js'
+import { buildTaskPrompt } from './prompts/task.js'
 
 export class OpenCodeExecutorSDK implements RunExecutor {
   async generateUserStory(taskId: string): Promise<string> {
