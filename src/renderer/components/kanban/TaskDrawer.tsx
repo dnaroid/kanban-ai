@@ -31,14 +31,6 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
   }, [task])
 
   useEffect(() => {
-    console.warn('[TaskDrawer] props changed', {
-      isOpen,
-      taskId: task?.id ?? null,
-      activeTab,
-    })
-  }, [isOpen, task?.id, activeTab])
-
-  useEffect(() => {
     if (isEditingTitle && titleInputRef.current) {
       titleInputRef.current.focus()
     }
@@ -60,13 +52,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
     }
   }
 
-  if (!isOpen || !task) {
-    console.warn('[TaskDrawer] rendering null', {
-      isOpen,
-      taskId: task?.id ?? null,
-    })
-    return null
-  }
+  if (!isOpen || !task) return null
 
   const tabs = [
     { id: 'details', label: 'Details' },

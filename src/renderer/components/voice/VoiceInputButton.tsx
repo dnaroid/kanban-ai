@@ -220,11 +220,6 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
             {error}
           </div>
         )}
-        {liveText && (
-          <div className="text-[10px] text-slate-400 max-w-[200px] truncate" title={liveText}>
-            {liveText}
-          </div>
-        )}
       </div>
     </div>
   )

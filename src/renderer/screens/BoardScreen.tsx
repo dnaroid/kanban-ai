@@ -569,13 +569,6 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
     loadBoard()
   }, [projectId])
 
-  useEffect(() => {
-    console.warn('[BoardScreen] drawerOpen/selectedTask changed', {
-      drawerOpen,
-      selectedTaskId: selectedTask?.id ?? null,
-    })
-  }, [drawerOpen, selectedTask?.id])
-
   const normalizeColumns = (
     columns: Array<{ id?: BoardColumn['id']; name: BoardColumn['name']; color?: string }>
   ): BoardColumnInput[] =>
@@ -922,10 +915,6 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
         task={selectedTask}
         isOpen={drawerOpen}
         onClose={() => {
-          console.warn('[BoardScreen] TaskDrawer onClose invoked', {
-            selectedTaskId: selectedTask?.id ?? null,
-            drawerOpen,
-          })
           setDrawerOpen(false)
           setSelectedTask(null)
         }}
@@ -938,7 +927,6 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
             )
           )
           if (selectedTask?.id === taskId) {
-            console.warn('[BoardScreen] selectedTask updated', { taskId })
             setSelectedTask((prev) =>
               prev ? { ...prev, ...patch, updatedAt: new Date().toISOString() } : null
             )

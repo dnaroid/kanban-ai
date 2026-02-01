@@ -1,4 +1,4 @@
-import type { STTWorkerController } from './STTWorkerController'
+import type {STTWorkerController} from "./STTWorkerController"
 
 const WORKLET_CODE = `
 class PCM16Processor extends AudioWorkletProcessor {
@@ -37,7 +37,6 @@ class PCM16Processor extends AudioWorkletProcessor {
         this.port.postMessage(chunk, [chunk.buffer])
         this.chunkCount++
         if (currentTime - this.lastLogTime > 5.0) {
-          console.log('[PCM16Processor] Chunks generated:', this.chunkCount)
           this.lastLogTime = currentTime
         }
         this.chunkBufferPointer = 0
@@ -70,7 +69,6 @@ export class VoiceCapture {
   private silentOutput: GainNode | null = null
   private sttController: STTWorkerController
   private workletModuleLoaded = false
-  private chunkLogCount = 0
 
   constructor(sttController: STTWorkerController) {
     this.sttController = sttController
@@ -79,52 +77,31 @@ export class VoiceCapture {
   async start(): Promise<void> {
     try {
       if (!this.context) {
-        this.context = new AudioContext({ sampleRate: 16000 })
+        this.context = new AudioContext({sampleRate: 16000})
         this.workletModuleLoaded = false
       }
 
-      if (this.context.state === 'suspended') {
+      if (this.context.state === "suspended") {
         await this.context.resume()
       }
 
       if (!this.workletModuleLoaded) {
-        const blob = new Blob([WORKLET_CODE], { type: 'application/javascript' })
+        const blob = new Blob([WORKLET_CODE], {type: "application/javascript"})
         const workletUrl = URL.createObjectURL(blob)
         await this.context.audioWorklet.addModule(workletUrl)
         URL.revokeObjectURL(workletUrl)
         this.workletModuleLoaded = true
       }
 
-      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      this.stream.getTracks().forEach((track) => {
-        track.onended = () => {
-          console.warn('[VoiceCapture] MediaStream track ended', { kind: track.kind })
-        }
-        track.onmute = () => {
-          console.warn('[VoiceCapture] MediaStream track muted', { kind: track.kind })
-        }
-        track.onunmute = () => {
-          console.warn('[VoiceCapture] MediaStream track unmuted', { kind: track.kind })
-        }
-      })
+      this.stream = await navigator.mediaDevices.getUserMedia({audio: true})
       this.source = this.context.createMediaStreamSource(this.stream)
 
-      this.worklet = new AudioWorkletNode(this.context, 'pcm16-processor')
+      this.worklet = new AudioWorkletNode(this.context, "pcm16-processor")
       this.silentOutput = this.context.createGain()
       this.silentOutput.gain.value = 0
 
       this.worklet.port.onmessage = (e: MessageEvent<Int16Array>) => {
         const chunk = e.data
-        this.chunkLogCount += 1
-        if (this.chunkLogCount === 1 || this.chunkLogCount % 50 === 0) {
-          let sum = 0
-          for (let i = 0; i < chunk.length; i++) {
-            const sample = chunk[i] / 32768
-            sum += sample * sample
-          }
-          const rms = Math.sqrt(sum / chunk.length)
-          console.log(`[VoiceCapture] Chunk ${this.chunkLogCount}, RMS: ${rms.toFixed(4)}`)
-        }
         this.sttController.sendAudioChunk(chunk)
       }
 
@@ -132,7 +109,7 @@ export class VoiceCapture {
       this.worklet.connect(this.silentOutput)
       this.silentOutput.connect(this.context.destination)
     } catch (error) {
-      console.error('Failed to start VoiceCapture:', error)
+      console.error("Failed to start VoiceCapture:", error)
       throw error
     }
   }

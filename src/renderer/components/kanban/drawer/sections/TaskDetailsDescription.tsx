@@ -22,10 +22,17 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
   const [isEditing, setIsEditing] = useState(false)
   const [liveTranscript, setLiveTranscript] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setEditedDescription(task.description || '')
   }, [task.description])
+
+  const handleScroll = () => {
+    if (textareaRef.current && overlayRef.current) {
+      overlayRef.current.scrollTop = textareaRef.current.scrollTop
+    }
+  }
 
   const handleSaveDescription = () => {
     if (editedDescription !== task.description) {
@@ -83,9 +90,10 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
     }
 
     const currentText = editedDescription
-    const needsSpace =
-      currentText.length > 0 && !currentText.endsWith(' ') && !currentText.endsWith('\n')
-    const newText = currentText + (needsSpace ? ' ' : '') + trimmed
+    const hasExistingText = currentText.trim().length > 0
+    const prefixNewline = hasExistingText && !currentText.endsWith('\n') ? '\n' : ''
+    const suffixNewlines = hasExistingText ? '\n\n' : '\n'
+    const newText = currentText + prefixNewline + trimmed + suffixNewlines
 
     setEditedDescription(newText)
     setLiveTranscript('')
@@ -99,6 +107,7 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
         if (textareaRef.current) {
           textareaRef.current.focus()
           textareaRef.current.setSelectionRange(newText.length, newText.length)
+          textareaRef.current.scrollTop = textareaRef.current.scrollHeight
         }
       }, 0)
     }
@@ -162,11 +171,12 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
 
       <div className="relative flex-1 min-h-0">
         {isEditing ? (
-          <div className="relative w-full h-full">
+          <div className="relative w-full h-full overflow-hidden">
             <textarea
               ref={textareaRef}
               value={editedDescription}
               onChange={(e) => setEditedDescription(e.target.value)}
+              onScroll={handleScroll}
               onBlur={handleSaveDescription}
               disabled={isGeneratingStory}
               autoFocus
@@ -177,18 +187,38 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
               )}
             />
             {liveTranscript && (
-              <div className="absolute bottom-4 right-4 px-2 py-1 bg-blue-500/20 border border-blue-500/30 rounded text-xs text-blue-300 animate-pulse">
-                {liveTranscript}
+              <div
+                ref={overlayRef}
+                className="absolute inset-0 pointer-events-none p-4 text-sm font-mono whitespace-pre-wrap break-words overflow-y-scroll scrollbar-none [&::-webkit-scrollbar]:hidden"
+              >
+                <span className="opacity-0">{editedDescription}</span>
+                <span className="text-blue-400/50 italic animate-pulse">
+                  {editedDescription.length > 0 &&
+                  !editedDescription.endsWith(' ') &&
+                  !editedDescription.endsWith('\n')
+                    ? ' '
+                    : ''}
+                  {liveTranscript}
+                </span>
               </div>
             )}
           </div>
         ) : (
           <div
             onClick={() => setIsEditing(true)}
-            className="w-full h-full bg-[#161B26]/50 border border-transparent hover:border-slate-800 rounded-xl p-4 text-sm text-slate-300 overflow-y-auto cursor-pointer transition-colors"
+            className="relative w-full h-full bg-[#161B26]/50 border border-transparent hover:border-slate-800 rounded-xl p-4 text-sm text-slate-300 overflow-y-auto cursor-pointer transition-colors"
           >
             {editedDescription ? (
-              <LightMarkdown text={editedDescription} />
+              <>
+                <LightMarkdown text={editedDescription} />
+                {liveTranscript && (
+                  <div className="text-blue-400/50 italic animate-pulse mt-2 border-t border-slate-800/50 pt-2">
+                    {liveTranscript}
+                  </div>
+                )}
+              </>
+            ) : liveTranscript ? (
+              <span className="text-blue-400/50 italic animate-pulse">{liveTranscript}</span>
             ) : (
               <span className="text-slate-600 italic">
                 No description provided. Click to add...
