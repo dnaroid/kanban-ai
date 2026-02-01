@@ -196,6 +196,8 @@ export const TaskListResponseSchema = z.object({
   tasks: z.array(KanbanTaskSchema),
 })
 
+export type TaskListResponse = z.infer<typeof TaskListResponseSchema>
+
 export const TaskListByBoardInputSchema = TaskListInputSchema
 export type TaskListByBoardInput = TaskListInput
 
@@ -942,3 +944,69 @@ export type MessageInfo = {
   }
   parts: Part[]
 }
+
+// ---------------------------------------------------------------------------
+// STT (Speech-to-Text) Realtime Transcription schemas
+// ---------------------------------------------------------------------------
+export const STTLanguageSchema = z.enum(['ru', 'en'])
+export type STTLanguage = z.infer<typeof STTLanguageSchema>
+
+export const STTModeSchema = z.enum(['ptt', 'toggle'])
+export type STTMode = z.infer<typeof STTModeSchema>
+
+export const STTStatusSchema = z.enum(['idle', 'listening', 'speech', 'finalizing', 'error'])
+export type STTStatus = z.infer<typeof STTStatusSchema>
+
+export const STTStartInputSchema = z.object({
+  editorId: z.string(),
+  language: STTLanguageSchema,
+  mode: STTModeSchema.optional(),
+})
+export type STTStartInput = z.infer<typeof STTStartInputSchema>
+
+export const STTStopInputSchema = z.object({
+  editorId: z.string(),
+})
+export type STTStopInput = z.infer<typeof STTStopInputSchema>
+
+export const STTLanguageInputSchema = z.object({
+  editorId: z.string(),
+  language: STTLanguageSchema,
+})
+export type STTLanguageInput = z.infer<typeof STTLanguageInputSchema>
+
+export const STTAudioInputSchema = z.object({
+  editorId: z.string(),
+  pcm16Base64: z.string(),
+})
+export type STTAudioInput = z.infer<typeof STTAudioInputSchema>
+
+export const STTStatusEventSchema = z.object({
+  editorId: z.string(),
+  status: STTStatusSchema,
+  details: z.string().optional(),
+})
+export type STTStatusEvent = z.infer<typeof STTStatusEventSchema>
+
+export const STTDeltaEventSchema = z.object({
+  editorId: z.string(),
+  itemId: z.string(),
+  textDelta: z.string(),
+})
+export type STTDeltaEvent = z.infer<typeof STTDeltaEventSchema>
+
+export const STTFinalEventSchema = z.object({
+  editorId: z.string(),
+  itemId: z.string(),
+  transcript: z.string(),
+})
+export type STTFinalEvent = z.infer<typeof STTFinalEventSchema>
+
+export const STTErrorEventSchema = z.object({
+  editorId: z.string(),
+  error: z.object({
+    code: z.string().optional(),
+    message: z.string(),
+  }),
+})
+export type STTErrorEvent = z.infer<typeof STTErrorEventSchema>

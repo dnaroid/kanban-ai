@@ -92,6 +92,32 @@ const api: MainToRenderer = {
     setSidebarCollapsed: (input: { collapsed: boolean }) =>
       ipcRenderer.invoke('appSetting:setSidebarCollapsed', input),
   },
+  stt: {
+    start: (input) => ipcRenderer.invoke('stt:start', input),
+    stop: (input) => ipcRenderer.invoke('stt:stop', input),
+    setLanguage: (input) => ipcRenderer.invoke('stt:language', input),
+    sendAudio: (input) => ipcRenderer.invoke('stt:audio', input),
+    onStatus: (callback) => {
+      const listener = (_event: unknown, data: unknown) => callback(data as any)
+      ipcRenderer.on('stt:status', listener)
+      return () => ipcRenderer.removeListener('stt:status', listener)
+    },
+    onDelta: (callback) => {
+      const listener = (_event: unknown, data: unknown) => callback(data as any)
+      ipcRenderer.on('stt:delta', listener)
+      return () => ipcRenderer.removeListener('stt:delta', listener)
+    },
+    onFinal: (callback) => {
+      const listener = (_event: unknown, data: unknown) => callback(data as any)
+      ipcRenderer.on('stt:final', listener)
+      return () => ipcRenderer.removeListener('stt:final', listener)
+    },
+    onError: (callback) => {
+      const listener = (_event: unknown, data: unknown) => callback(data as any)
+      ipcRenderer.on('stt:error', listener)
+      return () => ipcRenderer.removeListener('stt:error', listener)
+    },
+  },
 }
 
 contextBridge.exposeInMainWorld('api', api)

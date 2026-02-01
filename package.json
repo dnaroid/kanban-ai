@@ -31,11 +31,13 @@
     "adm-zip": "^0.5.12",
     "better-sqlite3": "^12.6.2",
     "clsx": "^2.1.1",
+    "dotenv": "^17.2.3",
     "lucide-react": "^0.563.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "simple-git": "^3.28.0",
     "tailwind-merge": "^3.4.0",
+    "ws": "^8.19.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -48,6 +50,7 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.1.2",
     "@vitest/coverage-v8": "^4.0.18",
     "@vitest/ui": "^4.0.18",

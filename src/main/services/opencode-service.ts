@@ -76,11 +76,21 @@ export class OpencodeService {
       this.process = null
     })
 
-    await new Promise((resolve) => setTimeout(resolve, 3000))
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error(`Таймаут ожидания строки "listening" от OpenCode сервера`))
+      }, 10000)
 
-    if (!(await this.isRunning())) {
-      throw new Error(`Не удалось запустить OpenCode сервер на порту ${this.config.port}`)
-    }
+      const checkListener = (data: Buffer) => {
+        const output = data.toString()
+        if (output.includes('listening')) {
+          clearTimeout(timeout)
+          resolve(undefined)
+        }
+      }
+
+      this.process?.stdout?.on('data', checkListener)
+    })
 
     console.log(`[OpencodeService] OpenCode сервер успешно запущен`)
   }

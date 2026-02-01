@@ -1,14 +1,18 @@
 import { app, BrowserWindow } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { OpencodeService } from './services/opencode-service.js'
+import { config } from 'dotenv'
+import { createOpencodeService } from './services/opencode-service.js'
 import './ipc/handlers.js'
+
+config()
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 let mainWindow: BrowserWindow | null = null
-let opencodeService: OpencodeService | null = null
+const opencodePort = parseInt(process.env.OPENCODE_PORT || '4096', 10)
+const opencodeService = createOpencodeService({ port: opencodePort })
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -35,10 +39,7 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  const opencodePort = parseInt(process.env.OPENCODE_PORT || '4096', 10)
-
   try {
-    opencodeService = new OpencodeService({ port: opencodePort })
     await opencodeService.start()
   } catch (error) {
     console.error('[Main] Не удалось запустить OpenCode сервер:', error)

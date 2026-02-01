@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { AlertTriangle, FileText, Loader2, Wand2, X, Pencil, Eye } from 'lucide-react'
 import { cn } from '../../../../lib/utils'
 import type { KanbanTask } from '@/shared/types/ipc.ts'
 import { LightMarkdown } from '../../../LightMarkdown'
+import { VoiceInputButton } from '../../../voice/VoiceInputButton'
 
 interface TaskDetailsDescriptionProps {
   task: KanbanTask
@@ -14,6 +15,8 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
   const [isGeneratingStory, setIsGeneratingStory] = useState(false)
   const [generationError, setGenerationError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
+  const [liveTranscript, setLiveTranscript] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     setEditedDescription(task.description || '')
@@ -63,6 +66,39 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
     }
   }
 
+  const handleVoiceDelta = (delta: string) => {
+    setLiveTranscript(delta)
+  }
+
+  const handleVoiceTranscript = (transcript: string) => {
+    const trimmed = transcript.trim()
+    if (!trimmed) {
+      setLiveTranscript('')
+      return
+    }
+
+    const currentText = editedDescription
+    const needsSpace =
+      currentText.length > 0 && !currentText.endsWith(' ') && !currentText.endsWith('\n')
+    const newText = currentText + (needsSpace ? ' ' : '') + trimmed
+
+    setEditedDescription(newText)
+    setLiveTranscript('')
+
+    if (!isEditing) {
+      setIsEditing(true)
+    }
+
+    if (textareaRef.current) {
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus()
+          textareaRef.current.setSelectionRange(newText.length, newText.length)
+        }
+      }, 0)
+    }
+  }
+
   return (
     <div className="flex flex-col flex-1 min-h-0 space-y-3 px-6">
       <div className="flex items-center justify-between">
@@ -71,6 +107,12 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
           Description
         </label>
         <div className="flex items-center gap-1">
+          <VoiceInputButton
+            editorId={`task-description-${task.id}`}
+            onDelta={handleVoiceDelta}
+            onTranscript={handleVoiceTranscript}
+          />
+
           <button
             onClick={() => setIsEditing(!isEditing)}
             className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded transition-colors"
@@ -115,18 +157,26 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
 
       <div className="relative flex-1 min-h-0">
         {isEditing ? (
-          <textarea
-            value={editedDescription}
-            onChange={(e) => setEditedDescription(e.target.value)}
-            onBlur={handleSaveDescription}
-            disabled={isGeneratingStory}
-            autoFocus
-            placeholder="Add a description..."
-            className={cn(
-              'w-full h-full bg-[#161B26] border border-slate-800 rounded-xl p-4 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all resize-none font-mono',
-              isGeneratingStory && 'opacity-50 cursor-not-allowed'
+          <div className="relative w-full h-full">
+            <textarea
+              ref={textareaRef}
+              value={editedDescription}
+              onChange={(e) => setEditedDescription(e.target.value)}
+              onBlur={handleSaveDescription}
+              disabled={isGeneratingStory}
+              autoFocus
+              placeholder="Add a description..."
+              className={cn(
+                'w-full h-full bg-[#161B26] border border-slate-800 rounded-xl p-4 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all resize-none font-mono',
+                isGeneratingStory && 'opacity-50 cursor-not-allowed'
+              )}
+            />
+            {liveTranscript && (
+              <div className="absolute bottom-4 right-4 px-2 py-1 bg-blue-500/20 border border-blue-500/30 rounded text-xs text-blue-300 animate-pulse">
+                {liveTranscript}
+              </div>
             )}
-          />
+          </div>
         ) : (
           <div
             onClick={() => setIsEditing(true)}

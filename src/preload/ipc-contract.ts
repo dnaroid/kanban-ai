@@ -69,6 +69,14 @@ import type {
   OpenCodeGenerateUserStoryInput,
   OpenCodeGenerateUserStoryResponse,
   OpenCodeSessionEvent,
+  STTStartInput,
+  STTStopInput,
+  STTLanguageInput,
+  STTAudioInput,
+  STTStatusEvent,
+  STTDeltaEvent,
+  STTFinalEvent,
+  STTErrorEvent,
 } from '../shared/types/ipc'
 
 export type { OpenCodeSessionEvent } from '../shared/types/ipc'
@@ -160,6 +168,16 @@ export interface MainToRenderer {
       input: AppSettingSetSidebarCollapsedInput
     ): Promise<AppSettingSetSidebarCollapsedResponse>
   }
+  stt: {
+    start(input: STTStartInput): Promise<void>
+    stop(input: STTStopInput): Promise<void>
+    setLanguage(input: STTLanguageInput): Promise<void>
+    sendAudio(input: STTAudioInput): Promise<void>
+    onStatus(callback: (event: STTStatusEvent) => void): () => void
+    onDelta(callback: (event: STTDeltaEvent) => void): () => void
+    onFinal(callback: (event: STTFinalEvent) => void): () => void
+    onError(callback: (event: STTErrorEvent) => void): () => void
+  }
 }
 
 export interface RendererToMain {
@@ -242,5 +260,11 @@ export interface RendererToMain {
     setSidebarCollapsed(
       input: AppSettingSetSidebarCollapsedInput
     ): Promise<AppSettingSetSidebarCollapsedResponse>
+  }
+  stt: {
+    start(input: STTStartInput): Promise<void>
+    stop(input: STTStopInput): Promise<void>
+    setLanguage(input: STTLanguageInput): Promise<void>
+    sendAudio(input: STTAudioInput): Promise<void>
   }
 }
