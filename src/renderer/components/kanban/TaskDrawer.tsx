@@ -1,10 +1,10 @@
-import {useEffect, useRef, useState} from "react"
-import {ChevronRight, Maximize2, Minimize2, MoreVertical, Trash2, X,} from "lucide-react"
-import {cn} from "../../lib/utils"
-import type {KanbanTask} from "@/shared/types/ipc.ts"
-import {TaskDrawerDetails} from "./drawer/TaskDrawerDetails"
-import {TaskDrawerProperties} from "./drawer/TaskDrawerProperties"
-import {TaskDrawerRuns} from "./drawer/TaskDrawerRuns"
+import { useEffect, useRef, useState } from 'react'
+import { ChevronRight, Maximize2, Minimize2, MoreVertical, Trash2, X } from 'lucide-react'
+import { cn } from '../../lib/utils'
+import type { KanbanTask } from '@/shared/types/ipc.ts'
+import { TaskDrawerDetails } from './drawer/TaskDrawerDetails'
+import { TaskDrawerProperties } from './drawer/TaskDrawerProperties'
+import { TaskDrawerRuns } from './drawer/TaskDrawerRuns'
 
 interface TaskDrawerProps {
   task: KanbanTask | null
@@ -14,12 +14,12 @@ interface TaskDrawerProps {
   columnName?: string
 }
 
-export function TaskDrawer({task, isOpen, onClose, onUpdate, columnName}: TaskDrawerProps) {
-  const [activeTab, setActiveTab] = useState<"details" | "vcs" | "runs" | "chat" | "properties">(
-    "details"
+export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: TaskDrawerProps) {
+  const [activeTab, setActiveTab] = useState<'details' | 'vcs' | 'runs' | 'chat' | 'properties'>(
+    'details'
   )
   const [isEditingTitle, setIsEditingTitle] = useState(false)
-  const [editedTitle, setEditedTitle] = useState("")
+  const [editedTitle, setEditedTitle] = useState('')
   const titleInputRef = useRef<HTMLInputElement>(null)
   const [isExpanded, setIsExpanded] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -31,6 +31,14 @@ export function TaskDrawer({task, isOpen, onClose, onUpdate, columnName}: TaskDr
   }, [task])
 
   useEffect(() => {
+    console.warn('[TaskDrawer] props changed', {
+      isOpen,
+      taskId: task?.id ?? null,
+      activeTab,
+    })
+  }, [isOpen, task?.id, activeTab])
+
+  useEffect(() => {
     if (isEditingTitle && titleInputRef.current) {
       titleInputRef.current.focus()
     }
@@ -38,27 +46,33 @@ export function TaskDrawer({task, isOpen, onClose, onUpdate, columnName}: TaskDr
 
   const handleSaveTitle = () => {
     if (task && editedTitle !== task.title) {
-      onUpdate?.(task.id, {title: editedTitle})
+      onUpdate?.(task.id, { title: editedTitle })
     }
     setIsEditingTitle(false)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
+    if (e.key === 'Enter') {
       handleSaveTitle()
-    } else if (e.key === "Escape") {
+    } else if (e.key === 'Escape') {
       setIsEditingTitle(false)
-      setEditedTitle(task?.title || "")
+      setEditedTitle(task?.title || '')
     }
   }
 
-  if (!isOpen || !task) return null
+  if (!isOpen || !task) {
+    console.warn('[TaskDrawer] rendering null', {
+      isOpen,
+      taskId: task?.id ?? null,
+    })
+    return null
+  }
 
   const tabs = [
-    {id: "details", label: "Details"},
-    {id: "runs", label: "Runs"},
-    {id: "vcs", label: "VCS"},
-    {id: "properties", label: "Properties"},
+    { id: 'details', label: 'Details' },
+    { id: 'runs', label: 'Runs' },
+    { id: 'vcs', label: 'VCS' },
+    { id: 'properties', label: 'Properties' },
   ] as const
 
   return (
@@ -69,8 +83,8 @@ export function TaskDrawer({task, isOpen, onClose, onUpdate, columnName}: TaskDr
       />
       <div
         className={cn(
-          "fixed inset-y-0 right-0 bg-[#0B0E14] border-l border-slate-800 shadow-2xl transform transition-all duration-300 z-50 flex flex-col",
-          isExpanded ? "w-[90vw]" : "w-[600px]"
+          'fixed inset-y-0 right-0 bg-[#0B0E14] border-l border-slate-800 shadow-2xl transform transition-all duration-300 z-50 flex flex-col',
+          isExpanded ? 'w-[90vw]' : 'w-[600px]'
         )}
       >
         {/* Header */}
@@ -90,8 +104,7 @@ export function TaskDrawer({task, isOpen, onClose, onUpdate, columnName}: TaskDr
                 className="flex-1 min-w-0 group cursor-pointer"
                 onClick={() => setIsEditingTitle(true)}
               >
-                <h2
-                  className="text-sm font-semibold text-slate-200 truncate group-hover:text-blue-400 transition-colors">
+                <h2 className="text-sm font-semibold text-slate-200 truncate group-hover:text-blue-400 transition-colors">
                   {task.title}
                 </h2>
               </div>
@@ -101,45 +114,44 @@ export function TaskDrawer({task, isOpen, onClose, onUpdate, columnName}: TaskDr
             <button
               onClick={() => setIsExpanded(!isExpanded)}
               className="p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded transition-colors"
-              title={isExpanded ? "Collapse" : "Expand"}
+              title={isExpanded ? 'Collapse' : 'Expand'}
             >
-              {isExpanded ? <Minimize2 className="w-4 h-4"/> : <Maximize2 className="w-4 h-4"/>}
+              {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
             <div className="relative">
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className={cn(
-                  "p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded transition-colors",
-                  isMenuOpen && "text-slate-300 bg-slate-800"
+                  'p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded transition-colors',
+                  isMenuOpen && 'text-slate-300 bg-slate-800'
                 )}
               >
-                <MoreVertical className="w-4 h-4"/>
+                <MoreVertical className="w-4 h-4" />
               </button>
 
               {isMenuOpen && (
                 <>
-                  <div className="fixed inset-0 z-10" onClick={() => setIsMenuOpen(false)}/>
-                  <div
-                    className="absolute right-0 top-full mt-1 w-48 bg-[#161B26] border border-slate-700 rounded-lg shadow-xl z-20 py-1 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="fixed inset-0 z-10" onClick={() => setIsMenuOpen(false)} />
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-[#161B26] border border-slate-700 rounded-lg shadow-xl z-20 py-1 animate-in fade-in zoom-in-95 duration-200">
                     <button
                       onClick={() => {
                         setIsMenuOpen(false)
                       }}
                       className="w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2"
                     >
-                      <Trash2 className="w-3.5 h-3.5"/>
+                      <Trash2 className="w-3.5 h-3.5" />
                       Delete Task
                     </button>
                   </div>
                 </>
               )}
             </div>
-            <div className="w-px h-4 bg-slate-800 mx-1"/>
+            <div className="w-px h-4 bg-slate-800 mx-1" />
             <button
               onClick={onClose}
               className="p-1.5 text-slate-500 hover:text-white hover:bg-red-500/10 hover:border-red-500/20 border border-transparent rounded transition-colors"
             >
-              <X className="w-4 h-4"/>
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -151,10 +163,10 @@ export function TaskDrawer({task, isOpen, onClose, onUpdate, columnName}: TaskDr
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "px-4 py-3 text-xs font-medium border-b-2 transition-colors relative",
+                'px-4 py-3 text-xs font-medium border-b-2 transition-colors relative',
                 activeTab === tab.id
-                  ? "text-blue-400 border-blue-500 bg-blue-500/5"
-                  : "text-slate-500 border-transparent hover:text-slate-300 hover:bg-slate-800/50"
+                  ? 'text-blue-400 border-blue-500 bg-blue-500/5'
+                  : 'text-slate-500 border-transparent hover:text-slate-300 hover:bg-slate-800/50'
               )}
             >
               {tab.label}
@@ -165,29 +177,29 @@ export function TaskDrawer({task, isOpen, onClose, onUpdate, columnName}: TaskDr
         {/* Content */}
         <div className="flex-1 overflow-hidden relative">
           <div
-            className={cn("absolute inset-0 flex flex-col", activeTab !== "details" && "hidden")}
+            className={cn('absolute inset-0 flex flex-col', activeTab !== 'details' && 'hidden')}
           >
-            <TaskDrawerDetails task={task} onUpdate={onUpdate} columnName={columnName}/>
+            <TaskDrawerDetails task={task} onUpdate={onUpdate} columnName={columnName} />
           </div>
 
-          <div className={cn("absolute inset-0 flex flex-col", activeTab !== "runs" && "hidden")}>
-            <TaskDrawerRuns task={task} isActive={activeTab === "runs"}/>
+          <div className={cn('absolute inset-0 flex flex-col', activeTab !== 'runs' && 'hidden')}>
+            <TaskDrawerRuns task={task} isActive={activeTab === 'runs'} />
           </div>
 
           <div
-            className={cn("absolute inset-0 flex flex-col", activeTab !== "properties" && "hidden")}
+            className={cn('absolute inset-0 flex flex-col', activeTab !== 'properties' && 'hidden')}
           >
-            <TaskDrawerProperties task={task}/>
+            <TaskDrawerProperties task={task} />
           </div>
 
           <div
             className={cn(
-              "absolute inset-0 flex items-center justify-center text-slate-500 flex-col gap-2",
-              activeTab !== "vcs" && "hidden"
+              'absolute inset-0 flex items-center justify-center text-slate-500 flex-col gap-2',
+              activeTab !== 'vcs' && 'hidden'
             )}
           >
             <div className="p-3 bg-slate-800/50 rounded-full">
-              <ChevronRight className="w-6 h-6 opacity-50"/>
+              <ChevronRight className="w-6 h-6 opacity-50" />
             </div>
             <p className="text-xs font-medium uppercase tracking-widest">
               VCS Integration Coming Soon

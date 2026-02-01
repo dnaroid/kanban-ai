@@ -1,9 +1,14 @@
-import { useState, useEffect, useRef } from 'react'
-import { AlertTriangle, FileText, Loader2, Wand2, X, Pencil, Eye } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { AlertTriangle, Eye, FileText, Loader2, Pencil, Wand2, X } from 'lucide-react'
 import { cn } from '../../../../lib/utils'
 import type { KanbanTask } from '@/shared/types/ipc.ts'
 import { LightMarkdown } from '../../../LightMarkdown'
 import { VoiceInputButton } from '../../../voice/VoiceInputButton'
+
+const VOSK_MODEL_PATHS = {
+  ru: 'https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip',
+  en: 'https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip',
+} as const
 
 interface TaskDetailsDescriptionProps {
   task: KanbanTask
@@ -108,7 +113,7 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
         </label>
         <div className="flex items-center gap-1">
           <VoiceInputButton
-            editorId={`task-description-${task.id}`}
+            modelPaths={VOSK_MODEL_PATHS}
             onDelta={handleVoiceDelta}
             onTranscript={handleVoiceTranscript}
           />

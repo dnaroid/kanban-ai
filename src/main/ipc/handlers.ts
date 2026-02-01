@@ -63,10 +63,6 @@ import {
   ScheduleUpdateResponseSchema,
   SearchQueryInputSchema,
   SearchQueryResponseSchema,
-  STTAudioInputSchema,
-  STTLanguageInputSchema,
-  STTStartInputSchema,
-  STTStopInputSchema,
   TaskCreateResponseSchema,
   TaskDeleteInputSchema,
   TaskDeleteResponseSchema,
@@ -77,6 +73,8 @@ import {
   TaskUpdateInputSchema,
   TaskUpdateResponseSchema,
   UpdateProjectInputSchema,
+  VoskModelDownloadInputSchema,
+  VoskModelDownloadResponseSchema,
 } from '../../shared/types/ipc.js'
 import { projectRepo } from '../db/project-repository'
 import { appSettingsRepo } from '../db/app-settings-repository.js'
@@ -96,10 +94,9 @@ import { artifactRepo } from '../db/artifact-repository'
 import { runService } from '../run/run-service'
 import { buildContextSnapshot } from '../run/context-snapshot-builder'
 import { opencodeSessionRepo } from '../db/opencode-session-repository'
-import { STTController } from '../stt/STTController'
+import { downloadModelIfNeeded } from '../vosk-model-loader'
 
 const opencodeExecutor = new OpenCodeExecutorSDK()
-const sttController = new STTController()
 
 ipcHandlers.register('project:selectFolder', z.unknown(), async () => {
   const result = await dialog.showOpenDialog({
@@ -444,29 +441,17 @@ ipcHandlers.register(
   }
 )
 
-ipcHandlers.register('stt:start', STTStartInputSchema, async (event, input) => {
-  const { editorId, language } = input
-  await sttController.startSession(event, editorId, language)
-  return { ok: true }
-})
-
-ipcHandlers.register('stt:stop', STTStopInputSchema, async (_, input) => {
-  const { editorId } = input
-  await sttController.stopSession(editorId)
-  return { ok: true }
-})
-
-ipcHandlers.register('stt:language', STTLanguageInputSchema, async (_, input) => {
-  const { editorId, language } = input
-  sttController.updateLanguage(editorId, language)
-  return { ok: true }
-})
-
-ipcHandlers.register('stt:audio', STTAudioInputSchema, async (_, input) => {
-  const { editorId, pcm16Base64 } = input
-  sttController.appendAudio(editorId, pcm16Base64)
-  return { ok: true }
-})
+ipcHandlers.register(
+  'vosk:downloadModel',
+  VoskModelDownloadInputSchema,
+  async (_, input): Promise<VoskModelDownloadResponseSchema> => {
+    const { lang } = input
+    const buffer = await downloadModelIfNeeded(lang)
+    return VoskModelDownloadResponseSchema.parse({
+      path: buffer.toString('base64'),
+    })
+  }
+)
 
 registerDiagnosticsHandlers()
 

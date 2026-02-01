@@ -69,16 +69,8 @@ import type {
   OpenCodeGenerateUserStoryInput,
   OpenCodeGenerateUserStoryResponse,
   OpenCodeSessionEvent,
-  STTStartInput,
-  STTStopInput,
-  STTLanguageInput,
-  STTAudioInput,
-  STTStatusEvent,
-  STTDeltaEvent,
-  STTCommittedEvent,
-  STTFinalEvent,
-  STTFailedEvent,
-  STTErrorEvent,
+  VoskModelDownloadInput,
+  VoskModelDownloadResponse,
 } from '../shared/types/ipc'
 
 export type { OpenCodeSessionEvent } from '../shared/types/ipc'
@@ -170,17 +162,8 @@ export interface MainToRenderer {
       input: AppSettingSetSidebarCollapsedInput
     ): Promise<AppSettingSetSidebarCollapsedResponse>
   }
-  stt: {
-    start(input: STTStartInput): Promise<void>
-    stop(input: STTStopInput): Promise<void>
-    setLanguage(input: STTLanguageInput): Promise<void>
-    sendAudio(input: STTAudioInput): Promise<void>
-    onStatus(callback: (event: STTStatusEvent) => void): () => void
-    onDelta(callback: (event: STTDeltaEvent) => void): () => void
-    onCommitted(callback: (event: STTCommittedEvent) => void): () => void
-    onFinal(callback: (event: STTFinalEvent) => void): () => void
-    onFailed(callback: (event: STTFailedEvent) => void): () => void
-    onError(callback: (event: STTErrorEvent) => void): () => void
+  vosk: {
+    downloadModel(input: VoskModelDownloadInput): Promise<VoskModelDownloadResponse>
   }
 }
 

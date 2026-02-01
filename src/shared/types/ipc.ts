@@ -1035,3 +1035,13 @@ export const STTErrorEventSchema = z.object({
   }),
 })
 export type STTErrorEvent = z.infer<typeof STTErrorEventSchema>
+
+export const VoskModelDownloadInputSchema = z.object({
+  lang: z.enum(['ru', 'en']),
+})
+export type VoskModelDownloadInput = z.infer<typeof VoskModelDownloadInputSchema>
+
+export const VoskModelDownloadResponseSchema = z.object({
+  path: z.string(),
+})
+export type VoskModelDownloadResponse = z.infer<typeof VoskModelDownloadResponseSchema>

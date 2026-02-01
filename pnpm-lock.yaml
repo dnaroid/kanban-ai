@@ -53,6 +53,9 @@ importers:
       tailwind-merge:
         specifier: ^3.4.0
         version: 3.4.0
+      vosk-browser:
+        specifier: ^0.0.8
+        version: 0.0.8
       ws:
         specifier: ^8.19.0
         version: 8.19.0
@@ -3737,6 +3740,10 @@ packages:
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
 
+  uuid@9.0.0:
+    resolution: {integrity: sha512-MXcSTerfPa4uqyzStbRoTgt5XIe3x5+42+q1sDuy3R5MDk66URdLMOZe5aPX/SQd+kuYAh0FdP/pO28IkQyTeg==}
+    hasBin: true
+
   verror@1.10.1:
     resolution: {integrity: sha512-veufcmxri4e3XSrT0xwfUR7kguIkaxBeosDg00yDWhk49wdwkSUrvvsm7nc75e1PUyvIeZj6nS8VQRYz2/S4Xg==}
     engines: {node: '>=0.6.0'}
@@ -3822,6 +3829,9 @@ packages:
         optional: true
       jsdom:
         optional: true
+
+  vosk-browser@0.0.8:
+    resolution: {integrity: sha512-df9MuChirUGKxP/+4k8tBV6hJOic8IRdJXv64+ET0Ue5CddOzLZINiHOWCka765gBzHJWNtQKgaYakS0FXZIJA==}
 
   w3c-xmlserializer@5.0.0:
     resolution: {integrity: sha512-o8qghlI8NZHU1lLPrpi2+Uq7abh4GGPpYANlalzWxyWteJOCsr/P+oPBA49TOLu5FTZO4d3F9MnWJfiMo4BkmA==}
@@ -8044,6 +8054,8 @@ snapshots:
 
   util-deprecate@1.0.2: {}
 
+  uuid@9.0.0: {}
+
   verror@1.10.1:
     dependencies:
       assert-plus: 1.0.0
@@ -8106,6 +8118,10 @@ snapshots:
       - terser
       - tsx
       - yaml
+
+  vosk-browser@0.0.8:
+    dependencies:
+      uuid: 9.0.0
 
   w3c-xmlserializer@5.0.0:
     dependencies:

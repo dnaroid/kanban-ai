@@ -1,187 +1,143 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Mic, MicOff, AlertCircle, Loader2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { voiceCapture } from '../../voice/VoiceCapture'
-import {
-  STTLanguage,
-  STTStatus,
-  STTStartInput,
-  STTStopInput,
-  STTAudioInput,
-  STTStatusEvent,
-  STTDeltaEvent,
-  STTCommittedEvent,
-  STTFinalEvent,
-  STTFailedEvent,
-  STTErrorEvent,
-} from '@/shared/types/ipc'
-
-interface STTApi {
-  start(input: STTStartInput): Promise<void>
-  stop(input: STTStopInput): Promise<void>
-  setLanguage(input: { editorId: string; language: STTLanguage }): Promise<void>
-  sendAudio(input: STTAudioInput): Promise<void>
-  onStatus(callback: (event: STTStatusEvent) => void): () => void
-  onDelta(callback: (event: STTDeltaEvent) => void): () => void
-  onCommitted(callback: (event: STTCommittedEvent) => void): () => void
-  onFinal(callback: (event: STTFinalEvent) => void): () => void
-  onFailed(callback: (event: STTFailedEvent) => void): () => void
-  onError(callback: (event: STTErrorEvent) => void): () => void
-}
+import { STTWorkerController, type STTStatus } from '../../voice/STTWorkerController'
+import { VoiceCapture } from '../../voice/VoiceCapture'
 
 interface VoiceInputButtonProps {
-  editorId: string
   onTranscript?: (text: string) => void
   onDelta?: (text: string) => void
   className?: string
+  modelPaths: Record<'ru' | 'en', string>
 }
 
 export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
-  editorId,
   onTranscript,
   onDelta,
   className,
+  modelPaths,
 }) => {
   const [status, setStatus] = useState<STTStatus>('idle')
-  const [language, setLanguage] = useState<STTLanguage>('ru')
+  const [language, setLanguage] = useState<'ru' | 'en'>('ru')
   const [error, setError] = useState<string | null>(null)
   const [isRecording, setIsRecording] = useState(false)
   const [liveText, setLiveText] = useState('')
-  const liveTextByItemIdRef = useRef<Map<string, string>>(new Map())
-  const currentItemIdRef = useRef<string | null>(null)
-  const lastStatusRef = useRef<STTStatus>('idle')
+  const isRecordingRef = useRef(false)
+  const onDeltaRef = useRef<((text: string) => void) | undefined>(onDelta)
+  const onTranscriptRef = useRef<((text: string) => void) | undefined>(onTranscript)
+
+  const sttControllerRef = useRef<STTWorkerController | null>(null)
+  const voiceCaptureRef = useRef<VoiceCapture | null>(null)
+
+  useEffect(() => {
+    onDeltaRef.current = onDelta
+    onTranscriptRef.current = onTranscript
+  }, [onDelta, onTranscript])
+
+  useEffect(() => {
+    sttControllerRef.current = new STTWorkerController(modelPaths)
+
+    const controller = sttControllerRef.current
+
+    controller.on('status', (newStatus) => {
+      setStatus(newStatus)
+      if (newStatus === 'idle' || newStatus === 'error') {
+        setIsRecording(false)
+        isRecordingRef.current = false
+      }
+    })
+
+    controller.on('partial', (text) => {
+      setLiveText(text)
+      onDeltaRef.current?.(text)
+    })
+
+    controller.on('final', (text) => {
+      onTranscriptRef.current?.(text)
+      setLiveText('')
+      onDeltaRef.current?.('')
+    })
+
+    controller.on('error', (message) => {
+      setError(message)
+      setStatus('error')
+      setIsRecording(false)
+      isRecordingRef.current = false
+    })
+
+    return () => {
+      if (voiceCaptureRef.current) {
+        voiceCaptureRef.current.dispose()
+      }
+      controller.dispose()
+    }
+  }, [modelPaths])
 
   const handleLanguageChange = useCallback(
-    (nextLanguage: STTLanguage) => {
+    async (nextLanguage: 'ru' | 'en') => {
+      if (!sttControllerRef.current) return
+
       setLanguage(nextLanguage)
+
       if (isRecording) {
-        const stt = (window.api as any).stt as STTApi
-        stt.setLanguage({ editorId, language: nextLanguage })
+        try {
+          await sttControllerRef.current.setLanguage(nextLanguage)
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to change language')
+        }
       }
     },
-    [editorId, isRecording]
+    [isRecording]
   )
 
   const handleToggleRecording = useCallback(async () => {
+    if (!sttControllerRef.current) return
+
     if (isRecording) {
-      await voiceCapture.stop()
+      const pendingText = liveText.trim()
+      if (pendingText) {
+        onTranscriptRef.current?.(pendingText)
+        setLiveText('')
+        onDeltaRef.current?.('')
+      }
+      voiceCaptureRef.current?.stop()
+      sttControllerRef.current.reset()
       setIsRecording(false)
+      isRecordingRef.current = false
     } else {
       setError(null)
       try {
-        setStatus('requesting_mic')
-        await voiceCapture.start(editorId, language)
+        if (!voiceCaptureRef.current) {
+          voiceCaptureRef.current = new VoiceCapture(sttControllerRef.current)
+        }
+
+        const controller = sttControllerRef.current
+        const currentStatus = controller.getStatus()
+
+        if (currentStatus === 'idle') {
+          await controller.init(language)
+        }
+
+        await voiceCaptureRef.current.start()
         setIsRecording(true)
+        isRecordingRef.current = true
       } catch (err) {
         setIsRecording(false)
+        isRecordingRef.current = false
         setStatus('error')
         setError(err instanceof Error ? err.message : 'Microphone access denied')
       }
     }
-  }, [isRecording, editorId, language])
-
-  useEffect(() => {
-    const stt = (window.api as any).stt as STTApi
-
-    const unsubStatus = stt.onStatus((event: STTStatusEvent) => {
-      if (event.editorId === editorId) {
-        const previousStatus = lastStatusRef.current
-        setStatus(event.status)
-        lastStatusRef.current = event.status
-        if (event.status === 'error') {
-          setError(event.details || 'Transcription error')
-          setIsRecording(false)
-        }
-
-        if (event.status === 'idle') {
-          if (previousStatus === 'finalizing' && liveText.trim().length > 0) {
-            onTranscript?.(liveText)
-          }
-          setLiveText('')
-          liveTextByItemIdRef.current.clear()
-          currentItemIdRef.current = null
-        }
-      }
-    })
-
-    const unsubDelta = stt.onDelta((event: STTDeltaEvent) => {
-      if (event.editorId === editorId) {
-        const updated = event.textDelta
-        liveTextByItemIdRef.current.set(event.itemId, updated)
-        if (!currentItemIdRef.current) {
-          currentItemIdRef.current = event.itemId
-        }
-        if (currentItemIdRef.current === event.itemId) {
-          setLiveText(updated)
-          onDelta?.(updated)
-        }
-      }
-    })
-
-    const unsubCommitted = stt.onCommitted((event: STTCommittedEvent) => {
-      if (event.editorId === editorId) {
-        currentItemIdRef.current = event.itemId
-        const existing = liveTextByItemIdRef.current.get(event.itemId) ?? ''
-        setLiveText(existing)
-        onDelta?.(existing)
-      }
-    })
-
-    const unsubFinal = stt.onFinal((event: STTFinalEvent) => {
-      if (event.editorId === editorId) {
-        liveTextByItemIdRef.current.delete(event.itemId)
-        if (currentItemIdRef.current === event.itemId) {
-          currentItemIdRef.current = null
-          setLiveText('')
-          onDelta?.('')
-        }
-        onTranscript?.(event.transcript)
-      }
-    })
-
-    const unsubFailed = stt.onFailed((event: STTFailedEvent) => {
-      if (event.editorId === editorId) {
-        liveTextByItemIdRef.current.delete(event.itemId)
-        if (currentItemIdRef.current === event.itemId) {
-          currentItemIdRef.current = null
-          setLiveText('')
-          onDelta?.('')
-        }
-      }
-    })
-
-    const unsubError = stt.onError((event: STTErrorEvent) => {
-      if (event.editorId === editorId) {
-        setStatus('error')
-        setError(event.error.message)
-        setIsRecording(false)
-      }
-    })
-
-    return () => {
-      unsubStatus()
-      unsubDelta()
-      unsubCommitted()
-      unsubFinal()
-      unsubFailed()
-      unsubError()
-      if (isRecording) {
-        voiceCapture.stop()
-      }
-    }
-  }, [editorId, onDelta, onTranscript, isRecording, liveText])
+  }, [isRecording, language])
 
   const getStatusColor = () => {
     switch (status) {
-      case 'listening':
+      case 'ready':
         return 'text-blue-400'
-      case 'requesting_mic':
-      case 'connecting':
+      case 'initializing':
         return 'text-slate-300'
       case 'speech':
         return 'text-green-400'
-      case 'finalizing':
-        return 'text-purple-400'
       case 'error':
         return 'text-red-400'
       default:
@@ -191,16 +147,12 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
 
   const getStatusText = () => {
     switch (status) {
-      case 'listening':
-        return 'Listening...'
-      case 'requesting_mic':
-        return 'Requesting mic...'
-      case 'connecting':
-        return 'Connecting...'
+      case 'ready':
+        return 'Ready'
+      case 'initializing':
+        return 'Initializing...'
       case 'speech':
         return 'Speaking...'
-      case 'finalizing':
-        return 'Processing...'
       case 'error':
         return 'Error'
       default:
@@ -256,10 +208,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
             getStatusColor()
           )}
         >
-          {status === 'requesting_mic' ||
-          status === 'connecting' ||
-          status === 'listening' ||
-          status === 'finalizing' ? (
+          {status === 'initializing' ? (
             <Loader2 className="w-2.5 h-2.5 animate-spin" />
           ) : status === 'error' ? (
             <AlertCircle className="w-2.5 h-2.5" />
@@ -269,6 +218,11 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
         {error && (
           <div className="text-[10px] text-red-400/80 max-w-[200px] truncate" title={error}>
             {error}
+          </div>
+        )}
+        {liveText && (
+          <div className="text-[10px] text-slate-400 max-w-[200px] truncate" title={liveText}>
+            {liveText}
           </div>
         )}
       </div>
