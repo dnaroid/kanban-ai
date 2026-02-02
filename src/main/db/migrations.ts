@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS runs (
   task_id TEXT NOT NULL,
   role_id TEXT NOT NULL,
   mode TEXT NOT NULL DEFAULT 'execute',
+  kind TEXT NOT NULL DEFAULT 'task-run',
   status TEXT NOT NULL,
   started_at TEXT,
   finished_at TEXT,
@@ -455,6 +456,12 @@ export const migrations = [
     sql: `
       ALTER TABLE run_events ADD COLUMN message_id TEXT;
       CREATE INDEX IF NOT EXISTS idx_run_events_message ON run_events(message_id);
+    `,
+  },
+  {
+    version: 6,
+    sql: `
+      ALTER TABLE runs ADD COLUMN kind TEXT NOT NULL DEFAULT 'task-run';
     `,
   },
 ] as const

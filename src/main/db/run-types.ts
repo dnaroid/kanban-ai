@@ -1,4 +1,5 @@
 export type RunMode = 'plan-only' | 'execute' | 'critique'
+export type RunKind = 'task-run' | 'task-description-improve'
 export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled'
 export type RunEventType =
   | 'stdout'
@@ -16,6 +17,7 @@ export type RunRecord = {
   taskId: string
   roleId: string
   mode: RunMode
+  kind: RunKind
   status: RunStatus
   startedAt?: string
   finishedAt?: string
@@ -34,6 +36,7 @@ export type CreateRunInput = {
   taskId: string
   roleId: string
   mode?: RunMode
+  kind?: RunKind
   status?: RunStatus
   budget?: Record<string, unknown>
   contextSnapshotId: string

@@ -589,12 +589,14 @@ export type BackupImportResponse = z.infer<typeof BackupImportResponseSchema>
 
 export const RunModeSchema = z.enum(['plan-only', 'execute', 'critique'])
 export const RunStatusSchema = z.enum(['queued', 'running', 'succeeded', 'failed', 'canceled'])
+export const RunKindSchema = z.enum(['task-run', 'task-description-improve'])
 
 export const RunSchema = z.object({
   id: z.string().uuid(),
   taskId: z.string().uuid(),
   roleId: z.string(),
   mode: RunModeSchema,
+  kind: RunKindSchema,
   status: RunStatusSchema,
   startedAt: z.string().datetime().optional(),
   finishedAt: z.string().datetime().optional(),

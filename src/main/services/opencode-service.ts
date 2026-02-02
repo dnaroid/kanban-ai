@@ -33,14 +33,21 @@ export class OpencodeService {
   }
 
   async start(): Promise<void> {
-    if (await this.isRunning()) {
-      console.log(`[OpencodeService] OpenCode сервер уже запущен на порту ${this.config.port}`)
+    console.log(
+      `[OpencodeService] Проверка статуса OpenCode сервера на порту ${this.config.port}...`
+    )
+    const isCurrentlyRunning = await this.isRunning()
+
+    if (isCurrentlyRunning) {
+      console.log(`[OpencodeService] ✓ OpenCode сервер уже запущен на порту ${this.config.port}`)
       return
     }
 
     console.log(`[OpencodeService] Запуск OpenCode сервера на порту ${this.config.port}...`)
 
     const args = ['serve', '--port', this.config.port.toString()]
+
+    console.log(`[OpencodeService] Команда: opencode ${args.join(' ')}`)
 
     this.process = spawn('opencode', args, {
       detached: true,
@@ -51,8 +58,11 @@ export class OpencodeService {
       ? require('fs').createWriteStream(this.config.logFile)
       : process.stdout
 
+    let allOutput = ''
+
     this.process.stdout?.on('data', (data) => {
       const output = data.toString().trim()
+      allOutput += output + '\n'
       if (output) {
         logStream.write(`[OpenCode] ${output}\n`)
       }
@@ -60,6 +70,7 @@ export class OpencodeService {
 
     this.process.stderr?.on('data', (data) => {
       const error = data.toString().trim()
+      allOutput += error + '\n'
       if (error) {
         logStream.write(`[OpenCode Error] ${error}\n`)
       }
@@ -67,32 +78,73 @@ export class OpencodeService {
 
     this.process.on('error', (error) => {
       logStream.write(`[OpencodeService] Ошибка запуска: ${error}\n`)
+      console.error(`[OpencodeService] Spawn error:`, error)
     })
 
     this.process.on('exit', (code) => {
       if (!this.isShuttingDown) {
-        logStream.write(`[OpencodeService] Процесс завершился с кодом: ${code}\n`)
+        const msg = `[OpencodeService] Процесс завершился с кодом: ${code}`
+        logStream.write(`${msg}\n`)
+        console.error(msg)
+        console.error('[OpencodeService] Вывод процесса:', allOutput)
       }
       this.process = null
     })
 
-    await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error(`Таймаут ожидания строки "listening" от OpenCode сервера`))
-      }, 10000)
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(
+            new Error(
+              `Таймаут ожидания запуска OpenCode сервера (10 сек)\nВывод: ${allOutput.substring(0, 500)}`
+            )
+          )
+        }, 10000)
 
-      const checkListener = (data: Buffer) => {
-        const output = data.toString()
-        if (output.includes('listening')) {
-          clearTimeout(timeout)
-          resolve(undefined)
+        const checkListener = (data: Buffer) => {
+          const output = data.toString()
+          const startupIndicators = ['listening', 'Server running', 'ready', 'Started']
+          if (startupIndicators.some((indicator) => output.includes(indicator))) {
+            clearTimeout(timeout)
+            console.log(
+              `[OpencodeService] Обнаружено сообщение о запуске: ${output.trim().substring(0, 100)}`
+            )
+            resolve()
+          }
         }
+
+        this.process?.stdout?.on('data', checkListener)
+        this.process?.stderr?.on('data', checkListener)
+
+        const healthCheckInterval = setInterval(async () => {
+          if (await this.isRunning()) {
+            clearInterval(healthCheckInterval)
+            clearTimeout(timeout)
+            console.log('[OpencodeService] HTTP health check успешен')
+            resolve()
+          }
+        }, 1000)
+
+        Promise.race([
+          new Promise((resolve) => this.process?.on('exit', resolve)),
+          new Promise((resolve) => setTimeout(() => resolve(undefined), 11000)),
+        ]).then(() => {
+          clearInterval(healthCheckInterval)
+        })
+      })
+
+      const finalCheck = await this.isRunning()
+      if (!finalCheck) {
+        throw new Error(`Сервер не отвечает после запуска\nВывод: ${allOutput.substring(0, 500)}`)
       }
 
-      this.process?.stdout?.on('data', checkListener)
-    })
-
-    console.log(`[OpencodeService] OpenCode сервер успешно запущен`)
+      console.log(
+        `[OpencodeService] ✓ OpenCode сервер успешно запущен и отвечает на порту ${this.config.port}`
+      )
+    } catch (error) {
+      this.process?.kill('SIGTERM')
+      throw error
+    }
   }
 
   async stop(): Promise<void> {

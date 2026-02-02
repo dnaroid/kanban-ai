@@ -6,6 +6,7 @@ import { opencodeSessionRepo } from '../db/opencode-session-repository.js'
 import type { RunRecord } from '../db/run-types'
 import type { RunExecutor } from './job-runner'
 import { sessionManager } from './opencode-session-manager.js'
+import { buildContextSnapshot } from './context-snapshot-builder.js'
 import { buildUserStoryPrompt } from './prompts/user-story.js'
 import { buildTaskPrompt } from './prompts/task.js'
 
@@ -21,18 +22,168 @@ export class OpenCodeExecutorSDK implements RunExecutor {
       throw new Error('Project not found for task')
     }
 
+    const roleId = 'ba'
     const prompt = buildUserStoryPrompt(task, project)
     const sessionTitle = `User Story: ${task.title}`
 
-    const sessionInfo = await sessionManager.createSession(sessionTitle, project.path)
+    let sessionInfo: { id: string; title: string; directory: string } | null = null
+    let runId: string | null = null
 
     try {
+      const contextSnapshot = await buildContextSnapshot({ taskId, roleId, mode: 'execute' })
+      const run = runRepo.create({
+        taskId,
+        roleId,
+        mode: 'execute',
+        kind: 'task-description-improve',
+        status: 'running',
+        contextSnapshotId: contextSnapshot.id,
+      })
+      runId = run.id
+      runRepo.update(runId, { startedAt: new Date().toISOString() })
+
+      sessionInfo = await sessionManager.createSession(sessionTitle, project.path)
+
+      if (!sessionInfo) {
+        throw new Error('Failed to create OpenCode session')
+      }
+
+      opencodeSessionRepo.create({
+        runId,
+        sessionId: sessionInfo.id,
+        title: sessionTitle,
+        directory: project.path,
+      })
+
+      runEventRepo.create({
+        runId,
+        eventType: 'status',
+        payload: { message: 'OpenCode session created', sessionId: sessionInfo.id },
+      })
+
       console.log('[OpenCode] Request:', prompt)
-      const message = await sessionManager.sendPrompt(sessionInfo.id, prompt)
-      console.log('[OpenCode] raw message:\n', message)
-      const resolvedMessage = await sessionManager.getMessage(sessionInfo.id, message.id)
-      const content = resolvedMessage?.content?.trim()
-      console.log('[OpenCode] Response:', content)
+
+      const sessionId = sessionInfo.id
+
+      let content: string | null = null
+      let timeoutHandle: NodeJS.Timeout | null = null
+      let usePolling = false
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(() => {
+          reject(new Error('Empty response from OpenCode (timeout)'))
+        }, 60000)
+      })
+
+      let eventPromiseHandled: Promise<string> | null = null
+
+      try {
+        let eventResolve: (value: string) => void = () => {}
+        let eventReject: (reason?: any) => void = () => {}
+        let eventSettled = false
+
+        const eventPromise = new Promise<string>((resolve, reject) => {
+          eventResolve = resolve
+          eventReject = reject
+        })
+
+        eventPromiseHandled = eventPromise.then(
+          (value) => value,
+          (error) => {
+            throw error
+          }
+        )
+
+        const handleEvent = async (event: any) => {
+          try {
+            if (event.type === 'message.created' || event.type === 'message.updated') {
+              if (event.message && event.message.role === 'assistant') {
+                const messages = await sessionManager.getMessagesRaw(sessionId)
+                const lastMessage = messages[messages.length - 1]
+
+                if (lastMessage && lastMessage.role === 'assistant') {
+                  const messageContent = lastMessage.parts
+                    .filter((p: any) => p.type === 'text' && !p.ignored)
+                    .map((p: any) => p.text)
+                    .join('\n')
+
+                  if (messageContent) {
+                    content = messageContent.trim()
+                    console.log('[OpenCode] Response:', content)
+                    await sessionManager.unsubscribeFromSessionEvents(sessionId)
+                    if (!eventSettled) {
+                      eventSettled = true
+                      eventResolve(content)
+                    }
+                  }
+                }
+              }
+            } else if (event.type === 'error') {
+              await sessionManager.unsubscribeFromSessionEvents(sessionId)
+              if (!eventSettled) {
+                eventSettled = true
+                eventReject(new Error(`OpenCode error: ${event.error}`))
+              }
+            }
+          } catch (error) {
+            await sessionManager.unsubscribeFromSessionEvents(sessionId)
+            if (!eventSettled) {
+              eventSettled = true
+              eventReject(error)
+            }
+          }
+        }
+
+        await sessionManager.subscribeToSessionEvents(sessionId, handleEvent)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        if (message.includes('Event stream is unavailable')) {
+          usePolling = true
+        } else {
+          throw error
+        }
+      }
+
+      await sessionManager.sendPromptAsync(sessionId, prompt)
+
+      const pollForResponse = async (): Promise<string | null> => {
+        const pollInterval = 2000
+        const maxPollTime = 60000
+        let elapsed = 0
+
+        while (elapsed < maxPollTime) {
+          await new Promise((resolve) => setTimeout(resolve, pollInterval))
+          elapsed += pollInterval
+
+          const messages = await sessionManager.getMessagesRaw(sessionId)
+          const lastMessage = messages[messages.length - 1]
+
+          if (lastMessage && lastMessage.role === 'assistant') {
+            const messageContent = lastMessage.parts
+              .filter((p: any) => p.type === 'text' && !p.ignored)
+              .map((p: any) => p.text)
+              .join('\n')
+
+            if (messageContent) {
+              return messageContent.trim()
+            }
+          }
+        }
+
+        return null
+      }
+
+      try {
+        if (usePolling) {
+          content = await pollForResponse()
+        } else if (eventPromiseHandled) {
+          content = await Promise.race([eventPromiseHandled, timeoutPromise])
+        } else {
+          content = await Promise.race([timeoutPromise])
+        }
+      } finally {
+        if (timeoutHandle) clearTimeout(timeoutHandle)
+      }
 
       if (!content) {
         throw new Error('Empty response from OpenCode')
@@ -40,22 +191,32 @@ export class OpenCodeExecutorSDK implements RunExecutor {
 
       taskRepo.update(taskId, { description: content })
 
-      return content
-    } finally {
-      try {
-        await sessionManager.deleteSession(sessionInfo.id)
+      if (runId) {
+        runRepo.update(runId, {
+          status: 'succeeded',
+          finishedAt: new Date().toISOString(),
+          errorText: '',
+        })
+        opencodeSessionRepo.updateStatus(runId, 'completed')
 
-        // Cleanup any potential database records associated with this temporary session
-        const sessionRecord = opencodeSessionRepo.getBySessionId(sessionInfo.id)
-        if (sessionRecord) {
-          if (sessionRecord.runId) {
-            runRepo.delete(sessionRecord.runId)
-          }
-          opencodeSessionRepo.deleteBySessionId(sessionInfo.id)
-        }
-      } catch (error) {
-        console.error('[OpenCodeExecutorSDK] Failed to delete temporary session:', error)
+        runEventRepo.create({
+          runId,
+          eventType: 'status',
+          payload: { message: 'User story generated' },
+        })
       }
+
+      return content
+    } catch (error) {
+      if (runId) {
+        runRepo.update(runId, {
+          status: 'failed',
+          finishedAt: new Date().toISOString(),
+          errorText: error instanceof Error ? error.message : String(error),
+        })
+        opencodeSessionRepo.updateStatus(runId, 'aborted')
+      }
+      throw error
     }
   }
 

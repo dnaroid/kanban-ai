@@ -17,6 +17,7 @@ const mapRunRow = (row: {
   taskId: string
   roleId: string
   mode: RunRecord['mode']
+  kind: RunRecord['kind']
   status: RunRecord['status']
   startedAt: string | null
   finishedAt: string | null
@@ -34,6 +35,7 @@ const mapRunRow = (row: {
   taskId: row.taskId,
   roleId: row.roleId,
   mode: row.mode,
+  kind: row.kind,
   status: row.status,
   startedAt: row.startedAt ?? undefined,
   finishedAt: row.finishedAt ?? undefined,
@@ -55,13 +57,14 @@ export class RunRepository {
     const id = randomUUID()
 
     const mode = input.mode ?? 'execute'
+    const kind = input.kind ?? 'task-run'
     const status = input.status ?? 'queued'
     const budgetJson = JSON.stringify(input.budget ?? {})
 
     db.prepare(
       `
       INSERT INTO runs (
-        id, task_id, role_id, mode, status, started_at, finished_at, error_text,
+        id, task_id, role_id, mode, kind, status, started_at, finished_at, error_text,
         budget_json, context_snapshot_id, ai_tokens_in, ai_tokens_out, ai_cost_usd, created_at, updated_at
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -71,6 +74,7 @@ export class RunRepository {
       input.taskId,
       input.roleId,
       mode,
+      kind,
       status,
       null,
       null,
@@ -89,6 +93,7 @@ export class RunRepository {
       taskId: input.taskId,
       roleId: input.roleId,
       mode,
+      kind,
       status,
       errorText: '',
       budget: input.budget ?? {},
@@ -111,6 +116,7 @@ export class RunRepository {
           r.task_id as taskId,
           r.role_id as roleId,
           r.mode,
+          r.kind,
           r.status,
           r.started_at as startedAt,
           r.finished_at as finishedAt,
@@ -135,6 +141,7 @@ export class RunRepository {
           taskId: string
           roleId: string
           mode: RunRecord['mode']
+          kind: RunRecord['kind']
           status: RunRecord['status']
           startedAt: string | null
           finishedAt: string | null
@@ -164,6 +171,7 @@ export class RunRepository {
           r.task_id as taskId,
           r.role_id as roleId,
           r.mode,
+          r.kind,
           r.status,
           r.started_at as startedAt,
           r.finished_at as finishedAt,
@@ -187,6 +195,7 @@ export class RunRepository {
       taskId: string
       roleId: string
       mode: RunRecord['mode']
+      kind: RunRecord['kind']
       status: RunRecord['status']
       startedAt: string | null
       finishedAt: string | null
@@ -214,6 +223,7 @@ export class RunRepository {
           r.task_id as taskId,
           r.role_id as roleId,
           r.mode,
+          r.kind,
           r.status,
           r.started_at as startedAt,
           r.finished_at as finishedAt,
@@ -242,6 +252,7 @@ export class RunRepository {
       taskId: string
       roleId: string
       mode: RunRecord['mode']
+      kind: RunRecord['kind']
       status: RunRecord['status']
       startedAt: string | null
       finishedAt: string | null
@@ -269,6 +280,7 @@ export class RunRepository {
     const allowedFields: (keyof RunRecord)[] = [
       'roleId',
       'mode',
+      'kind',
       'status',
       'startedAt',
       'finishedAt',
