@@ -9,10 +9,12 @@ export function RunDetailsView({
   runId,
   run,
   onBack,
+  showBack = true,
 }: {
   runId: string
   run: Run | null
   onBack: () => void
+  showBack?: boolean
 }) {
   const [view, setView] = useState<'log' | 'artifacts'>('log')
 
@@ -38,12 +40,14 @@ export function RunDetailsView({
     <div className="flex flex-col h-full bg-[#0B0E14] overflow-hidden animate-in fade-in duration-300">
       <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800/50 bg-[#11151C]/25 backdrop-blur-md shrink-0">
         <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          {showBack && (
+            <button
+              onClick={onBack}
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
           <span className="text-xs font-mono text-blue-400/80">{runId.slice(0, 8)}</span>
         </div>
 

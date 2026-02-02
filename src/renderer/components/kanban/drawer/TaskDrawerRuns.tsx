@@ -116,6 +116,10 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
     try {
       const response = await window.api.run.listByTask({ taskId: task.id })
       setRuns(response.runs)
+
+      if (!selectedRunId && response.runs.length > 0) {
+        setSelectedRunId(response.runs[0].id)
+      }
     } catch (error) {
       console.error('Failed to fetch runs:', error)
     } finally {
@@ -276,6 +280,7 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
             runId={selectedRunId}
             run={selectedRun}
             onBack={() => setSelectedRunId(null)}
+            showBack={runs.length > 1}
           />
         ) : (
           <div className="p-4 space-y-3">
