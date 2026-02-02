@@ -91,13 +91,51 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
       }
     }
 
-    fetchEvents()
+    const fetchSessionMessages = async () => {
+      if (!sessionId || !isActive) return
+      try {
+        const response = await window.api.opencode.getSessionMessages({
+          sessionId,
+          limit: 200,
+        })
+        if (!isActive) return
+        if (response.messages.length > 0) {
+          const messageEvents: RunEvent[] = response.messages.map((msg: any) => ({
+            id: `msg-${msg.id}`,
+            runId: sessionId,
+            ts: new Date(msg.timestamp).toISOString(),
+            eventType: 'message',
+            payload: {
+              role: msg.role,
+              content: msg.content,
+              parts: msg.parts,
+            },
+          }))
+          setEvents((prev) => [...messageEvents, ...prev].slice(-500))
+        }
+      } catch (error) {
+        console.error('Failed to fetch session messages:', error)
+      } finally {
+        if (isActive) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    const loadInitial = async () => {
+      if (sessionId) {
+        await fetchSessionMessages()
+      }
+      await fetchEvents()
+    }
+
+    loadInitial()
     const interval = setInterval(fetchEvents, 1500)
     return () => {
       isActive = false
       clearInterval(interval)
     }
-  }, [runId])
+  }, [runId, sessionId])
 
   useEffect(() => {
     if (autoScroll && scrollRef.current) {

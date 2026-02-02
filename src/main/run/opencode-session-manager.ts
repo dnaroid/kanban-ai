@@ -1,7 +1,7 @@
 import type { Event, Message, Part, Session, TextPartInput } from '@opencode-ai/sdk/v2/client'
-import { app } from 'electron'
 import { createOpencodeClient } from '@opencode-ai/sdk/v2/client'
 import fs from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 
 export interface SessionInfo {
@@ -76,23 +76,6 @@ export class OpenCodeSessionManager {
   private eventAbortControllers = new Map<string, AbortController>()
   private eventProcessing = new Map<string, Promise<void>>()
   private messageSessionIndex = new Map<string, string>()
-
-  private async createClientForDirectory(directory: string) {
-    const baseUrl = process.env.OPENCODE_URL || 'http://127.0.0.1:4096'
-    return createOpencodeClient({
-      baseUrl,
-      throwOnError: true,
-      directory,
-    })
-  }
-
-  private async getSessionClient(sessionID: string, directory: string) {
-    const existing = this.sessionClients.get(sessionID)
-    if (existing) return existing
-    const client = await this.createClientForDirectory(directory)
-    this.sessionClients.set(sessionID, client)
-    return client
-  }
 
   /**
    * Создать новую сессию для задачи
@@ -198,28 +181,45 @@ export class OpenCodeSessionManager {
     }
   }
 
-  /**
-   * Получить все сообщения из сессии
-   */
-  private getOpenCodeStoragePath(): string {
-    const userDataPath = app.getPath('userData')
-    return path.join(userDataPath, 'opencode', 'storage')
+  private async loadPartsForMessage(messageID: string): Promise<Part[]> {
+    try {
+      const partsDir = path.join(this.getOpenCodeStoragePath(), 'part', messageID)
+      const partFiles = await fs.readdir(partsDir)
+      const partsFiltered = partFiles.filter((f) => f.startsWith('prt_') && f.endsWith('.json'))
+
+      const parts = await Promise.all(
+        partsFiltered.map(async (filename) => {
+          const filePath = path.join(partsDir, filename)
+          try {
+            const partData = JSON.parse(await fs.readFile(filePath, 'utf-8'))
+            return partData as Part
+          } catch (e) {
+            console.error(`[OpenCodeSessionManager] Failed to read part file ${filePath}:`, e)
+            return null
+          }
+        })
+      )
+      return parts.filter((p): p is NonNullable<typeof p> => p !== null)
+    } catch (error) {
+      return []
+    }
   }
 
-  async getMessagesFromFilesystem(
+  private async getMessagesFromFilesystem(
     sessionId: string,
     limit?: number
   ): Promise<
     Array<{
       id: string
       role: 'user' | 'assistant'
+      content: string
       parts: Part[]
       timestamp: number
     }>
   > {
     try {
       const storagePath = this.getOpenCodeStoragePath()
-      const messageDir = path.join(storagePath, 'message', `ses_${sessionId}`)
+      const messageDir = path.join(storagePath, 'message', sessionId)
 
       const messageFiles = await fs.readdir(messageDir)
       const messageFilesFiltered = messageFiles.filter(
@@ -237,10 +237,19 @@ export class OpenCodeSessionManager {
             const messageData = JSON.parse(await fs.readFile(filePath, 'utf-8'))
             const time = messageData.time || { created: Date.now() }
             const role = messageData.role === 'user' ? ('user' as const) : ('assistant' as const)
+            const parts = await this.loadPartsForMessage(messageData.id)
+
+            const content =
+              typeof messageData.content === 'string' && messageData.content
+                ? messageData.content
+                : parts.length > 0
+                  ? this.buildMessageContent(parts)
+                  : messageData.summary?.title || ''
             return {
               id: messageData.id,
               role,
-              parts: [],
+              content,
+              parts,
               timestamp: typeof time.created === 'number' ? time.created : Number(time.created),
             }
           } catch (e) {
@@ -375,6 +384,7 @@ export class OpenCodeSessionManager {
     Array<{
       id: string
       role: 'user' | 'assistant'
+      content: string
       timestamp: number
       parts: Part[]
     }>
@@ -428,11 +438,14 @@ export class OpenCodeSessionManager {
 
     return messages.map((item) => {
       const msg = item.info
+      const parts = item.parts as Part[]
+      const content = this.buildMessageContent(parts)
 
       return {
         id: msg.id,
         role: msg.role,
-        parts: item.parts as Part[],
+        content,
+        parts,
         timestamp: msg.time.created,
       }
     })
@@ -657,6 +670,31 @@ export class OpenCodeSessionManager {
    */
   isSubscribedToSessionEvents(sessionID: string): boolean {
     return this.eventAbortControllers.has(sessionID)
+  }
+
+  private async createClientForDirectory(directory: string) {
+    const baseUrl = process.env.OPENCODE_URL || 'http://127.0.0.1:4096'
+    return createOpencodeClient({
+      baseUrl,
+      throwOnError: true,
+      directory,
+    })
+  }
+
+  private async getSessionClient(sessionID: string, directory: string) {
+    const existing = this.sessionClients.get(sessionID)
+    if (existing) return existing
+    const client = await this.createClientForDirectory(directory)
+    this.sessionClients.set(sessionID, client)
+    return client
+  }
+
+  /**
+   * Получить все сообщения из сессии
+   */
+  private getOpenCodeStoragePath(): string {
+    const userDataPath = path.join(os.homedir(), '.local', 'share')
+    return path.join(userDataPath, 'opencode', 'storage')
   }
 
   private shouldHandleSessionEvent(sessionID: string, event: Event): boolean {

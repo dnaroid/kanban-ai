@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   description TEXT,
   status TEXT NOT NULL,           -- e.g. 'open' | 'done' | 'archived' (или как у тебя принято)
   priority TEXT NOT NULL,         -- e.g. 'p0'|'p1'|'p2'|'p3'
+  difficulty TEXT NOT NULL DEFAULT 'medium',
   assigned_agent TEXT,            -- optional (manual), не обязателен при queue
 
   -- board placement
@@ -66,12 +67,19 @@ CREATE TABLE IF NOT EXISTS tasks (
   tags_json TEXT NOT NULL DEFAULT '[]',
   description_md TEXT,
 
+  -- scheduling
+  start_date TEXT,
+  due_date TEXT,
+  estimate_points REAL,
+  estimate_hours REAL,
+  assignee TEXT,
+
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
 
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
   FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE SET NULL,
-  FOREIGN KEY (column_id) REFERENCES board_columns(id) ON DELETE SET NULL
+  FOREIGN KEY (column_id) REFERENCES board_columns(id) ON DELETE CASCADE
 );
 
 -- indexes

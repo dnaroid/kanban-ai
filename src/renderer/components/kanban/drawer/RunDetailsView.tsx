@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Files, Terminal, X } from 'lucide-react'
+import { ArrowLeft, Files, Terminal } from 'lucide-react'
 import { cn } from '../../../../lib/utils'
 import type { Run } from '@/shared/types/ipc.ts'
 import { ArtifactsPanel } from './ArtifactsPanel'
@@ -45,7 +45,7 @@ export function RunDetailsView({
               onClick={onBack}
               className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
             >
-              <X className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4" />
             </button>
           )}
           <span className="text-xs font-mono text-blue-400/80">{runId.slice(0, 8)}</span>

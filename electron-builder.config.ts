@@ -1,24 +1,24 @@
-import type { Config } from 'electron-builder'
+import type {Config} from "electron-builder"
 
 const config: Config = {
-  appId: 'com.kanbanai.app',
-  productName: 'Kanban AI',
+  appId: "com.kanbanai.app",
+  productName: "Kanban AI",
   directories: {
-    output: 'dist'
+    output: "dist"
   },
   files: [
-    'dist/**/*',
-    'dist-electron/**/*',
-    'package.json'
+    "dist/**/*",
+    "dist-electron/**/*",
+    "package.json"
   ],
   mac: {
-    category: 'public.app-category.productivity'
+    category: "____public.app-category.productivity"
   },
   win: {
-    target: ['nsis']
+    target: ["nsis"]
   },
   linux: {
-    target: ['AppImage']
+    target: ["AppImage"]
   }
 }
 

@@ -83,6 +83,16 @@ function SortableTask({ task, onDelete, onClick }: SortableTaskProps) {
     urgent: 'border-red-500/30 text-red-400 bg-red-500/5',
   }
 
+  const statusColors = {
+    queued: 'border-slate-500/30 text-slate-400 bg-slate-500/5',
+    running: 'border-blue-500/30 text-blue-400 bg-blue-500/5 animate-pulse',
+    question: 'border-amber-500/30 text-amber-400 bg-amber-500/5',
+    paused: 'border-slate-500/30 text-slate-500 bg-slate-500/5',
+    done: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5',
+    failed: 'border-red-500/30 text-red-400 bg-red-500/5',
+    generating: 'border-purple-500/30 text-purple-400 bg-purple-500/5 animate-pulse',
+  }
+
   return (
     <div
       ref={setNodeRef}
@@ -131,6 +141,16 @@ function SortableTask({ task, onDelete, onClick }: SortableTaskProps) {
             <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider bg-slate-800/50 px-2 py-0.5 rounded-md">
               {task.type}
             </span>
+            {task.status && task.status !== 'queued' && (
+              <span
+                className={cn(
+                  'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border',
+                  statusColors[task.status]
+                )}
+              >
+                {task.status}
+              </span>
+            )}
             {isBlocked && (
               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border bg-red-500/10 text-red-400 border-red-500/20 flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" />

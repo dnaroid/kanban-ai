@@ -88,9 +88,9 @@ wget https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
 2. Положите в `public/vosk-models/`:
 
 ```bash
-mkdir -p public/vosk-models
-mv vosk-model-small-ru-0.22.zip public/vosk-models/ru.zip
-mv vosk-model-small-en-us-0.15.zip public/vosk-models/en.zip
+mkdir -p ____public/vosk-models
+mv vosk-model-small-ru-0.22.zip ____public/vosk-models/ru.zip
+mv vosk-model-small-en-us-0.15.zip ____public/vosk-models/en.zip
 ```
 
 3. Обновите пути:
@@ -122,7 +122,7 @@ mv vosk-model-small-en-us-0.15.zip public/vosk-models/en.zip
 ```tsx
 // Новый
 <VoiceInputButton
-  modelPaths={{ ru: '/path/to/ru', en: '/path/to/en' }} // ✅ Обязательно
+  modelPaths={{ru: '/path/to/ru', en: '/path/to/en'}} // ✅ Обязательно
   onTranscript={(text) => console.log('Final:', text)}
   onDelta={(text) => console.log('Partial:', text)}
 />
@@ -172,8 +172,8 @@ controller.dispose()
 3. Нажмите кнопку микрофона
 4. Начните говорить
 5. Проверьте консоль браузера:
-   - `[PCM16Processor] Chunks generated: 50` - worklet работает
-   - Partial/Final результаты приходят в UI
+    - `[PCM16Processor] Chunks generated: 50` - worklet работает
+    - Partial/Final результаты приходят в UI
 
 ## Troubleshooting
 

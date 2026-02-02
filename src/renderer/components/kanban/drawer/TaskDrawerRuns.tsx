@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  ArrowUpRight,
   Check,
   Clock,
   Play,
@@ -117,7 +116,7 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
       const response = await window.api.run.listByTask({ taskId: task.id })
       setRuns(response.runs)
 
-      if (!selectedRunId && response.runs.length > 0) {
+      if (!selectedRunId && response.runs.length === 1) {
         setSelectedRunId(response.runs[0].id)
       }
     } catch (error) {
@@ -338,12 +337,6 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
                         title="Delete run"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        className="p-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-lg border border-blue-500/20 transition-colors shadow-lg"
-                        title="View details"
-                      >
-                        <ArrowUpRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
 

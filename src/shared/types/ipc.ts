@@ -839,9 +839,19 @@ export const OpenCodeSessionMessagesInputSchema = z.object({
 
 export type OpenCodeSessionMessagesInput = z.infer<typeof OpenCodeSessionMessagesInputSchema>
 
+export const OpenCodeMessageSchema = z.object({
+  id: z.string(),
+  role: z.enum(['user', 'assistant']),
+  content: z.string(),
+  parts: z.array(z.any()),
+  timestamp: z.number(),
+})
+
+export type OpenCodeMessage = z.infer<typeof OpenCodeMessageSchema>
+
 export const OpenCodeSessionMessagesResponseSchema = z.object({
   sessionId: z.string(),
-  messages: z.array(z.unknown()),
+  messages: z.array(OpenCodeMessageSchema),
 })
 
 export type OpenCodeSessionMessagesResponse = z.infer<typeof OpenCodeSessionMessagesResponseSchema>

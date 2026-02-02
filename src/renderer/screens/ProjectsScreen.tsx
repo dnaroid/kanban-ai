@@ -16,7 +16,16 @@ function CreateProjectModal({
   onCreate: (name: string, path: string) => void
 }) {
   const [selectedFolder, setSelectedFolder] = useState<{ path: string; name: string } | null>(null)
+  const [projectName, setProjectName] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (selectedFolder) {
+      setProjectName(selectedFolder.name)
+    } else {
+      setProjectName('')
+    }
+  }, [selectedFolder])
 
   const handleSelectFolder = async () => {
     try {
@@ -36,9 +45,9 @@ function CreateProjectModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('[ProjectsScreen] Form submit:', selectedFolder)
-    if (selectedFolder) {
-      onCreate(selectedFolder.name, selectedFolder.path)
+    console.log('[ProjectsScreen] Form submit:', { selectedFolder, projectName })
+    if (selectedFolder && projectName.trim()) {
+      onCreate(projectName.trim(), selectedFolder.path)
       setSelectedFolder(null)
     }
   }
@@ -80,9 +89,13 @@ function CreateProjectModal({
               <label className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-1">
                 Project Name
               </label>
-              <div className="px-4 py-3 bg-[#0B0E14] border border-blue-500/30 rounded-xl text-white">
-                {selectedFolder.name}
-              </div>
+              <input
+                type="text"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                placeholder="Enter project name"
+                className="w-full px-4 py-3 bg-[#0B0E14] border border-blue-500/30 rounded-xl text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all"
+              />
             </div>
           )}
 

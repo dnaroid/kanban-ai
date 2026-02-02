@@ -1,12 +1,12 @@
-import path from 'node:path'
-import fs from 'node:fs'
-import os from 'node:os'
-import { randomUUID } from 'node:crypto'
-import { app } from 'electron'
-import AdmZip from 'adm-zip'
-import { dbManager } from '../db/index.js'
-import { projectRepo } from '../db/project-repository'
-import { pluginRepo } from '../plugins/plugin-repository'
+import path from "node:path"
+import fs from "node:fs"
+import os from "node:os"
+import {randomUUID} from "node:crypto"
+import {app} from "electron"
+import AdmZip from "adm-zip"
+import {dbManager} from "../db/index.js"
+import {projectRepo} from "../db/project-repository"
+import {pluginRepo} from "../plugins/plugin-repository"
 
 type ExportInput = {
   projectId: string
@@ -15,11 +15,11 @@ type ExportInput = {
 
 type ImportInput = {
   zipPath: string
-  mode: 'new' | 'overwrite'
+  mode: "new" | "overwrite"
   projectPath?: string
 }
 
-const getDbPath = () => path.join(app.getPath('userData'), 'kanban.db')
+const getDbPath = () => path.join(app.getPath("userData"), "bk-kanban.db")
 
 const writeJson = (filePath: string, data: unknown) => {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
@@ -31,7 +31,7 @@ const extractZip = (zipPath: string, targetDir: string) => {
 }
 
 const prepareExportDir = () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kanban-export-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kanban-export-"))
   return dir
 }
 
@@ -41,26 +41,26 @@ const copyIfExists = (fromPath: string, toPath: string) => {
   }
 }
 
-const makePlaceholders = (count: number) => Array(count).fill('?').join(',')
+const makePlaceholders = (count: number) => Array(count).fill("?").join(",")
 
 export const backupService = {
-  exportProject({ projectId, toPath }: ExportInput) {
+  exportProject({projectId, toPath}: ExportInput) {
     const project = projectRepo.getById(projectId)
     if (!project) {
-      throw new Error('Project not found')
+      throw new Error("Project not found")
     }
 
     const db = dbManager.connect()
-    db.pragma('wal_checkpoint(TRUNCATE)')
+    db.pragma("wal_checkpoint(TRUNCATE)")
 
     const tempDir = prepareExportDir()
-    const exportDbPath = path.join(tempDir, 'app.db')
+    const exportDbPath = path.join(tempDir, "app.db")
     copyIfExists(getDbPath(), exportDbPath)
     const artifacts = db
       .prepare(
         `
             SELECT a.id,
-                   a.run_id as runId,
+                   a.run_id        as runId,
                    a.kind,
                    a.title,
                    a.content,
@@ -74,44 +74,44 @@ export const backupService = {
       )
       .all(projectId)
 
-    writeJson(path.join(tempDir, 'project.json'), {
+    writeJson(path.join(tempDir, "project.json"), {
       project,
     })
-    writeJson(path.join(tempDir, 'plugins.json'), pluginRepo.list())
-    writeJson(path.join(tempDir, 'artifacts.json'), artifacts)
+    writeJson(path.join(tempDir, "plugins.json"), pluginRepo.list())
+    writeJson(path.join(tempDir, "artifacts.json"), artifacts)
 
     const zip = new AdmZip()
     zip.addLocalFile(exportDbPath)
-    zip.addLocalFile(path.join(tempDir, 'project.json'))
-    zip.addLocalFile(path.join(tempDir, 'plugins.json'))
-    zip.addLocalFile(path.join(tempDir, 'artifacts.json'))
+    zip.addLocalFile(path.join(tempDir, "project.json"))
+    zip.addLocalFile(path.join(tempDir, "plugins.json"))
+    zip.addLocalFile(path.join(tempDir, "artifacts.json"))
     zip.writeZip(toPath)
 
-    return { ok: true, path: toPath }
+    return {ok: true, path: toPath}
   },
-  importProject({ zipPath, mode, projectPath }: ImportInput) {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kanban-import-'))
+  importProject({zipPath, mode, projectPath}: ImportInput) {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "kanban-import-"))
     extractZip(zipPath, tempDir)
 
-    const exportDbPath = path.join(tempDir, 'app.db')
+    const exportDbPath = path.join(tempDir, "app.db")
     if (!fs.existsSync(exportDbPath)) {
-      throw new Error('Exported database not found')
+      throw new Error("Exported database not found")
     }
 
     const projectPayload = JSON.parse(
-      fs.readFileSync(path.join(tempDir, 'project.json'), 'utf8')
+      fs.readFileSync(path.join(tempDir, "project.json"), "utf8")
     ) as {
       project: { id: string; name: string; path: string }
       vcsProject?: { repoPath?: string } | null
     }
 
-    if (mode === 'overwrite') {
+    if (mode === "overwrite") {
       fs.copyFileSync(exportDbPath, getDbPath())
-      return { ok: true, projectId: projectPayload.project.id }
+      return {ok: true, projectId: projectPayload.project.id}
     }
 
     if (!projectPath) {
-      throw new Error('Project path is required for new import')
+      throw new Error("Project path is required for new import")
     }
 
     const db = dbManager.connect()
@@ -148,16 +148,16 @@ export const backupService = {
     const boardIds = boardRows.map((row) => row.id)
     const columnRows = boardIds.length
       ? safeAll<{
-          id: string
-          boardId: string
-          name: string
-          orderIndex: number
-          createdAt: string
-          updatedAt: string
-        }>(
-          `
+        id: string
+        boardId: string
+        name: string
+        orderIndex: number
+        createdAt: string
+        updatedAt: string
+      }>(
+        `
             SELECT id,
-                   board_id as boardId,
+                   board_id    as boardId,
                    name,
                    order_index as orderIndex,
                    created_at  as createdAt,
@@ -165,8 +165,8 @@ export const backupService = {
             FROM importdb.board_columns
             WHERE board_id IN (${makePlaceholders(boardIds.length)})
         `,
-          boardIds
-        )
+        boardIds
+      )
       : []
     const columnIdMap = new Map(columnRows.map((row) => [row.id, randomUUID()]))
 
@@ -211,17 +211,17 @@ export const backupService = {
 
     const contextRows = taskIds.length
       ? safeAll<{
-          id: string
-          taskId: string
-          kind: string
-          summary: string
-          payloadJson: string
-          hash: string
-          createdAt: string
-        }>(
-          `
+        id: string
+        taskId: string
+        kind: string
+        summary: string
+        payloadJson: string
+        hash: string
+        createdAt: string
+      }>(
+        `
             SELECT id,
-                   task_id as      taskId,
+                   task_id      as taskId,
                    kind,
                    summary,
                    payload_json as payloadJson,
@@ -230,30 +230,30 @@ export const backupService = {
             FROM importdb.context_snapshots
             WHERE task_id IN (${makePlaceholders(taskIds.length)})
         `,
-          taskIds
-        )
+        taskIds
+      )
       : []
     const contextIdMap = new Map(contextRows.map((row) => [row.id, randomUUID()]))
 
     const runRows = taskIds.length
       ? safeAll<{
-          id: string
-          taskId: string
-          roleId: string
-          mode: string
-          status: string
-          startedAt: string | null
-          finishedAt: string | null
-          errorText: string | null
-          budgetJson: string
-          contextSnapshotId: string
-          aiTokensIn: number | null
-          aiTokensOut: number | null
-          aiCostUsd: number | null
-          createdAt: string
-          updatedAt: string
-        }>(
-          `
+        id: string
+        taskId: string
+        roleId: string
+        mode: string
+        status: string
+        startedAt: string | null
+        finishedAt: string | null
+        errorText: string | null
+        budgetJson: string
+        contextSnapshotId: string
+        aiTokensIn: number | null
+        aiTokensOut: number | null
+        aiCostUsd: number | null
+        createdAt: string
+        updatedAt: string
+      }>(
+        `
             SELECT id,
                    task_id             as taskId,
                    role_id             as roleId,
@@ -272,42 +272,42 @@ export const backupService = {
             FROM importdb.runs
             WHERE task_id IN (${makePlaceholders(taskIds.length)})
         `,
-          taskIds
-        )
+        taskIds
+      )
       : []
     const runIdMap = new Map(runRows.map((row) => [row.id, randomUUID()]))
     const runIds = runRows.map((row) => row.id)
 
     const runEventRows = runIds.length
       ? safeAll<{
-          id: string
-          runId: string
-          ts: string
-          eventType: string
-          payloadJson: string
-        }>(
-          `
+        id: string
+        runId: string
+        ts: string
+        eventType: string
+        payloadJson: string
+      }>(
+        `
             SELECT id, run_id as runId, ts, event_type as eventType, payload_json as payloadJson
             FROM importdb.run_events
             WHERE run_id IN (${makePlaceholders(runIds.length)})
         `,
-          runIds
-        )
+        runIds
+      )
       : []
 
     const artifactRows = runIds.length
       ? safeAll<{
-          id: string
-          runId: string
-          kind: string
-          title: string
-          content: string
-          metadataJson: string
-          createdAt: string
-        }>(
-          `
+        id: string
+        runId: string
+        kind: string
+        title: string
+        content: string
+        metadataJson: string
+        createdAt: string
+      }>(
+        `
             SELECT id,
-                   run_id as        runId,
+                   run_id        as runId,
                    kind,
                    title,
                    content,
@@ -316,25 +316,25 @@ export const backupService = {
             FROM importdb.artifacts
             WHERE run_id IN (${makePlaceholders(runIds.length)})
         `,
-          runIds
-        )
+        runIds
+      )
       : []
 
     const taskEventRows = taskIds.length
       ? safeAll<{
-          id: string
-          taskId: string
-          ts: string
-          eventType: string
-          payloadJson: string
-        }>(
-          `
+        id: string
+        taskId: string
+        ts: string
+        eventType: string
+        payloadJson: string
+      }>(
+        `
             SELECT id, task_id as taskId, ts, event_type as eventType, payload_json as payloadJson
             FROM importdb.task_events
             WHERE task_id IN (${makePlaceholders(taskIds.length)})
         `,
-          taskIds
-        )
+        taskIds
+      )
       : []
 
     const taskLinkRows = safeAll<{
@@ -348,8 +348,8 @@ export const backupService = {
       `
           SELECT id,
                  from_task_id as fromTaskId,
-                 to_task_id as toTaskId,
-                 link_type as linkType,
+                 to_task_id   as toTaskId,
+                 link_type    as linkType,
                  created_at   as createdAt,
                  updated_at   as updatedAt
           FROM importdb.task_links
@@ -360,27 +360,27 @@ export const backupService = {
 
     const scheduleRows = taskIds.length
       ? safeAll<{
-          taskId: string
-          startDate: string | null
-          dueDate: string | null
-          estimatePoints: number
-          estimateHours: number
-          assignee: string
-          updatedAt: string
-        }>(
-          `
+        taskId: string
+        startDate: string | null
+        dueDate: string | null
+        estimatePoints: number
+        estimateHours: number
+        assignee: string
+        updatedAt: string
+      }>(
+        `
             SELECT task_id         as taskId,
                    start_date      as startDate,
                    due_date        as dueDate,
                    estimate_points as estimatePoints,
-                   estimate_hours as  estimateHours,
+                   estimate_hours  as estimateHours,
                    assignee,
                    updated_at      as updatedAt
             FROM importdb.task_schedule
             WHERE task_id IN (${makePlaceholders(taskIds.length)})
         `,
-          taskIds
-        )
+        taskIds
+      )
       : []
 
     db.transaction(() => {
@@ -578,8 +578,8 @@ export const backupService = {
       })
     })()
 
-    db.exec('DETACH importdb;')
+    db.exec("DETACH importdb;")
 
-    return { ok: true, projectId: newProjectId }
+    return {ok: true, projectId: newProjectId}
   },
 }
