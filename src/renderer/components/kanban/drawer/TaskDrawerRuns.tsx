@@ -9,6 +9,7 @@ import {
   RotateCcw,
   Square,
   Terminal,
+  Trash2,
   User,
   X,
   PauseCircle,
@@ -149,6 +150,20 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
       await fetchRuns()
     } catch (error) {
       console.error('Failed to cancel run:', error)
+    }
+  }
+
+  const handleDeleteRun = async (runId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!window.confirm('Are you sure you want to delete this run?')) return
+    try {
+      await window.api.run.delete({ runId })
+      await fetchRuns()
+      if (selectedRunId === runId) {
+        setSelectedRunId(null)
+      }
+    } catch (error) {
+      console.error('Failed to delete run:', error)
     }
   }
 
@@ -312,6 +327,13 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
                           <Square className="w-3.5 h-3.5 fill-current" />
                         </button>
                       )}
+                      <button
+                        onClick={(e) => handleDeleteRun(run.id, e)}
+                        className="p-1.5 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg border border-red-500/20 transition-colors shadow-lg"
+                        title="Delete run"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         className="p-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-lg border border-blue-500/20 transition-colors shadow-lg"
                         title="View details"

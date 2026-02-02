@@ -641,6 +641,18 @@ export const RunCancelResponseSchema = z.object({
 
 export type RunCancelResponse = z.infer<typeof RunCancelResponseSchema>
 
+export const RunDeleteInputSchema = z.object({
+  runId: z.string().uuid(),
+})
+
+export type RunDeleteInput = z.infer<typeof RunDeleteInputSchema>
+
+export const RunDeleteResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type RunDeleteResponse = z.infer<typeof RunDeleteResponseSchema>
+
 export const RunListByTaskInputSchema = z.object({
   taskId: z.string().uuid(),
 })

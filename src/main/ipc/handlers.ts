@@ -56,6 +56,8 @@ import {
   RolesListResponseSchema,
   RunCancelInputSchema,
   RunCancelResponseSchema,
+  RunDeleteInputSchema,
+  RunDeleteResponseSchema,
   RunEventsTailInputSchema,
   RunEventsTailResponseSchema,
   RunGetInputSchema,
@@ -334,6 +336,11 @@ ipcHandlers.register('run:start', RunStartInputSchema, async (_, input) => {
 ipcHandlers.register('run:cancel', RunCancelInputSchema, async (_, { runId }) => {
   await runService.cancel(runId)
   return RunCancelResponseSchema.parse({ ok: true })
+})
+
+ipcHandlers.register('run:delete', RunDeleteInputSchema, async (_, { runId }) => {
+  runRepo.delete(runId)
+  return RunDeleteResponseSchema.parse({ ok: true })
 })
 
 ipcHandlers.register('run:listByTask', RunListByTaskInputSchema, async (_, { taskId }) => {

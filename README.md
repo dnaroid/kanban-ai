@@ -22,6 +22,29 @@ pnpm install
 
 ## Troubleshooting
 
+### Проблема: OpenCode ищет сессию в другом проекте (NotFoundError)
+
+**Симптомы:**
+
+- `NotFoundError: Resource not found: .../storage/session/<wrong_project_id>/<session_id>.json`
+- Сессия создается, но `prompt` или чтение сообщений падает
+
+**Корневая причина:**
+
+`@opencode-ai/sdk` определяет проект по заголовку `x-opencode-directory`. Если не передать `directory` при создании клиента, сервер использует дефолтную директорию и вычисляет другой `projectId`.
+
+**Решение:**
+
+Передавайте `directory` при создании клиента:
+
+```ts
+const client = createOpencodeClient({
+  baseUrl: process.env.OPENCODE_URL || 'http://127.0.0.1:4096',
+  throwOnError: true,
+  directory: projectPath,
+})
+```
+
 ### Проблема: Electron binary не устанавливается
 
 **Симптомы:**

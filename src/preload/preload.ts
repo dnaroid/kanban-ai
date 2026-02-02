@@ -88,6 +88,7 @@ const api: MainToRenderer = {
   run: {
     start: (input) => ipcRenderer.invoke('run:start', input),
     cancel: (input) => ipcRenderer.invoke('run:cancel', input),
+    delete: (input) => ipcRenderer.invoke('run:delete', input),
     listByTask: (input) => ipcRenderer.invoke('run:listByTask', input),
     get: (input) => ipcRenderer.invoke('run:get', input),
   },

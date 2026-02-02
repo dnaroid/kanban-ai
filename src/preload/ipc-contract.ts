@@ -54,6 +54,8 @@ import type {
   RunListByTaskResponse,
   RunGetInput,
   RunGetResponse,
+  RunDeleteInput,
+  RunDeleteResponse,
   RunEventsTailInput,
   RunEventsTailResponse,
   ArtifactListInput,
@@ -159,6 +161,7 @@ export interface MainToRenderer {
   run: {
     start(input: RunStartInput): Promise<RunStartResponse>
     cancel(input: RunCancelInput): Promise<RunCancelResponse>
+    delete(input: RunDeleteInput): Promise<RunDeleteResponse>
     listByTask(input: RunListByTaskInput): Promise<RunListByTaskResponse>
     get(input: RunGetInput): Promise<RunGetResponse>
   }
@@ -245,6 +248,7 @@ export interface RendererToMain {
   run: {
     start(input: RunStartInput): Promise<RunStartResponse>
     cancel(input: RunCancelInput): Promise<RunCancelResponse>
+    delete(input: RunDeleteInput): Promise<RunDeleteResponse>
     listByTask(input: RunListByTaskInput): Promise<RunListByTaskResponse>
     get(input: RunGetInput): Promise<RunGetResponse>
   }

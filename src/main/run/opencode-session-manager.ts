@@ -1,5 +1,8 @@
 import type { Event, Message, Part, Session, TextPartInput } from '@opencode-ai/sdk/v2/client'
+import { app } from 'electron'
 import { createOpencodeClient } from '@opencode-ai/sdk/v2/client'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 
 export interface SessionInfo {
   id: string
@@ -143,20 +146,10 @@ export class OpenCodeSessionManager {
       text: prompt,
     }
 
-    console.log('[OpenCodeSessionManager] sendPrompt START', {
-      sessionID,
-      promptLength: prompt.length,
-    })
-
     const sessionInfo = this.activeSessions.get(sessionID)
     if (!sessionInfo) {
       throw new Error(`Session not found: ${sessionID}`)
     }
-
-    console.log('[OpenCodeSessionManager] sendPrompt CLIENT', {
-      sessionID,
-      directory: sessionInfo.directory,
-    })
 
     try {
       const client = await this.getSessionClient(sessionID, sessionInfo.directory)
@@ -165,27 +158,12 @@ export class OpenCodeSessionManager {
         parts: [textPart],
       })
 
-      console.log('[OpenCodeSessionManager] sendPrompt RESPONSE', {
-        sessionID,
-        hasError: !!response.error,
-        hasData: !!response.data,
-        dataKeys: response.data ? Object.keys(response.data) : [],
-        data: JSON.stringify(response.data).substring(0, 200),
-      })
-
       if (response.error) {
         console.error('[OpenCodeSessionManager] sendPrompt ERROR:', response.error)
         throw new Error(`Failed to send prompt: ${response.error}`)
       }
 
       const messageInfo = response.data?.info
-
-      console.log('[OpenCodeSessionManager] sendPrompt OK', {
-        sessionID,
-        messageId: messageInfo?.id,
-        hasInfo: !!messageInfo,
-        infoKeys: messageInfo ? Object.keys(messageInfo) : [],
-      })
 
       return messageInfo as Message
     } catch (error) {
@@ -203,11 +181,6 @@ export class OpenCodeSessionManager {
       text: prompt,
     }
 
-    console.log('[OpenCodeSessionManager] sendPromptAsync START', {
-      sessionID,
-      prompt: prompt.substring(0, 100), // логируем первые 100 символов
-    })
-
     const sessionInfo = this.activeSessions.get(sessionID)
     if (!sessionInfo) {
       throw new Error(`Session not found: ${sessionID}`)
@@ -219,39 +192,87 @@ export class OpenCodeSessionManager {
       parts: [textPart],
     })
 
-    console.log('[OpenCodeSessionManager] sendPromptAsync RESPONSE', {
-      hasError: !!response.error,
-      error: response.error,
-      hasData: !!response.data,
-      responseType: typeof response,
-    })
-
     if (response.error) {
       console.error('[OpenCodeSessionManager] sendPromptAsync ERROR:', response.error)
       throw new Error(`Failed to send async prompt: ${response.error}`)
     }
-
-    // Диагностика: проверяем состояние сессии после асинхронной отправки
-    console.log('[OpenCodeSessionManager] sendPromptAsync checking session state', { sessionID })
-    try {
-      const checkResponse = await client.session.messages({ sessionID, limit: 1 })
-      console.log('[OpenCodeSessionManager] sendPromptAsync messages check', {
-        hasError: !!checkResponse.error,
-        messageCount: checkResponse.data ? checkResponse.data.length : 0,
-      })
-    } catch (e) {
-      console.error('[OpenCodeSessionManager] sendPromptAsync messages check failed', e)
-    }
-
-    console.log('[OpenCodeSessionManager] sendPromptAsync OK', { sessionID })
   }
 
   /**
    * Получить все сообщения из сессии
    */
+  private getOpenCodeStoragePath(): string {
+    const userDataPath = app.getPath('userData')
+    return path.join(userDataPath, 'opencode', 'storage')
+  }
+
+  async getMessagesFromFilesystem(
+    sessionId: string,
+    limit?: number
+  ): Promise<
+    Array<{
+      id: string
+      role: 'user' | 'assistant'
+      parts: Part[]
+      timestamp: number
+    }>
+  > {
+    try {
+      const storagePath = this.getOpenCodeStoragePath()
+      const messageDir = path.join(storagePath, 'message', `ses_${sessionId}`)
+
+      const messageFiles = await fs.readdir(messageDir)
+      const messageFilesFiltered = messageFiles.filter(
+        (f) => f.startsWith('msg_') && f.endsWith('.json')
+      )
+
+      if (messageFilesFiltered.length === 0) {
+        return []
+      }
+
+      const messages = await Promise.all(
+        messageFilesFiltered.map(async (filename) => {
+          const filePath = path.join(messageDir, filename)
+          try {
+            const messageData = JSON.parse(await fs.readFile(filePath, 'utf-8'))
+            const time = messageData.time || { created: Date.now() }
+            const role = messageData.role === 'user' ? ('user' as const) : ('assistant' as const)
+            return {
+              id: messageData.id,
+              role,
+              parts: [],
+              timestamp: typeof time.created === 'number' ? time.created : Number(time.created),
+            }
+          } catch (e) {
+            console.error(`[OpenCodeSessionManager] Failed to read message file ${filePath}:`, e)
+            return null
+          }
+        })
+      )
+
+      const filtered = messages.filter((m): m is NonNullable<typeof m> => m !== null)
+      return limit ? filtered.slice(0, limit) : filtered
+    } catch (error) {
+      console.error(
+        `[OpenCodeSessionManager] Failed to load messages for session ${sessionId} from filesystem:`,
+        error
+      )
+      return []
+    }
+  }
+
   async getMessages(sessionID: string, limit?: number): Promise<SessionMessage[]> {
     const sessionInfo = this.activeSessions.get(sessionID)
     if (!sessionInfo) {
+      const messages = await this.getMessagesFromFilesystem(sessionID, limit)
+      if (messages.length > 0) {
+        return messages.map((msg) => ({
+          id: msg.id,
+          role: msg.role,
+          content: '',
+          timestamp: msg.timestamp,
+        }))
+      }
       throw new Error(`Session not found: ${sessionID}`)
     }
 
@@ -280,9 +301,6 @@ export class OpenCodeSessionManager {
     })
   }
 
-  /**
-   * Получить конкретное сообщение
-   */
   async getMessage(sessionID: string, messageID: string): Promise<SessionMessage | null> {
     const sessionInfo = this.activeSessions.get(sessionID)
     if (!sessionInfo) {
@@ -363,7 +381,11 @@ export class OpenCodeSessionManager {
   > {
     const sessionInfo = this.activeSessions.get(sessionID)
     if (!sessionInfo) {
-      throw new Error(`Session not found: ${sessionID}`)
+      console.log(
+        '[OpenCodeSessionManager] getMessagesRaw: session not in active sessions, loading from filesystem',
+        { sessionID }
+      )
+      return this.getMessagesFromFilesystem(sessionID, limit)
     }
 
     let response
@@ -381,7 +403,11 @@ export class OpenCodeSessionManager {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       if (message.includes('NotFoundError') || message.includes('ENOENT')) {
-        return []
+        console.log(
+          '[OpenCodeSessionManager] getMessagesRaw: session not found via SDK, loading from filesystem',
+          { sessionID }
+        )
+        return this.getMessagesFromFilesystem(sessionID, limit)
       }
       throw error
     }
@@ -390,7 +416,10 @@ export class OpenCodeSessionManager {
       const message =
         typeof response.error === 'string' ? response.error : JSON.stringify(response.error)
       if (message.includes('NotFoundError') || message.includes('ENOENT')) {
-        return []
+        console.log('[OpenCodeSessionManager] getMessagesRaw: SDK error, loading from filesystem', {
+          sessionID,
+        })
+        return this.getMessagesFromFilesystem(sessionID, limit)
       }
       throw new Error(`Failed to get messages: ${response.error}`)
     }
