@@ -113,6 +113,7 @@ CREATE TABLE IF NOT EXISTS runs (
   mode TEXT NOT NULL DEFAULT 'execute',
   kind TEXT NOT NULL DEFAULT 'task-run',
   status TEXT NOT NULL,
+  session_id TEXT,
   started_at TEXT,
   finished_at TEXT,
   error_text TEXT NOT NULL DEFAULT '',
@@ -380,7 +381,7 @@ BEGIN
 END;
 
 -- ---------------------------------------------------------------------------
--- plugins + app_settings + opencode_sessions
+-- plugins + app_settings
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS plugins (
   id TEXT PRIMARY KEY,
@@ -400,20 +401,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
 );
 CREATE INDEX IF NOT EXISTS idx_app_settings_key ON app_settings(key);
 
-CREATE TABLE IF NOT EXISTS opencode_sessions (
-  id TEXT PRIMARY KEY,
-  run_id TEXT NOT NULL UNIQUE,
-  session_id TEXT NOT NULL,
-  title TEXT NOT NULL,
-  directory TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'active',
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_opencode_sessions_run ON opencode_sessions(run_id);
-CREATE INDEX IF NOT EXISTS idx_opencode_sessions_status ON opencode_sessions(status);
+;
 `
 
 export const migrations = [
@@ -462,6 +450,18 @@ export const migrations = [
     version: 6,
     sql: `
       ALTER TABLE runs ADD COLUMN kind TEXT NOT NULL DEFAULT 'task-run';
+    `,
+  },
+  {
+    version: 7,
+    sql: `
+      ALTER TABLE runs ADD COLUMN session_id TEXT;
+    `,
+  },
+  {
+    version: 8,
+    sql: `
+      DROP TABLE IF EXISTS opencode_sessions;
     `,
   },
 ] as const

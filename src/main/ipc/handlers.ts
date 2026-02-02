@@ -4,7 +4,9 @@ import { ipcHandlers } from './validation'
 import { z } from 'zod'
 import { registerDiagnosticsHandlers } from './diagnostics-handlers'
 import type { SessionEvent } from '../run/opencode-session-manager'
+import { onTaskEvent } from './task-event-bus'
 import { sessionManager } from '../run/opencode-session-manager'
+import { opencodeSessionWorker } from '../run/opencode-session-worker.js'
 import {
   AnalyticsGetOverviewInputSchema,
   AnalyticsGetOverviewResponseSchema,
@@ -40,6 +42,11 @@ import {
   DepsRemoveResponseSchema,
   OpenCodeGenerateUserStoryInputSchema,
   OpenCodeGenerateUserStoryResponseSchema,
+  OpenCodeActiveSessionsResponseSchema,
+  OpenCodeSessionMessagesInputSchema,
+  OpenCodeSessionMessagesResponseSchema,
+  OpenCodeSessionStatusInputSchema,
+  OpenCodeSessionStatusResponseSchema,
   PluginsEnableInputSchema,
   PluginsEnableResponseSchema,
   PluginsInstallInputSchema,
@@ -93,7 +100,6 @@ import { runEventRepo } from '../db/run-event-repository'
 import { artifactRepo } from '../db/artifact-repository'
 import { runService } from '../run/run-service'
 import { buildContextSnapshot } from '../run/context-snapshot-builder'
-import { opencodeSessionRepo } from '../db/opencode-session-repository'
 import { downloadModelIfNeeded } from '../vosk-model-loader'
 
 const opencodeExecutor = new OpenCodeExecutorSDK()
@@ -340,12 +346,7 @@ ipcHandlers.register('run:get', RunGetInputSchema, async (_, { runId }) => {
   if (!run) {
     throw new Error('Run not found')
   }
-  const sessionRecord = opencodeSessionRepo.getByRunId(runId)
-  const runWithSessionId = {
-    ...run,
-    sessionId: sessionRecord?.sessionId,
-  }
-  return RunGetResponseSchema.parse({ run: runWithSessionId })
+  return RunGetResponseSchema.parse({ run })
 })
 
 ipcHandlers.register('run:events:tail', RunEventsTailInputSchema, async (_, input) => {
@@ -401,8 +402,38 @@ ipcHandlers.register(
   'opencode:generateUserStory',
   OpenCodeGenerateUserStoryInputSchema,
   async (_, input) => {
-    const description = await opencodeExecutor.generateUserStory(input.taskId)
-    return OpenCodeGenerateUserStoryResponseSchema.parse({ description })
+    const runId = await opencodeExecutor.generateUserStory(input.taskId)
+    return OpenCodeGenerateUserStoryResponseSchema.parse({ runId })
+  }
+)
+
+ipcHandlers.register(
+  'opencode:getSessionStatus',
+  OpenCodeSessionStatusInputSchema,
+  async (_, input) => {
+    const status = opencodeSessionWorker.getSessionStatus(input.sessionId)
+    if (!status) {
+      throw new Error('Session not tracked')
+    }
+    return OpenCodeSessionStatusResponseSchema.parse(status)
+  }
+)
+
+ipcHandlers.register('opencode:getActiveSessions', z.object({}), async () => {
+  return OpenCodeActiveSessionsResponseSchema.parse({
+    count: opencodeSessionWorker.getActiveCount(),
+  })
+})
+
+ipcHandlers.register(
+  'opencode:getSessionMessages',
+  OpenCodeSessionMessagesInputSchema,
+  async (_, input) => {
+    const messages = await opencodeSessionWorker.getSessionMessages(input.sessionId, input.limit)
+    return OpenCodeSessionMessagesResponseSchema.parse({
+      sessionId: input.sessionId,
+      messages,
+    })
   }
 )
 
@@ -431,6 +462,39 @@ ipcHandlers.register(
   }
 )
 
+const taskEventSubscriptions = new Map<number, () => void>()
+
+ipcHandlers.register('task:subscribeToEvents', z.object({}), async (event) => {
+  const webContents = event.sender
+  if (taskEventSubscriptions.has(webContents.id)) {
+    return { ok: true, subscribed: true }
+  }
+
+  const unsubscribe = onTaskEvent((taskEvent) => {
+    webContents.send('task:event', taskEvent)
+  })
+
+  taskEventSubscriptions.set(webContents.id, unsubscribe)
+
+  webContents.once('destroyed', () => {
+    const current = taskEventSubscriptions.get(webContents.id)
+    if (current) current()
+    taskEventSubscriptions.delete(webContents.id)
+  })
+
+  return { ok: true, subscribed: true }
+})
+
+ipcHandlers.register('task:unsubscribeFromEvents', z.object({}), async (event) => {
+  const webContents = event.sender
+  const unsubscribe = taskEventSubscriptions.get(webContents.id)
+  if (unsubscribe) {
+    unsubscribe()
+    taskEventSubscriptions.delete(webContents.id)
+  }
+  return { ok: true, subscribed: false }
+})
+
 ipcHandlers.register(
   'opencode:isSubscribed',
   z.object({ sessionID: z.string() }),
@@ -441,17 +505,13 @@ ipcHandlers.register(
   }
 )
 
-ipcHandlers.register(
-  'vosk:downloadModel',
-  VoskModelDownloadInputSchema,
-  async (_, input): Promise<VoskModelDownloadResponseSchema> => {
-    const { lang } = input
-    const buffer = await downloadModelIfNeeded(lang)
-    return VoskModelDownloadResponseSchema.parse({
-      path: buffer.toString('base64'),
-    })
-  }
-)
+ipcHandlers.register('vosk:downloadModel', VoskModelDownloadInputSchema, async (_, input) => {
+  const { lang } = input
+  const buffer = await downloadModelIfNeeded(lang)
+  return VoskModelDownloadResponseSchema.parse({
+    path: buffer.toString('base64'),
+  })
+})
 
 registerDiagnosticsHandlers()
 

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { MainToRenderer, OpenCodeSessionEvent } from './ipc-contract.js'
+import type { MainToRenderer, OpenCodeSessionEvent, TaskEvent } from './ipc-contract.js'
 
 const api: MainToRenderer = {
   app: {
@@ -16,6 +16,9 @@ const api: MainToRenderer = {
       }
     },
     generateUserStory: (input) => ipcRenderer.invoke('opencode:generateUserStory', input),
+    getSessionStatus: (input) => ipcRenderer.invoke('opencode:getSessionStatus', input),
+    getActiveSessions: () => ipcRenderer.invoke('opencode:getActiveSessions'),
+    getSessionMessages: (input) => ipcRenderer.invoke('opencode:getSessionMessages', input),
   },
   project: {
     selectFolder: () => ipcRenderer.invoke('project:selectFolder'),
@@ -30,6 +33,17 @@ const api: MainToRenderer = {
     updateColumns: (input) => ipcRenderer.invoke('board:updateColumns', input),
   },
   task: {
+    onEvent: (callback) => {
+      const listener = (_event: unknown, data: unknown) => {
+        callback(data as TaskEvent)
+      }
+      ipcRenderer.on('task:event', listener)
+      ipcRenderer.invoke('task:subscribeToEvents', {})
+      return () => {
+        ipcRenderer.removeListener('task:event', listener)
+        ipcRenderer.invoke('task:unsubscribeFromEvents', {})
+      }
+    },
     create: (input) => ipcRenderer.invoke('task:create', input),
     listByBoard: (input) => ipcRenderer.invoke('task:listByBoard', input),
     update: (input) => ipcRenderer.invoke('task:update', input),

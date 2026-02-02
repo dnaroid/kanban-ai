@@ -2,8 +2,10 @@ import { runRepo } from '../db/run-repository.js'
 import { runEventRepo } from '../db/run-event-repository.js'
 import type { RunRecord, RunStatus } from '../db/run-types'
 
+export type RunStartResult = 'completed' | 'deferred'
+
 export interface RunExecutor {
-  start(run: RunRecord): Promise<void>
+  start(run: RunRecord): Promise<RunStartResult>
   cancel(runId: string): Promise<void>
 }
 
@@ -94,12 +96,14 @@ export class JobRunner {
       if (!run || run.status !== 'queued') return
 
       this.markRunning(runId)
-      await this.executor.start(run)
+      const result = await this.executor.start(run)
 
       const latest = runRepo.getById(runId)
       if (latest?.status === 'canceled') return
 
-      this.markSucceeded(runId)
+      if (result === 'completed') {
+        this.markSucceeded(runId)
+      }
     } catch (error) {
       const latest = runRepo.getById(runId)
       if (latest?.status === 'canceled') return

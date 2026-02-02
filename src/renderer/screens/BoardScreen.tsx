@@ -569,6 +569,26 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
     loadBoard()
   }, [projectId])
 
+  useEffect(() => {
+    const unsubscribe = window.api.task.onEvent((event) => {
+      if (event.type !== 'task.updated') return
+      setTasks((prev) => {
+        const index = prev.findIndex((task) => task.id === event.task.id)
+        if (index === -1) return prev
+        const next = [...prev]
+        next[index] = event.task
+        return next
+      })
+
+      setSelectedTask((prev) => (prev?.id === event.task.id ? event.task : prev))
+      setActiveTask((prev) => (prev?.id === event.task.id ? event.task : prev))
+    })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [])
+
   const normalizeColumns = (
     columns: Array<{ id?: BoardColumn['id']; name: BoardColumn['name']; color?: string }>
   ): BoardColumnInput[] =>

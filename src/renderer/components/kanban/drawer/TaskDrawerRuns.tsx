@@ -36,6 +36,12 @@ const taskStatusConfig = {
     bg: 'bg-blue-500/10',
     border: 'border-blue-500/20',
   },
+  generating: {
+    icon: RefreshCw,
+    color: 'text-purple-500',
+    bg: 'bg-purple-500/10',
+    border: 'border-purple-500/20',
+  },
   question: {
     icon: HelpCircle,
     color: 'text-purple-500',
@@ -198,7 +204,10 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
             )}
           >
             <statusConfig.icon
-              className={cn('w-4 h-4', task.status === 'running' && 'animate-spin')}
+              className={cn(
+                'w-4 h-4',
+                (task.status === 'running' || task.status === 'generating') && 'animate-spin'
+              )}
             />
           </div>
           <div>

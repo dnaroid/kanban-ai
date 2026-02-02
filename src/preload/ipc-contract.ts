@@ -68,12 +68,23 @@ import type {
   AppSettingSetSidebarCollapsedResponse,
   OpenCodeGenerateUserStoryInput,
   OpenCodeGenerateUserStoryResponse,
+  OpenCodeSessionStatusInput,
+  OpenCodeSessionStatusResponse,
+  OpenCodeActiveSessionsResponse,
+  OpenCodeSessionMessagesInput,
+  OpenCodeSessionMessagesResponse,
   OpenCodeSessionEvent,
+  TaskEvent,
+  STTAudioInput,
+  STTLanguageInput,
+  STTStartInput,
+  STTStopInput,
   VoskModelDownloadInput,
   VoskModelDownloadResponse,
 } from '../shared/types/ipc'
 
 export type { OpenCodeSessionEvent } from '../shared/types/ipc'
+export type { TaskEvent } from '../shared/types/ipc'
 
 export interface MainToRenderer {
   app: {
@@ -84,6 +95,11 @@ export interface MainToRenderer {
     generateUserStory(
       input: OpenCodeGenerateUserStoryInput
     ): Promise<OpenCodeGenerateUserStoryResponse>
+    getSessionStatus(input: OpenCodeSessionStatusInput): Promise<OpenCodeSessionStatusResponse>
+    getActiveSessions(): Promise<OpenCodeActiveSessionsResponse>
+    getSessionMessages(
+      input: OpenCodeSessionMessagesInput
+    ): Promise<OpenCodeSessionMessagesResponse>
   }
   project: {
     selectFolder(): Promise<{ path: string; name: string } | null>
@@ -98,6 +114,7 @@ export interface MainToRenderer {
     updateColumns(input: BoardUpdateColumnsInput): Promise<BoardUpdateColumnsResponse>
   }
   task: {
+    onEvent(callback: (event: TaskEvent) => void): () => void
     create(input: CreateTaskInput): Promise<TaskCreateResponse>
     listByBoard(input: TaskListByBoardInput): Promise<TaskListByBoardResponse>
     update(input: TaskUpdateInput): Promise<TaskUpdateResponse>

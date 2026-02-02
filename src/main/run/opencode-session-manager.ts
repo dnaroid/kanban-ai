@@ -68,72 +68,74 @@ function isMessageEvent(event: Event): boolean {
  * Управляет жизненным циклом сессий для выполнения задач
  */
 export class OpenCodeSessionManager {
-  private client = createOpencodeClient({
-    baseUrl: process.env.OPENCODE_URL || 'http://127.0.0.1:4096',
-    throwOnError: true,
-  })
-
   private activeSessions = new Map<string, SessionInfo>()
+  private sessionClients = new Map<string, ReturnType<typeof createOpencodeClient>>()
   private eventAbortControllers = new Map<string, AbortController>()
   private eventProcessing = new Map<string, Promise<void>>()
   private messageSessionIndex = new Map<string, string>()
+
+  private async createClientForDirectory(directory: string) {
+    const baseUrl = process.env.OPENCODE_URL || 'http://127.0.0.1:4096'
+    return createOpencodeClient({
+      baseUrl,
+      throwOnError: true,
+      directory,
+    })
+  }
+
+  private async getSessionClient(sessionID: string, directory: string) {
+    const existing = this.sessionClients.get(sessionID)
+    if (existing) return existing
+    const client = await this.createClientForDirectory(directory)
+    this.sessionClients.set(sessionID, client)
+    return client
+  }
 
   /**
    * Создать новую сессию для задачи
    */
   async createSession(title: string, directory: string): Promise<SessionInfo> {
-    const createWithClient = async (
-      client: ReturnType<typeof createOpencodeClient>,
-      baseUrl?: string
-    ): Promise<SessionInfo> => {
-      const response = await client.session.create({
-        directory,
-        title,
-      })
+    console.log('[OpenCodeSessionManager] createSession START', {
+      title,
+      directory,
+    })
 
-      if (response.error) {
-        throw new Error(`Failed to create session: ${response.error}`)
-      }
+    const client = await this.createClientForDirectory(directory)
 
-      const session = response.data as Session
+    const response = await client.session.create({
+      directory,
+      title,
+    })
 
-      const sessionInfo: SessionInfo = {
-        id: session.id,
-        title: session.title || title,
-        directory,
-      }
-
-      this.activeSessions.set(session.id, sessionInfo)
-
-      if (baseUrl) {
-        this.client = client
-      }
-
-      return sessionInfo
+    if (response.error) {
+      throw new Error(`Failed to create session: ${response.error}`)
     }
 
-    const explicitUrl = process.env.OPENCODE_URL
-    if (explicitUrl) {
-      return createWithClient(this.client)
+    const session = response.data as Session
+    console.log('[OpenCodeSessionManager] createSession:created', {
+      sessionId: session.id,
+      projectId: (session as { projectID?: string }).projectID,
+    })
+
+    const sessionInfo: SessionInfo = {
+      id: session.id,
+      title: session.title || title,
+      directory,
     }
 
-    const urls = ['http://127.0.0.1:4096', 'http://localhost:4096', 'http://[::1]:4096']
-    let lastError: Error | null = null
+    this.activeSessions.set(session.id, sessionInfo)
+    this.sessionClients.set(session.id, client)
 
-    for (const baseUrl of urls) {
-      try {
-        const client = createOpencodeClient({ baseUrl, throwOnError: true })
-        return await createWithClient(client, baseUrl)
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error))
-      }
-    }
-
-    throw lastError || new Error('Failed to create session')
+    return sessionInfo
   }
 
   /**
    * Отправить промпт в сессию (синхронно)
+   * Пример использования:
+   * ```typescript
+   * const response = await sessionManager.sendPrompt(sessionId, "Текст запроса")
+   * console.log('Ответ:', response)
+   * ```
    */
   async sendPrompt(sessionID: string, prompt: string): Promise<Message> {
     const textPart: TextPartInput = {
@@ -141,16 +143,55 @@ export class OpenCodeSessionManager {
       text: prompt,
     }
 
-    const response = await this.client.session.prompt({
+    console.log('[OpenCodeSessionManager] sendPrompt START', {
       sessionID,
-      parts: [textPart],
+      promptLength: prompt.length,
     })
 
-    if (response.error) {
-      throw new Error(`Failed to send prompt: ${response.error}`)
+    const sessionInfo = this.activeSessions.get(sessionID)
+    if (!sessionInfo) {
+      throw new Error(`Session not found: ${sessionID}`)
     }
 
-    return response.data.info
+    console.log('[OpenCodeSessionManager] sendPrompt CLIENT', {
+      sessionID,
+      directory: sessionInfo.directory,
+    })
+
+    try {
+      const client = await this.getSessionClient(sessionID, sessionInfo.directory)
+      const response = await client.session.prompt({
+        sessionID,
+        parts: [textPart],
+      })
+
+      console.log('[OpenCodeSessionManager] sendPrompt RESPONSE', {
+        sessionID,
+        hasError: !!response.error,
+        hasData: !!response.data,
+        dataKeys: response.data ? Object.keys(response.data) : [],
+        data: JSON.stringify(response.data).substring(0, 200),
+      })
+
+      if (response.error) {
+        console.error('[OpenCodeSessionManager] sendPrompt ERROR:', response.error)
+        throw new Error(`Failed to send prompt: ${response.error}`)
+      }
+
+      const messageInfo = response.data?.info
+
+      console.log('[OpenCodeSessionManager] sendPrompt OK', {
+        sessionID,
+        messageId: messageInfo?.id,
+        hasInfo: !!messageInfo,
+        infoKeys: messageInfo ? Object.keys(messageInfo) : [],
+      })
+
+      return messageInfo as Message
+    } catch (error) {
+      console.error('[OpenCodeSessionManager] sendPrompt CATCH:', error)
+      throw error
+    }
   }
 
   /**
@@ -162,21 +203,60 @@ export class OpenCodeSessionManager {
       text: prompt,
     }
 
-    const response = await this.client.session.promptAsync({
+    console.log('[OpenCodeSessionManager] sendPromptAsync START', {
+      sessionID,
+      prompt: prompt.substring(0, 100), // логируем первые 100 символов
+    })
+
+    const sessionInfo = this.activeSessions.get(sessionID)
+    if (!sessionInfo) {
+      throw new Error(`Session not found: ${sessionID}`)
+    }
+
+    const client = await this.getSessionClient(sessionID, sessionInfo.directory)
+    const response = await client.session.promptAsync({
       sessionID,
       parts: [textPart],
     })
 
+    console.log('[OpenCodeSessionManager] sendPromptAsync RESPONSE', {
+      hasError: !!response.error,
+      error: response.error,
+      hasData: !!response.data,
+      responseType: typeof response,
+    })
+
     if (response.error) {
+      console.error('[OpenCodeSessionManager] sendPromptAsync ERROR:', response.error)
       throw new Error(`Failed to send async prompt: ${response.error}`)
     }
+
+    // Диагностика: проверяем состояние сессии после асинхронной отправки
+    console.log('[OpenCodeSessionManager] sendPromptAsync checking session state', { sessionID })
+    try {
+      const checkResponse = await client.session.messages({ sessionID, limit: 1 })
+      console.log('[OpenCodeSessionManager] sendPromptAsync messages check', {
+        hasError: !!checkResponse.error,
+        messageCount: checkResponse.data ? checkResponse.data.length : 0,
+      })
+    } catch (e) {
+      console.error('[OpenCodeSessionManager] sendPromptAsync messages check failed', e)
+    }
+
+    console.log('[OpenCodeSessionManager] sendPromptAsync OK', { sessionID })
   }
 
   /**
    * Получить все сообщения из сессии
    */
   async getMessages(sessionID: string, limit?: number): Promise<SessionMessage[]> {
-    const response = await this.client.session.messages({
+    const sessionInfo = this.activeSessions.get(sessionID)
+    if (!sessionInfo) {
+      throw new Error(`Session not found: ${sessionID}`)
+    }
+
+    const client = await this.getSessionClient(sessionID, sessionInfo.directory)
+    const response = await client.session.messages({
       sessionID,
       limit,
     })
@@ -204,8 +284,14 @@ export class OpenCodeSessionManager {
    * Получить конкретное сообщение
    */
   async getMessage(sessionID: string, messageID: string): Promise<SessionMessage | null> {
+    const sessionInfo = this.activeSessions.get(sessionID)
+    if (!sessionInfo) {
+      throw new Error(`Session not found: ${sessionID}`)
+    }
+
     try {
-      const response = (await this.client.session.message({
+      const client = await this.getSessionClient(sessionID, sessionInfo.directory)
+      const response = (await client.session.message({
         sessionID,
         messageID,
       })) as unknown as {
@@ -275,12 +361,37 @@ export class OpenCodeSessionManager {
       parts: Part[]
     }>
   > {
-    const response = await this.client.session.messages({
-      sessionID,
-      limit,
-    })
+    const sessionInfo = this.activeSessions.get(sessionID)
+    if (!sessionInfo) {
+      throw new Error(`Session not found: ${sessionID}`)
+    }
+
+    let response
+    try {
+      console.log('[OpenCodeSessionManager] getMessagesRaw CLIENT', {
+        sessionID,
+        directory: sessionInfo.directory,
+      })
+
+      const client = await this.getSessionClient(sessionID, sessionInfo.directory)
+      response = await client.session.messages({
+        sessionID,
+        limit,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.includes('NotFoundError') || message.includes('ENOENT')) {
+        return []
+      }
+      throw error
+    }
 
     if (response.error) {
+      const message =
+        typeof response.error === 'string' ? response.error : JSON.stringify(response.error)
+      if (message.includes('NotFoundError') || message.includes('ENOENT')) {
+        return []
+      }
       throw new Error(`Failed to get messages: ${response.error}`)
     }
 
@@ -302,8 +413,14 @@ export class OpenCodeSessionManager {
    * Получить информацию о сессии
    */
   async getSessionInfo(sessionID: string): Promise<SessionInfo | null> {
+    const sessionInfo = this.activeSessions.get(sessionID)
+    if (!sessionInfo) {
+      return null
+    }
+
     try {
-      const response = await this.client.session.get({ sessionID })
+      const client = await this.getSessionClient(sessionID, sessionInfo.directory)
+      const response = await client.session.get({ sessionID })
 
       if (response.error) return null
 
@@ -323,7 +440,13 @@ export class OpenCodeSessionManager {
    * Прервать активную сессию
    */
   async abortSession(sessionID: string): Promise<void> {
-    const response = await this.client.session.abort({ sessionID })
+    const sessionInfo = this.activeSessions.get(sessionID)
+    if (!sessionInfo) {
+      throw new Error(`Session not found: ${sessionID}`)
+    }
+
+    const client = await this.getSessionClient(sessionID, sessionInfo.directory)
+    const response = await client.session.abort({ sessionID })
 
     if (response.error) {
       throw new Error(`Failed to abort session: ${response.error}`)
@@ -336,7 +459,13 @@ export class OpenCodeSessionManager {
    * Удалить сессию полностью
    */
   async deleteSession(sessionID: string): Promise<void> {
-    const response = await this.client.session.delete({ sessionID })
+    const sessionInfo = this.activeSessions.get(sessionID)
+    if (!sessionInfo) {
+      throw new Error(`Session not found: ${sessionID}`)
+    }
+
+    const client = await this.getSessionClient(sessionID, sessionInfo.directory)
+    const response = await client.session.delete({ sessionID })
 
     if (response.error) {
       throw new Error(`Failed to delete session: ${response.error}`)
@@ -371,13 +500,20 @@ export class OpenCodeSessionManager {
       return
     }
 
+    const sessionInfo = this.activeSessions.get(sessionID)
+    if (!sessionInfo) {
+      throw new Error(`Session not found: ${sessionID}`)
+    }
+
+    const client = await this.getSessionClient(sessionID, sessionInfo.directory)
+
     const abortController = new AbortController()
     this.eventAbortControllers.set(sessionID, abortController)
 
     const processEvents = async () => {
       try {
         const { signal } = abortController
-        const listEvents = resolveOpencodeEventList(this.client)
+        const listEvents = resolveOpencodeEventList(client)
         if (!listEvents) {
           throw new Error('Event stream is unavailable')
         }

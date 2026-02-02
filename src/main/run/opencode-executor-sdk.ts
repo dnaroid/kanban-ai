@@ -1,17 +1,18 @@
 import { projectRepo } from '../db/project-repository.js'
 import { runEventRepo } from '../db/run-event-repository.js'
-import { taskRepo } from '../db/task-repository.js'
 import { runRepo } from '../db/run-repository.js'
-import { opencodeSessionRepo } from '../db/opencode-session-repository.js'
+import { taskRepo } from '../db/task-repository.js'
 import type { RunRecord } from '../db/run-types'
-import type { RunExecutor } from './job-runner'
+import type { RunExecutor, RunStartResult } from './job-runner'
 import { sessionManager } from './opencode-session-manager.js'
+import { opencodeSessionWorker } from './opencode-session-worker.js'
 import { buildContextSnapshot } from './context-snapshot-builder.js'
-import { buildUserStoryPrompt } from './prompts/user-story.js'
 import { buildTaskPrompt } from './prompts/task.js'
+import { buildUserStoryPrompt } from './prompts/user-story.js'
 
 export class OpenCodeExecutorSDK implements RunExecutor {
   async generateUserStory(taskId: string): Promise<string> {
+    console.log('[OpenCodeExecutorSDK] generateUserStory:start', { taskId })
     const task = taskRepo.getById(taskId)
     if (!task) {
       throw new Error('Task not found')
@@ -22,205 +23,22 @@ export class OpenCodeExecutorSDK implements RunExecutor {
       throw new Error('Project not found for task')
     }
 
-    const roleId = 'ba'
     const prompt = buildUserStoryPrompt(task, project)
     const sessionTitle = `User Story: ${task.title}`
 
-    let sessionInfo: { id: string; title: string; directory: string } | null = null
-    let runId: string | null = null
-
-    try {
-      const contextSnapshot = await buildContextSnapshot({ taskId, roleId, mode: 'execute' })
-      const run = runRepo.create({
-        taskId,
-        roleId,
-        mode: 'execute',
-        kind: 'task-description-improve',
-        status: 'running',
-        contextSnapshotId: contextSnapshot.id,
-      })
-      runId = run.id
-      runRepo.update(runId, { startedAt: new Date().toISOString() })
-
-      sessionInfo = await sessionManager.createSession(sessionTitle, project.path)
-
-      if (!sessionInfo) {
-        throw new Error('Failed to create OpenCode session')
-      }
-
-      opencodeSessionRepo.create({
-        runId,
-        sessionId: sessionInfo.id,
-        title: sessionTitle,
-        directory: project.path,
-      })
-
-      runEventRepo.create({
-        runId,
-        eventType: 'status',
-        payload: { message: 'OpenCode session created', sessionId: sessionInfo.id },
-      })
-
-      console.log('[OpenCode] Request:', prompt)
-
-      const sessionId = sessionInfo.id
-
-      let content: string | null = null
-      let timeoutHandle: NodeJS.Timeout | null = null
-      let usePolling = false
-
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutHandle = setTimeout(() => {
-          reject(new Error('Empty response from OpenCode (timeout)'))
-        }, 60000)
-      })
-
-      let eventPromiseHandled: Promise<string> | null = null
-
-      try {
-        let eventResolve: (value: string) => void = () => {}
-        let eventReject: (reason?: any) => void = () => {}
-        let eventSettled = false
-
-        const eventPromise = new Promise<string>((resolve, reject) => {
-          eventResolve = resolve
-          eventReject = reject
-        })
-
-        eventPromiseHandled = eventPromise.then(
-          (value) => value,
-          (error) => {
-            throw error
-          }
-        )
-
-        const handleEvent = async (event: any) => {
-          try {
-            if (event.type === 'message.created' || event.type === 'message.updated') {
-              if (event.message && event.message.role === 'assistant') {
-                const messages = await sessionManager.getMessagesRaw(sessionId)
-                const lastMessage = messages[messages.length - 1]
-
-                if (lastMessage && lastMessage.role === 'assistant') {
-                  const messageContent = lastMessage.parts
-                    .filter((p: any) => p.type === 'text' && !p.ignored)
-                    .map((p: any) => p.text)
-                    .join('\n')
-
-                  if (messageContent) {
-                    content = messageContent.trim()
-                    console.log('[OpenCode] Response:', content)
-                    await sessionManager.unsubscribeFromSessionEvents(sessionId)
-                    if (!eventSettled) {
-                      eventSettled = true
-                      eventResolve(content)
-                    }
-                  }
-                }
-              }
-            } else if (event.type === 'error') {
-              await sessionManager.unsubscribeFromSessionEvents(sessionId)
-              if (!eventSettled) {
-                eventSettled = true
-                eventReject(new Error(`OpenCode error: ${event.error}`))
-              }
-            }
-          } catch (error) {
-            await sessionManager.unsubscribeFromSessionEvents(sessionId)
-            if (!eventSettled) {
-              eventSettled = true
-              eventReject(error)
-            }
-          }
-        }
-
-        await sessionManager.subscribeToSessionEvents(sessionId, handleEvent)
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        if (message.includes('Event stream is unavailable')) {
-          usePolling = true
-        } else {
-          throw error
-        }
-      }
-
-      await sessionManager.sendPromptAsync(sessionId, prompt)
-
-      const pollForResponse = async (): Promise<string | null> => {
-        const pollInterval = 2000
-        const maxPollTime = 60000
-        let elapsed = 0
-
-        while (elapsed < maxPollTime) {
-          await new Promise((resolve) => setTimeout(resolve, pollInterval))
-          elapsed += pollInterval
-
-          const messages = await sessionManager.getMessagesRaw(sessionId)
-          const lastMessage = messages[messages.length - 1]
-
-          if (lastMessage && lastMessage.role === 'assistant') {
-            const messageContent = lastMessage.parts
-              .filter((p: any) => p.type === 'text' && !p.ignored)
-              .map((p: any) => p.text)
-              .join('\n')
-
-            if (messageContent) {
-              return messageContent.trim()
-            }
-          }
-        }
-
-        return null
-      }
-
-      try {
-        if (usePolling) {
-          content = await pollForResponse()
-        } else if (eventPromiseHandled) {
-          content = await Promise.race([eventPromiseHandled, timeoutPromise])
-        } else {
-          content = await Promise.race([timeoutPromise])
-        }
-      } finally {
-        if (timeoutHandle) clearTimeout(timeoutHandle)
-      }
-
-      if (!content) {
-        throw new Error('Empty response from OpenCode')
-      }
-
-      taskRepo.update(taskId, { description: content })
-
-      if (runId) {
-        runRepo.update(runId, {
-          status: 'succeeded',
-          finishedAt: new Date().toISOString(),
-          errorText: '',
-        })
-        opencodeSessionRepo.updateStatus(runId, 'completed')
-
-        runEventRepo.create({
-          runId,
-          eventType: 'status',
-          payload: { message: 'User story generated' },
-        })
-      }
-
-      return content
-    } catch (error) {
-      if (runId) {
-        runRepo.update(runId, {
-          status: 'failed',
-          finishedAt: new Date().toISOString(),
-          errorText: error instanceof Error ? error.message : String(error),
-        })
-        opencodeSessionRepo.updateStatus(runId, 'aborted')
-      }
-      throw error
-    }
+    const runId = await this.startTaskPrompt({
+      taskId,
+      prompt,
+      roleId: 'ba',
+      kind: 'task-description-improve',
+      sessionTitle,
+    })
+    console.log('[OpenCodeExecutorSDK] generateUserStory:queued', { taskId, runId })
+    return runId
   }
 
-  async start(run: RunRecord): Promise<void> {
+  async start(run: RunRecord): Promise<RunStartResult> {
+    console.log('[OpenCodeExecutorSDK] start:run', { runId: run.id, taskId: run.taskId })
     const task = taskRepo.getById(run.taskId)
     if (!task) {
       throw new Error('Task not found for run')
@@ -231,121 +49,129 @@ export class OpenCodeExecutorSDK implements RunExecutor {
       throw new Error('Project not found for run')
     }
 
-    const repoPath = project.path
     const prompt = buildTaskPrompt(task, project)
     const sessionTitle = `Task ${task.id}: ${task.title}`
 
-    const sessionInfo = await sessionManager.createSession(sessionTitle, repoPath)
-
-    opencodeSessionRepo.create({
+    const sessionId = await this.createSessionForRun({
       runId: run.id,
-      sessionId: sessionInfo.id,
-      title: sessionTitle,
-      directory: repoPath,
+      sessionTitle,
+      directory: project.path,
     })
 
-    runEventRepo.create({
+    console.log('[OpenCodeExecutorSDK] start:prompt', { runId: run.id, sessionId })
+    // await sessionManager.sendPromptAsync(sessionId, prompt)
+    await sessionManager.sendPrompt(sessionId, prompt)
+
+    opencodeSessionWorker.startTracking({
       runId: run.id,
-      eventType: 'status',
-      payload: { message: 'OpenCode session created', sessionId: sessionInfo.id },
+      taskId: run.taskId,
+      sessionId,
+      kind: run.kind,
+      previousTaskStatus: task.status,
     })
+
+    return 'deferred'
+  }
+
+  async cancel(runId: string): Promise<void> {
+    const run = runRepo.getById(runId)
+    if (!run?.sessionId) return
 
     try {
-      console.log('[OpenCode] Request:', prompt)
-      await sessionManager.sendPromptAsync(sessionInfo.id, prompt)
-
-      const pollInterval = 2000
-      const maxPollTime = 3600000
-
-      let elapsed = 0
-      const messageContentById = new Map<string, string>()
-
-      while (elapsed < maxPollTime) {
-        await new Promise((resolve) => setTimeout(resolve, pollInterval))
-        elapsed += pollInterval
-
-        const messages = await sessionManager.getMessagesRaw(sessionInfo.id)
-
-        for (const msg of messages) {
-          const previousContent = messageContentById.get(msg.id)
-          const currentContent = msg.parts
-            .filter((p) => p.type === 'text' && !p.ignored)
-            .map((p) => (p as { text: string }).text)
-            .join('\n')
-
-          if (previousContent === undefined) {
-            messageContentById.set(msg.id, currentContent)
-            if (!currentContent) continue
-          } else if (previousContent === currentContent) {
-            continue
-          } else {
-            messageContentById.set(msg.id, currentContent)
-          }
-
-          runEventRepo.upsertMessage({
-            runId: run.id,
-            eventType: 'message',
-            messageId: msg.id,
-            payload: {
-              role: msg.role,
-              parts: msg.parts,
-              timestamp: msg.timestamp,
-            },
-          })
-        }
-
-        const lastMessage = messages[messages.length - 1]
-        if (lastMessage && lastMessage.role === 'assistant') {
-          const content = lastMessage.parts
-            .filter((p) => p.type === 'text' && !p.ignored)
-            .map((p) => (p as { text: string }).text)
-            .join('\n')
-          console.log('[OpenCode] Response:', content)
-          const statusMatch = content.match(/STATUS:\s*(done|fail|question)/i)
-
-          if (statusMatch) {
-            const rawStatus = statusMatch[1].toLowerCase()
-            const statusMap: Record<
-              string,
-              'queued' | 'running' | 'question' | 'paused' | 'done' | 'failed'
-            > = {
-              done: 'done',
-              fail: 'failed',
-              question: 'question',
-            }
-            const newStatus = statusMap[rawStatus]
-            if (newStatus) {
-              taskRepo.update(task.id, { status: newStatus })
-            }
-
-            opencodeSessionRepo.updateStatus(run.id, 'completed')
-            break
-          }
-        }
-      }
-
-      if (elapsed >= maxPollTime) {
-        runEventRepo.create({
-          runId: run.id,
-          eventType: 'status',
-          payload: { message: 'Session polling timeout' },
-        })
-      }
+      await sessionManager.abortSession(run.sessionId)
     } catch (error) {
-      opencodeSessionRepo.updateStatus(run.id, 'aborted')
+      console.error('[OpenCodeExecutorSDK] Failed to abort session:', error)
+    }
+  }
+
+  private async startTaskPrompt(input: {
+    taskId: string
+    prompt: string
+    roleId: string
+    kind: RunRecord['kind']
+    sessionTitle: string
+  }): Promise<string> {
+    const task = taskRepo.getById(input.taskId)
+    if (!task) {
+      throw new Error('Task not found')
+    }
+
+    const project = projectRepo.getById(task.projectId)
+    if (!project) {
+      throw new Error('Project not found for task')
+    }
+
+    const contextSnapshot = await buildContextSnapshot({
+      taskId: input.taskId,
+      roleId: input.roleId,
+      mode: 'execute',
+    })
+
+    const run = runRepo.create({
+      taskId: input.taskId,
+      roleId: input.roleId,
+      mode: 'execute',
+      kind: input.kind,
+      status: 'running',
+      contextSnapshotId: contextSnapshot.id,
+      budget: { previousTaskStatus: task.status },
+    })
+    console.log('[OpenCodeExecutorSDK] startTaskPrompt:runCreated', {
+      taskId: input.taskId,
+      runId: run.id,
+      kind: input.kind,
+    })
+
+    runRepo.update(run.id, { startedAt: new Date().toISOString() })
+
+    try {
+      const sessionId = await this.createSessionForRun({
+        runId: run.id,
+        sessionTitle: input.sessionTitle,
+        directory: project.path,
+      })
+
+      console.log('[OpenCodeExecutorSDK] startTaskPrompt:prompt', {
+        runId: run.id,
+        sessionId,
+      })
+      // await sessionManager.sendPromptAsync(sessionId, input.prompt)
+      await sessionManager.sendPrompt(sessionId, input.prompt)
+
+      opencodeSessionWorker.startTracking({
+        runId: run.id,
+        taskId: input.taskId,
+        sessionId,
+        kind: input.kind,
+        previousTaskStatus: task.status,
+      })
+
+      return run.id
+    } catch (error) {
+      runRepo.update(run.id, {
+        status: 'failed',
+        finishedAt: new Date().toISOString(),
+        errorText: error instanceof Error ? error.message : String(error),
+      })
       throw error
     }
   }
 
-  async cancel(runId: string): Promise<void> {
-    const sessionRecord = opencodeSessionRepo.getByRunId(runId)
-    if (!sessionRecord) return
+  private async createSessionForRun(input: {
+    runId: string
+    sessionTitle: string
+    directory: string
+  }): Promise<string> {
+    const sessionInfo = await sessionManager.createSession(input.sessionTitle, input.directory)
 
-    try {
-      await sessionManager.abortSession(sessionRecord.sessionId)
-      opencodeSessionRepo.updateStatus(runId, 'aborted')
-    } catch (error) {
-      console.error('[OpenCodeExecutorSDK] Failed to abort session:', error)
-    }
+    runRepo.update(input.runId, { sessionId: sessionInfo.id })
+
+    runEventRepo.create({
+      runId: input.runId,
+      eventType: 'status',
+      payload: { message: 'OpenCode session created', sessionId: sessionInfo.id },
+    })
+
+    return sessionInfo.id
   }
 }

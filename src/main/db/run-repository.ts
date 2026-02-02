@@ -64,10 +64,10 @@ export class RunRepository {
     db.prepare(
       `
       INSERT INTO runs (
-        id, task_id, role_id, mode, kind, status, started_at, finished_at, error_text,
+        id, task_id, role_id, mode, kind, status, session_id, started_at, finished_at, error_text,
         budget_json, context_snapshot_id, ai_tokens_in, ai_tokens_out, ai_cost_usd, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
     ).run(
       id,
@@ -76,6 +76,7 @@ export class RunRepository {
       mode,
       kind,
       status,
+      null,
       null,
       null,
       '',
@@ -118,6 +119,7 @@ export class RunRepository {
           r.mode,
           r.kind,
           r.status,
+          r.session_id as sessionId,
           r.started_at as startedAt,
           r.finished_at as finishedAt,
           r.error_text as errorText,
@@ -126,11 +128,9 @@ export class RunRepository {
           r.ai_tokens_in as aiTokensIn,
           r.ai_tokens_out as aiTokensOut,
           r.ai_cost_usd as aiCostUsd,
-          os.session_id as sessionId,
           r.created_at as createdAt,
           r.updated_at as updatedAt
         FROM runs r
-        LEFT JOIN opencode_sessions os ON r.id = os.run_id
         WHERE r.id = ?
         LIMIT 1
       `
@@ -173,6 +173,7 @@ export class RunRepository {
           r.mode,
           r.kind,
           r.status,
+          r.session_id as sessionId,
           r.started_at as startedAt,
           r.finished_at as finishedAt,
           r.error_text as errorText,
@@ -181,11 +182,9 @@ export class RunRepository {
           r.ai_tokens_in as aiTokensIn,
           r.ai_tokens_out as aiTokensOut,
           r.ai_cost_usd as aiCostUsd,
-          os.session_id as sessionId,
           r.created_at as createdAt,
           r.updated_at as updatedAt
         FROM runs r
-        LEFT JOIN opencode_sessions os ON r.id = os.run_id
         WHERE r.task_id = ?
         ORDER BY r.created_at DESC
       `
@@ -225,6 +224,7 @@ export class RunRepository {
           r.mode,
           r.kind,
           r.status,
+          r.session_id as sessionId,
           r.started_at as startedAt,
           r.finished_at as finishedAt,
           r.error_text as errorText,
@@ -233,11 +233,9 @@ export class RunRepository {
           r.ai_tokens_in as aiTokensIn,
           r.ai_tokens_out as aiTokensOut,
           r.ai_cost_usd as aiCostUsd,
-          os.session_id as sessionId,
           r.created_at as createdAt,
           r.updated_at as updatedAt
         FROM runs r
-        LEFT JOIN opencode_sessions os ON r.id = os.run_id
         WHERE r.status = ?
         ORDER BY r.created_at ASC
       `
@@ -282,6 +280,7 @@ export class RunRepository {
       'mode',
       'kind',
       'status',
+      'sessionId',
       'startedAt',
       'finishedAt',
       'errorText',
@@ -322,6 +321,11 @@ export class RunRepository {
       if (field === 'contextSnapshotId') {
         sets.push('context_snapshot_id = ?')
         values.push(patch[field])
+        return
+      }
+      if (field === 'sessionId') {
+        sets.push('session_id = ?')
+        values.push(patch[field] ?? null)
         return
       }
       sets.push(`${field} = ?`)

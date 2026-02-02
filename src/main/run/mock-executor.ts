@@ -2,7 +2,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { artifactRepo } from '../db/artifact-repository.js'
 import { runEventRepo } from '../db/run-event-repository.js'
 import type { RunRecord } from '../db/run-types'
-import type { RunExecutor } from './job-runner'
+import type { RunExecutor, RunStartResult } from './job-runner'
 
 type MockExecutorOptions = {
   autoCompleteMs?: number
@@ -15,7 +15,7 @@ export class MockExecutor implements RunExecutor {
 
   constructor(private options: MockExecutorOptions = {}) {}
 
-  async start(run: RunRecord): Promise<void> {
+  async start(run: RunRecord): Promise<RunStartResult> {
     this.started.push(run.id)
 
     runEventRepo.create({
@@ -38,12 +38,14 @@ export class MockExecutor implements RunExecutor {
 
     if (this.options.autoCompleteMs !== undefined) {
       await delay(this.options.autoCompleteMs)
-      return
+      return 'completed'
     }
 
     await new Promise<void>((resolve) => {
       this.pending.set(run.id, resolve)
     })
+
+    return 'completed'
   }
 
   async cancel(runId: string): Promise<void> {

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 export const TaskStatusSchema = z
-  .enum(['queued', 'running', 'question', 'paused', 'done', 'failed'])
+  .enum(['queued', 'running', 'question', 'paused', 'done', 'failed', 'generating'])
   .describe('TaskStatus')
 
 export const TaskPrioritySchema = z
@@ -127,7 +127,7 @@ export const KanbanTaskSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   descriptionMd: z.string().optional(),
-  status: z.enum(['queued', 'running', 'question', 'paused', 'done', 'failed']),
+  status: z.enum(['queued', 'running', 'question', 'paused', 'done', 'failed', 'generating']),
   priority: z.enum(['postpone', 'low', 'normal', 'urgent']),
   difficulty: z.enum(['easy', 'medium', 'hard', 'epic']).default('medium'),
   type: z.string(),
@@ -169,7 +169,9 @@ export const TaskPatchSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().optional(),
   descriptionMd: z.string().optional(),
-  status: z.enum(['queued', 'running', 'question', 'paused', 'done', 'failed']).optional(),
+  status: z
+    .enum(['queued', 'running', 'question', 'paused', 'done', 'failed', 'generating'])
+    .optional(),
   priority: z.enum(['postpone', 'low', 'normal', 'urgent']).optional(),
   difficulty: z.enum(['easy', 'medium', 'hard', 'epic']).optional(),
   type: z.string().optional(),
@@ -789,12 +791,55 @@ export const OpenCodeGenerateUserStoryInputSchema = z.object({
 export type OpenCodeGenerateUserStoryInput = z.infer<typeof OpenCodeGenerateUserStoryInputSchema>
 
 export const OpenCodeGenerateUserStoryResponseSchema = z.object({
-  description: z.string(),
+  runId: z.string().uuid(),
 })
 
 export type OpenCodeGenerateUserStoryResponse = z.infer<
   typeof OpenCodeGenerateUserStoryResponseSchema
 >
+
+export const OpenCodeSessionStatusInputSchema = z.object({
+  sessionId: z.string(),
+})
+
+export type OpenCodeSessionStatusInput = z.infer<typeof OpenCodeSessionStatusInputSchema>
+
+export const OpenCodeSessionStatusResponseSchema = z.object({
+  sessionId: z.string(),
+  runId: z.string(),
+  status: z.enum(['running', 'completed', 'failed', 'timeout']),
+  messageCount: z.number().int(),
+  lastMessageAt: z.number().optional(),
+})
+
+export type OpenCodeSessionStatusResponse = z.infer<typeof OpenCodeSessionStatusResponseSchema>
+
+export const OpenCodeActiveSessionsResponseSchema = z.object({
+  count: z.number().int(),
+})
+
+export type OpenCodeActiveSessionsResponse = z.infer<typeof OpenCodeActiveSessionsResponseSchema>
+
+export const OpenCodeSessionMessagesInputSchema = z.object({
+  sessionId: z.string(),
+  limit: z.number().int().optional(),
+})
+
+export type OpenCodeSessionMessagesInput = z.infer<typeof OpenCodeSessionMessagesInputSchema>
+
+export const OpenCodeSessionMessagesResponseSchema = z.object({
+  sessionId: z.string(),
+  messages: z.array(z.unknown()),
+})
+
+export type OpenCodeSessionMessagesResponse = z.infer<typeof OpenCodeSessionMessagesResponseSchema>
+
+export const TaskEventSchema = z.object({
+  type: z.enum(['task.updated']),
+  task: KanbanTaskSchema,
+})
+
+export type TaskEvent = z.infer<typeof TaskEventSchema>
 
 // OpenCode event subscription types
 export const OpenCodeSubscribeInputSchema = z.object({

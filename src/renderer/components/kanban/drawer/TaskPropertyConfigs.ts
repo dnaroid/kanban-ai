@@ -103,6 +103,12 @@ export const statusConfig = {
     bg: 'bg-blue-400/10',
     border: 'border-blue-400/20',
   },
+  generating: {
+    icon: Sparkles,
+    color: 'text-purple-400',
+    bg: 'bg-purple-400/10',
+    border: 'border-purple-400/20',
+  },
   question: {
     icon: HelpCircle,
     color: 'text-orange-400',

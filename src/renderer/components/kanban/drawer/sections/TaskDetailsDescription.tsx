@@ -28,6 +28,10 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
     setEditedDescription(task.description || '')
   }, [task.description])
 
+  useEffect(() => {
+    setIsGeneratingStory(task.status === 'generating')
+  }, [task.status])
+
   const handleScroll = () => {
     if (textareaRef.current && overlayRef.current) {
       overlayRef.current.scrollTop = textareaRef.current.scrollTop
@@ -45,35 +49,11 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
     setIsGeneratingStory(true)
     setGenerationError(null)
 
-    let timer: ReturnType<typeof setTimeout>
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        reject(new Error('TIMEOUT'))
-      }, 120000)
-    })
-
     try {
-      const response = await Promise.race([
-        window.api.opencode.generateUserStory({ taskId: task.id }),
-        timeoutPromise,
-      ])
-      const descriptionText = String((response as Record<string, unknown>)['description'] ?? '')
-      if (descriptionText.trim().length > 0) {
-        setEditedDescription(descriptionText)
-        setGenerationError(null)
-        if (!isEditing) {
-          setIsEditing(true)
-        }
-      }
+      await window.api.opencode.generateUserStory({ taskId: task.id })
     } catch (error) {
-      if (error instanceof Error && error.message === 'TIMEOUT') {
-        setGenerationError('AI generation timed out (45s). The service might be busy.')
-      } else {
-        console.error('Failed to generate user story:', error)
-        setGenerationError('Failed to generate user story. Please try again.')
-      }
-    } finally {
-      clearTimeout(timer!)
+      console.error('Failed to generate user story:', error)
+      setGenerationError('Failed to generate user story. Please try again.')
       setIsGeneratingStory(false)
     }
   }
