@@ -70,7 +70,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
       <div
         className={cn(
           'fixed inset-y-0 right-0 bg-[#0B0E14] border-l border-slate-800 shadow-2xl transform transition-all duration-300 z-50 flex flex-col',
-          isExpanded ? 'w-[90vw]' : 'w-[600px]'
+          isExpanded ? 'left-[var(--sidebar-width)]' : 'w-[600px]'
         )}
       >
         {/* Header */}

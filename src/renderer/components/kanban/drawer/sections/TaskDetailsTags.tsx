@@ -42,23 +42,58 @@ export function TaskDetailsTags({ task, onUpdate }: TaskDetailsTagsProps) {
     return globalTags.find((t) => t.name === tagName)?.color || '#475569'
   }
 
+  const getRandomColor = () => {
+    const letters = '0123456789ABCDEF'
+    let color = '#'
+    for (let i = 0; i < 6; i++) {
+      color += letters[Math.floor(Math.random() * 16)]
+    }
+    return color
+  }
+
+  const handleCreateAndAddTag = async () => {
+    if (!searchQuery.trim()) return
+    try {
+      const newTag = await window.api.tag.create({
+        name: searchQuery.trim(),
+        color: getRandomColor(),
+      })
+      await loadGlobalTags()
+      toggleTag(newTag.name)
+      setSearchQuery('')
+    } catch (error) {
+      console.error('Failed to create tag:', error)
+    }
+  }
+
+  const exactMatch = globalTags.find(
+    (t) => t.name.toLowerCase() === searchQuery.trim().toLowerCase()
+  )
+
   return (
     <div className="flex flex-wrap gap-2 relative">
-      {task.tags?.map((tagName) => (
-        <span
-          key={tagName}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-800/80 text-white border border-slate-700/50 group transition-all"
-          style={{ borderLeftColor: getTagColor(tagName), borderLeftWidth: '3px' }}
-        >
-          {tagName}
-          <button
-            onClick={() => toggleTag(tagName)}
-            className="p-0.5 hover:bg-white/10 rounded-sm text-slate-500 hover:text-red-400 transition-colors"
+      {task.tags?.map((tagName) => {
+        const color = getTagColor(tagName)
+        return (
+          <span
+            key={tagName}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold group transition-all"
+            style={{
+              backgroundColor: `${color}15`,
+              color: color,
+            }}
           >
-            <X className="w-3 h-3" />
-          </button>
-        </span>
-      ))}
+            {tagName}
+            <button
+              onClick={() => toggleTag(tagName)}
+              className="p-0.5 hover:bg-black/10 rounded-sm transition-colors"
+              style={{ color: `${color}80` }}
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        )
+      })}
 
       <div className="relative">
         <button
@@ -91,35 +126,46 @@ export function TaskDetailsTags({ task, onUpdate }: TaskDetailsTagsProps) {
                 </div>
               </div>
               <div className="max-h-48 overflow-y-auto px-1 py-1 custom-scrollbar">
-                {filteredTags.length === 0 ? (
+                {filteredTags.length === 0 && !searchQuery.trim() ? (
                   <div className="px-3 py-4 text-center text-[10px] text-slate-500 italic">
                     No tags found. Create them in Settings.
                   </div>
                 ) : (
-                  filteredTags.map((tag) => {
-                    const isSelected = task.tags?.includes(tag.name)
-                    return (
+                  <>
+                    {filteredTags.map((tag) => {
+                      const isSelected = task.tags?.includes(tag.name)
+                      return (
+                        <button
+                          key={tag.id}
+                          onClick={() => toggleTag(tag.name)}
+                          className={cn(
+                            'w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all group',
+                            isSelected
+                              ? 'bg-blue-500/10 text-blue-400'
+                              : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-2 h-2 rounded-full"
+                              style={{ backgroundColor: tag.color }}
+                            />
+                            {tag.name}
+                          </div>
+                          {isSelected && <Check className="w-3 h-3" />}
+                        </button>
+                      )
+                    })}
+                    {searchQuery.trim() && !exactMatch && (
                       <button
-                        key={tag.id}
-                        onClick={() => toggleTag(tag.name)}
-                        className={cn(
-                          'w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all group',
-                          isSelected
-                            ? 'bg-blue-500/10 text-blue-400'
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                        )}
+                        onClick={handleCreateAndAddTag}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-blue-400 hover:bg-blue-500/10 transition-all border border-dashed border-blue-500/30 mt-1"
                       >
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: tag.color }}
-                          />
-                          {tag.name}
-                        </div>
-                        {isSelected && <Check className="w-3 h-3" />}
+                        <Plus className="w-3 h-3" />
+                        Create "{searchQuery}"
                       </button>
-                    )
-                  })
+                    )}
+                  </>
                 )}
               </div>
             </div>
