@@ -1,5 +1,5 @@
 import { type ComponentType, useEffect, useState } from 'react'
-import { Download, Globe, Trash2, Upload, Database, Settings2, AlertCircle } from 'lucide-react'
+import { Download, Globe, Trash2, Upload, Database, AlertCircle } from 'lucide-react'
 import { TagManagement } from '../components/settings/TagManagement'
 import { cn } from '../lib/utils'
 
@@ -194,19 +194,9 @@ export function SettingsScreen({ projectId, projectName, onProjectDeleted }: Set
   const activeProjectName = projects.find((p) => p.id === selectedProjectId)?.name || projectName
 
   return (
-    <div className="flex flex-col h-full max-w-6xl mx-auto w-full px-6">
-      <header className="flex items-center justify-between py-6 shrink-0 border-b border-slate-800/50 mb-8">
-        <div>
-          <div className="flex items-center gap-2.5 mb-1">
-            <div className="p-1.5 bg-blue-600 rounded-lg">
-              <Settings2 className="w-4 h-4 text-white" />
-            </div>
-            <h2 className="text-2xl font-bold text-white tracking-tight">Settings</h2>
-          </div>
-          <p className="text-slate-500 text-sm">Configure your workspace and data integrity</p>
-        </div>
-
-        {status && (
+    <div className="flex flex-col h-full w-full px-6 pt-4">
+      {status && (
+        <div className="fixed top-20 right-8 z-50">
           <div
             className={cn(
               'px-5 py-3 rounded-2xl border backdrop-blur-xl animate-in slide-in-from-top-4 shadow-2xl',
@@ -231,10 +221,10 @@ export function SettingsScreen({ projectId, projectName, onProjectDeleted }: Set
               <p className="text-sm font-bold tracking-tight">{status.message}</p>
             </div>
           </div>
-        )}
-      </header>
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-y-auto pr-2 pb-20 custom-scrollbar">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-y-auto pr-2 pb-20 custom-scrollbar mt-4">
         <div className="space-y-6">
           <section className="bg-[#11151C] border border-slate-800/50 rounded-2xl p-6 shadow-xl">
             <SectionHeader

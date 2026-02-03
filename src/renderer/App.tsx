@@ -190,7 +190,7 @@ export default function App() {
     { id: 'timeline' as const, label: 'Timeline', icon: CalendarRange },
   ]
   return (
-    <div className="min-h-screen bg-[#0B0E14] text-slate-200 font-sans selection:bg-blue-500/30">
+    <div className="h-screen bg-[#0B0E14] text-slate-200 font-sans selection:bg-blue-500/30 overflow-hidden">
       {/* Sidebar Navigation */}
       <aside
         className={`fixed top-0 left-0 h-full bg-[#11151C] border-r border-slate-800/50 flex flex-col z-50 transition-all duration-300 ${isSidebarCollapsed ? 'w-16' : 'w-64'}`}
@@ -303,7 +303,7 @@ export default function App() {
 
       {/* Main Content Area */}
       <main
-        className={`min-h-screen flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'pl-16' : 'pl-64'}`}
+        className={`h-screen flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'pl-16' : 'pl-64'}`}
       >
         <header className="h-16 border-b border-slate-800/30 bg-[#0B0E14]/80 backdrop-blur-md sticky top-0 z-40 flex items-center px-8 justify-between shrink-0">
           <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -372,7 +372,7 @@ export default function App() {
           </div>
         </header>
 
-        <div className="flex-1 p-8 overflow-hidden flex flex-col">
+        <div className={cn('flex-1 overflow-hidden flex flex-col', screen.id !== 'board' && 'p-8')}>
           {screen.id === 'projects' && (
             <ProjectsScreen
               onProjectSelect={(id, name) => {

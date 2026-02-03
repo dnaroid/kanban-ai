@@ -19,19 +19,16 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertCircle, Clock, Edit2, GripVertical, Play, Plus, Trash2, X } from 'lucide-react'
+import { AlertCircle, Clock, Edit2, GripVertical, Plus, Trash2, X } from 'lucide-react'
 import type {
   Board,
   BoardColumn,
   BoardColumnInput,
-  CreateTaskInput,
   KanbanTask,
   Project,
-  Tag,
 } from '@/shared/types/ipc.ts'
 import { cn } from '../lib/utils'
 import { TaskDrawer } from '../components/kanban/TaskDrawer'
-import { Check, Search } from 'lucide-react'
 
 interface BoardScreenProps {
   projectId: string
@@ -230,7 +227,7 @@ function SortableColumn({
         backgroundColor: color ? `color-mix(in srgb, ${color} 3%, #0B0E14)` : '#0B0E14',
       }}
       className={cn(
-        'flex-shrink-0 w-80 rounded-2xl border flex flex-col max-h-full transition-all duration-300',
+        'flex-shrink-0 w-80 rounded-2xl border flex flex-col h-full transition-all duration-300',
         !color && 'border-slate-800/50',
         isDragging && 'opacity-50'
       )}
@@ -273,7 +270,7 @@ function SortableColumn({
             <button
               onClick={onAddTask}
               className="text-slate-600 hover:text-blue-400 hover:bg-blue-400/10 transition-colors p-1"
-              title="Quick Add Task"
+              title="Add Task"
             >
               <Plus className="w-5 h-5" />
             </button>
@@ -426,260 +423,6 @@ function ColumnModal({ isOpen, onClose, onSubmit, initialData, title }: ColumnMo
   )
 }
 
-interface QuickAddTaskModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onSubmit: (task: Omit<CreateTaskInput, 'boardId' | 'projectId'>) => void
-  columnName?: string
-}
-
-function QuickAddTaskModal({ isOpen, onClose, onSubmit, columnName }: QuickAddTaskModalProps) {
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [priority, setPriority] = useState<'postpone' | 'low' | 'normal' | 'urgent'>('normal')
-  const [type, setType] = useState('task')
-  const [selectedTags, setSelectedTags] = useState<string[]>([])
-  const [globalTags, setGlobalTags] = useState<Tag[]>([])
-  const [isPickerOpen, setIsPickerOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-
-  useEffect(() => {
-    if (isOpen) {
-      loadGlobalTags()
-    }
-  }, [isOpen])
-
-  const loadGlobalTags = async () => {
-    try {
-      const response = await window.api.tag.list({})
-      setGlobalTags(response.tags)
-    } catch (error) {
-      console.error('Failed to load global tags:', error)
-    }
-  }
-
-  if (!isOpen) return null
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!title.trim()) return
-
-    onSubmit({
-      title: title.trim(),
-      description: description.trim() || undefined,
-      priority,
-      type,
-      difficulty: 'medium',
-      tags: selectedTags,
-      columnId: '',
-    })
-    setTitle('')
-    setDescription('')
-    setSelectedTags([])
-    setPriority('normal')
-    setType('task')
-  }
-
-  const toggleTag = (tagName: string) => {
-    setSelectedTags((prev) =>
-      prev.includes(tagName) ? prev.filter((t) => t !== tagName) : [...prev, tagName]
-    )
-  }
-
-  const filteredTags = globalTags.filter((tag) =>
-    tag.name.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-
-  const getTagColor = (tagName: string) => {
-    return globalTags.find((t) => t.name === tagName)?.color || '#475569'
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-      <div className="bg-[#11151C] border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-white">
-            Quick Add Task{' '}
-            {columnName && <span className="text-slate-400 font-normal ml-2">→ {columnName}</span>}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-slate-500 hover:text-slate-300 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-              Title *
-            </label>
-            <input
-              type="text"
-              required
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-4 py-3 bg-[#0B0E14] border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
-              placeholder="What needs to be done?"
-              autoFocus
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-              Description
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-4 py-3 bg-[#0B0E14] border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all resize-none h-20"
-              placeholder="Add details..."
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-                Priority
-              </label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as any)}
-                className="w-full px-4 py-3 bg-[#0B0E14] border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all text-sm"
-              >
-                <option value="postpone">Postpone</option>
-                <option value="low">Low</option>
-                <option value="normal">Normal</option>
-                <option value="urgent">Urgent</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-                Type
-              </label>
-              <input
-                type="text"
-                value={type}
-                onChange={(e) => setType(e.target.value)}
-                className="w-full px-4 py-3 bg-[#0B0E14] border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all text-sm"
-                placeholder="task, bug, feature"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-              Tags
-            </label>
-            <div className="flex flex-wrap gap-2 mb-3 min-h-[32px] p-2 bg-[#0B0E14] border border-slate-800 rounded-xl">
-              {selectedTags.length === 0 && (
-                <span className="text-slate-600 text-xs italic px-1">No tags selected</span>
-              )}
-              {selectedTags.map((tagName) => (
-                <span
-                  key={tagName}
-                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-800/80 text-white border border-slate-700/50 group transition-all"
-                  style={{ borderLeftColor: getTagColor(tagName), borderLeftWidth: '3px' }}
-                >
-                  {tagName}
-                  <button
-                    type="button"
-                    onClick={() => toggleTag(tagName)}
-                    className="p-0.5 hover:bg-white/10 rounded-sm text-slate-500 hover:text-red-400 transition-colors"
-                  >
-                    <X className="w-2.5 h-2.5" />
-                  </button>
-                </span>
-              ))}
-            </div>
-
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setIsPickerOpen(!isPickerOpen)}
-                className={cn(
-                  'w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-medium border transition-all',
-                  isPickerOpen
-                    ? 'bg-blue-500/10 text-blue-400 border-blue-500/50'
-                    : 'bg-slate-800/40 text-slate-400 border-slate-800 hover:text-blue-400 hover:border-blue-500/50'
-                )}
-              >
-                <Plus className="w-3 h-3" />
-                {isPickerOpen ? 'Close Tag Picker' : 'Select Tags'}
-              </button>
-
-              {isPickerOpen && (
-                <div className="absolute left-0 bottom-full mb-2 w-full bg-[#161B26] border border-slate-800 rounded-xl shadow-2xl z-20 py-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                  <div className="px-3 pb-2 border-b border-slate-800 mb-1">
-                    <div className="relative">
-                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500" />
-                      <input
-                        autoFocus
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search tags..."
-                        className="w-full bg-[#0B0E14] border border-slate-800 text-[10px] text-white pl-7 pr-2 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500/50"
-                      />
-                    </div>
-                  </div>
-                  <div className="max-h-40 overflow-y-auto px-1 py-1 custom-scrollbar">
-                    {filteredTags.length === 0 ? (
-                      <div className="px-3 py-4 text-center text-[10px] text-slate-500 italic">
-                        No tags found.
-                      </div>
-                    ) : (
-                      filteredTags.map((tag) => {
-                        const isSelected = selectedTags.includes(tag.name)
-                        return (
-                          <button
-                            key={tag.id}
-                            type="button"
-                            onClick={() => toggleTag(tag.name)}
-                            className={cn(
-                              'w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-all group',
-                              isSelected
-                                ? 'bg-blue-500/10 text-blue-400'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                            )}
-                          >
-                            <div className="flex items-center gap-2">
-                              <div
-                                className="w-2 h-2 rounded-full"
-                                style={{ backgroundColor: tag.color }}
-                              />
-                              {tag.name}
-                            </div>
-                            {isSelected && <Check className="w-3 h-3" />}
-                          </button>
-                        )
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-semibold text-sm transition-all border border-slate-700/50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!title.trim()}
-              className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-600/20"
-            >
-              Add Task
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-}
-
 export function BoardScreen({ projectId }: BoardScreenProps) {
   const [board, setBoard] = useState<Board | null>(null)
   const [project, setProject] = useState<Project | null>(null)
@@ -690,8 +433,6 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
   const [activeColumn, setActiveColumn] = useState<string | null>(null)
   const [selectedTask, setSelectedTask] = useState<KanbanTask | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [quickAddModalOpen, setQuickAddModalOpen] = useState(false)
-  const [quickAddColumnId, setQuickAddColumnId] = useState<string | null>(null)
   const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
   const [editingColumnId, setEditingColumnId] = useState<string | null>(null)
 
@@ -830,7 +571,7 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
       const response = await window.api.task.create({
         boardId: board.id,
         columnId,
-        title: 'New',
+        title: 'New Task',
         priority: 'normal',
         difficulty: 'medium',
         type: 'feature',
@@ -840,25 +581,6 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
 
       setSelectedTask(response.task)
       setDrawerOpen(true)
-
-      loadBoard()
-    } catch (error) {
-      console.error('Failed to create draft task:', error)
-    }
-  }
-
-  const handleQuickAddSubmit = async (taskData: Omit<CreateTaskInput, 'boardId' | 'projectId'>) => {
-    if (!board || !quickAddColumnId) return
-    try {
-      await window.api.task.create({
-        ...taskData,
-        columnId: quickAddColumnId,
-        projectId,
-        boardId: board.id,
-        difficulty: 'medium',
-      })
-      setQuickAddModalOpen(false)
-      setQuickAddColumnId(null)
       loadBoard()
     } catch (error) {
       console.error('Failed to create task:', error)
@@ -973,44 +695,17 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
-              backgroundColor: `${projectColor}05`,
+              backgroundColor: `${projectColor}04`,
             }}
           />
 
-          <div className="flex items-center justify-between mb-6 shrink-0 relative z-10">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight" style={{ color: projectColor }}>
-                {board.name}
-              </h1>
-              <p className="text-slate-500 text-sm mt-1">
-                {tasks.length} tasks across {columns.length} columns
-              </p>
-            </div>
-            <button
-              disabled
-              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-sm font-semibold rounded-xl opacity-50 cursor-not-allowed shadow-lg"
-            >
-              <Play className="w-4 h-4" /> <span>Start Run</span>
-            </button>
-          </div>
-          <div className="flex-1 overflow-x-auto overflow-y-hidden custom-scrollbar -mr-6 pr-6">
-            {columns.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-[#0B0E14] rounded-2xl border border-dashed border-slate-800/50 min-h-[400px]">
-                <AlertCircle className="w-12 h-12 text-slate-500 mb-4" />
-                <h3 className="text-xl font-bold text-white mb-2">No columns yet</h3>
-                <button
-                  onClick={() => setIsColumnModalOpen(true)}
-                  className="mt-4 flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl shadow-lg"
+          <div className="flex-1 min-h-0 relative z-10">
+            <div className="h-full overflow-x-auto custom-scrollbar">
+              <div className="inline-flex h-full items-stretch gap-6 pl-8 pt-8 pb-6">
+                <SortableContext
+                  items={columns.map((c) => c.id)}
+                  strategy={horizontalListSortingStrategy}
                 >
-                  <Plus className="w-5 h-5" /> <span>Add First Column</span>
-                </button>
-              </div>
-            ) : (
-              <SortableContext
-                items={columns.map((c) => c.id)}
-                strategy={horizontalListSortingStrategy}
-              >
-                <div className="flex gap-4 h-full p-1">
                   {columns.map((column) => (
                     <SortableColumn
                       key={column.id}
@@ -1020,34 +715,31 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
                       tasks={tasks
                         .filter((t) => t.columnId === column.id)
                         .sort((a, b) => (a.orderInColumn || 0) - (b.orderInColumn || 0))}
+                      onTaskClick={setSelectedTask}
                       onAddTask={() => handleAddTask(column.id)}
-                      onDeleteTask={handleDeleteTask}
-                      onTaskClick={(task) => {
-                        setSelectedTask(task)
-                        setDrawerOpen(true)
-                      }}
                       onEdit={() => {
                         setEditingColumnId(column.id)
                         setIsColumnModalOpen(true)
                       }}
                       onDelete={() => handleDeleteColumn(column.id)}
+                      onDeleteTask={handleDeleteTask}
                     />
                   ))}
-                  <div className="flex-shrink-0 w-80">
+                  <div className="flex-shrink-0 w-80 h-full flex flex-col">
                     <button
                       onClick={() => {
                         setEditingColumnId(null)
                         setIsColumnModalOpen(true)
                       }}
-                      className="w-full h-14 bg-[#0B0E14]/50 hover:bg-[#0B0E14] border border-dashed border-slate-800/50 hover:border-slate-700 rounded-2xl flex items-center justify-center gap-2 text-slate-500 hover:text-slate-300 transition-all"
+                      className="w-full h-14 bg-slate-900/40 border border-dashed border-slate-800/50 hover:border-slate-700 rounded-2xl flex items-center justify-center gap-2 text-slate-500 hover:text-slate-300 transition-all shrink-0"
                     >
                       <Plus className="w-5 h-5" />{' '}
                       <span className="font-semibold text-sm">Add Column</span>
                     </button>
                   </div>
-                </div>
-              </SortableContext>
-            )}
+                </SortableContext>
+              </div>
+            </div>
           </div>
         </div>
         <DragOverlay>
@@ -1065,15 +757,6 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
           )}
         </DragOverlay>
       </DndContext>
-      <QuickAddTaskModal
-        isOpen={quickAddModalOpen}
-        onClose={() => {
-          setQuickAddModalOpen(false)
-          setQuickAddColumnId(null)
-        }}
-        onSubmit={handleQuickAddSubmit}
-        columnName={columns.find((c) => c.id === quickAddColumnId)?.name}
-      />
       <ColumnModal
         isOpen={isColumnModalOpen}
         onClose={() => {
