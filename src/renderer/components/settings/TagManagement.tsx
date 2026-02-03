@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Tag as TagIcon, Palette } from 'lucide-react'
+import { Plus, Trash2, Tag as TagIcon, Palette, Check, Hash } from 'lucide-react'
 import type { Tag } from '@/shared/types/ipc'
 import { cn } from '../../lib/utils'
 
@@ -38,7 +38,7 @@ export function TagManagement() {
           { name: 'Frontend', color: PRESET_COLORS[6] },
           { name: 'Backend', color: PRESET_COLORS[7] },
         ]
-        const createdTags = await Promise.all(defaults.map((d) => window.api.tag.create({ ...d })))
+        const createdTags = await Promise.all(defaults.map((d) => window.api.tag.create(d)))
         setTags(createdTags.sort((a, b) => a.name.localeCompare(b.name)))
       } else {
         setTags(response.tags)
@@ -76,106 +76,135 @@ export function TagManagement() {
   }
 
   return (
-    <div className="bg-slate-900/40 border border-slate-800/60 rounded-2xl p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <TagIcon className="w-4 h-4 text-blue-400" />
-          <div className="text-xs text-slate-500 uppercase tracking-wider">Tag Management</div>
+    <section className="bg-[#11151C] border border-slate-800/50 rounded-2xl p-6 shadow-xl">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 rounded-xl bg-indigo-500/10 ring-1 ring-indigo-500/20 flex items-center justify-center">
+          <TagIcon className="w-5 h-5 text-indigo-400" />
+        </div>
+        <div>
+          <h3 className="text-lg font-bold text-white tracking-tight">Taxonomy</h3>
+          <p className="text-xs text-slate-500 font-medium">
+            Organize tasks with global categories
+          </p>
         </div>
       </div>
 
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-[200px] space-y-2">
-            <label className="text-xs text-slate-400">New Tag Name</label>
-            <input
-              value={newTagName}
-              onChange={(e) => setNewTagName(e.target.value)}
-              placeholder="e.design, bug, critical..."
-              className="w-full bg-[#0B0E14] border border-slate-800/60 text-xs text-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateTag()}
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs text-slate-400 flex items-center gap-1">
-              <Palette className="w-3 h-3" /> Color
-            </label>
-            <div className="flex gap-1.5 p-1 bg-[#0B0E14] border border-slate-800/60 rounded-lg">
-              {PRESET_COLORS.map((color) => (
-                <button
-                  key={color}
-                  onClick={() => setSelectedColor(color)}
-                  className={cn(
-                    'w-6 h-6 rounded-md transition-all transform hover:scale-110 active:scale-95',
-                    selectedColor === color
-                      ? 'ring-2 ring-white ring-offset-2 ring-offset-[#0B0E14] scale-110'
-                      : 'opacity-70 hover:opacity-100'
-                  )}
-                  style={{ backgroundColor: color }}
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                New Tag Identity
+              </label>
+              <div className="relative group">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2">
+                  <Hash className="w-3.5 h-3.5 text-slate-600 group-focus-within:text-indigo-400 transition-colors" />
+                </div>
+                <input
+                  value={newTagName}
+                  onChange={(e) => setNewTagName(e.target.value)}
+                  placeholder="marketing, api, refactor..."
+                  className="w-full bg-[#0B0E14] border border-slate-800/60 text-sm text-slate-200 rounded-xl pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/40 transition-all placeholder:text-slate-800"
+                  onKeyDown={(e) => e.key === 'Enter' && handleCreateTag()}
                 />
-              ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 pl-1">
+                <Palette className="w-3 h-3" /> Signature Color
+              </label>
+              <div className="flex flex-wrap gap-2 p-2.5 bg-[#0B0E14] border border-slate-800/60 rounded-xl">
+                {PRESET_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => setSelectedColor(color)}
+                    className={cn(
+                      'w-7 h-7 rounded-lg transition-all duration-300 relative group flex items-center justify-center',
+                      selectedColor === color
+                        ? 'scale-110 shadow-lg'
+                        : 'opacity-40 hover:opacity-100 hover:scale-105'
+                    )}
+                    style={{
+                      backgroundColor: color,
+                      boxShadow: selectedColor === color ? `0 0 15px ${color}40` : 'none',
+                    }}
+                  >
+                    {selectedColor === color && (
+                      <Check className="w-3.5 h-3.5 text-white animate-in zoom-in-50 duration-300" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={handleCreateTag}
+              disabled={!newTagName.trim()}
+              className="w-full py-3 text-xs font-black uppercase tracking-widest rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 disabled:shadow-none transition-all duration-300 shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Register Tag
+            </button>
+          </div>
+
+          <div className="bg-[#0B0E14] border border-slate-800/60 rounded-xl overflow-hidden shadow-inner shadow-black/40">
+            <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
+              <table className="w-full text-left">
+                <thead className="sticky top-0 z-10 bg-slate-900/50 backdrop-blur-md">
+                  <tr className="text-[9px] uppercase tracking-[0.2em] text-slate-500 font-black">
+                    <th className="px-4 py-3">Label</th>
+                    <th className="px-4 py-3">Hex</th>
+                    <th className="px-4 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/40">
+                  {tags.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-8 text-center">
+                        <p className="text-xs text-slate-600 font-medium italic">
+                          {isLoading ? 'Synchronizing tags...' : 'No active tags found'}
+                        </p>
+                      </td>
+                    </tr>
+                  ) : (
+                    tags.map((tag) => (
+                      <tr key={tag.id} className="group hover:bg-slate-800/20 transition-all">
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-2.5">
+                            <div
+                              className="w-2 h-2 rounded-full"
+                              style={{
+                                backgroundColor: tag.color,
+                                boxShadow: `0 0 8px ${tag.color}60`,
+                              }}
+                            />
+                            <span className="text-xs font-bold text-slate-200">{tag.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span className="text-[10px] font-mono text-slate-500 group-hover:text-slate-400 transition-colors uppercase tracking-wider">
+                            {tag.color}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-right">
+                          <button
+                            onClick={() => handleDeleteTag(tag.id)}
+                            className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                            title="Delete Tag"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
-          <button
-            onClick={handleCreateTag}
-            disabled={!newTagName.trim()}
-            className="h-10 px-4 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 text-white rounded-lg flex items-center gap-2 text-xs font-semibold transition-colors"
-          >
-            <Plus className="w-4 h-4" /> Add Tag
-          </button>
-        </div>
-
-        <div className="border border-slate-800/60 rounded-xl overflow-hidden bg-[#0B0E14]/50">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-800/30 text-[10px] uppercase tracking-wider text-slate-500">
-                <th className="px-4 py-3 font-semibold">Name</th>
-                <th className="px-4 py-3 font-semibold">Color Chip</th>
-                <th className="px-4 py-3 font-semibold w-20 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {tags.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="px-4 py-8 text-center text-xs text-slate-600 italic">
-                    {isLoading
-                      ? 'Loading tags...'
-                      : 'No tags created yet. Add your first tag above.'}
-                  </td>
-                </tr>
-              ) : (
-                tags.map((tag) => (
-                  <tr key={tag.id} className="group hover:bg-slate-800/20 transition-colors">
-                    <td className="px-4 py-3">
-                      <span className="text-xs font-medium text-slate-200">{tag.name}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded-full shadow-sm"
-                          style={{ backgroundColor: tag.color }}
-                        />
-                        <span className="text-[10px] font-mono text-slate-500 uppercase">
-                          {tag.color}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => handleDeleteTag(tag.id)}
-                        className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                        title="Delete Tag"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
         </div>
       </div>
-    </div>
+    </section>
   )
 }

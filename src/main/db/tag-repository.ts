@@ -8,6 +8,20 @@ export class TagRepository {
     const now = new Date().toISOString()
     const id = randomUUID()
 
+    const existing = db
+      .prepare(
+        `
+            SELECT id, name, color, created_at as createdAt, updated_at as updatedAt
+            FROM tags
+            WHERE name = ?
+        `
+      )
+      .get(input.name) as Tag | undefined
+
+    if (existing) {
+      return existing
+    }
+
     const stmt = db.prepare(`
         INSERT INTO tags (id, name, color, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?)

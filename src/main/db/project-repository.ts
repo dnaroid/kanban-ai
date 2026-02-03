@@ -7,14 +7,15 @@ export class ProjectRepository {
     const db = dbManager.connect()
     const now = new Date().toISOString()
     const id = randomUUID()
+    const color = input.color ?? ''
 
     const stmt = db.prepare(`
-      INSERT INTO projects (id, name, path, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO projects (id, name, path, color, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
     `)
 
     try {
-      const result = stmt.run(id, input.name, input.path, now, now)
+      const result = stmt.run(id, input.name, input.path, color, now, now)
       console.log('[ProjectRepo] Insert result:', result)
     } catch (error) {
       console.error('[ProjectRepo] Insert failed:', error)
@@ -25,6 +26,7 @@ export class ProjectRepository {
       id,
       name: input.name,
       path: input.path,
+      color,
       createdAt: now,
       updatedAt: now,
     }
@@ -33,7 +35,7 @@ export class ProjectRepository {
   getAll(): Project[] {
     const db = dbManager.connect()
     const stmt = db.prepare(`
-      SELECT id, name, path, created_at as createdAt, updated_at as updatedAt
+      SELECT id, name, path, color, created_at as createdAt, updated_at as updatedAt
       FROM projects
       ORDER BY updated_at DESC
     `)
@@ -44,7 +46,7 @@ export class ProjectRepository {
   getById(id: string): Project | null {
     const db = dbManager.connect()
     const stmt = db.prepare(`
-      SELECT id, name, path, created_at as createdAt, updated_at as updatedAt
+      SELECT id, name, path, color, created_at as createdAt, updated_at as updatedAt
       FROM projects
       WHERE id = ?
     `)
@@ -52,7 +54,7 @@ export class ProjectRepository {
     return stmt.get(id) as Project | null
   }
 
-  update(id: string, updates: Partial<Pick<Project, 'name' | 'path'>>): Project | null {
+  update(id: string, updates: Partial<Pick<Project, 'name' | 'path' | 'color'>>): Project | null {
     const db = dbManager.connect()
     const now = new Date().toISOString()
 
@@ -66,6 +68,10 @@ export class ProjectRepository {
     if (updates.path !== undefined) {
       sets.push('path = ?')
       values.push(updates.path)
+    }
+    if (updates.color !== undefined) {
+      sets.push('color = ?')
+      values.push(updates.color)
     }
 
     if (sets.length === 0) return this.getById(id)

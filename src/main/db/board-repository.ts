@@ -38,13 +38,17 @@ export class BoardRepository {
 
       const insertColumn = db.prepare(
         `
-        INSERT INTO board_columns (id, board_id, name, order_index, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO board_columns (id, board_id, name, order_index, color, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `
       )
-      const defaultColumns = ['Backlog', 'In Progress', 'Done']
-      defaultColumns.forEach((name, index) => {
-        insertColumn.run(randomUUID(), boardId, name, index, now, now)
+      const defaultColumns = [
+        { name: 'Backlog', color: '#3B82F6' },
+        { name: 'In Progress', color: '#F59E0B' },
+        { name: 'Done', color: '#10B981' },
+      ]
+      defaultColumns.forEach((column, index) => {
+        insertColumn.run(randomUUID(), boardId, column.name, index, column.color, now, now)
       })
     })()
 

@@ -81,7 +81,7 @@ uppercase
 ```tsx
 // Основная кнопка (синяя)
 <button
-  className="px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 text-white disabled:bg-slate-800 disabled:text-slate-500"
+  className="px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 text-white shadow-lg shadow-blue-600/20 transition-all disabled:bg-slate-800 disabled:text-slate-500 disabled:shadow-none"
   disabled={isLoading}
 >
   {isLoading ? 'Loading...' : 'Save'}
@@ -89,42 +89,55 @@ uppercase
 
 // Кнопка успеха (зеленая)
 <button
-  className="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white"
+  className="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white disabled:shadow-none"
 >
   Import
 </button>
 
-// Отключенное состояние всегда
-disabled:bg - slate - 800
-disabled:text - slate - 500
+// Важные правила для кнопок:
+// 1. Всегда отключайте тень в disabled состоянии: disabled:shadow-none
+// 2. Используйте transition-all для плавных hover-эффектов
 ```
 
 ### Поля ввода
 
 ```tsx
-<input
-  value={value}
-  onChange={(event) => setValue(event.target.value)}
-  placeholder="Placeholder text"
-  className="w-full bg-[#0B0E14] border border-slate-800/60 text-xs text-slate-200 rounded-lg px-3 py-2"
-/>
-
-// Select
-<select
-  value={value}
-  onChange={(event) => setValue(event.target.value as ValueType)}
-  className="w-full bg-[#0B0E14] border border-slate-800/60 text-xs text-slate-200 rounded-lg px-3 py-2"
->
-  <option value="option1">Option 1</option>
-</select>
+<div className="space-y-1.5">
+  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+    Label Text
+  </label>
+  <input
+    value={value}
+    onChange={(event) => setValue(event.target.value)}
+    placeholder="Placeholder text"
+    className="w-full bg-[#0B0E14] border border-slate-800/60 text-sm text-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/40 transition-all"
+  />
+</div>
 ```
 
 ### Карточки / Контейнеры
 
 ```tsx
-<div className="bg-slate-900/40 border border-slate-800/60 rounded-2xl p-6 space-y-4">
-  <div className="text-xs text-slate-500 uppercase tracking-wider">Section Header</div>
-  <div className="space-y-3">{/* Контент */}</div>
+// Вторичный фон для карточек (Project/Settings sections)
+<div className="bg-[#11151C] border border-slate-800/50 rounded-2xl p-6 shadow-xl">
+  <SectionHeader ... />
+  <div className="space-y-4">{/* Контент */}</div>
+</div>
+```
+
+### Заголовки секций (SectionHeader)
+
+Паттерн для разделения настроек или контента:
+
+```tsx
+<div className="flex items-center gap-3 mb-6">
+  <div className="w-10 h-10 rounded-xl bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center text-blue-400">
+    <Icon className="w-5 h-5" />
+  </div>
+  <div>
+    <h3 className="text-lg font-bold text-white tracking-tight">Title</h3>
+    <p className="text-xs text-slate-500 font-medium">Subtitle</p>
+  </div>
 </div>
 ```
 
@@ -145,10 +158,10 @@ disabled:text - slate - 500
 ```tsx
 // Фиксированный сайдбар + основной контент
 <div className="flex h-screen overflow-hidden">
-  <Sidebar className="w-64 flex-shrink-0"/>
+  <Sidebar className="w-64 flex-shrink-0" />
   <main className="flex-1 pl-64 overflow-hidden">
-    <Header className="sticky top-0 z-10 backdrop-blur-md"/>
-    <Content className="h-full overflow-y-auto"/>
+    <Header className="sticky top-0 z-10 backdrop-blur-md" />
+    <Content className="h-full overflow-y-auto" />
   </main>
 </div>
 ```
@@ -234,18 +247,26 @@ delay - 200
 Используйте функцию `cn()` для объединения className:
 
 ```tsx
-import {cn} from '@/lib/utils'
+import { cn } from '@/lib/utils'
 
 // Слияние Tailwind классов
-  ;
-
-<button className={cn('base-classes', condition && 'conditional-classes')}>Button</button>
+;<button className={cn('base-classes', condition && 'conditional-classes')}>Button</button>
 ```
 
 Эта функция использует `clsx` и `tailwind-merge` для:
 
 1. Условного объединения классов
 2. Разрешения конфликтов Tailwind (например, `p-4` и `p-2`)
+
+### Скроллбары
+
+Для элементов с прокруткой используйте класс `.custom-scrollbar`:
+
+```tsx
+<div className="flex-1 overflow-y-auto custom-scrollbar">{/* Контент */}</div>
+```
+
+Это применит тонкий темный скроллбар, который лучше вписывается в интерфейс.
 
 ## Drag & Drop паттерны
 
@@ -270,7 +291,7 @@ import {
 // В компоненте доски
 const sensors = useSensors(
   useSensor(PointerSensor),
-  useSensor(KeyboardSensor, {coordinateGetter: sortableKeyboardCoordinates})
+  useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
 )
 
 return (
@@ -383,7 +404,7 @@ type ComponentProps = {
   disabled?: boolean
 }
 
-export function Component({value, onChange, disabled = false}: ComponentProps) {
+export function Component({ value, onChange, disabled = false }: ComponentProps) {
   // ...
 }
 ```

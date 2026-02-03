@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   path TEXT NOT NULL UNIQUE,
+  color TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -499,7 +500,6 @@ export const migrations = [
   {
     version: 10,
     sql: `
-      BEGIN TRANSACTION;
       CREATE TABLE IF NOT EXISTS tags_new (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -521,7 +521,25 @@ export const migrations = [
 
       DROP TABLE tags;
       ALTER TABLE tags_new RENAME TO tags;
-      COMMIT;
+    `,
+  },
+  {
+    version: 11,
+    sql: `
+      ALTER TABLE projects ADD COLUMN color TEXT NOT NULL DEFAULT '';
+    `,
+  },
+  {
+    version: 12,
+    sql: `
+      UPDATE board_columns
+      SET color = CASE
+        WHEN lower(name) = 'backlog' THEN '#3B82F6'
+        WHEN lower(name) = 'in progress' THEN '#F59E0B'
+        WHEN lower(name) = 'done' THEN '#10B981'
+        ELSE color
+      END
+      WHERE color IS NULL OR color = '';
     `,
   },
 ] as const
