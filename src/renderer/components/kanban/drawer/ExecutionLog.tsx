@@ -95,9 +95,10 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
         const existingIndex = prev.findIndex((item) => item.id === id)
         if (existingIndex === -1) {
           // Message doesn't exist yet, create it with this part
+          // Default to 'assistant' role since parts usually come from assistant messages
           console.log('[ExecutionLog] Creating new message with part:', messageId)
           seenMessageIdsRef.current.add(id)
-          const newEvent = buildMessageEvent(messageId, { parts: [part] })
+          const newEvent = buildMessageEvent(messageId, { role: 'assistant', parts: [part] })
           return [...prev, newEvent].slice(-500)
         }
         
@@ -351,7 +352,11 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
 
       const { role = 'assistant', content, parts: messageParts } = messagePayload
 
-      const parts = messageParts || (content ? [{ type: 'text' as const, text: content }] : [])
+      const parts = messageParts && messageParts.length > 0
+        ? messageParts
+        : content
+          ? [{ type: 'text' as const, text: content }]
+          : []
 
       const isUser = role === 'user'
 
@@ -371,7 +376,7 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
                 'w-8 h-8 rounded-xl flex items-center justify-center shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:rotate-3',
                 isUser
                   ? 'bg-gradient-to-br from-violet-500 to-indigo-600 shadow-indigo-500/20'
-                  : 'bg-gradient-to-br from-blue-500 to-blue-600 shadow-blue-500/20'
+                  : 'bg-gradient-to-br from-blue-500 to-blue-600 shadow-blue-500/20 animate-pulse'
               )}
             >
               {isUser ? (
