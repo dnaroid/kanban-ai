@@ -82,7 +82,18 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
         }
         const updated = [...prev]
         const existing = updated[existingIndex]
-        const updatedEvent = buildMessageEvent(payload.id, payload, existing.ts)
+        const existingPayload = existing.payload as { parts?: Part[]; role?: string }
+        
+        // Preserve accumulated parts if new payload doesn't have parts
+        const mergedPayload = {
+          ...payload,
+          parts: payload.parts && payload.parts.length > 0
+            ? payload.parts
+            : existingPayload.parts || [],
+          role: payload.role || existingPayload.role || 'assistant',
+        }
+        
+        const updatedEvent = buildMessageEvent(payload.id, mergedPayload, existing.ts)
         updated[existingIndex] = updatedEvent
         return updated
       })
