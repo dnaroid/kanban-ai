@@ -19,6 +19,12 @@ import type {
   TaskMoveResponse,
   TaskDeleteInput,
   TaskDeleteResponse,
+  Tag,
+  TagCreateInput,
+  TagUpdateInput,
+  TagDeleteInput,
+  TagListInput,
+  TagListResponse,
   DepsListInput,
   DepsListResponse,
   DepsAddInput,
@@ -123,6 +129,12 @@ export interface MainToRenderer {
     move(input: TaskMoveInput): Promise<TaskMoveResponse>
     delete(input: TaskDeleteInput): Promise<TaskDeleteResponse>
   }
+  tag: {
+    create(input: TagCreateInput): Promise<Tag>
+    update(input: TagUpdateInput): Promise<Tag>
+    delete(input: TagDeleteInput): Promise<{ ok: boolean }>
+    list(input: TagListInput): Promise<TagListResponse>
+  }
   deps: {
     list(input: DepsListInput): Promise<DepsListResponse>
     add(input: DepsAddInput): Promise<DepsAddResponse>
@@ -209,6 +221,12 @@ export interface RendererToMain {
     update(input: TaskUpdateInput): Promise<TaskUpdateResponse>
     move(input: TaskMoveInput): Promise<TaskMoveResponse>
     delete(input: TaskDeleteInput): Promise<TaskDeleteResponse>
+  }
+  tag: {
+    create(input: TagCreateInput): Promise<Tag>
+    update(input: TagUpdateInput): Promise<Tag>
+    delete(input: TagDeleteInput): Promise<{ ok: boolean }>
+    list(input: TagListInput): Promise<TagListResponse>
   }
   deps: {
     list(input: DepsListInput): Promise<DepsListResponse>

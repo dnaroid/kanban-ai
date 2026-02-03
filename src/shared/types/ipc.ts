@@ -589,6 +589,51 @@ export const BackupImportResponseSchema = z.object({
 
 export type BackupImportResponse = z.infer<typeof BackupImportResponseSchema>
 
+export const TagSchema = z.object({
+  id: z.string().uuid(),
+  projectId: z.string().uuid(),
+  name: z.string().min(1),
+  color: z.string(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+})
+
+export type Tag = z.infer<typeof TagSchema>
+
+export const TagCreateInputSchema = z.object({
+  projectId: z.string().uuid(),
+  name: z.string().min(1),
+  color: z.string(),
+})
+
+export type TagCreateInput = z.infer<typeof TagCreateInputSchema>
+
+export const TagUpdateInputSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).optional(),
+  color: z.string().optional(),
+})
+
+export type TagUpdateInput = z.infer<typeof TagUpdateInputSchema>
+
+export const TagDeleteInputSchema = z.object({
+  id: z.string().uuid(),
+})
+
+export type TagDeleteInput = z.infer<typeof TagDeleteInputSchema>
+
+export const TagListInputSchema = z.object({
+  projectId: z.string().uuid(),
+})
+
+export type TagListInput = z.infer<typeof TagListInputSchema>
+
+export const TagListResponseSchema = z.object({
+  tags: z.array(TagSchema),
+})
+
+export type TagListResponse = z.infer<typeof TagListResponseSchema>
+
 export const RunModeSchema = z.enum(['plan-only', 'execute', 'critique'])
 export const RunStatusSchema = z.enum(['queued', 'running', 'succeeded', 'failed', 'canceled'])
 export const RunKindSchema = z.enum(['task-run', 'task-description-improve'])

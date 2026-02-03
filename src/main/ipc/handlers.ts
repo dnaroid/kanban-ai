@@ -82,6 +82,11 @@ import {
   TaskUpdateInputSchema,
   TaskUpdateResponseSchema,
   UpdateProjectInputSchema,
+  TagCreateInputSchema,
+  TagUpdateInputSchema,
+  TagDeleteInputSchema,
+  TagListInputSchema,
+  TagListResponseSchema,
   VoskModelDownloadInputSchema,
   VoskModelDownloadResponseSchema,
 } from '../../shared/types/ipc.js'
@@ -89,6 +94,7 @@ import { projectRepo } from '../db/project-repository'
 import { appSettingsRepo } from '../db/app-settings-repository.js'
 import { boardRepo } from '../db/board-repository'
 import { taskRepo } from '../db/task-repository'
+import { tagRepo } from '../db/tag-repository'
 import { dependencyService } from '../deps/dependency-service'
 import { taskScheduleRepo } from '../db/task-schedule-repository'
 import { searchService } from '../search/search-service'
@@ -212,6 +218,23 @@ ipcHandlers.register(
 ipcHandlers.register('task:delete', TaskDeleteInputSchema, async (_, { taskId }) => {
   taskRepo.delete(taskId)
   return TaskDeleteResponseSchema.parse({ ok: true })
+})
+
+ipcHandlers.register('tag:create', TagCreateInputSchema, async (_, input) => {
+  return tagRepo.create(input)
+})
+
+ipcHandlers.register('tag:update', TagUpdateInputSchema, async (_, input) => {
+  return tagRepo.update(input.id, input)
+})
+
+ipcHandlers.register('tag:delete', TagDeleteInputSchema, async (_, { id }) => {
+  return { ok: tagRepo.delete(id) }
+})
+
+ipcHandlers.register('tag:list', TagListInputSchema, async (_, { projectId }) => {
+  const tags = tagRepo.listByProject(projectId)
+  return TagListResponseSchema.parse({ tags })
 })
 
 ipcHandlers.register('deps:list', DepsListInputSchema, async (_, { taskId }) => {

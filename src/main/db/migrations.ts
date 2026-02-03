@@ -82,6 +82,17 @@ CREATE TABLE IF NOT EXISTS tasks (
   FOREIGN KEY (column_id) REFERENCES board_columns(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS tags (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  UNIQUE(project_id, name)
+);
+
 -- indexes
 CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
@@ -470,6 +481,21 @@ export const migrations = [
     version: 8,
     sql: `
       DROP TABLE IF EXISTS opencode_sessions;
+    `,
+  },
+  {
+    version: 9,
+    sql: `
+      CREATE TABLE IF NOT EXISTS tags (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        color TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        UNIQUE(project_id, name)
+      );
     `,
   },
 ] as const

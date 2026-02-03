@@ -56,6 +56,12 @@ const api: MainToRenderer = {
     move: (input) => ipcRenderer.invoke('task:move', input),
     delete: (input) => ipcRenderer.invoke('task:delete', input),
   },
+  tag: {
+    create: (input) => ipcRenderer.invoke('tag:create', input),
+    update: (input) => ipcRenderer.invoke('tag:update', input),
+    delete: (input) => ipcRenderer.invoke('tag:delete', input),
+    list: (input) => ipcRenderer.invoke('tag:list', input),
+  },
   deps: {
     list: (input) => ipcRenderer.invoke('deps:list', input),
     add: (input) => ipcRenderer.invoke('deps:add', input),

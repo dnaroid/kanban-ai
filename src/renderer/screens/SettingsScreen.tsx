@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
+import { TagManagement } from '../components/settings/TagManagement'
 
 type SettingsScreenProps = {
   projectId: string
@@ -142,6 +143,8 @@ export function SettingsScreen({ projectId, projectName, onProjectDeleted }: Set
             </button>
           </div>
         </div>
+
+        <TagManagement projectId={projectId} />
 
         <div className="bg-slate-900/40 border border-red-900/60 rounded-2xl p-6 space-y-4">
           <div className="text-xs text-red-500 uppercase tracking-wider">Danger Zone</div>

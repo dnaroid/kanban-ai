@@ -26,9 +26,11 @@ import type {
   BoardColumnInput,
   CreateTaskInput,
   KanbanTask,
+  Tag,
 } from '@/shared/types/ipc.ts'
 import { cn } from '../lib/utils'
 import { TaskDrawer } from '../components/kanban/TaskDrawer'
+import { Check, Search } from 'lucide-react'
 
 interface BoardScreenProps {
   projectId: string
@@ -428,38 +430,74 @@ interface QuickAddTaskModalProps {
   onClose: () => void
   onSubmit: (task: Omit<CreateTaskInput, 'boardId' | 'projectId'>) => void
   columnName?: string
+  projectId: string
 }
 
-function QuickAddTaskModal({ isOpen, onClose, onSubmit, columnName }: QuickAddTaskModalProps) {
+function QuickAddTaskModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  columnName,
+  projectId,
+}: QuickAddTaskModalProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState<'postpone' | 'low' | 'normal' | 'urgent'>('normal')
   const [type, setType] = useState('task')
-  const [tags, setTags] = useState('')
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [globalTags, setGlobalTags] = useState<Tag[]>([])
+  const [isPickerOpen, setIsPickerOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  useEffect(() => {
+    if (isOpen) {
+      loadGlobalTags()
+    }
+  }, [isOpen, projectId])
+
+  const loadGlobalTags = async () => {
+    try {
+      const response = await window.api.tag.list({ projectId })
+      setGlobalTags(response.tags)
+    } catch (error) {
+      console.error('Failed to load global tags:', error)
+    }
+  }
 
   if (!isOpen) return null
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return
-    const tagArray = tags
-      .split(',')
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0)
+
     onSubmit({
       title: title.trim(),
       description: description.trim() || undefined,
       priority,
       type,
       difficulty: 'medium',
-      tags: tagArray,
+      tags: selectedTags,
       columnId: '',
     })
     setTitle('')
     setDescription('')
-    setTags('')
+    setSelectedTags([])
     setPriority('normal')
     setType('task')
+  }
+
+  const toggleTag = (tagName: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tagName) ? prev.filter((t) => t !== tagName) : [...prev, tagName]
+    )
+  }
+
+  const filteredTags = globalTags.filter((tag) =>
+    tag.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  const getTagColor = (tagName: string) => {
+    return globalTags.find((t) => t.name === tagName)?.color || '#475569'
   }
 
   return (
@@ -511,7 +549,7 @@ function QuickAddTaskModal({ isOpen, onClose, onSubmit, columnName }: QuickAddTa
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as any)}
-                className="w-full px-4 py-3 bg-[#0B0E14] border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
+                className="w-full px-4 py-3 bg-[#0B0E14] border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all text-sm"
               >
                 <option value="postpone">Postpone</option>
                 <option value="low">Low</option>
@@ -527,23 +565,105 @@ function QuickAddTaskModal({ isOpen, onClose, onSubmit, columnName }: QuickAddTa
                 type="text"
                 value={type}
                 onChange={(e) => setType(e.target.value)}
-                className="w-full px-4 py-3 bg-[#0B0E14] border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
+                className="w-full px-4 py-3 bg-[#0B0E14] border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all text-sm"
                 placeholder="task, bug, feature"
               />
             </div>
           </div>
+
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-              Tags (comma separated)
+              Tags
             </label>
-            <input
-              type="text"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              className="w-full px-4 py-3 bg-[#0B0E14] border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
-              placeholder="frontend, api, critical"
-            />
+            <div className="flex flex-wrap gap-2 mb-3 min-h-[32px] p-2 bg-[#0B0E14] border border-slate-800 rounded-xl">
+              {selectedTags.length === 0 && (
+                <span className="text-slate-600 text-xs italic px-1">No tags selected</span>
+              )}
+              {selectedTags.map((tagName) => (
+                <span
+                  key={tagName}
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-800/80 text-white border border-slate-700/50 group transition-all"
+                  style={{ borderLeftColor: getTagColor(tagName), borderLeftWidth: '3px' }}
+                >
+                  {tagName}
+                  <button
+                    type="button"
+                    onClick={() => toggleTag(tagName)}
+                    className="p-0.5 hover:bg-white/10 rounded-sm text-slate-500 hover:text-red-400 transition-colors"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsPickerOpen(!isPickerOpen)}
+                className={cn(
+                  'w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-medium border transition-all',
+                  isPickerOpen
+                    ? 'bg-blue-500/10 text-blue-400 border-blue-500/50'
+                    : 'bg-slate-800/40 text-slate-400 border-slate-800 hover:text-blue-400 hover:border-blue-500/50'
+                )}
+              >
+                <Plus className="w-3 h-3" />
+                {isPickerOpen ? 'Close Tag Picker' : 'Select Tags'}
+              </button>
+
+              {isPickerOpen && (
+                <div className="absolute left-0 bottom-full mb-2 w-full bg-[#161B26] border border-slate-800 rounded-xl shadow-2xl z-20 py-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                  <div className="px-3 pb-2 border-b border-slate-800 mb-1">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500" />
+                      <input
+                        autoFocus
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search tags..."
+                        className="w-full bg-[#0B0E14] border border-slate-800 text-[10px] text-white pl-7 pr-2 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                      />
+                    </div>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto px-1 py-1 custom-scrollbar">
+                    {filteredTags.length === 0 ? (
+                      <div className="px-3 py-4 text-center text-[10px] text-slate-500 italic">
+                        No tags found.
+                      </div>
+                    ) : (
+                      filteredTags.map((tag) => {
+                        const isSelected = selectedTags.includes(tag.name)
+                        return (
+                          <button
+                            key={tag.id}
+                            type="button"
+                            onClick={() => toggleTag(tag.name)}
+                            className={cn(
+                              'w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-all group',
+                              isSelected
+                                ? 'bg-blue-500/10 text-blue-400'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                            )}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-2 h-2 rounded-full"
+                                style={{ backgroundColor: tag.color }}
+                              />
+                              {tag.name}
+                            </div>
+                            {isSelected && <Check className="w-3 h-3" />}
+                          </button>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
+
           <div className="flex gap-3 pt-4">
             <button
               type="button"
@@ -940,6 +1060,7 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
         }}
         onSubmit={handleQuickAddSubmit}
         columnName={columns.find((c) => c.id === quickAddColumnId)?.name}
+        projectId={projectId}
       />
       <ColumnModal
         isOpen={isColumnModalOpen}
