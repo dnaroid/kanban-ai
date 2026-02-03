@@ -98,13 +98,13 @@ export function TagManagement() {
               </label>
               <div className="relative group">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2">
-                  <Hash className="w-3.5 h-3.5 text-slate-600 group-focus-within:text-blue-400 transition-colors" />
+                  <Hash className="w-3.5 h-3.5 text-slate-600 group-focus-within:text-indigo-400 transition-colors" />
                 </div>
                 <input
                   value={newTagName}
                   onChange={(e) => setNewTagName(e.target.value)}
                   placeholder="marketing, api, refactor..."
-                  className="w-full bg-[#0B0E14] border border-slate-800/60 text-sm text-slate-200 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all placeholder:text-slate-800"
+                  className="w-full bg-[#0B0E14] border border-slate-800/60 text-sm text-slate-200 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/40 transition-all placeholder:text-slate-400"
                   onKeyDown={(e) => e.key === 'Enter' && handleCreateTag()}
                 />
               </div>
