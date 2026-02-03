@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Eye, FileText, Loader2, Pencil, Wand2, X } from 'lucide-react'
+import { AlertTriangle, FileText, Loader2, Wand2, X } from 'lucide-react'
 import { cn } from '../../../../lib/utils'
 import type { KanbanTask } from '@/shared/types/ipc.ts'
 import { LightMarkdown } from '../../../LightMarkdown'
@@ -106,14 +106,6 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
             onDelta={handleVoiceDelta}
             onTranscript={handleVoiceTranscript}
           />
-
-          <button
-            onClick={() => setIsEditing(!isEditing)}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded transition-colors"
-            title={isEditing ? 'Preview' : 'Edit'}
-          >
-            {isEditing ? <Eye className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
-          </button>
 
           <button
             onClick={handleImproveDescription}

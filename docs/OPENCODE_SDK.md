@@ -259,18 +259,105 @@ interface Todo {
 }
 ```
 
-### Подписка на события
+### Подписка на события (SSE)
 
 ```typescript
 // SDK поддерживает SSE для real-time обновлений
-const eventStream = await client.event.subscribe({
-  onEvent: (event) => {
-    if (event.type === "session.message") {
-      // Обновить UI при новом сообщении
-      updateChatUI(event.data)
-    }
-  },
+// client.event.subscribe возвращает Promise<{ stream: AsyncGenerator<Event> }>
+const response = await client.event.subscribe({
+  directory: "/path/to/project"
 })
+
+// Извлечь async generator из response
+const stream = response.stream
+
+// Итерировать по событиям
+for await (const event of stream) {
+  console.log('Event type:', event.type)
+  
+  switch (event.type) {
+    case 'message.updated':
+      // Новое сообщение или обновление метаданных
+      console.log('Message:', event.properties.info)
+      break
+      
+    case 'message.part.updated':
+      // Инкрементальное обновление части сообщения (streaming)
+      const part = event.properties.part
+      const delta = event.properties.delta // Новый текст
+      console.log('Part updated:', part.id, delta)
+      break
+      
+    case 'message.removed':
+      // Сообщение удалено
+      console.log('Message removed:', event.properties.messageID)
+      break
+      
+    case 'message.part.removed':
+      // Часть сообщения удалена
+      console.log('Part removed:', event.properties.partID)
+      break
+  }
+}
+```
+
+#### Типы событий
+
+```typescript
+interface Event {
+  type: 'message.updated' | 'message.removed' | 'message.part.updated' | 'message.part.removed'
+  properties: {
+    info?: Message          // для message.updated
+    messageID?: string      // для message.removed, message.part.removed
+    part?: Part            // для message.part.updated
+    delta?: string         // для message.part.updated (инкрементальный текст)
+    partID?: string        // для message.part.removed
+  }
+}
+```
+
+#### Пример: Real-time чат с накоплением parts
+
+```typescript
+const messages = new Map<string, { role: string; parts: Part[] }>()
+
+const response = await client.event.subscribe({ directory: projectPath })
+
+for await (const event of response.stream) {
+  if (event.type === 'message.updated') {
+    const msg = event.properties.info
+    if (!messages.has(msg.id)) {
+      messages.set(msg.id, { role: msg.role, parts: [] })
+    }
+  }
+  
+  if (event.type === 'message.part.updated') {
+    const { part, delta } = event.properties
+    const msg = messages.get(part.messageID)
+    if (!msg) {
+      messages.set(part.messageID, { role: 'assistant', parts: [part] })
+    } else {
+      const existingPartIndex = msg.parts.findIndex(p => p.id === part.id)
+      if (existingPartIndex === -1) {
+        msg.parts.push(part)
+      } else {
+        msg.parts[existingPartIndex] = part
+      }
+    }
+    
+    // Обновить UI с новым контентом
+    updateChatUI(part.messageID, msg)
+  }
+}
+```
+
+#### Важно
+
+- События `message.part.updated` приходят инкрементально во время генерации ответа
+- Каждое событие содержит полный обновленный `part` и `delta` (новый текст)
+- Нужно накапливать parts в сообщении, а не заменять их
+- После завершения генерации приходит финальное `message.updated` с метаданными
+- При обработке финального `message.updated` нужно сохранять накопленные parts
 ```
 
 ### Аутентификация
