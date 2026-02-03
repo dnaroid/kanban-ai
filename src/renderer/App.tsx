@@ -190,7 +190,10 @@ export default function App() {
     { id: 'timeline' as const, label: 'Timeline', icon: CalendarRange },
   ]
   return (
-    <div className="h-screen bg-[#0B0E14] text-slate-200 font-sans selection:bg-blue-500/30 overflow-hidden">
+    <div
+      className="h-screen bg-[#0B0E14] text-slate-200 font-sans selection:bg-blue-500/30 overflow-hidden"
+      style={{ '--sidebar-width': isSidebarCollapsed ? '64px' : '256px' } as React.CSSProperties}
+    >
       {/* Sidebar Navigation */}
       <aside
         className={`fixed top-0 left-0 h-full bg-[#11151C] border-r border-slate-800/50 flex flex-col z-50 transition-all duration-300 ${isSidebarCollapsed ? 'w-16' : 'w-64'}`}
@@ -382,7 +385,9 @@ export default function App() {
             />
           )}
           {screen.id === 'diagnostics' && <DiagnosticsScreen />}
-          {screen.id === 'board' && <BoardScreen projectId={screen.projectId} />}
+          {screen.id === 'board' && (
+            <BoardScreen projectId={screen.projectId} projectName={screen.projectName} />
+          )}
 
           {screen.id === 'timeline' && (
             <TimelineScreen projectId={screen.projectId} projectName={screen.projectName} />

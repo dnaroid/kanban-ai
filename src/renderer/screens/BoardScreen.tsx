@@ -26,21 +26,29 @@ import type {
   BoardColumnInput,
   KanbanTask,
   Project,
+  Tag,
 } from '@/shared/types/ipc.ts'
 import { cn } from '../lib/utils'
 import { TaskDrawer } from '../components/kanban/TaskDrawer'
+import {
+  priorityConfig,
+  statusConfig,
+  typeConfig,
+} from '../components/kanban/drawer/TaskPropertyConfigs'
 
 interface BoardScreenProps {
   projectId: string
+  projectName: string
 }
 
 interface SortableTaskProps {
   task: KanbanTask
+  globalTags: Tag[]
   onDelete?: (id: string) => void
   onClick?: (task: KanbanTask) => void
 }
 
-function SortableTask({ task, onDelete, onClick }: SortableTaskProps) {
+function SortableTask({ task, globalTags, onDelete, onClick }: SortableTaskProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: {
@@ -76,21 +84,13 @@ function SortableTask({ task, onDelete, onClick }: SortableTaskProps) {
     }
   }, [task.id])
 
-  const priorityColors = {
-    postpone: 'border-slate-500/30 text-slate-400 bg-slate-500/5',
-    low: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5',
-    normal: 'border-blue-500/30 text-blue-400 bg-blue-500/5',
-    urgent: 'border-red-500/30 text-red-400 bg-red-500/5',
-  }
+  const pConfig = priorityConfig[task.priority]
+  const tConfig = typeConfig[task.type as keyof typeof typeConfig] || typeConfig.chore
+  const sConfig = task.status ? statusConfig[task.status] : null
 
-  const statusColors = {
-    queued: 'border-slate-500/30 text-slate-400 bg-slate-500/5',
-    running: 'border-blue-500/30 text-blue-400 bg-blue-500/5 animate-pulse',
-    question: 'border-amber-500/30 text-amber-400 bg-amber-500/5',
-    paused: 'border-slate-500/30 text-slate-500 bg-slate-500/5',
-    done: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5',
-    failed: 'border-red-500/30 text-red-400 bg-red-500/5',
-    generating: 'border-purple-500/30 text-purple-400 bg-purple-500/5 animate-pulse',
+  const getTagColor = (tagName: string) => {
+    const normalized = tagName.toLowerCase().trim()
+    return globalTags.find((t) => t.name.toLowerCase().trim() === normalized)?.color || '#475569'
   }
 
   return (
@@ -99,7 +99,7 @@ function SortableTask({ task, onDelete, onClick }: SortableTaskProps) {
       style={style}
       onClick={() => onClick?.(task)}
       className={cn(
-        'bg-[#11151C] border border-slate-700 rounded-xl mb-3 group hover:border-slate-600 hover:shadow-lg hover:shadow-black/20 transition-all cursor-grab active:cursor-grabbing overflow-hidden',
+        'bg-[#11151C] border border-slate-800 rounded-xl mb-3 group hover:border-slate-700 hover:shadow-lg hover:shadow-black/20 transition-all cursor-grab active:cursor-grabbing overflow-hidden',
         isDragging && 'opacity-50 shadow-2xl scale-105'
       )}
     >
@@ -132,27 +132,35 @@ function SortableTask({ task, onDelete, onClick }: SortableTaskProps) {
           <div className="flex flex-wrap items-center gap-2 mb-2">
             <span
               className={cn(
-                'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border',
-                priorityColors[task.priority]
+                'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all',
+                pConfig.bg,
+                pConfig.color
               )}
             >
               {task.priority}
             </span>
-            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider bg-slate-800/50 px-2 py-0.5 rounded-md">
+            <span
+              className={cn(
+                'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all',
+                tConfig.bg,
+                tConfig.color
+              )}
+            >
               {task.type}
             </span>
-            {task.status && task.status !== 'queued' && (
+            {task.status && task.status !== 'queued' && sConfig && (
               <span
                 className={cn(
-                  'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border',
-                  statusColors[task.status]
+                  'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all',
+                  sConfig.bg,
+                  sConfig.color
                 )}
               >
                 {task.status}
               </span>
             )}
             {isBlocked && (
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border bg-red-500/10 text-red-400 border-red-500/20 flex items-center gap-1">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider bg-red-500/10 text-red-400 transition-all">
                 <AlertCircle className="w-3 h-3" />
                 Blocked
               </span>
@@ -161,14 +169,21 @@ function SortableTask({ task, onDelete, onClick }: SortableTaskProps) {
 
           {task.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-1">
-              {task.tags.slice(0, 3).map((tag, i) => (
-                <span
-                  key={i}
-                  className="text-[10px] text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700/50"
-                >
-                  {tag}
-                </span>
-              ))}
+              {task.tags.slice(0, 3).map((tag, i) => {
+                const color = getTagColor(tag)
+                return (
+                  <span
+                    key={i}
+                    className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-bold transition-all"
+                    style={{
+                      backgroundColor: `${color}15`,
+                      color: color,
+                    }}
+                  >
+                    {tag}
+                  </span>
+                )
+              })}
               {task.tags.length > 3 && (
                 <span className="text-[10px] text-slate-500 font-medium">
                   +{task.tags.length - 3}
@@ -187,6 +202,7 @@ interface SortableColumnProps {
   name: string
   color: string
   tasks: KanbanTask[]
+  globalTags: Tag[]
   onAddTask: () => void
   onDeleteTask: (id: string) => void
   onTaskClick?: (task: KanbanTask) => void
@@ -199,6 +215,7 @@ function SortableColumn({
   name,
   color,
   tasks,
+  globalTags,
   onAddTask,
   onDeleteTask,
   onTaskClick,
@@ -293,6 +310,7 @@ function SortableColumn({
               <SortableTask
                 key={task.id}
                 task={task}
+                globalTags={globalTags}
                 onDelete={onDeleteTask}
                 onClick={onTaskClick}
               />
@@ -391,6 +409,7 @@ function ColumnModal({ isOpen, onClose, onSubmit, initialData, title }: ColumnMo
                       ? 'ring-2 ring-white ring-offset-2 ring-offset-[#11151C]'
                       : 'opacity-80 hover:opacity-100'
                   )}
+                  style={{ backgroundColor: color.value }}
                   title={color.name}
                 >
                   {selectedColor === color.value && (
@@ -423,10 +442,11 @@ function ColumnModal({ isOpen, onClose, onSubmit, initialData, title }: ColumnMo
   )
 }
 
-export function BoardScreen({ projectId }: BoardScreenProps) {
+export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
   const [board, setBoard] = useState<Board | null>(null)
   const [project, setProject] = useState<Project | null>(null)
   const [tasks, setTasks] = useState<KanbanTask[]>([])
+  const [globalTags, setGlobalTags] = useState<Tag[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTask, setActiveTask] = useState<KanbanTask | null>(null)
@@ -480,14 +500,16 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
       setLoading(true)
       setError(null)
 
-      const [boardData, projectData] = await Promise.all([
+      const [boardData, projectData, tagsData] = await Promise.all([
         window.api.board.getDefault({ projectId }),
         window.api.project.getById(projectId),
+        window.api.tag.list({}),
       ])
 
       const { board, columns } = boardData
       setBoard({ ...board, columns })
       setProject(projectData)
+      setGlobalTags(tagsData.tags)
 
       const { tasks } = await window.api.task.listByBoard({ boardId: board.id })
       setTasks(tasks)
@@ -562,6 +584,11 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
       await window.api.task.move({ taskId: activeId, toColumnId: overColumnId, toIndex: newIndex })
       loadBoard()
     }
+  }
+
+  const handleTaskClick = (task: KanbanTask) => {
+    setSelectedTask(task)
+    setDrawerOpen(true)
   }
 
   const handleAddTask = async (columnId: string) => {
@@ -712,10 +739,11 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
                       id={column.id}
                       name={column.name}
                       color={column.color || ''}
+                      globalTags={globalTags}
                       tasks={tasks
                         .filter((t) => t.columnId === column.id)
                         .sort((a, b) => (a.orderInColumn || 0) - (b.orderInColumn || 0))}
-                      onTaskClick={setSelectedTask}
+                      onTaskClick={handleTaskClick}
                       onAddTask={() => handleAddTask(column.id)}
                       onEdit={() => {
                         setEditingColumnId(column.id)
@@ -743,18 +771,21 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
           </div>
         </div>
         <DragOverlay>
-          {activeTask && (
-            <div className="bg-[#11151C] border border-slate-700 rounded-xl p-4 shadow-2xl rotate-3 scale-105">
-              <h4 className="text-sm font-semibold text-white">{activeTask.title}</h4>
+          {activeTask ? (
+            <div className="w-80 bg-[#11151C] border-2 border-blue-600 rounded-xl p-4 shadow-2xl rotate-3 scale-105 pointer-events-none opacity-90">
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <h4 className="text-sm font-semibold text-white leading-snug">
+                  {activeTask.title}
+                </h4>
+              </div>
             </div>
-          )}
-          {activeColumn && (
-            <div className="bg-[#11151C] border-2 border-blue-500 rounded-2xl w-80 shadow-2xl rotate-2 opacity-90 p-4">
+          ) : activeColumn ? (
+            <div className="bg-[#11151C] border-2 border-blue-500 rounded-2xl w-80 shadow-2xl rotate-2 opacity-90 p-4 pointer-events-none backdrop-blur-sm">
               <h3 className="text-sm font-bold text-white">
                 {columns.find((c) => c.id === activeColumn)?.name}
               </h3>
             </div>
-          )}
+          ) : null}
         </DragOverlay>
       </DndContext>
       <ColumnModal
