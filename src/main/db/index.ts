@@ -30,7 +30,7 @@ class DatabaseManager {
       this.runMigrations()
     }
     this.seedAgentRoles()
-    this.seedOpencodeModels()
+    this.ensureOpencodeModelsSeeded()
 
     return this.db
   }
@@ -185,20 +185,31 @@ class DatabaseManager {
     console.log('[DB] Seeded agent roles:', roles.map((role) => role.id).join(', '))
   }
 
-  private seedOpencodeModels(): void {
-    if (!this.db) return
+  ensureOpencodeModelsSeeded(): { seeded: boolean; error?: string } {
+    return this.seedOpencodeModels()
+  }
+
+  private seedOpencodeModels(): { seeded: boolean; error?: string } {
+    if (!this.db) return { seeded: false, error: 'Database not initialized' }
 
     const row = this.db.prepare('SELECT COUNT(*) as count FROM opencode_models').get() as {
       count: number
     }
     if (row.count > 0) {
-      return
+      return { seeded: false }
     }
 
     const result = spawnSync('opencode', ['models'], { encoding: 'utf8' })
     if (result.error) {
-      console.error('[DB] Failed to run `opencode models`:', result.error)
-      return
+      const message = `Failed to run \`opencode models\`: ${result.error.message}`
+      console.error('[DB]', message)
+      return { seeded: false, error: message }
+    }
+
+    if (result.status !== 0) {
+      const message = `\`opencode models\` exited with code ${result.status ?? 'unknown'}`
+      console.error('[DB]', message, result.stderr)
+      return { seeded: false, error: message }
     }
 
     const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`
@@ -214,8 +225,9 @@ class DatabaseManager {
       .filter((name) => name.length > 0)
 
     if (names.length === 0) {
-      console.warn('[DB] No models found from `opencode models` output')
-      return
+      const message = 'No models found from `opencode models` output'
+      console.warn('[DB]', message)
+      return { seeded: false, error: message }
     }
 
     const insert = this.db.prepare('INSERT OR IGNORE INTO opencode_models (name) VALUES (?)')
@@ -227,6 +239,7 @@ class DatabaseManager {
     tx()
 
     console.log('[DB] Seeded opencode models:', names.join(', '))
+    return { seeded: true }
   }
 }
 

@@ -562,7 +562,13 @@ ipcHandlers.register('vosk:downloadModel', VoskModelDownloadInputSchema, async (
 })
 
 ipcHandlers.register('opencode:listModels', z.unknown(), async () => {
-  const models = opencodeModelRepo.getAll()
+  let models = opencodeModelRepo.getAll()
+  if (models.length === 0) {
+    const seedResult = dbManager.ensureOpencodeModelsSeeded()
+    if (seedResult.seeded) {
+      models = opencodeModelRepo.getAll()
+    }
+  }
   return OpencodeModelsListResponseSchema.parse({ models })
 })
 
