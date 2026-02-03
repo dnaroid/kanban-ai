@@ -313,40 +313,6 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <header className="flex items-center justify-between p-8 shrink-0">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-600/20">
-            <h1 className="text-2xl font-black italic">A</h1>
-          </div>
-          <div>
-            <div className="flex items-center gap-2 mb-0.5">
-              <h1 className="text-xl font-black text-white tracking-tight uppercase italic">
-                {projectName}
-              </h1>
-              <span className="px-2 py-0.5 rounded-md bg-blue-600/10 text-blue-400 text-[10px] font-black uppercase tracking-widest border border-blue-600/20">
-                Live
-              </span>
-            </div>
-            <p className="text-slate-500 text-xs font-bold tracking-widest uppercase">
-              Project Workspace
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => {
-              setEditingColumnId(null)
-              setIsColumnModalOpen(true)
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition-all shadow-lg shadow-blue-600/20 group"
-          >
-            <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
-            Add Column
-          </button>
-        </div>
-      </header>
-
       <main className="flex-1 overflow-x-auto custom-scrollbar">
         <DndContext
           sensors={sensors}
@@ -354,7 +320,7 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="inline-flex h-full items-stretch gap-6 pl-8 pt-0 pb-8">
+          <div className="inline-flex h-full items-stretch gap-6 pl-8 pt-8 pb-8">
             <SortableContext
               items={columns.map((c) => c.id)}
               strategy={horizontalListSortingStrategy}
