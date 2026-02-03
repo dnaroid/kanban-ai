@@ -194,7 +194,7 @@ export function SettingsScreen({ projectId, projectName, onProjectDeleted }: Set
   const activeProjectName = projects.find((p) => p.id === selectedProjectId)?.name || projectName
 
   return (
-    <div className="flex flex-col h-full w-full px-6 pt-4">
+    <div className="flex flex-col h-full w-full">
       {status && (
         <div className="fixed top-20 right-8 z-50">
           <div
@@ -224,7 +224,7 @@ export function SettingsScreen({ projectId, projectName, onProjectDeleted }: Set
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-y-auto pr-2 pb-20 custom-scrollbar mt-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-y-auto pr-2 pb-20 custom-scrollbar">
         <div className="space-y-6">
           <section className="bg-[#11151C] border border-slate-800/50 rounded-2xl p-6 shadow-xl">
             <SectionHeader
