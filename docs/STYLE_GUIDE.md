@@ -24,7 +24,12 @@
 - **Основной акцент**: `blue-600`
 - **Успех**: `emerald-600`
 - **Предупреждение**: `amber-500`
-- **Ошибка**: `red-500`
+// Ошибка: `red-500`
+
+### Акцентные цвета (Secondaries)
+
+- **Индиго** (Taxonomy/Tags): `indigo-500` / `indigo-600`
+- **Фиолетовый** (Runs/AI): `violet-500` / `violet-600`
 
 ### Текст
 
@@ -97,6 +102,122 @@ uppercase
 // Важные правила для кнопок:
 // 1. Всегда отключайте тень в disabled состоянии: disabled:shadow-none
 // 2. Используйте transition-all для плавных hover-эффектов
+```
+
+### Компоненты навигации (Tabs)
+
+Паттерн для внутренней навигации (например, в настройках):
+
+```tsx
+// Контейнер вкладок
+<div className="flex items-center gap-2 mb-8 border-b border-slate-800/40">
+  {tabs.map((tab) => {
+    const isActive = activeTab === tab.id
+    return (
+      <button
+        key={tab.id}
+        onClick={() => setActiveTab(tab.id)}
+        className={cn(
+          // Базовые стили
+          'flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-widest rounded-t-xl transition-all border-b-2',
+          // Активное состояние
+          isActive
+            ? 'border-blue-500 text-blue-400 bg-blue-500/5'
+            : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-800/20'
+        )}
+      >
+        <Icon className={cn('w-4 h-4', isActive ? 'text-blue-400' : 'text-slate-500')} />
+        {tab.label}
+      </button>
+    )
+  })}
+</div>
+```
+
+### Уведомления (Toasts)
+
+Всплывающие уведомления о статусе операций.
+
+```tsx
+// Фиксированная позиция
+<div className="fixed top-20 right-8 z-50">
+  <div
+    className={cn(
+      'px-5 py-3 rounded-2xl border backdrop-blur-xl animate-in slide-in-from-top-4 shadow-2xl',
+      // Варианты стилизации
+      type === 'success'
+        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+        : type === 'error'
+          ? 'bg-red-500/10 border-red-500/20 text-red-400'
+          : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
+    )}
+  >
+    <div className="flex items-center gap-3">
+      {/* Индикатор статуса */}
+      <div className={cn('w-2 h-2 rounded-full animate-pulse', indicatorColor)} />
+      <p className="text-sm font-bold tracking-tight">{message}</p>
+    </div>
+  </div>
+</div>
+```
+
+### Модальные окна
+
+Стандартный паттерн для диалоговых окон (например, поиск, подтверждение действий).
+
+```tsx
+// Оверлей
+<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center pt-24 (или center)">
+  
+  // Контейнер модального окна
+  <div className="w-[720px] bg-[#0B0E14] border border-slate-800/60 rounded-2xl shadow-2xl p-6 space-y-4">
+    
+    // Заголовок и закрытие
+    <div className="flex items-center justify-between">
+       <h2 className="text-xl font-bold text-white">Title</h2>
+       <button onClick={onClose}><X /></button>
+    </div>
+
+    // Контент
+    <div>...</div>
+
+    // Футер с действиями
+    <div className="flex gap-3 pt-2">
+      <button className="...">Cancel</button>
+      <button className="...">Confirm</button>
+    </div>
+  </div>
+</div>
+```
+
+### Таблицы данных
+
+Паттерн для отображения списков (например, теги, логи).
+
+```tsx
+// Контейнер с скроллом и границами
+<div className="bg-[#0B0E14] border border-slate-800/60 rounded-xl overflow-hidden shadow-inner shadow-black/40">
+  <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
+    <table className="w-full text-left">
+      
+      // Sticky заголовок
+      <thead className="sticky top-0 z-10 bg-slate-900/50 backdrop-blur-md">
+        <tr className="text-[9px] uppercase tracking-[0.2em] text-slate-500 font-black">
+          <th className="px-4 py-3">Column 1</th>
+          <th className="px-4 py-3 text-right">Action</th>
+        </tr>
+      </thead>
+
+      // Тело таблицы с разделителями
+      <tbody className="divide-y divide-slate-800/40">
+        <tr className="group hover:bg-slate-800/20 transition-all">
+          <td className="px-4 py-2.5">Content</td>
+        </tr>
+      </tbody>
+
+    </table>
+  </div>
+</div>
 ```
 
 ### Поля ввода

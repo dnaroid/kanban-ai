@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import { app } from 'electron'
 import path from 'path'
 import fs from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { INIT_DB_SQL, migrations } from './migrations'
 
 const DB_PATH = process.env.DB_PATH || path.join(app.getPath('userData'), 'kanban.db')
@@ -29,6 +30,7 @@ class DatabaseManager {
       this.runMigrations()
     }
     this.seedAgentRoles()
+    this.seedOpencodeModels()
 
     return this.db
   }
@@ -181,6 +183,50 @@ class DatabaseManager {
     tx()
 
     console.log('[DB] Seeded agent roles:', roles.map((role) => role.id).join(', '))
+  }
+
+  private seedOpencodeModels(): void {
+    if (!this.db) return
+
+    const row = this.db.prepare('SELECT COUNT(*) as count FROM opencode_models').get() as {
+      count: number
+    }
+    if (row.count > 0) {
+      return
+    }
+
+    const result = spawnSync('opencode', ['models'], { encoding: 'utf8' })
+    if (result.error) {
+      console.error('[DB] Failed to run `opencode models`:', result.error)
+      return
+    }
+
+    const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`
+    const names = output
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .filter((line) => {
+        const normalized = line.toLowerCase()
+        return !normalized.startsWith('name') && !normalized.startsWith('model')
+      })
+      .map((line) => line.split(/\s+/)[0])
+      .filter((name) => name.length > 0)
+
+    if (names.length === 0) {
+      console.warn('[DB] No models found from `opencode models` output')
+      return
+    }
+
+    const insert = this.db.prepare('INSERT OR IGNORE INTO opencode_models (name) VALUES (?)')
+    const tx = this.db.transaction(() => {
+      for (const name of names) {
+        insert.run(name)
+      }
+    })
+    tx()
+
+    console.log('[DB] Seeded opencode models:', names.join(', '))
   }
 }
 

@@ -111,7 +111,7 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
             onClick={handleImproveDescription}
             disabled={isGeneratingStory}
             className={cn(
-              'p-1.5 text-purple-400 hover:text-white hover:bg-purple-500/10 rounded transition-colors flex items-center gap-1.5',
+              'p-1.5 text-violet-400 hover:text-white hover:bg-violet-500/10 rounded-lg transition-colors flex items-center gap-1.5',
               isGeneratingStory && 'opacity-50 cursor-not-allowed'
             )}
             title="Improve with AI"
@@ -134,7 +134,7 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
           <span className="flex-1">{generationError}</span>
           <button
             onClick={() => setGenerationError(null)}
-            className="p-0.5 hover:bg-red-400/20 rounded transition-colors"
+            className="p-0.5 hover:bg-red-400/20 rounded-lg transition-colors"
           >
             <X className="w-3 h-3" />
           </button>
@@ -154,7 +154,7 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
               autoFocus
               placeholder="Add a description..."
               className={cn(
-                'w-full h-full bg-[#161B26] border border-slate-800 rounded-xl p-4 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all resize-none font-mono',
+                'w-full h-full bg-[#161B26] border border-slate-800/60 rounded-xl p-4 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all resize-none font-mono',
                 isGeneratingStory && 'opacity-50 cursor-not-allowed'
               )}
             />
@@ -178,13 +178,13 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
         ) : (
           <div
             onClick={() => setIsEditing(true)}
-            className="relative w-full h-full bg-[#161B26]/50 border border-transparent hover:border-slate-800 rounded-xl p-4 text-sm text-slate-300 overflow-y-auto cursor-pointer transition-colors"
+            className="relative w-full h-full bg-[#161B26]/50 border border-transparent hover:border-slate-800/60 rounded-xl p-4 text-sm text-slate-300 overflow-y-auto cursor-pointer transition-colors"
           >
             {editedDescription ? (
               <>
                 <LightMarkdown text={editedDescription} />
                 {liveTranscript && (
-                  <div className="text-blue-400/50 italic animate-pulse mt-2 border-t border-slate-800/50 pt-2">
+                  <div className="text-blue-400/50 italic animate-pulse mt-2 border-t border-slate-800/60 pt-2">
                     {liveTranscript}
                   </div>
                 )}

@@ -85,12 +85,12 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
       />
       <div
         className={cn(
-          'fixed inset-y-0 right-0 bg-[#0B0E14] border-l border-slate-800 shadow-2xl transform transition-all duration-300 z-50 flex flex-col',
+          'fixed inset-y-0 right-0 bg-[#0B0E14] border-l border-slate-800/60 shadow-2xl transform transition-all duration-300 z-50 flex flex-col',
           isExpanded ? 'left-[var(--sidebar-width)]' : 'w-[600px]'
         )}
       >
         {/* Header */}
-        <div className="h-14 border-b border-slate-800 flex items-center justify-between px-4 bg-[#11151C] shrink-0">
+        <div className="h-14 border-b border-slate-800/60 flex items-center justify-between px-4 bg-[#11151C] shrink-0">
           <div className="flex items-center gap-2 flex-1 min-w-0 mr-4">
             {isEditingTitle ? (
               <input
@@ -99,7 +99,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                 onChange={(e) => setEditedTitle(e.target.value)}
                 onBlur={handleSaveTitle}
                 onKeyDown={handleKeyDown}
-                className="flex-1 bg-slate-900 border border-blue-500/50 text-sm font-semibold text-white px-2 py-1 rounded focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                className="flex-1 bg-slate-900 border border-blue-500/50 text-sm font-semibold text-white px-2 py-1 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500/50"
               />
             ) : (
               <div
@@ -115,7 +115,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
           <div className="flex items-center gap-1">
             <button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded transition-colors"
+              className="p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded-lg transition-colors"
               title={isExpanded ? 'Collapse' : 'Expand'}
             >
               {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -124,7 +124,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className={cn(
-                  'p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded transition-colors',
+                  'p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded-lg transition-colors',
                   isMenuOpen && 'text-slate-300 bg-slate-800'
                 )}
               >
@@ -134,7 +134,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
               {isMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setIsMenuOpen(false)} />
-                  <div className="absolute right-0 top-full mt-1 w-48 bg-[#161B26] border border-slate-700 rounded-lg shadow-xl z-20 py-1 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-[#161B26] border border-slate-700/60 rounded-xl shadow-xl z-20 py-1 animate-in fade-in zoom-in-95 duration-200">
                     <button
                       onClick={() => {
                         setIsMenuOpen(false)
@@ -148,10 +148,10 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
                 </>
               )}
             </div>
-            <div className="w-px h-4 bg-slate-800 mx-1" />
+            <div className="w-px h-4 bg-slate-800/60 mx-1" />
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-500 hover:text-white hover:bg-red-500/10 hover:border-red-500/20 border border-transparent rounded transition-colors"
+              className="p-1.5 text-slate-500 hover:text-white hover:bg-red-500/10 hover:border-red-500/20 border border-transparent rounded-lg transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -159,13 +159,13 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center px-4 border-b border-slate-800 bg-[#11151C] shrink-0">
+        <div className="flex items-center px-4 border-b border-slate-800/60 bg-[#11151C] shrink-0">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'px-4 py-3 text-xs font-medium border-b-2 transition-colors relative',
+                'px-4 py-3 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors relative',
                 activeTab === tab.id
                   ? 'text-blue-400 border-blue-500 bg-blue-500/5'
                   : 'text-slate-500 border-transparent hover:text-slate-300 hover:bg-slate-800/50'

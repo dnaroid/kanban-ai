@@ -67,7 +67,7 @@ function CreateProjectModal({
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
-      <div className="bg-[#11151C] border border-slate-800 rounded-2xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
+      <div className="bg-[#11151C] border border-slate-800/60 rounded-2xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-2xl font-bold text-white">Connect Repository</h2>
           <button
@@ -96,7 +96,7 @@ function CreateProjectModal({
                 type="button"
                 onClick={handleSelectFolder}
                 disabled={loading}
-                className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-sm transition-all border border-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-bold text-xs transition-all border border-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
               >
                 {loading ? 'Loading...' : 'Browse...'}
               </button>
@@ -154,14 +154,14 @@ function CreateProjectModal({
                 onClose()
                 setSelectedFolder(null)
               }}
-              className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-sm transition-all border border-slate-700/50"
+              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-semibold text-xs transition-all border border-slate-700/50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!selectedFolder}
-              className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-600/20"
+              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-600/20"
             >
               Connect
             </button>
@@ -361,9 +361,9 @@ export function ProjectsScreen({ onProjectSelect }: ProjectsScreenProps) {
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 shadow-lg shadow-blue-600/20 active:scale-95"
+          className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 shadow-lg shadow-blue-600/20 active:scale-95 text-xs"
         >
-          <Plus className="w-5 h-5" />
+          <Plus className="w-4 h-4" />
           New Project
         </button>
       </div>

@@ -412,6 +412,11 @@ CREATE TABLE IF NOT EXISTS plugins (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS opencode_models (
+  name TEXT PRIMARY KEY,
+  enabled INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
@@ -540,6 +545,15 @@ export const migrations = [
         ELSE color
       END
       WHERE color IS NULL OR color = '';
+    `,
+  },
+  {
+    version: 13,
+    sql: `
+      CREATE TABLE IF NOT EXISTS opencode_models (
+        name TEXT PRIMARY KEY,
+        enabled INTEGER NOT NULL DEFAULT 0
+      );
     `,
   },
 ] as const
