@@ -9,10 +9,12 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
   const [events, setEvents] = useState<RunEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [autoScroll, setAutoScroll] = useState(true)
+  const [streamingMessageIds, setStreamingMessageIds] = useState<Set<string>>(new Set())
   const scrollRef = useRef<HTMLDivElement>(null)
   const lastTsRef = useRef<string | null>(null)
   const seenMessageIdsRef = useRef<Set<string>>(new Set())
   const refreshMessagesRef = useRef<(() => Promise<void>) | null>(null)
+  const streamingTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
 
   const coerceText = (value: unknown): string => {
     if (typeof value === 'string') return value
@@ -102,6 +104,27 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
     const updateMessagePart = (messageId: string, part: Part) => {
       const id = `msg-${messageId}`
       console.log('[ExecutionLog] updateMessagePart called:', { messageId, partId: part.id, partType: part.type })
+      
+      // Mark message as streaming
+      setStreamingMessageIds((prev) => new Set(prev).add(messageId))
+      
+      // Clear existing timeout for this message
+      const existingTimeout = streamingTimeoutsRef.current.get(messageId)
+      if (existingTimeout) {
+        clearTimeout(existingTimeout)
+      }
+      
+      // Set new timeout to mark message as not streaming after 2 seconds of inactivity
+      const timeout = setTimeout(() => {
+        setStreamingMessageIds((prev) => {
+          const next = new Set(prev)
+          next.delete(messageId)
+          return next
+        })
+        streamingTimeoutsRef.current.delete(messageId)
+      }, 2000)
+      streamingTimeoutsRef.current.set(messageId, timeout)
+      
       setEvents((prev) => {
         const existingIndex = prev.findIndex((item) => item.id === id)
         if (existingIndex === -1) {
@@ -370,6 +393,10 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
           : []
 
       const isUser = role === 'user'
+      
+      // Extract messageId from event.id (format: "msg-<messageId>")
+      const messageId = event.id.replace(/^msg-/, '')
+      const isStreaming = streamingMessageIds.has(messageId)
 
       return (
         <div
@@ -387,7 +414,10 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
                 'w-8 h-8 rounded-xl flex items-center justify-center shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:rotate-3',
                 isUser
                   ? 'bg-gradient-to-br from-violet-500 to-indigo-600 shadow-indigo-500/20'
-                  : 'bg-gradient-to-br from-blue-500 to-blue-600 shadow-blue-500/20 animate-pulse'
+                  : cn(
+                      'bg-gradient-to-br from-blue-500 to-blue-600 shadow-blue-500/20',
+                      isStreaming && 'animate-pulse'
+                    )
               )}
             >
               {isUser ? (
