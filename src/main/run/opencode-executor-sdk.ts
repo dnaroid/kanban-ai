@@ -1,6 +1,7 @@
 import { projectRepo } from '../db/project-repository.js'
 import { runEventRepo } from '../db/run-event-repository.js'
 import { runRepo } from '../db/run-repository.js'
+import { tagRepo } from '../db/tag-repository.js'
 import { taskRepo } from '../db/task-repository.js'
 import type { RunRecord } from '../db/run-types'
 import type { RunExecutor, RunStartResult } from './job-runner'
@@ -23,7 +24,12 @@ export class OpenCodeExecutorSDK implements RunExecutor {
       throw new Error('Project not found for task')
     }
 
-    const prompt = buildUserStoryPrompt(task, project)
+    const availableTags = tagRepo.listAll().map((tag) => tag.name)
+    const prompt = buildUserStoryPrompt(task, project, {
+      availableTags,
+      availableTypes: ['feature', 'bug', 'chore', 'improvement'],
+      availableDifficulties: ['easy', 'medium', 'hard', 'epic'],
+    })
     const sessionTitle = `User Story: ${task.title}`
 
     const runId = await this.startTaskPrompt({

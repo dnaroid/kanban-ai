@@ -227,14 +227,35 @@ uppercase
   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
     Label Text
   </label>
-  <input
-    value={value}
-    onChange={(event) => setValue(event.target.value)}
-    placeholder="Placeholder text"
-    className="w-full bg-[#0B0E14] border border-slate-800/60 text-sm text-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/40 transition-all"
-  />
+  <div className="relative">
+    <input
+      value={value}
+      onChange={(event) => setValue(event.target.value)}
+      placeholder="Placeholder text"
+      className="w-full bg-[#0B0E14] border border-slate-800/60 text-sm text-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/40 transition-all placeholder:text-slate-400"
+    />
+  </div>
 </div>
 ```
+
+**Важные правила для ввода:**
+1. **Всегда** используйте `focus:outline-none`, чтобы убрать стандартную браузерную обводку.
+2. Используйте `placeholder:text-slate-400` для достаточной контрастности на темном фоне.
+
+### Списки с группами и фильтрами (Collapsible Sections)
+
+Паттерн для управления наборами данных (например, список моделей):
+
+1. **Группировка**: Разделяйте данные по логическим провайдерам (первая часть пути в имени).
+2. **Состояние групп**: По умолчанию группы свернуты. При активном поиске или фильтрации группы должны разворачиваться автоматически.
+3. **Визуальное выделение**: Активные группы (где выбрано > 0 элементов) должны подсвечиваться:
+   - Рамка: `border-blue-500/30`
+   - Фон заголовка: `bg-blue-500/[0.03]`
+   - Цвет иконки и текста: `text-blue-400`
+4. **Статистика**: Отображайте `Выбрано / Всего` в бейджах для каждой группы и в заголовке всей секции.
+5. **Контроллы**: 
+   - Групповые триггеры (Toggle All) вместо текстовых кнопок.
+   - Кнопки массового управления (Expand/Collapse All) рядом с поиском.
 
 ### Карточки / Контейнеры
 

@@ -1,5 +1,6 @@
 import { runEventRepo } from '../db/run-event-repository.js'
 import { runRepo } from '../db/run-repository.js'
+import { tagRepo } from '../db/tag-repository.js'
 import { taskRepo } from '../db/task-repository.js'
 import type { RunRecord } from '../db/run-types'
 import { sessionManager } from './opencode-session-manager.js'
@@ -16,6 +17,9 @@ const taskStatusValues = [
 ] as const
 
 type TaskStatus = (typeof taskStatusValues)[number]
+
+const allowedTaskTypes = ['feature', 'bug', 'chore', 'improvement'] as const
+const allowedDifficulties = ['easy', 'medium', 'hard', 'epic'] as const
 
 const isTaskStatus = (value: string): value is TaskStatus =>
   (taskStatusValues as readonly string[]).includes(value)
@@ -164,10 +168,29 @@ export class OpenCodeSessionWorker {
         })
 
         if (input.kind === 'task-description-improve') {
-          this.updateTask(input.taskId, {
-            description: content,
+          const parsed = this.parseUserStoryResponse(content, input.taskId)
+          const patch: Partial<{
+            status: TaskStatus
+            description: string
+            tags: string[]
+            type: string
+            difficulty: string
+          }> = {
+            description: parsed.description,
             status: restoreStatus,
-          })
+          }
+
+          if (parsed.tags) {
+            patch.tags = parsed.tags
+          }
+          if (parsed.type) {
+            patch.type = parsed.type
+          }
+          if (parsed.difficulty) {
+            patch.difficulty = parsed.difficulty
+          }
+
+          this.updateTask(input.taskId, patch)
 
           runRepo.update(input.runId, {
             status: 'succeeded',
@@ -323,7 +346,78 @@ export class OpenCodeSessionWorker {
     return content.trim() || null
   }
 
-  private updateTask(taskId: string, patch: Partial<{ status: TaskStatus; description: string }>) {
+  private parseUserStoryResponse(
+    content: string,
+    taskId: string
+  ): { description: string; tags?: string[]; type?: string; difficulty?: string } {
+    const metaMatch = content.match(/<META>([\s\S]*?)<\/META>/i)
+    const storyMatch = content.match(/<STORY>([\s\S]*?)<\/STORY>/i)
+
+    const rawStory = storyMatch ? storyMatch[1] : content.replace(/<META>[\s\S]*?<\/META>/i, '')
+
+    const description = rawStory.trim() || content.trim()
+
+    if (!metaMatch) {
+      return { description }
+    }
+
+    const metaRaw = metaMatch[1]
+      .replace(/```json/gi, '')
+      .replace(/```/g, '')
+      .trim()
+
+    let meta: any = null
+    try {
+      meta = JSON.parse(metaRaw)
+    } catch {
+      return { description }
+    }
+
+    const result: { description: string; tags?: string[]; type?: string; difficulty?: string } = {
+      description,
+    }
+
+    if (Array.isArray(meta.tags)) {
+      const allowedTags = new Set(tagRepo.listAll().map((tag) => tag.name))
+      const filtered = meta.tags
+        .filter((tag: unknown): tag is string => typeof tag === 'string')
+        .map((tag) => tag.trim())
+        .filter((tag) => tag.length > 0 && allowedTags.has(tag))
+
+      if (filtered.length > 0) {
+        result.tags = Array.from(new Set(filtered))
+      } else {
+        result.tags = []
+      }
+    }
+
+    if (typeof meta.type === 'string') {
+      const normalized = meta.type.trim()
+      if ((allowedTaskTypes as readonly string[]).includes(normalized)) {
+        result.type = normalized
+      }
+    }
+
+    if (typeof meta.difficulty === 'string') {
+      const normalized = meta.difficulty.trim()
+      if ((allowedDifficulties as readonly string[]).includes(normalized)) {
+        result.difficulty = normalized
+      }
+    }
+
+    return result
+  }
+
+  private updateTask(
+    taskId: string,
+    patch: Partial<{
+      status: TaskStatus
+      description: string
+      tags: string[]
+      type: string
+      difficulty: string
+    }>
+  ) {
     taskRepo.update(taskId, patch)
     const task = taskRepo.getById(taskId)
     if (task) {
