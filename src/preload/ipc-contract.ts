@@ -93,7 +93,7 @@ export interface MainToRenderer {
     getInfo(): Promise<AppInfo>
   }
   opencode: {
-    onEvent(callback: (event: OpenCodeSessionEvent) => void): () => void
+    onEvent(sessionId: string, callback: (event: OpenCodeSessionEvent) => void): () => void
     generateUserStory(
       input: OpenCodeGenerateUserStoryInput
     ): Promise<OpenCodeGenerateUserStoryResponse>

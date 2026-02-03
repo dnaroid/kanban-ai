@@ -6,13 +6,19 @@ const api: MainToRenderer = {
     getInfo: () => ipcRenderer.invoke('app:getInfo'),
   },
   opencode: {
-    onEvent: (callback) => {
+    onEvent: (sessionId, callback) => {
       const listener = (_event: unknown, data: unknown) => {
         callback(data as OpenCodeSessionEvent)
       }
       ipcRenderer.on('opencode:event', listener)
+      if (sessionId) {
+        void ipcRenderer.invoke('opencode:subscribeToEvents', { sessionID: sessionId })
+      }
       return () => {
         ipcRenderer.removeListener('opencode:event', listener)
+        if (sessionId) {
+          void ipcRenderer.invoke('opencode:unsubscribeFromEvents', { sessionID: sessionId })
+        }
       }
     },
     generateUserStory: (input) => ipcRenderer.invoke('opencode:generateUserStory', input),

@@ -451,10 +451,16 @@ ipcHandlers.register(
     const { sessionID } = input
     const webContents = event.sender
 
+    console.log(`[IPC] opencode:subscribeToEvents called for session ${sessionID}`)
+
     await sessionManager.subscribeToSessionEvents(sessionID, (sessionEvent: SessionEvent) => {
+      console.log(
+        `[IPC] Sending event to renderer: ${sessionEvent.type} for session ${sessionEvent.sessionId}`
+      )
       webContents.send('opencode:event', sessionEvent)
     })
 
+    console.log(`[IPC] Successfully subscribed to session ${sessionID}`)
     return { ok: true, subscribed: true }
   }
 )

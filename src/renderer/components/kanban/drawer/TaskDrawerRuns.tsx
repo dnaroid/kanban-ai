@@ -279,6 +279,9 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
             runId={selectedRunId}
             run={selectedRun}
             onBack={() => setSelectedRunId(null)}
+            onDelete={(e) => handleDeleteRun(selectedRunId, e)}
+            onRestart={(e) => selectedRun && handleRetryRun(selectedRun, e)}
+            onCancel={(e) => handleCancelRun(selectedRunId, e)}
             showBack={runs.length > 1}
           />
         ) : (

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowLeft, Files, Terminal } from 'lucide-react'
+import { ArrowLeft, Files, RotateCcw, Square, Terminal, Trash2 } from 'lucide-react'
 import { cn } from '../../../../lib/utils'
 import type { Run } from '@/shared/types/ipc.ts'
 import { ArtifactsPanel } from './ArtifactsPanel'
@@ -9,11 +9,17 @@ export function RunDetailsView({
   runId,
   run,
   onBack,
+  onDelete,
+  onRestart,
+  onCancel,
   showBack = true,
 }: {
   runId: string
   run: Run | null
   onBack: () => void
+  onDelete?: (e: React.MouseEvent) => void
+  onRestart?: (e: React.MouseEvent) => void
+  onCancel?: (e: React.MouseEvent) => void
   showBack?: boolean
 }) {
   const [view, setView] = useState<'log' | 'artifacts'>('log')
@@ -49,6 +55,36 @@ export function RunDetailsView({
             </button>
           )}
           <span className="text-xs font-mono text-blue-400/80">{runId.slice(0, 8)}</span>
+
+          <div className="flex items-center gap-1.5 ml-2 border-l border-slate-800 pl-3">
+            {onRestart && (
+              <button
+                onClick={onRestart}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
+                title="Restart run"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {onCancel && run?.status === 'running' && (
+              <button
+                onClick={onCancel}
+                className="p-1.5 text-red-400/60 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                title="Cancel run"
+              >
+                <Square className="w-3.5 h-3.5 fill-current" />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={onDelete}
+                className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                title="Delete run"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-4">

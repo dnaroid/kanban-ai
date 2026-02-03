@@ -11,6 +11,8 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
   const [autoScroll, setAutoScroll] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
   const lastTsRef = useRef<string | null>(null)
+  const seenMessageIdsRef = useRef<Set<string>>(new Set())
+  const refreshMessagesRef = useRef<(() => Promise<void>) | null>(null)
 
   const coerceText = (value: unknown): string => {
     if (typeof value === 'string') return value
@@ -46,8 +48,53 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
     }
   }
 
+  const buildMessageEvent: (
+    messageId: string,
+    message: { role?: string; content?: string; parts?: Part[] },
+    ts?: string
+  ) => RunEvent = (messageId, message, ts = new Date().toISOString()) => ({
+    id: `msg-${messageId}`,
+    runId: sessionId,
+    ts,
+    eventType: 'message',
+    payload: {
+      role: message.role,
+      content: message.content ?? '',
+      parts: message.parts ?? [],
+    },
+  })
+
   useEffect(() => {
-    const cleanup = window.api.opencode.onEvent((event) => {
+    const upsertMessageEvent = (payload: {
+      id?: string
+      role?: string
+      content?: string
+      parts?: Part[]
+    }) => {
+      if (!payload?.id) return
+      const id = `msg-${payload.id}`
+      setEvents((prev) => {
+        const existingIndex = prev.findIndex((item) => item.id === id)
+        if (existingIndex === -1) {
+          seenMessageIdsRef.current.add(id)
+          const newEvent = buildMessageEvent(payload.id, payload)
+          return [...prev, newEvent].slice(-500)
+        }
+        const updated = [...prev]
+        const existing = updated[existingIndex]
+        const updatedEvent = buildMessageEvent(payload.id, payload, existing.ts)
+        updated[existingIndex] = updatedEvent
+        return updated
+      })
+    }
+
+    const removeMessageEvent = (messageId: string) => {
+      const id = `msg-${messageId}`
+      seenMessageIdsRef.current.delete(id)
+      setEvents((prev) => prev.filter((item) => item.id !== id))
+    }
+
+    const cleanup = window.api.opencode.onEvent(sessionId, (event) => {
       if (event.sessionId !== sessionId) return
 
       if (event.type === 'message.part.updated') {
@@ -61,6 +108,33 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
         }
         setEvents((prev) => [...prev, newEvent].slice(-500))
         setIsLoading(false)
+        return
+      }
+
+      if (event.type === 'message.updated') {
+        if (event.message && typeof event.message === 'object') {
+          const message = event.message as {
+            id?: string
+            role?: string
+            content?: string
+            parts?: Part[]
+          }
+          upsertMessageEvent(message)
+          setIsLoading(false)
+        }
+        return
+      }
+
+      if (event.type === 'message.removed') {
+        removeMessageEvent(event.messageId)
+        return
+      }
+
+      if (event.type === 'error') {
+        void refreshMessagesRef.current?.()
+        if (typeof event.error === 'string' && event.error.includes('Session not found')) {
+          cleanup()
+        }
       }
     })
 
@@ -100,18 +174,46 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
         })
         if (!isActive) return
         if (response.messages.length > 0) {
-          const messageEvents: RunEvent[] = response.messages.map((msg: any) => ({
-            id: `msg-${msg.id}`,
-            runId: sessionId,
-            ts: new Date(msg.timestamp).toISOString(),
-            eventType: 'message',
-            payload: {
-              role: msg.role,
-              content: msg.content,
-              parts: msg.parts,
-            },
-          }))
-          setEvents((prev) => [...messageEvents, ...prev].slice(-500))
+          setEvents((prev) => {
+            const updated = [...prev]
+            const indexById = new Map<string, number>()
+
+            updated.forEach((event, index) => {
+              indexById.set(event.id, index)
+            })
+
+            response.messages.forEach((msg: any) => {
+              const id = `msg-${msg.id}`
+              const event: RunEvent = {
+                id,
+                runId: sessionId,
+                ts: new Date(msg.timestamp).toISOString(),
+                eventType: 'message',
+                payload: {
+                  role: msg.role,
+                  content: msg.content,
+                  parts: msg.parts,
+                },
+              }
+
+              seenMessageIdsRef.current.add(id)
+
+              const existingIndex = indexById.get(id)
+              if (existingIndex === undefined) {
+                updated.push(event)
+                indexById.set(id, updated.length - 1)
+                return
+              }
+
+              updated[existingIndex] = {
+                ...updated[existingIndex],
+                ts: event.ts,
+                payload: event.payload,
+              }
+            })
+
+            return updated.slice(-500)
+          })
         }
       } catch (error) {
         console.error('Failed to fetch session messages:', error)
@@ -129,10 +231,12 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
       await fetchEvents()
     }
 
+    refreshMessagesRef.current = fetchSessionMessages
     loadInitial()
     const interval = setInterval(fetchEvents, 1500)
     return () => {
       isActive = false
+      refreshMessagesRef.current = null
       clearInterval(interval)
     }
   }, [runId, sessionId])
