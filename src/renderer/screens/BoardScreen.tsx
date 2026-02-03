@@ -26,6 +26,7 @@ import type {
   BoardColumnInput,
   CreateTaskInput,
   KanbanTask,
+  Project,
   Tag,
 } from '@/shared/types/ipc.ts'
 import { cn } from '../lib/utils'
@@ -681,6 +682,7 @@ function QuickAddTaskModal({ isOpen, onClose, onSubmit, columnName }: QuickAddTa
 
 export function BoardScreen({ projectId }: BoardScreenProps) {
   const [board, setBoard] = useState<Board | null>(null)
+  const [project, setProject] = useState<Project | null>(null)
   const [tasks, setTasks] = useState<KanbanTask[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -736,8 +738,16 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
     try {
       setLoading(true)
       setError(null)
-      const { board, columns } = await window.api.board.getDefault({ projectId })
+
+      const [boardData, projectData] = await Promise.all([
+        window.api.board.getDefault({ projectId }),
+        window.api.project.getById(projectId),
+      ])
+
+      const { board, columns } = boardData
       setBoard({ ...board, columns })
+      setProject(projectData)
+
       const { tasks } = await window.api.task.listByBoard({ boardId: board.id })
       setTasks(tasks)
     } catch (error) {
@@ -949,6 +959,7 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
     )
 
   const columns = board.columns || []
+  const projectColor = project?.color || '#3B82F6'
 
   return (
     <>
@@ -958,10 +969,19 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="h-full flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between mb-6 shrink-0">
+        <div className="h-full flex flex-col overflow-hidden relative">
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              backgroundColor: `${projectColor}05`,
+            }}
+          />
+
+          <div className="flex items-center justify-between mb-6 shrink-0 relative z-10">
             <div>
-              <h1 className="text-2xl font-bold text-white">{board.name}</h1>
+              <h1 className="text-2xl font-bold tracking-tight" style={{ color: projectColor }}>
+                {board.name}
+              </h1>
               <p className="text-slate-500 text-sm mt-1">
                 {tasks.length} tasks across {columns.length} columns
               </p>
