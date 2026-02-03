@@ -20,14 +20,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { AlertCircle, Clock, Edit2, GripVertical, Plus, Trash2, X } from 'lucide-react'
-import type {
-  Board,
-  BoardColumn,
-  BoardColumnInput,
-  KanbanTask,
-  Project,
-  Tag,
-} from '@/shared/types/ipc.ts'
+import type { Board, BoardColumn, BoardColumnInput, KanbanTask, Tag } from '@/shared/types/ipc.ts'
 import { cn } from '../lib/utils'
 import { TaskDrawer } from '../components/kanban/TaskDrawer'
 import {
@@ -97,101 +90,92 @@ function SortableTask({ task, globalTags, onDelete, onClick }: SortableTaskProps
     <div
       ref={setNodeRef}
       style={style}
+      {...attributes}
+      {...listeners}
       onClick={() => onClick?.(task)}
       className={cn(
-        'bg-[#11151C] border border-slate-800 rounded-xl mb-3 group hover:border-slate-700 hover:shadow-lg hover:shadow-black/20 transition-all cursor-grab active:cursor-grabbing overflow-hidden',
+        'bg-[#11151C] border border-slate-700 rounded-xl mb-3 group hover:border-slate-600 hover:shadow-lg hover:shadow-black/20 transition-all cursor-grab active:cursor-grabbing overflow-hidden',
         isDragging && 'opacity-50 shadow-2xl scale-105'
       )}
     >
-      <div className="flex items-stretch gap-0">
-        <button
-          {...attributes}
-          {...listeners}
-          className="px-2 flex items-center justify-center text-slate-700 hover:text-slate-400 hover:bg-slate-800/50 transition-colors"
-        >
-          <GripVertical className="w-5 h-5" />
-        </button>
+      <div className="flex-1 min-w-0 p-4">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <h4 className="text-sm font-semibold text-slate-200 leading-snug flex-1">{task.title}</h4>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete?.(task.id)
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all p-1 rounded-md hover:bg-red-500/10"
+            title="Delete Task"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
 
-        <div className="flex-1 min-w-0 p-3 pl-1">
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <h4 className="text-sm font-semibold text-slate-200 leading-snug flex-1">
-              {task.title}
-            </h4>
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onDelete?.(task.id)
-              }}
-              className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all p-1 rounded-md hover:bg-red-500/10"
-              title="Delete Task"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 mb-2">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <span
+            className={cn(
+              'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all',
+              pConfig.bg,
+              pConfig.color
+            )}
+          >
+            {task.priority}
+          </span>
+          <span
+            className={cn(
+              'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all',
+              tConfig.bg,
+              tConfig.color
+            )}
+          >
+            {task.type}
+          </span>
+          {task.status && task.status !== 'queued' && sConfig && (
             <span
               className={cn(
                 'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all',
-                pConfig.bg,
-                pConfig.color
+                sConfig.bg,
+                sConfig.color
               )}
             >
-              {task.priority}
+              {task.status}
             </span>
-            <span
-              className={cn(
-                'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all',
-                tConfig.bg,
-                tConfig.color
-              )}
-            >
-              {task.type}
+          )}
+          {isBlocked && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider bg-red-500/10 text-red-400 transition-all">
+              <AlertCircle className="w-3 h-3" />
+              Blocked
             </span>
-            {task.status && task.status !== 'queued' && sConfig && (
-              <span
-                className={cn(
-                  'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all',
-                  sConfig.bg,
-                  sConfig.color
-                )}
-              >
-                {task.status}
-              </span>
-            )}
-            {isBlocked && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider bg-red-500/10 text-red-400 transition-all">
-                <AlertCircle className="w-3 h-3" />
-                Blocked
-              </span>
-            )}
-          </div>
-
-          {task.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-1">
-              {task.tags.slice(0, 3).map((tag, i) => {
-                const color = getTagColor(tag)
-                return (
-                  <span
-                    key={i}
-                    className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-bold transition-all"
-                    style={{
-                      backgroundColor: `${color}15`,
-                      color: color,
-                    }}
-                  >
-                    {tag}
-                  </span>
-                )
-              })}
-              {task.tags.length > 3 && (
-                <span className="text-[10px] text-slate-500 font-medium">
-                  +{task.tags.length - 3}
-                </span>
-              )}
-            </div>
           )}
         </div>
+
+        {task.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1">
+            {task.tags.slice(0, 3).map((tag, i) => {
+              const color = getTagColor(tag)
+              return (
+                <span
+                  key={i}
+                  className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-bold transition-all"
+                  style={{
+                    backgroundColor: `${color}15`,
+                    color: color,
+                  }}
+                >
+                  {tag}
+                </span>
+              )
+            })}
+            {task.tags.length > 3 && (
+              <span className="text-[10px] text-slate-500 font-medium">
+                +{task.tags.length - 3}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -296,7 +280,7 @@ function SortableColumn({
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar p-3">
-        <SortableContext items={tasks} strategy={verticalListSortingStrategy}>
+        <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.length === 0 ? (
             <div className="text-center py-12 text-slate-600">
               <div className="w-10 h-10 bg-slate-800/50 rounded-xl flex items-center justify-center mx-auto mb-3">
@@ -568,21 +552,41 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
     }
 
     if (activeColumnId === overColumnId) {
-      const filtered = tasks.filter((t) => t.columnId === activeColumnId)
+      const filtered = tasks
+        .filter((t) => t.columnId === activeColumnId)
+        .sort((a, b) => (a.orderInColumn || 0) - (b.orderInColumn || 0))
       const oldIndex = filtered.findIndex((t) => t.id === activeId)
       const newIndex = filtered.findIndex((t) => t.id === overId)
       if (oldIndex !== newIndex && overTask) {
+        const updatedTasks = arrayMove(filtered, oldIndex, newIndex)
+        updatedTasks.forEach((t, i) => {
+          t.orderInColumn = i
+        })
+
+        setTasks((prev) => {
+          const others = prev.filter((t) => t.columnId !== activeColumnId)
+          return [...others, ...updatedTasks]
+        })
+
         await window.api.task.move({
           taskId: activeId,
           toColumnId: activeColumnId,
           toIndex: newIndex,
         })
-        loadBoard()
       }
     } else {
       const newIndex = tasks.filter((t) => t.columnId === overColumnId).length
+
+      setTasks((prev) => {
+        return prev.map((t) => {
+          if (t.id === activeId) {
+            return { ...t, columnId: overColumnId, orderInColumn: newIndex }
+          }
+          return t
+        })
+      })
+
       await window.api.task.move({ taskId: activeId, toColumnId: overColumnId, toIndex: newIndex })
-      loadBoard()
     }
   }
 
@@ -708,86 +712,110 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
     )
 
   const columns = board.columns || []
-  const projectColor = project?.color || '#3B82F6'
 
   return (
-    <>
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <div className="h-full flex flex-col overflow-hidden relative">
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              backgroundColor: `${projectColor}04`,
-            }}
-          />
-
-          <div className="flex-1 min-h-0 relative z-10">
-            <div className="h-full overflow-x-auto custom-scrollbar">
-              <div className="inline-flex h-full items-stretch gap-6 pl-8 pt-8 pb-6">
-                <SortableContext
-                  items={columns.map((c) => c.id)}
-                  strategy={horizontalListSortingStrategy}
-                >
-                  {columns.map((column) => (
-                    <SortableColumn
-                      key={column.id}
-                      id={column.id}
-                      name={column.name}
-                      color={column.color || ''}
-                      globalTags={globalTags}
-                      tasks={tasks
-                        .filter((t) => t.columnId === column.id)
-                        .sort((a, b) => (a.orderInColumn || 0) - (b.orderInColumn || 0))}
-                      onTaskClick={handleTaskClick}
-                      onAddTask={() => handleAddTask(column.id)}
-                      onEdit={() => {
-                        setEditingColumnId(column.id)
-                        setIsColumnModalOpen(true)
-                      }}
-                      onDelete={() => handleDeleteColumn(column.id)}
-                      onDeleteTask={handleDeleteTask}
-                    />
-                  ))}
-                  <div className="flex-shrink-0 w-80 h-full flex flex-col">
-                    <button
-                      onClick={() => {
-                        setEditingColumnId(null)
-                        setIsColumnModalOpen(true)
-                      }}
-                      className="w-full h-14 bg-slate-900/40 border border-dashed border-slate-800/50 hover:border-slate-700 rounded-2xl flex items-center justify-center gap-2 text-slate-500 hover:text-slate-300 transition-all shrink-0"
-                    >
-                      <Plus className="w-5 h-5" />{' '}
-                      <span className="font-semibold text-sm">Add Column</span>
-                    </button>
-                  </div>
-                </SortableContext>
-              </div>
+    <div className="flex flex-col h-full overflow-hidden">
+      <header className="flex items-center justify-between p-8 shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-600/20">
+            <h1 className="text-2xl font-black italic">A</h1>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 mb-0.5">
+              <h1 className="text-xl font-black text-white tracking-tight uppercase italic">
+                {projectName}
+              </h1>
+              <span className="px-2 py-0.5 rounded-md bg-blue-600/10 text-blue-400 text-[10px] font-black uppercase tracking-widest border border-blue-600/20">
+                Live
+              </span>
             </div>
+            <p className="text-slate-500 text-xs font-bold tracking-widest uppercase">
+              Project Workspace
+            </p>
           </div>
         </div>
-        <DragOverlay>
-          {activeTask ? (
-            <div className="w-80 bg-[#11151C] border-2 border-blue-600 rounded-xl p-4 shadow-2xl rotate-3 scale-105 pointer-events-none opacity-90">
-              <div className="flex items-start justify-between gap-2 mb-3">
-                <h4 className="text-sm font-semibold text-white leading-snug">
-                  {activeTask.title}
-                </h4>
+
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => {
+              setEditingColumnId(null)
+              setIsColumnModalOpen(true)
+            }}
+            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white text-sm font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-blue-600/20 group"
+          >
+            <Plus className="w-5 h-5 transition-transform group-hover:rotate-90" />
+            Add Column
+          </button>
+        </div>
+      </header>
+
+      <main className="flex-1 overflow-x-auto custom-scrollbar">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="inline-flex h-full items-stretch gap-6 pl-8 pt-0 pb-8">
+            <SortableContext
+              items={columns.map((c) => c.id)}
+              strategy={horizontalListSortingStrategy}
+            >
+              {columns.map((column) => (
+                <SortableColumn
+                  key={column.id}
+                  id={column.id}
+                  name={column.name}
+                  color={column.color || ''}
+                  globalTags={globalTags}
+                  tasks={tasks
+                    .filter((t) => t.columnId === column.id)
+                    .sort((a, b) => (a.orderInColumn || 0) - (b.orderInColumn || 0))}
+                  onTaskClick={handleTaskClick}
+                  onAddTask={() => handleAddTask(column.id)}
+                  onEdit={() => {
+                    setEditingColumnId(column.id)
+                    setIsColumnModalOpen(true)
+                  }}
+                  onDelete={() => handleDeleteColumn(column.id)}
+                  onDeleteTask={handleDeleteTask}
+                />
+              ))}
+              <div className="flex-shrink-0 w-80 h-full flex flex-col">
+                <button
+                  onClick={() => {
+                    setEditingColumnId(null)
+                    setIsColumnModalOpen(true)
+                  }}
+                  className="w-full h-14 bg-slate-900/40 border border-dashed border-slate-800/50 hover:border-slate-700 rounded-2xl flex items-center justify-center gap-2 text-slate-500 hover:text-slate-300 transition-all shrink-0"
+                >
+                  <Plus className="w-5 h-5" />{' '}
+                  <span className="font-semibold text-sm">Add Column</span>
+                </button>
               </div>
-            </div>
-          ) : activeColumn ? (
-            <div className="bg-[#11151C] border-2 border-blue-500 rounded-2xl w-80 shadow-2xl rotate-2 opacity-90 p-4 pointer-events-none backdrop-blur-sm">
-              <h3 className="text-sm font-bold text-white">
-                {columns.find((c) => c.id === activeColumn)?.name}
-              </h3>
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+            </SortableContext>
+          </div>
+
+          <DragOverlay>
+            {activeTask ? (
+              <div className="w-80 bg-[#11151C] border-2 border-blue-600 rounded-xl p-4 shadow-2xl rotate-3 scale-105 pointer-events-none opacity-90">
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <h4 className="text-sm font-semibold text-white leading-snug">
+                    {activeTask.title}
+                  </h4>
+                </div>
+              </div>
+            ) : activeColumn ? (
+              <div className="bg-[#11151C] border-2 border-blue-500 rounded-2xl w-80 shadow-2xl rotate-2 opacity-90 p-4 pointer-events-none backdrop-blur-sm">
+                <h3 className="text-sm font-bold text-white">
+                  {columns.find((c) => c.id === activeColumn)?.name}
+                </h3>
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      </main>
+
       <ColumnModal
         isOpen={isColumnModalOpen}
         onClose={() => {
@@ -820,6 +848,6 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
           }
         }}
       />
-    </>
+    </div>
   )
 }

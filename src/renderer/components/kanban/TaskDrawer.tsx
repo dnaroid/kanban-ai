@@ -52,6 +52,22 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
     }
   }
 
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && !isEditingTitle) {
+        onClose()
+      }
+    }
+
+    if (isOpen) {
+      window.addEventListener('keydown', handleGlobalKeyDown)
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown)
+    }
+  }, [isOpen, isEditingTitle, onClose])
+
   if (!isOpen || !task) return null
 
   const tabs = [
