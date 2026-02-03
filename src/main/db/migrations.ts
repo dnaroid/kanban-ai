@@ -84,13 +84,11 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 CREATE TABLE IF NOT EXISTS tags (
   id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL,
   name TEXT NOT NULL,
   color TEXT NOT NULL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-  UNIQUE(project_id, name)
+  UNIQUE(name)
 );
 
 -- indexes
@@ -496,6 +494,34 @@ export const migrations = [
         FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
         UNIQUE(project_id, name)
       );
+    `,
+  },
+  {
+    version: 10,
+    sql: `
+      BEGIN TRANSACTION;
+      CREATE TABLE IF NOT EXISTS tags_new (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        color TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(name)
+      );
+
+      INSERT INTO tags_new (id, name, color, created_at, updated_at)
+      SELECT t.id, t.name, t.color, t.created_at, t.updated_at
+      FROM tags t
+      JOIN (
+        SELECT name, MAX(updated_at) AS updated_at
+        FROM tags
+        GROUP BY name
+      ) latest ON latest.name = t.name AND latest.updated_at = t.updated_at
+      GROUP BY t.name;
+
+      DROP TABLE tags;
+      ALTER TABLE tags_new RENAME TO tags;
+      COMMIT;
     `,
   },
 ] as const

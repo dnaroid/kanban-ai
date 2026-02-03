@@ -97,6 +97,9 @@ const api: MainToRenderer = {
     getSystemInfo: () => ipcRenderer.invoke('diagnostics:getSystemInfo'),
     getDbInfo: () => ipcRenderer.invoke('diagnostics:getDbInfo'),
   },
+  database: {
+    delete: (input) => ipcRenderer.invoke('database:delete', input),
+  },
   run: {
     start: (input) => ipcRenderer.invoke('run:start', input),
     cancel: (input) => ipcRenderer.invoke('run:cancel', input),

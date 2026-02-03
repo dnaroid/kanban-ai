@@ -9,15 +9,14 @@ export class TagRepository {
     const id = randomUUID()
 
     const stmt = db.prepare(`
-        INSERT INTO tags (id, project_id, name, color, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO tags (id, name, color, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
     `)
 
-    stmt.run(id, input.projectId, input.name, input.color, now, now)
+    stmt.run(id, input.name, input.color, now, now)
 
     return {
       id,
-      projectId: input.projectId,
       name: input.name,
       color: input.color,
       createdAt: now,
@@ -25,18 +24,17 @@ export class TagRepository {
     }
   }
 
-  listByProject(projectId: string): Tag[] {
+  listAll(): Tag[] {
     const db = dbManager.connect()
     const rows = db
       .prepare(
         `
-            SELECT id, project_id as projectId, name, color, created_at as createdAt, updated_at as updatedAt
+            SELECT id, name, color, created_at as createdAt, updated_at as updatedAt
             FROM tags
-            WHERE project_id = ?
             ORDER BY name ASC
         `
       )
-      .all(projectId) as Tag[]
+      .all() as Tag[]
 
     return rows
   }
@@ -79,7 +77,7 @@ export class TagRepository {
     const row = db
       .prepare(
         `
-            SELECT id, project_id as projectId, name, color, created_at as createdAt, updated_at as updatedAt
+            SELECT id, name, color, created_at as createdAt, updated_at as updatedAt
             FROM tags
             WHERE id = ?
         `

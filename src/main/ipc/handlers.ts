@@ -34,6 +34,8 @@ import {
   CreateProjectInputSchema,
   CreateTaskInputSchema,
   DeleteProjectInputSchema,
+  DatabaseDeleteInputSchema,
+  DatabaseDeleteResponseSchema,
   DepsAddInputSchema,
   DepsAddResponseSchema,
   DepsListInputSchema,
@@ -95,6 +97,7 @@ import { appSettingsRepo } from '../db/app-settings-repository.js'
 import { boardRepo } from '../db/board-repository'
 import { taskRepo } from '../db/task-repository'
 import { tagRepo } from '../db/tag-repository'
+import { dbManager } from '../db'
 import { dependencyService } from '../deps/dependency-service'
 import { taskScheduleRepo } from '../db/task-schedule-repository'
 import { searchService } from '../search/search-service'
@@ -232,8 +235,8 @@ ipcHandlers.register('tag:delete', TagDeleteInputSchema, async (_, { id }) => {
   return { ok: tagRepo.delete(id) }
 })
 
-ipcHandlers.register('tag:list', TagListInputSchema, async (_, { projectId }) => {
-  const tags = tagRepo.listByProject(projectId)
+ipcHandlers.register('tag:list', TagListInputSchema, async () => {
+  const tags = tagRepo.listAll()
   return TagListResponseSchema.parse({ tags })
 })
 
@@ -427,6 +430,11 @@ ipcHandlers.register(
     return AppSettingSetSidebarCollapsedResponseSchema.parse({ ok: true })
   }
 )
+
+ipcHandlers.register('database:delete', DatabaseDeleteInputSchema, async () => {
+  dbManager.deleteDatabase()
+  return DatabaseDeleteResponseSchema.parse({ ok: true })
+})
 
 ipcHandlers.register(
   'opencode:generateUserStory',

@@ -591,7 +591,6 @@ export type BackupImportResponse = z.infer<typeof BackupImportResponseSchema>
 
 export const TagSchema = z.object({
   id: z.string().uuid(),
-  projectId: z.string().uuid(),
   name: z.string().min(1),
   color: z.string(),
   createdAt: z.string().datetime(),
@@ -601,7 +600,6 @@ export const TagSchema = z.object({
 export type Tag = z.infer<typeof TagSchema>
 
 export const TagCreateInputSchema = z.object({
-  projectId: z.string().uuid(),
   name: z.string().min(1),
   color: z.string(),
 })
@@ -622,9 +620,7 @@ export const TagDeleteInputSchema = z.object({
 
 export type TagDeleteInput = z.infer<typeof TagDeleteInputSchema>
 
-export const TagListInputSchema = z.object({
-  projectId: z.string().uuid(),
-})
+export const TagListInputSchema = z.object({})
 
 export type TagListInput = z.infer<typeof TagListInputSchema>
 
@@ -633,6 +629,14 @@ export const TagListResponseSchema = z.object({
 })
 
 export type TagListResponse = z.infer<typeof TagListResponseSchema>
+
+export const DatabaseDeleteInputSchema = z.object({})
+export type DatabaseDeleteInput = z.infer<typeof DatabaseDeleteInputSchema>
+
+export const DatabaseDeleteResponseSchema = z.object({
+  ok: z.literal(true),
+})
+export type DatabaseDeleteResponse = z.infer<typeof DatabaseDeleteResponseSchema>
 
 export const RunModeSchema = z.enum(['plan-only', 'execute', 'critique'])
 export const RunStatusSchema = z.enum(['queued', 'running', 'succeeded', 'failed', 'canceled'])

@@ -3,10 +3,6 @@ import { Plus, Trash2, Tag as TagIcon, Palette } from 'lucide-react'
 import type { Tag } from '@/shared/types/ipc'
 import { cn } from '../../lib/utils'
 
-interface TagManagementProps {
-  projectId: string
-}
-
 const PRESET_COLORS = [
   '#ef4444',
   '#f97316',
@@ -20,7 +16,7 @@ const PRESET_COLORS = [
   '#f43f5e',
 ]
 
-export function TagManagement({ projectId }: TagManagementProps) {
+export function TagManagement() {
   const [tags, setTags] = useState<Tag[]>([])
   const [newTagName, setNewTagName] = useState('')
   const [selectedColor, setSelectedColor] = useState(PRESET_COLORS[5])
@@ -28,12 +24,12 @@ export function TagManagement({ projectId }: TagManagementProps) {
 
   useEffect(() => {
     loadTags()
-  }, [projectId])
+  }, [])
 
   const loadTags = async () => {
     setIsLoading(true)
     try {
-      const response = await window.api.tag.list({ projectId })
+      const response = await window.api.tag.list({})
       if (response.tags.length === 0) {
         const defaults = [
           { name: 'UI Design', color: PRESET_COLORS[5] },
@@ -42,9 +38,7 @@ export function TagManagement({ projectId }: TagManagementProps) {
           { name: 'Frontend', color: PRESET_COLORS[6] },
           { name: 'Backend', color: PRESET_COLORS[7] },
         ]
-        const createdTags = await Promise.all(
-          defaults.map((d) => window.api.tag.create({ projectId, ...d }))
-        )
+        const createdTags = await Promise.all(defaults.map((d) => window.api.tag.create({ ...d })))
         setTags(createdTags.sort((a, b) => a.name.localeCompare(b.name)))
       } else {
         setTags(response.tags)
@@ -60,7 +54,6 @@ export function TagManagement({ projectId }: TagManagementProps) {
     if (!newTagName.trim()) return
     try {
       const tag = await window.api.tag.create({
-        projectId,
         name: newTagName.trim(),
         color: selectedColor,
       })

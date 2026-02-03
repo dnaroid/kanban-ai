@@ -27,7 +27,7 @@ type Screen =
   | { id: 'board'; projectId: string; projectName: string }
   | { id: 'timeline'; projectId: string; projectName: string }
   | { id: 'analytics'; projectId: string; projectName: string }
-  | { id: 'settings'; projectId: string; projectName: string }
+  | { id: 'settings' }
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ id: 'projects' })
@@ -286,19 +286,12 @@ export default function App() {
         <div className={`border-t border-slate-800/50 ${isSidebarCollapsed ? 'p-2' : 'p-4'}`}>
           <button
             onClick={() => {
-              if (!activeProject) return
-              setScreen({
-                id: 'settings',
-                projectId: activeProject.id,
-                projectName: activeProject.name,
-              })
+              setScreen({ id: 'settings' })
             }}
-            disabled={!activeProject}
             className={cn(
               'w-full flex items-center rounded-xl transition-all duration-200 group',
               isSidebarCollapsed ? 'justify-center w-12 h-12' : 'gap-3 px-4 py-3 w-full',
-              'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300',
-              !activeProject && 'opacity-50 cursor-not-allowed hover:bg-transparent'
+              'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300'
             )}
             title="Settings"
           >
@@ -314,47 +307,45 @@ export default function App() {
       >
         <header className="h-16 border-b border-slate-800/30 bg-[#0B0E14]/80 backdrop-blur-md sticky top-0 z-40 flex items-center px-8 justify-between shrink-0">
           <div className="flex items-center gap-2 text-sm text-slate-500">
-            <button
-              onClick={() => setScreen({ id: 'projects' })}
-              className="hover:text-slate-300 transition-colors"
-            >
-              Projects
-            </button>
-            {screen.id === 'board' && (
+            {screen.id === 'settings' ? (
+              <span className="text-slate-300 font-medium">Settings</span>
+            ) : (
               <>
-                <ChevronRight className="w-4 h-4 text-slate-700" />
-                <span className="text-slate-300 font-medium">{screen.projectName}</span>
-              </>
-            )}
-            {screen.id === 'diagnostics' && (
-              <>
-                <ChevronRight className="w-4 h-4 text-slate-700" />
-                <span className="text-slate-300 font-medium">Diagnostics</span>
-              </>
-            )}
+                <button
+                  onClick={() => setScreen({ id: 'projects' })}
+                  className="hover:text-slate-300 transition-colors"
+                >
+                  Projects
+                </button>
+                {screen.id === 'board' && (
+                  <>
+                    <ChevronRight className="w-4 h-4 text-slate-700" />
+                    <span className="text-slate-300 font-medium">{screen.projectName}</span>
+                  </>
+                )}
+                {screen.id === 'diagnostics' && (
+                  <>
+                    <ChevronRight className="w-4 h-4 text-slate-700" />
+                    <span className="text-slate-300 font-medium">Diagnostics</span>
+                  </>
+                )}
 
-            {screen.id === 'timeline' && (
-              <>
-                <ChevronRight className="w-4 h-4 text-slate-700" />
-                <span className="text-slate-300 font-medium">{screen.projectName}</span>
-                <ChevronRight className="w-4 h-4 text-slate-700" />
-                <span className="text-slate-300 font-medium">Timeline</span>
-              </>
-            )}
-            {screen.id === 'analytics' && (
-              <>
-                <ChevronRight className="w-4 h-4 text-slate-700" />
-                <span className="text-slate-300 font-medium">{screen.projectName}</span>
-                <ChevronRight className="w-4 h-4 text-slate-700" />
-                <span className="text-slate-300 font-medium">Analytics</span>
-              </>
-            )}
-            {screen.id === 'settings' && (
-              <>
-                <ChevronRight className="w-4 h-4 text-slate-700" />
-                <span className="text-slate-300 font-medium">{screen.projectName}</span>
-                <ChevronRight className="w-4 h-4 text-slate-700" />
-                <span className="text-slate-300 font-medium">Settings</span>
+                {screen.id === 'timeline' && (
+                  <>
+                    <ChevronRight className="w-4 h-4 text-slate-700" />
+                    <span className="text-slate-300 font-medium">{screen.projectName}</span>
+                    <ChevronRight className="w-4 h-4 text-slate-700" />
+                    <span className="text-slate-300 font-medium">Timeline</span>
+                  </>
+                )}
+                {screen.id === 'analytics' && (
+                  <>
+                    <ChevronRight className="w-4 h-4 text-slate-700" />
+                    <span className="text-slate-300 font-medium">{screen.projectName}</span>
+                    <ChevronRight className="w-4 h-4 text-slate-700" />
+                    <span className="text-slate-300 font-medium">Analytics</span>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -401,11 +392,11 @@ export default function App() {
           )}
           {screen.id === 'settings' && (
             <SettingsScreen
-              projectId={screen.projectId}
-              projectName={screen.projectName}
+              projectId={activeProject?.id}
+              projectName={activeProject?.name}
               onProjectDeleted={() => {
                 setActiveProject(null)
-                setScreen({ id: 'projects' })
+                setScreen({ id: 'settings' })
               }}
             />
           )}

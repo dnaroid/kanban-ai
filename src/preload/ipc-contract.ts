@@ -25,6 +25,8 @@ import type {
   TagDeleteInput,
   TagListInput,
   TagListResponse,
+  DatabaseDeleteInput,
+  DatabaseDeleteResponse,
   DepsListInput,
   DepsListResponse,
   DepsAddInput,
@@ -170,6 +172,9 @@ export interface MainToRenderer {
     getSystemInfo(): Promise<object>
     getDbInfo(): Promise<object>
   }
+  database: {
+    delete(input: DatabaseDeleteInput): Promise<DatabaseDeleteResponse>
+  }
   run: {
     start(input: RunStartInput): Promise<RunStartResponse>
     cancel(input: RunCancelInput): Promise<RunCancelResponse>
@@ -262,6 +267,9 @@ export interface RendererToMain {
     getLogTail(lines?: number): Promise<string[]>
     getSystemInfo(): Promise<object>
     getDbInfo(): Promise<object>
+  }
+  database: {
+    delete(input: DatabaseDeleteInput): Promise<DatabaseDeleteResponse>
   }
   run: {
     start(input: RunStartInput): Promise<RunStartResponse>

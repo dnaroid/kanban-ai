@@ -15,11 +15,11 @@ export function TaskDetailsTags({ task, onUpdate }: TaskDetailsTagsProps) {
 
   useEffect(() => {
     loadGlobalTags()
-  }, [task.projectId])
+  }, [])
 
   const loadGlobalTags = async () => {
     try {
-      const response = await window.api.tag.list({ projectId: task.projectId })
+      const response = await window.api.tag.list({})
       setGlobalTags(response.tags)
     } catch (error) {
       console.error('Failed to load global tags:', error)

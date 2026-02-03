@@ -430,16 +430,9 @@ interface QuickAddTaskModalProps {
   onClose: () => void
   onSubmit: (task: Omit<CreateTaskInput, 'boardId' | 'projectId'>) => void
   columnName?: string
-  projectId: string
 }
 
-function QuickAddTaskModal({
-  isOpen,
-  onClose,
-  onSubmit,
-  columnName,
-  projectId,
-}: QuickAddTaskModalProps) {
+function QuickAddTaskModal({ isOpen, onClose, onSubmit, columnName }: QuickAddTaskModalProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState<'postpone' | 'low' | 'normal' | 'urgent'>('normal')
@@ -453,11 +446,11 @@ function QuickAddTaskModal({
     if (isOpen) {
       loadGlobalTags()
     }
-  }, [isOpen, projectId])
+  }, [isOpen])
 
   const loadGlobalTags = async () => {
     try {
-      const response = await window.api.tag.list({ projectId })
+      const response = await window.api.tag.list({})
       setGlobalTags(response.tags)
     } catch (error) {
       console.error('Failed to load global tags:', error)
@@ -1060,7 +1053,6 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
         }}
         onSubmit={handleQuickAddSubmit}
         columnName={columns.find((c) => c.id === quickAddColumnId)?.name}
-        projectId={projectId}
       />
       <ColumnModal
         isOpen={isColumnModalOpen}
