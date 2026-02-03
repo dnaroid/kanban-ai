@@ -41,19 +41,24 @@ export type SessionEvent =
     }
 
 const resolveOpencodeEventList = (
-  client: unknown
+  client: unknown,
+  directory: string
 ): ((params: unknown, options?: unknown) => AsyncIterable<unknown>) | null => {
   const root = client as Record<string, unknown>
+  console.log('[OpenCodeSessionManager] resolveOpencodeEventList: client keys:', Object.keys(root))
+  
   const event = root['event'] as Record<string, unknown> | undefined
-  const events = root['events'] as Record<string, unknown> | undefined
-  const session = root['session'] as Record<string, unknown> | undefined
-  const sessionEvent = session?.['event'] as Record<string, unknown> | undefined
-  const sessionEvents = session?.['events'] as Record<string, unknown> | undefined
-  const list =
-    event?.['list'] ?? events?.['list'] ?? sessionEvent?.['list'] ?? sessionEvents?.['list']
-  return typeof list === 'function'
-    ? (list as (params: unknown, options?: unknown) => AsyncIterable<unknown>)
-    : null
+  
+  if (event && typeof event['subscribe'] === 'function') {
+    console.log('[OpenCodeSessionManager] resolveOpencodeEventList: found client.event.subscribe')
+    // Wrap the subscribe method to pass directory parameter
+    return (params: unknown, options?: unknown) => {
+      return event['subscribe']({ directory }, options) as AsyncIterable<unknown>
+    }
+  }
+  
+  console.log('[OpenCodeSessionManager] resolveOpencodeEventList: subscribe method not found')
+  return null
 }
 
 export interface SessionMessage {
@@ -483,7 +488,7 @@ export class OpenCodeSessionManager {
           `[OpenCodeSessionManager] Starting processEvents for session ${sessionID}, directory: ${directory}`
         )
         const { signal } = abortController
-        const listEvents = resolveOpencodeEventList(client)
+        const listEvents = resolveOpencodeEventList(client, directory)
         if (!listEvents) {
           const errorMessage = 'Event stream is unavailable'
           console.warn(
@@ -498,7 +503,10 @@ export class OpenCodeSessionManager {
         }
 
         console.log(`[OpenCodeSessionManager] Calling listEvents for session ${sessionID}`)
-        const stream = await Promise.resolve(listEvents({}, { signal })).catch((error) => {
+        const streamPromise = listEvents({}, { signal })
+        console.log(`[OpenCodeSessionManager] Stream promise created, awaiting...`)
+        
+        const streamResult = await Promise.resolve(streamPromise).catch((error) => {
           console.error(
             `[OpenCodeSessionManager] Failed to create stream for session ${sessionID}:`,
             error
@@ -506,10 +514,30 @@ export class OpenCodeSessionManager {
           throw error instanceof Error ? error : new Error(String(error))
         })
 
-        if (!stream) {
+        console.log(`[OpenCodeSessionManager] Stream result type:`, typeof streamResult, streamResult)
+
+        if (!streamResult) {
           const errorMessage = 'Event stream is unavailable'
           console.warn(
             `[OpenCodeSessionManager] Event stream error for session ${sessionID}: ${errorMessage}`
+          )
+          callback({
+            type: 'error',
+            sessionId: sessionID,
+            error: errorMessage,
+          })
+          return
+        }
+
+        // Check if streamResult has a stream property (SSE response format)
+        const stream = (streamResult as any).stream ?? (streamResult as any).data ?? streamResult
+        console.log(`[OpenCodeSessionManager] Extracted stream, type:`, typeof stream, 'isAsyncIterable:', stream && typeof stream[Symbol.asyncIterator] === 'function')
+
+        if (!stream || typeof stream[Symbol.asyncIterator] !== 'function') {
+          const errorMessage = 'Stream is not async iterable'
+          console.error(
+            `[OpenCodeSessionManager] ${errorMessage} for session ${sessionID}. Stream:`,
+            stream
           )
           callback({
             type: 'error',

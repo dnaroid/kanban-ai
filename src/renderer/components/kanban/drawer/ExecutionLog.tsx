@@ -88,6 +88,50 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
       })
     }
 
+    const updateMessagePart = (messageId: string, part: Part) => {
+      const id = `msg-${messageId}`
+      console.log('[ExecutionLog] updateMessagePart called:', { messageId, partId: part.id, partType: part.type })
+      setEvents((prev) => {
+        const existingIndex = prev.findIndex((item) => item.id === id)
+        if (existingIndex === -1) {
+          // Message doesn't exist yet, create it with this part
+          console.log('[ExecutionLog] Creating new message with part:', messageId)
+          seenMessageIdsRef.current.add(id)
+          const newEvent = buildMessageEvent(messageId, { parts: [part] })
+          return [...prev, newEvent].slice(-500)
+        }
+        
+        // Update existing message with new/updated part
+        const updated = [...prev]
+        const existing = updated[existingIndex]
+        const existingPayload = existing.payload as { parts?: Part[] }
+        const existingParts = existingPayload.parts || []
+        
+        // Find if part already exists
+        const partIndex = existingParts.findIndex((p) => p.id === part.id)
+        let newParts: Part[]
+        if (partIndex === -1) {
+          // Add new part
+          console.log('[ExecutionLog] Adding new part to message:', { messageId, partId: part.id, existingPartsCount: existingParts.length })
+          newParts = [...existingParts, part]
+        } else {
+          // Update existing part
+          console.log('[ExecutionLog] Updating existing part in message:', { messageId, partId: part.id, partIndex })
+          newParts = [...existingParts]
+          newParts[partIndex] = part
+        }
+        
+        const updatedEvent = buildMessageEvent(
+          messageId,
+          { ...existingPayload, parts: newParts },
+          existing.ts
+        )
+        updated[existingIndex] = updatedEvent
+        console.log('[ExecutionLog] Message updated, total parts:', newParts.length)
+        return updated
+      })
+    }
+
     const removeMessageEvent = (messageId: string) => {
       const id = `msg-${messageId}`
       seenMessageIdsRef.current.delete(id)
@@ -95,23 +139,21 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
     }
 
     const cleanup = window.api.opencode.onEvent(sessionId, (event) => {
-      if (event.sessionId !== sessionId) return
+      console.log('[ExecutionLog] Received event:', event.type, event)
+      if (event.sessionId !== sessionId) {
+        console.log('[ExecutionLog] Event sessionId mismatch, ignoring')
+        return
+      }
 
       if (event.type === 'message.part.updated') {
-        const part = event.part as { id: string }
-        const newEvent: RunEvent = {
-          id: `msg-part-${event.messageId}-${part.id}`,
-          runId: sessionId,
-          ts: new Date().toISOString(),
-          eventType: 'stdout',
-          payload: event.part,
-        }
-        setEvents((prev) => [...prev, newEvent].slice(-500))
+        console.log('[ExecutionLog] Processing message.part.updated:', event.messageId, event.part)
+        updateMessagePart(event.messageId, event.part)
         setIsLoading(false)
         return
       }
 
       if (event.type === 'message.updated') {
+        console.log('[ExecutionLog] Processing message.updated:', event.message)
         if (event.message && typeof event.message === 'object') {
           const message = event.message as {
             id?: string
@@ -126,11 +168,13 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
       }
 
       if (event.type === 'message.removed') {
+        console.log('[ExecutionLog] Processing message.removed:', event.messageId)
         removeMessageEvent(event.messageId)
         return
       }
 
       if (event.type === 'error') {
+        console.log('[ExecutionLog] Processing error:', event.error)
         void refreshMessagesRef.current?.()
         if (typeof event.error === 'string' && event.error.includes('Session not found')) {
           cleanup()

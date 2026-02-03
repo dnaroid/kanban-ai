@@ -55,7 +55,7 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', async () => {
-  if (opencodeService) {
+  if (process.env.NODE_ENV !== 'development' && opencodeService) {
     await opencodeService.shutdown()
   }
 
@@ -65,7 +65,7 @@ app.on('window-all-closed', async () => {
 })
 
 app.on('before-quit', async () => {
-  if (opencodeService) {
+  if (process.env.NODE_ENV !== 'development' && opencodeService) {
     await opencodeService.shutdown()
   }
 })
