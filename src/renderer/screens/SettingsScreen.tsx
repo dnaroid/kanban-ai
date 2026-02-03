@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Globe, Trash2, Tag as TagIcon } from 'lucide-react'
+import { Globe, Trash2, Tag as TagIcon, Cpu } from 'lucide-react'
 import { TagManagement } from '../components/settings/TagManagement'
 import { BackupAndRestoreSettings } from '../components/settings/BackupAndRestoreSettings'
 import { DangerZoneSettings } from '../components/settings/DangerZoneSettings'
+import { ModelsManagement } from '../components/settings/ModelsManagement'
 import { cn } from '../lib/utils'
 
 type SettingsScreenProps = {
@@ -11,11 +12,11 @@ type SettingsScreenProps = {
   onProjectDeleted: () => void
 }
 
-type Tab = 'migration' | 'tags' | 'danger'
+type Tab = 'migration' | 'tags' | 'danger' | 'models'
 
 export function SettingsScreen({ projectId, projectName, onProjectDeleted }: SettingsScreenProps) {
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([])
-  const [activeTab, setActiveTab] = useState<Tab>('tags')
+  const [activeTab, setActiveTab] = useState<Tab>('models')
   const [status, setStatus] = useState<{
     message: string
     type: 'info' | 'error' | 'success'
@@ -43,6 +44,7 @@ export function SettingsScreen({ projectId, projectName, onProjectDeleted }: Set
   }, [status])
 
   const tabs: { id: Tab; label: string; icon: any }[] = [
+    { id: 'models', label: 'Models', icon: Cpu },
     { id: 'tags', label: 'Taxonomy', icon: TagIcon },
     { id: 'migration', label: 'Data Management', icon: Globe },
     { id: 'danger', label: 'Danger Zone', icon: Trash2 },
@@ -102,6 +104,7 @@ export function SettingsScreen({ projectId, projectName, onProjectDeleted }: Set
       </div>
 
       <div className="flex-1 overflow-y-auto pb-20 custom-scrollbar">
+        {activeTab === 'models' && <ModelsManagement onStatusChange={setStatus} />}
         {activeTab === 'tags' && <TagManagement />}
         {activeTab === 'migration' && (
           <BackupAndRestoreSettings

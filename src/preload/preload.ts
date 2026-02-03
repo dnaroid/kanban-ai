@@ -25,6 +25,8 @@ const api: MainToRenderer = {
     getSessionStatus: (input) => ipcRenderer.invoke('opencode:getSessionStatus', input),
     getActiveSessions: () => ipcRenderer.invoke('opencode:getActiveSessions'),
     getSessionMessages: (input) => ipcRenderer.invoke('opencode:getSessionMessages', input),
+    listModels: () => ipcRenderer.invoke('opencode:listModels'),
+    toggleModel: (input) => ipcRenderer.invoke('opencode:toggleModel', input),
   },
   project: {
     selectFolder: () => ipcRenderer.invoke('project:selectFolder'),

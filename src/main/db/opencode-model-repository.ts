@@ -1,0 +1,60 @@
+import { dbManager } from './index.js'
+import type { OpencodeModel } from '../../shared/types/ipc'
+
+export class OpencodeModelRepository {
+  getAll(): OpencodeModel[] {
+    const db = dbManager.connect()
+    const stmt = db.prepare(`
+      SELECT name, enabled
+      FROM opencode_models
+      ORDER BY name
+    `)
+
+    const models = stmt.all() as Array<{ name: string; enabled: number }>
+
+    return models.map((model) => ({
+      name: model.name,
+      enabled: Boolean(model.enabled),
+    }))
+  }
+
+  updateEnabled(name: string, enabled: boolean): OpencodeModel | null {
+    const db = dbManager.connect()
+
+    const stmt = db.prepare(`
+      UPDATE opencode_models
+      SET enabled = ?
+      WHERE name = ?
+    `)
+
+    const result = stmt.run(enabled ? 1 : 0, name)
+
+    if (result.changes === 0) {
+      return null
+    }
+
+    return this.getByName(name)
+  }
+
+  getByName(name: string): OpencodeModel | null {
+    const db = dbManager.connect()
+    const stmt = db.prepare(`
+      SELECT name, enabled
+      FROM opencode_models
+      WHERE name = ?
+    `)
+
+    const model = stmt.get(name) as { name: string; enabled: number } | undefined
+
+    if (!model) {
+      return null
+    }
+
+    return {
+      name: model.name,
+      enabled: Boolean(model.enabled),
+    }
+  }
+}
+
+export const opencodeModelRepo = new OpencodeModelRepository()

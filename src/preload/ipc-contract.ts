@@ -91,26 +91,13 @@ import type {
   STTStopInput,
   VoskModelDownloadInput,
   VoskModelDownloadResponse,
+  OpencodeModelsListResponse,
+  OpencodeModelToggleInput,
+  OpencodeModelToggleResponse,
 } from '../shared/types/ipc'
 
 export type { OpenCodeSessionEvent } from '../shared/types/ipc'
-export type { TaskEvent } from '../shared/types/ipc'
-
-export interface MainToRenderer {
-  app: {
-    getInfo(): Promise<AppInfo>
-  }
-  opencode: {
-    onEvent(sessionId: string, callback: (event: OpenCodeSessionEvent) => void): () => void
-    generateUserStory(
-      input: OpenCodeGenerateUserStoryInput
-    ): Promise<OpenCodeGenerateUserStoryResponse>
-    getSessionStatus(input: OpenCodeSessionStatusInput): Promise<OpenCodeSessionStatusResponse>
-    getActiveSessions(): Promise<OpenCodeActiveSessionsResponse>
-    getSessionMessages(
-      input: OpenCodeSessionMessagesInput
-    ): Promise<OpenCodeSessionMessagesResponse>
-  }
+---
   project: {
     selectFolder(): Promise<{ path: string; name: string } | null>
     create(input: CreateProjectInput): Promise<Project>

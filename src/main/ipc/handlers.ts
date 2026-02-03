@@ -91,6 +91,9 @@ import {
   TagListResponseSchema,
   VoskModelDownloadInputSchema,
   VoskModelDownloadResponseSchema,
+  OpencodeModelsListResponseSchema,
+  OpencodeModelToggleInputSchema,
+  OpencodeModelToggleResponseSchema,
 } from '../../shared/types/ipc.js'
 import { projectRepo } from '../db/project-repository'
 import { appSettingsRepo } from '../db/app-settings-repository.js'
@@ -112,6 +115,7 @@ import { artifactRepo } from '../db/artifact-repository'
 import { runService } from '../run/run-service'
 import { buildContextSnapshot } from '../run/context-snapshot-builder'
 import { downloadModelIfNeeded } from '../vosk-model-loader'
+import { opencodeModelRepo } from '../db/opencode-model-repository'
 
 const opencodeExecutor = new OpenCodeExecutorSDK()
 
@@ -555,6 +559,19 @@ ipcHandlers.register('vosk:downloadModel', VoskModelDownloadInputSchema, async (
   return VoskModelDownloadResponseSchema.parse({
     path: buffer.toString('base64'),
   })
+})
+
+ipcHandlers.register('opencode:listModels', z.unknown(), async () => {
+  const models = opencodeModelRepo.getAll()
+  return OpencodeModelsListResponseSchema.parse({ models })
+})
+
+ipcHandlers.register('opencode:toggleModel', OpencodeModelToggleInputSchema, async (_, input) => {
+  const updatedModel = opencodeModelRepo.updateEnabled(input.name, input.enabled)
+  if (!updatedModel) {
+    throw new Error(`Model "${input.name}" not found`)
+  }
+  return OpencodeModelToggleResponseSchema.parse({ model: updatedModel })
 })
 
 registerDiagnosticsHandlers()

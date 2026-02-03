@@ -1166,3 +1166,32 @@ export const VoskModelDownloadResponseSchema = z.object({
   path: z.string(),
 })
 export type VoskModelDownloadResponse = z.infer<typeof VoskModelDownloadResponseSchema>
+
+// ---------------------------------------------------------------------------
+// OpenCode Models schemas
+// ---------------------------------------------------------------------------
+export const OpencodeModelSchema = z.object({
+  name: z.string().min(1),
+  enabled: z.boolean(),
+})
+
+export type OpencodeModel = z.infer<typeof OpencodeModelSchema>
+
+export const OpencodeModelsListResponseSchema = z.object({
+  models: z.array(OpencodeModelSchema),
+})
+
+export type OpencodeModelsListResponse = z.infer<typeof OpencodeModelsListResponseSchema>
+
+export const OpencodeModelToggleInputSchema = z.object({
+  name: z.string().min(1),
+  enabled: z.boolean(),
+})
+
+export type OpencodeModelToggleInput = z.infer<typeof OpencodeModelToggleInputSchema>
+
+export const OpencodeModelToggleResponseSchema = z.object({
+  model: OpencodeModelSchema,
+})
+
+export type OpencodeModelToggleResponse = z.infer<typeof OpencodeModelToggleResponseSchema>
