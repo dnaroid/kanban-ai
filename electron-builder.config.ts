@@ -6,7 +6,7 @@ const config = {
   },
   files: ["dist/**/*", "dist-electron/**/*", "package.json"],
   mac: {
-    category: "____public.app-category.productivity",
+    category: "public.app-category.productivity",
     icon: "build/icons/icon.icns",
   },
   win: {

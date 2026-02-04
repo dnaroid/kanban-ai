@@ -10,6 +10,7 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
   const [isLoading, setIsLoading] = useState(true)
   const [autoScroll, setAutoScroll] = useState(true)
   const [streamingMessageIds, setStreamingMessageIds] = useState<Set<string>>(new Set())
+  const [effectiveSessionId, setEffectiveSessionId] = useState(sessionId)
   const scrollRef = useRef<HTMLDivElement>(null)
   const lastTsRef = useRef<string | null>(null)
   const seenMessageIdsRef = useRef<Set<string>>(new Set())
@@ -50,6 +51,11 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
     }
   }
 
+  const getPartId = (part: Part): string | undefined => {
+    const maybeId = (part as { id?: unknown }).id
+    return typeof maybeId === 'string' ? maybeId : undefined
+  }
+
   const buildMessageEvent: (
     messageId: string,
     message: { role?: string; content?: string; parts?: Part[] },
@@ -67,35 +73,63 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
   })
 
   useEffect(() => {
+    setEffectiveSessionId(sessionId)
+  }, [sessionId])
+
+  useEffect(() => {
+    if (effectiveSessionId) return
+    let isActive = true
+    const pollSessionId = async () => {
+      try {
+        const response = await window.api.run.get({ runId })
+        if (!isActive) return
+        if (response.run?.sessionId) {
+          setEffectiveSessionId(response.run.sessionId)
+          return
+        }
+      } catch (error) {
+        console.error('Failed to resolve session ID:', error)
+      }
+      if (isActive) {
+        setTimeout(pollSessionId, 1000)
+      }
+    }
+    pollSessionId()
+    return () => {
+      isActive = false
+    }
+  }, [effectiveSessionId, runId])
+
+  useEffect(() => {
     const upsertMessageEvent = (payload: {
       id?: string
       role?: string
       content?: string
       parts?: Part[]
     }) => {
-      if (!payload?.id) return
-      const id = `msg-${payload.id}`
+      const payloadId = payload?.id
+      if (!payloadId) return
+      const id = `msg-${payloadId}`
       setEvents((prev) => {
         const existingIndex = prev.findIndex((item) => item.id === id)
         if (existingIndex === -1) {
           seenMessageIdsRef.current.add(id)
-          const newEvent = buildMessageEvent(payload.id, payload)
+          const newEvent = buildMessageEvent(payloadId, payload)
           return [...prev, newEvent].slice(-500)
         }
         const updated = [...prev]
         const existing = updated[existingIndex]
         const existingPayload = existing.payload as { parts?: Part[]; role?: string }
-        
+
         // Preserve accumulated parts if new payload doesn't have parts
         const mergedPayload = {
           ...payload,
-          parts: payload.parts && payload.parts.length > 0
-            ? payload.parts
-            : existingPayload.parts || [],
+          parts:
+            payload.parts && payload.parts.length > 0 ? payload.parts : existingPayload.parts || [],
           role: payload.role || existingPayload.role || 'assistant',
         }
-        
-        const updatedEvent = buildMessageEvent(payload.id, mergedPayload, existing.ts)
+
+        const updatedEvent = buildMessageEvent(payloadId, mergedPayload, existing.ts)
         updated[existingIndex] = updatedEvent
         return updated
       })
@@ -103,17 +137,22 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
 
     const updateMessagePart = (messageId: string, part: Part) => {
       const id = `msg-${messageId}`
-      console.log('[ExecutionLog] updateMessagePart called:', { messageId, partId: part.id, partType: part.type })
-      
+      const partId = getPartId(part)
+      console.log('[ExecutionLog] updateMessagePart called:', {
+        messageId,
+        partId,
+        partType: part.type,
+      })
+
       // Mark message as streaming
       setStreamingMessageIds((prev) => new Set(prev).add(messageId))
-      
+
       // Clear existing timeout for this message
       const existingTimeout = streamingTimeoutsRef.current.get(messageId)
       if (existingTimeout) {
         clearTimeout(existingTimeout)
       }
-      
+
       // Set new timeout to mark message as not streaming after 2 seconds of inactivity
       const timeout = setTimeout(() => {
         setStreamingMessageIds((prev) => {
@@ -124,7 +163,7 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
         streamingTimeoutsRef.current.delete(messageId)
       }, 2000)
       streamingTimeoutsRef.current.set(messageId, timeout)
-      
+
       setEvents((prev) => {
         const existingIndex = prev.findIndex((item) => item.id === id)
         if (existingIndex === -1) {
@@ -135,27 +174,35 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
           const newEvent = buildMessageEvent(messageId, { role: 'assistant', parts: [part] })
           return [...prev, newEvent].slice(-500)
         }
-        
+
         // Update existing message with new/updated part
         const updated = [...prev]
         const existing = updated[existingIndex]
         const existingPayload = existing.payload as { parts?: Part[] }
         const existingParts = existingPayload.parts || []
-        
+
         // Find if part already exists
-        const partIndex = existingParts.findIndex((p) => p.id === part.id)
+        const partIndex = partId ? existingParts.findIndex((p) => getPartId(p) === partId) : -1
         let newParts: Part[]
         if (partIndex === -1) {
           // Add new part
-          console.log('[ExecutionLog] Adding new part to message:', { messageId, partId: part.id, existingPartsCount: existingParts.length })
+          console.log('[ExecutionLog] Adding new part to message:', {
+            messageId,
+            partId,
+            existingPartsCount: existingParts.length,
+          })
           newParts = [...existingParts, part]
         } else {
           // Update existing part
-          console.log('[ExecutionLog] Updating existing part in message:', { messageId, partId: part.id, partIndex })
+          console.log('[ExecutionLog] Updating existing part in message:', {
+            messageId,
+            partId,
+            partIndex,
+          })
           newParts = [...existingParts]
           newParts[partIndex] = part
         }
-        
+
         const updatedEvent = buildMessageEvent(
           messageId,
           { ...existingPayload, parts: newParts },
@@ -173,16 +220,19 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
       setEvents((prev) => prev.filter((item) => item.id !== id))
     }
 
-    const cleanup = window.api.opencode.onEvent(sessionId, (event) => {
+    if (!effectiveSessionId) return
+
+    const cleanup = window.api.opencode.onEvent(effectiveSessionId, (event) => {
       console.log('[ExecutionLog] Received event:', event.type, event)
-      if (event.sessionId !== sessionId) {
+      if (event.sessionId !== effectiveSessionId) {
         console.log('[ExecutionLog] Event sessionId mismatch, ignoring')
         return
       }
 
       if (event.type === 'message.part.updated') {
-        console.log('[ExecutionLog] Processing message.part.updated:', event.messageId, event.part)
-        updateMessagePart(event.messageId, event.part)
+        const part = event.part as Part
+        console.log('[ExecutionLog] Processing message.part.updated:', event.messageId, part)
+        updateMessagePart(event.messageId, part)
         setIsLoading(false)
         return
       }
@@ -218,7 +268,7 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
     })
 
     return cleanup
-  }, [sessionId])
+  }, [effectiveSessionId])
 
   useEffect(() => {
     let isActive = true
@@ -245,10 +295,10 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
     }
 
     const fetchSessionMessages = async () => {
-      if (!sessionId || !isActive) return
+      if (!effectiveSessionId || !isActive) return
       try {
         const response = await window.api.opencode.getSessionMessages({
-          sessionId,
+          sessionId: effectiveSessionId,
           limit: 200,
         })
         if (!isActive) return
@@ -265,7 +315,7 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
               const id = `msg-${msg.id}`
               const event: RunEvent = {
                 id,
-                runId: sessionId,
+                runId: effectiveSessionId,
                 ts: new Date(msg.timestamp).toISOString(),
                 eventType: 'message',
                 payload: {
@@ -304,7 +354,7 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
     }
 
     const loadInitial = async () => {
-      if (sessionId) {
+      if (effectiveSessionId) {
         await fetchSessionMessages()
       }
       await fetchEvents()
@@ -318,7 +368,7 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
       refreshMessagesRef.current = null
       clearInterval(interval)
     }
-  }, [runId, sessionId])
+  }, [runId, effectiveSessionId])
 
   useEffect(() => {
     if (autoScroll && scrollRef.current) {
@@ -386,14 +436,15 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
 
       const { role = 'assistant', content, parts: messageParts } = messagePayload
 
-      const parts = messageParts && messageParts.length > 0
-        ? messageParts
-        : content
-          ? [{ type: 'text' as const, text: content }]
-          : []
+      const parts =
+        messageParts && messageParts.length > 0
+          ? messageParts
+          : content
+            ? [{ type: 'text' as const, text: content }]
+            : []
 
       const isUser = role === 'user'
-      
+
       // Extract messageId from event.id (format: "msg-<messageId>")
       const messageId = event.id.replace(/^msg-/, '')
       const isStreaming = streamingMessageIds.has(messageId)
