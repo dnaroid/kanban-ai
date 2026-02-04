@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertCircle, Trash2 } from 'lucide-react'
+import { AlertCircle, Play, RefreshCw, Trash2 } from 'lucide-react'
 import type { KanbanTask, Tag } from '@/shared/types/ipc'
 import { cn } from '../../../lib/utils'
 import {
@@ -32,6 +32,7 @@ export function SortableTask({ task, globalTags, onDelete, onClick }: SortableTa
   }
 
   const [isBlocked, setIsBlocked] = useState(false)
+  const [isStarting, setIsStarting] = useState(false)
 
   useEffect(() => {
     let isMounted = true
@@ -52,6 +53,21 @@ export function SortableTask({ task, globalTags, onDelete, onClick }: SortableTa
       isMounted = false
     }
   }, [task.id])
+
+  const handleStart = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (isStarting) return
+    setIsStarting(true)
+    try {
+      const rolesResponse = await window.api.roles.list()
+      const roleId = rolesResponse.roles[0]?.id || 'default'
+      await window.api.run.start({ taskId: task.id, roleId })
+    } catch (error) {
+      console.error('Failed to start run from card:', error)
+    } finally {
+      setIsStarting(false)
+    }
+  }
 
   const pConfig = priorityConfig[task.priority]
   const tConfig = typeConfig[task.type as keyof typeof typeConfig] || typeConfig.chore
@@ -79,17 +95,34 @@ export function SortableTask({ task, globalTags, onDelete, onClick }: SortableTa
       <div className="flex-1 min-w-0 p-4">
         <div className="flex items-start justify-between gap-2 mb-2">
           <h4 className="text-sm font-semibold text-slate-200 leading-snug flex-1">{task.title}</h4>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete?.(task.id)
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all p-1 rounded-md hover:bg-red-500/10"
-            title="Delete Task"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          <div className="flex flex-col gap-1">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete?.(task.id)
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all p-1 rounded-md hover:bg-red-500/10"
+              title="Delete Task"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+            {['queued', 'paused', 'failed'].includes(task.status) && (
+              <button
+                onClick={handleStart}
+                onPointerDown={(e) => e.stopPropagation()}
+                disabled={isStarting}
+                className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-blue-400 transition-all p-1 rounded-md hover:bg-blue-500/10"
+                title="Start Run"
+              >
+                {isStarting ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Play className="w-4 h-4" />
+                )}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 mb-2">
