@@ -59,3 +59,41 @@
 .animate-in {
   animation: fade-in 0.3s ease-out forwards;
 }
+
+@keyframes card-pulse-blue {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+    border-color: rgba(59, 130, 246, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0);
+    border-color: rgba(59, 130, 246, 0.8);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+    border-color: rgba(59, 130, 246, 0.5);
+  }
+}
+
+.animate-card-pulse-blue {
+  animation: card-pulse-blue 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes card-pulse-purple {
+  0% {
+    box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.4);
+    border-color: rgba(168, 85, 247, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(168, 85, 247, 0);
+    border-color: rgba(168, 85, 247, 0.8);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(168, 85, 247, 0);
+    border-color: rgba(168, 85, 247, 0.5);
+  }
+}
+
+.animate-card-pulse-purple {
+  animation: card-pulse-purple 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

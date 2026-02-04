@@ -71,7 +71,9 @@ export function SortableTask({ task, globalTags, onDelete, onClick }: SortableTa
       onClick={() => onClick?.(task)}
       className={cn(
         'bg-[#11151C] border border-slate-700 rounded-xl mb-3 group hover:border-slate-600 hover:shadow-lg hover:shadow-black/20 transition-all cursor-grab active:cursor-grabbing overflow-hidden',
-        isDragging && 'opacity-50 shadow-2xl scale-105'
+        isDragging && 'opacity-50 shadow-2xl scale-105',
+        task.status === 'running' && 'animate-card-pulse-blue border-blue-500/50',
+        task.status === 'generating' && 'animate-card-pulse-purple border-purple-500/50'
       )}
     >
       <div className="flex-1 min-w-0 p-4">
