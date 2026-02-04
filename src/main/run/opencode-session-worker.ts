@@ -495,10 +495,19 @@ export class OpenCodeSessionWorker {
     const columns = boardRepo.getColumns(task.boardId)
     const normalizeName = (value: string) =>
       value.toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim()
-    const column =
-      columns.find((entry) => normalizeName(entry.name) === 'in progress') ||
-      columns.find((entry) => normalizeName(entry.name).includes('progress'))
-    return column?.id ?? null
+    const nameMatches = (entry: { name: string }) => {
+      const normalized = normalizeName(entry.name)
+      return (
+        normalized === 'in progress' ||
+        normalized.includes('progress') ||
+        normalized === 'в работе' ||
+        normalized.includes('работ')
+      )
+    }
+    const column = columns.find(nameMatches)
+    if (column) return column.id
+    const fallback = columns.find((entry) => entry.orderIndex === 1)
+    return fallback?.id ?? null
   }
 
   private cleanStoryTitle(value: string): string {

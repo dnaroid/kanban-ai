@@ -1,14 +1,14 @@
-import {z} from "zod"
+import { z } from 'zod'
 
 export const TaskStatusSchema = z
-  .enum(["queued", "running", "question", "paused", "done", "failed", "generating"])
-  .describe("TaskStatus")
+  .enum(['queued', 'running', 'question', 'paused', 'done', 'failed', 'generating'])
+  .describe('TaskStatus')
 
 export const TaskPrioritySchema = z
-  .enum(["postpone", "low", "normal", "urgent"])
-  .describe("TaskPriority")
+  .enum(['postpone', 'low', 'normal', 'urgent'])
+  .describe('TaskPriority')
 
-export const LogLevelSchema = z.enum(["info", "warn", "error", "debug"])
+export const LogLevelSchema = z.enum(['info', 'warn', 'error', 'debug'])
 
 export const LogEntrySchema = z.object({
   timestamp: z.string(),
@@ -38,7 +38,7 @@ export const ProjectSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1),
   path: z.string(),
-  color: z.string().default(""),
+  color: z.string().default(''),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 })
@@ -73,7 +73,7 @@ export const BoardColumnSchema = z.object({
   boardId: z.string().uuid(),
   name: z.string().min(1),
   orderIndex: z.number(),
-  color: z.string().default(""),
+  color: z.string().default(''),
 })
 
 export type BoardColumn = z.infer<typeof BoardColumnSchema>
@@ -82,7 +82,7 @@ export const BoardColumnInputSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1),
   orderIndex: z.number(),
-  color: z.string().default(""),
+  color: z.string().default(''),
 })
 
 export type BoardColumnInput = z.infer<typeof BoardColumnInputSchema>
@@ -130,9 +130,9 @@ export const KanbanTaskSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   descriptionMd: z.string().optional(),
-  status: z.enum(["queued", "running", "question", "paused", "done", "failed", "generating"]),
-  priority: z.enum(["postpone", "low", "normal", "urgent"]),
-  difficulty: z.enum(["easy", "medium", "hard", "epic"]).default("medium"),
+  status: z.enum(['queued', 'running', 'question', 'paused', 'done', 'failed', 'generating']),
+  priority: z.enum(['postpone', 'low', 'normal', 'urgent']),
+  difficulty: z.enum(['easy', 'medium', 'hard', 'epic']).default('medium'),
   type: z.string(),
   orderInColumn: z.number().optional(),
 
@@ -154,9 +154,9 @@ export const CreateTaskInputSchema = z.object({
   columnId: z.string().uuid(),
   title: z.string().min(1),
   description: z.string().optional(),
-  type: z.string().default("task"),
-  priority: z.enum(["postpone", "low", "normal", "urgent"]).default("normal"),
-  difficulty: z.enum(["easy", "medium", "hard", "epic"]).default("medium"),
+  type: z.string().default('task'),
+  priority: z.enum(['postpone', 'low', 'normal', 'urgent']).default('normal'),
+  difficulty: z.enum(['easy', 'medium', 'hard', 'epic']).default('medium'),
   tags: z.array(z.string()).default([]),
 })
 
@@ -173,10 +173,10 @@ export const TaskPatchSchema = z.object({
   description: z.string().optional(),
   descriptionMd: z.string().optional(),
   status: z
-    .enum(["queued", "running", "question", "paused", "done", "failed", "generating"])
+    .enum(['queued', 'running', 'question', 'paused', 'done', 'failed', 'generating'])
     .optional(),
-  priority: z.enum(["postpone", "low", "normal", "urgent"]).optional(),
-  difficulty: z.enum(["easy", "medium", "hard", "epic"]).optional(),
+  priority: z.enum(['postpone', 'low', 'normal', 'urgent']).optional(),
+  difficulty: z.enum(['easy', 'medium', 'hard', 'epic']).optional(),
   type: z.string().optional(),
   columnId: z.string().uuid().optional(),
   orderInColumn: z.number().optional(),
@@ -256,11 +256,11 @@ export const TaskMoveResponseSchema = z.object({
 
 export type TaskMoveResponse = z.infer<typeof TaskMoveResponseSchema>
 
-export const TaskDependencyTypeSchema = z.enum(["blocks", "blocked_by", "relates"])
+export const TaskDependencyTypeSchema = z.enum(['blocks', 'blocked_by', 'relates'])
 
 export type TaskDependencyType = z.infer<typeof TaskDependencyTypeSchema>
 
-export const TaskLinkTypeSchema = z.enum(["blocks", "relates"])
+export const TaskLinkTypeSchema = z.enum(['blocks', 'relates'])
 
 export type TaskLinkType = z.infer<typeof TaskLinkTypeSchema>
 
@@ -347,16 +347,16 @@ export const ScheduleUpdateResponseSchema = z.object({
 
 export type ScheduleUpdateResponse = z.infer<typeof ScheduleUpdateResponseSchema>
 
-export const SearchEntitySchema = z.enum(["task", "run", "artifact"])
+export const SearchEntitySchema = z.enum(['task', 'run', 'artifact'])
 
 export type SearchEntity = z.infer<typeof SearchEntitySchema>
 
 export const SearchFiltersSchema = z.object({
   projectId: z.string().uuid().optional(),
   entity: SearchEntitySchema.optional(),
-  status: z.enum(["queued", "running", "question", "paused", "done", "failed"]).optional(),
+  status: z.enum(['queued', 'running', 'question', 'paused', 'done', 'failed']).optional(),
   tags: z.array(z.string()).optional(),
-  priority: z.enum(["postpone", "low", "normal", "urgent"]).optional(),
+  priority: z.enum(['postpone', 'low', 'normal', 'urgent']).optional(),
   role: z.string().optional(),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
@@ -372,14 +372,14 @@ export const SearchQueryInputSchema = z.object({
 export type SearchQueryInput = z.infer<typeof SearchQueryInputSchema>
 
 export const TaskSearchResultSchema = z.object({
-  entity: z.literal("task"),
+  entity: z.literal('task'),
   task: KanbanTaskSchema,
 })
 
 export type TaskSearchResult = z.infer<typeof TaskSearchResultSchema>
 
 export const RunSearchResultSchema = z.object({
-  entity: z.literal("run"),
+  entity: z.literal('run'),
   run: z.object({
     id: z.string().uuid(),
     taskId: z.string().uuid(),
@@ -394,7 +394,7 @@ export const RunSearchResultSchema = z.object({
 export type RunSearchResult = z.infer<typeof RunSearchResultSchema>
 
 export const ArtifactSearchResultSchema = z.object({
-  entity: z.literal("artifact"),
+  entity: z.literal('artifact'),
   artifact: z.object({
     id: z.string().uuid(),
     runId: z.string().uuid(),
@@ -478,7 +478,7 @@ export const AnalyticsGetRunStatsResponseSchema = z.object({
 
 export type AnalyticsGetRunStatsResponse = z.infer<typeof AnalyticsGetRunStatsResponseSchema>
 
-export const PluginTypeSchema = z.enum(["role", "executor", "integration", "ui"])
+export const PluginTypeSchema = z.enum(['role', 'executor', 'integration', 'ui'])
 
 export type PluginType = z.infer<typeof PluginTypeSchema>
 
@@ -579,7 +579,7 @@ export type BackupExportResponse = z.infer<typeof BackupExportResponseSchema>
 
 export const BackupImportInputSchema = z.object({
   zipPath: z.string().min(1),
-  mode: z.enum(["new", "overwrite"]).default("new"),
+  mode: z.enum(['new', 'overwrite']).default('new'),
   projectPath: z.string().optional(),
 })
 
@@ -641,9 +641,9 @@ export const DatabaseDeleteResponseSchema = z.object({
 })
 export type DatabaseDeleteResponse = z.infer<typeof DatabaseDeleteResponseSchema>
 
-export const RunModeSchema = z.enum(["plan-only", "execute", "critique"])
-export const RunStatusSchema = z.enum(["queued", "running", "succeeded", "failed", "canceled"])
-export const RunKindSchema = z.enum(["task-run", "task-description-improve"])
+export const RunModeSchema = z.enum(['plan-only', 'execute', 'critique'])
+export const RunStatusSchema = z.enum(['queued', 'running', 'succeeded', 'failed', 'canceled'])
+export const RunKindSchema = z.enum(['task-run', 'task-description-improve'])
 
 export const RunSchema = z.object({
   id: z.string().uuid(),
@@ -730,14 +730,14 @@ export const RunGetResponseSchema = z.object({
 export type RunGetResponse = z.infer<typeof RunGetResponseSchema>
 
 export const RunEventTypeSchema = z.enum([
-  "stdout",
-  "stderr",
-  "message",
-  "tool",
-  "artifact",
-  "status",
-  "debug",
-  "usage",
+  'stdout',
+  'stderr',
+  'message',
+  'tool',
+  'artifact',
+  'status',
+  'debug',
+  'usage',
 ])
 
 export const RunEventSchema = z.object({
@@ -764,7 +764,7 @@ export const RunEventsTailResponseSchema = z.object({
 
 export type RunEventsTailResponse = z.infer<typeof RunEventsTailResponseSchema>
 
-export const ArtifactKindSchema = z.enum(["markdown", "json", "patch", "file_ref", "link"])
+export const ArtifactKindSchema = z.enum(['markdown', 'json', 'patch', 'file_ref', 'link'])
 
 export const ArtifactSchema = z.object({
   id: z.string().uuid(),
@@ -871,7 +871,7 @@ export type OpenCodeSessionStatusInput = z.infer<typeof OpenCodeSessionStatusInp
 export const OpenCodeSessionStatusResponseSchema = z.object({
   sessionId: z.string(),
   runId: z.string(),
-  status: z.enum(["running", "completed", "failed", "timeout"]),
+  status: z.enum(['running', 'completed', 'failed', 'timeout']),
   messageCount: z.number().int(),
   lastMessageAt: z.number().optional(),
 })
@@ -893,7 +893,7 @@ export type OpenCodeSessionMessagesInput = z.infer<typeof OpenCodeSessionMessage
 
 export const OpenCodeMessageSchema = z.object({
   id: z.string(),
-  role: z.enum(["user", "assistant"]),
+  role: z.enum(['user', 'assistant']),
   content: z.string(),
   parts: z.array(z.any()),
   timestamp: z.number(),
@@ -909,7 +909,7 @@ export const OpenCodeSessionMessagesResponseSchema = z.object({
 export type OpenCodeSessionMessagesResponse = z.infer<typeof OpenCodeSessionMessagesResponseSchema>
 
 export const TaskEventSchema = z.object({
-  type: z.enum(["task.updated"]),
+  type: z.enum(['task.updated']),
   task: KanbanTaskSchema,
 })
 
@@ -957,30 +957,30 @@ export type OpenCodeIsSubscribedResponse = z.infer<typeof OpenCodeIsSubscribedRe
 
 export const OpenCodeSessionEventSchema = z.union([
   z.object({
-    type: z.literal("message.updated"),
+    type: z.literal('message.updated'),
     sessionId: z.string(),
     message: z.unknown(),
   }),
   z.object({
-    type: z.literal("message.removed"),
+    type: z.literal('message.removed'),
     sessionId: z.string(),
     messageId: z.string(),
   }),
   z.object({
-    type: z.literal("message.part.updated"),
+    type: z.literal('message.part.updated'),
     sessionId: z.string(),
     messageId: z.string(),
     part: z.unknown(),
     delta: z.string().optional(),
   }),
   z.object({
-    type: z.literal("message.part.removed"),
+    type: z.literal('message.part.removed'),
     sessionId: z.string(),
     messageId: z.string(),
     partId: z.string(),
   }),
   z.object({
-    type: z.literal("error"),
+    type: z.literal('error'),
     sessionId: z.string(),
     error: z.string(),
   }),
@@ -992,18 +992,18 @@ export type OpenCodeSessionEvent = z.infer<typeof OpenCodeSessionEventSchema>
 // TaskQueueManager schemas
 // ---------------------------------------------------------------------------
 export const TaskQueueStateSchema = z.enum([
-  "queued",
-  "running",
-  "waiting_user",
-  "paused",
-  "done",
-  "failed",
-  "cancelled",
+  'queued',
+  'running',
+  'waiting_user',
+  'paused',
+  'done',
+  'failed',
+  'cancelled',
 ])
 
 export type TaskQueueState = z.infer<typeof TaskQueueStateSchema>
 
-export const TaskQueueStageSchema = z.enum(["ba", "fe", "be", "qa", "kb"])
+export const TaskQueueStageSchema = z.enum(['ba', 'fe', 'be', 'qa', 'kb'])
 
 export type TaskQueueStage = z.infer<typeof TaskQueueStageSchema>
 
@@ -1022,7 +1022,7 @@ export const TaskQueueRowSchema = z.object({
 export type TaskQueueRow = z.infer<typeof TaskQueueRowSchema>
 
 export const RoleSlotRowSchema = z.object({
-  role_key: z.enum(["ba", "fe", "be", "qa"]),
+  role_key: z.enum(['ba', 'fe', 'be', 'qa']),
   max_concurrency: z.number().int().nonnegative(),
   updated_at: z.string().datetime(),
 })
@@ -1038,27 +1038,27 @@ export const ResourceLockRowSchema = z.object({
 
 export type ResourceLockRow = z.infer<typeof ResourceLockRowSchema>
 
-export type ToolState = "pending" | "running" | "completed" | "error"
+export type ToolState = 'pending' | 'running' | 'completed' | 'error'
 
 export type Part =
-  | { type: "text"; text: string; synthetic?: boolean; ignored?: boolean }
-  | { type: "file"; url: string; mime: string; filename?: string }
-  | { type: "agent"; name: string }
+  | { type: 'text'; text: string; synthetic?: boolean; ignored?: boolean }
+  | { type: 'file'; url: string; mime: string; filename?: string }
+  | { type: 'agent'; name: string }
   | {
-  type: "tool"
-  callID: string
-  tool: string
-  state: ToolState
-  input?: any
-  output?: any
-  error?: string
-}
-  | { type: "reasoning"; text: string }
+      type: 'tool'
+      callID: string
+      tool: string
+      state: ToolState
+      input?: any
+      output?: any
+      error?: string
+    }
+  | { type: 'reasoning'; text: string }
 
 export type MessageInfo = {
   id: string
   sessionID: string
-  role: "user" | "assistant"
+  role: 'user' | 'assistant'
   time: {
     created: number
     completed?: number
@@ -1069,20 +1069,20 @@ export type MessageInfo = {
 // ---------------------------------------------------------------------------
 // STT (Speech-to-Text) Realtime Transcription schemas
 // ---------------------------------------------------------------------------
-export const STTLanguageSchema = z.enum(["ru", "en"])
+export const STTLanguageSchema = z.enum(['ru', 'en'])
 export type STTLanguage = z.infer<typeof STTLanguageSchema>
 
-export const STTModeSchema = z.enum(["ptt", "toggle"])
+export const STTModeSchema = z.enum(['ptt', 'toggle'])
 export type STTMode = z.infer<typeof STTModeSchema>
 
 export const STTStatusSchema = z.enum([
-  "idle",
-  "requesting_mic",
-  "connecting",
-  "listening",
-  "speech",
-  "finalizing",
-  "error",
+  'idle',
+  'requesting_mic',
+  'connecting',
+  'listening',
+  'speech',
+  'finalizing',
+  'error',
 ])
 export type STTStatus = z.infer<typeof STTStatusSchema>
 
@@ -1158,7 +1158,7 @@ export const STTErrorEventSchema = z.object({
 export type STTErrorEvent = z.infer<typeof STTErrorEventSchema>
 
 export const VoskModelDownloadInputSchema = z.object({
-  lang: z.enum(["ru", "en"]),
+  lang: z.enum(['ru', 'en']),
 })
 export type VoskModelDownloadInput = z.infer<typeof VoskModelDownloadInputSchema>
 
@@ -1195,3 +1195,16 @@ export const OpencodeModelToggleResponseSchema = z.object({
 })
 
 export type OpencodeModelToggleResponse = z.infer<typeof OpencodeModelToggleResponseSchema>
+
+export const OpencodeSendMessageInputSchema = z.object({
+  sessionId: z.string(),
+  message: z.string(),
+})
+
+export type OpencodeSendMessageInput = z.infer<typeof OpencodeSendMessageInputSchema>
+
+export const OpencodeSendMessageResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type OpencodeSendMessageResponse = z.infer<typeof OpencodeSendMessageResponseSchema>

@@ -1,135 +1,136 @@
-import {contextBridge, ipcRenderer} from "electron"
-import type {MainToRenderer, OpenCodeSessionEvent, TaskEvent} from "./ipc-contract.js"
+import { contextBridge, ipcRenderer } from 'electron'
+import type { MainToRenderer, OpenCodeSessionEvent, TaskEvent } from './ipc-contract.js'
 
 const api: MainToRenderer = {
   app: {
-    getInfo: () => ipcRenderer.invoke("app:getInfo"),
+    getInfo: () => ipcRenderer.invoke('app:getInfo'),
   },
   opencode: {
     onEvent: (sessionId, callback) => {
       const listener = (_event: unknown, data: unknown) => {
         callback(data as OpenCodeSessionEvent)
       }
-      ipcRenderer.on("opencode:event", listener)
+      ipcRenderer.on('opencode:event', listener)
       if (sessionId) {
-        void ipcRenderer.invoke("opencode:subscribeToEvents", {sessionID: sessionId})
+        void ipcRenderer.invoke('opencode:subscribeToEvents', { sessionID: sessionId })
       }
       return () => {
-        ipcRenderer.removeListener("opencode:event", listener)
+        ipcRenderer.removeListener('opencode:event', listener)
         if (sessionId) {
-          void ipcRenderer.invoke("opencode:unsubscribeFromEvents", {sessionID: sessionId})
+          void ipcRenderer.invoke('opencode:unsubscribeFromEvents', { sessionID: sessionId })
         }
       }
     },
-    generateUserStory: (input) => ipcRenderer.invoke("opencode:generateUserStory", input),
-    getSessionStatus: (input) => ipcRenderer.invoke("opencode:getSessionStatus", input),
-    getActiveSessions: () => ipcRenderer.invoke("opencode:getActiveSessions"),
-    getSessionMessages: (input) => ipcRenderer.invoke("opencode:getSessionMessages", input),
-    listModels: () => ipcRenderer.invoke("opencode:listModels"),
-    toggleModel: (input) => ipcRenderer.invoke("opencode:toggleModel", input),
+    generateUserStory: (input) => ipcRenderer.invoke('opencode:generateUserStory', input),
+    getSessionStatus: (input) => ipcRenderer.invoke('opencode:getSessionStatus', input),
+    getActiveSessions: () => ipcRenderer.invoke('opencode:getActiveSessions'),
+    getSessionMessages: (input) => ipcRenderer.invoke('opencode:getSessionMessages', input),
+    listModels: () => ipcRenderer.invoke('opencode:listModels'),
+    toggleModel: (input) => ipcRenderer.invoke('opencode:toggleModel', input),
+    sendMessage: (input) => ipcRenderer.invoke('opencode:sendMessage', input),
   },
   project: {
-    selectFolder: () => ipcRenderer.invoke("project:selectFolder"),
-    create: (input) => ipcRenderer.invoke("project:create", input),
-    getAll: () => ipcRenderer.invoke("project:getAll"),
-    getById: (id) => ipcRenderer.invoke("project:getById", id),
-    update: (input) => ipcRenderer.invoke("project:update", input),
-    delete: (input) => ipcRenderer.invoke("project:delete", input),
+    selectFolder: () => ipcRenderer.invoke('project:selectFolder'),
+    create: (input) => ipcRenderer.invoke('project:create', input),
+    getAll: () => ipcRenderer.invoke('project:getAll'),
+    getById: (id) => ipcRenderer.invoke('project:getById', id),
+    update: (input) => ipcRenderer.invoke('project:update', input),
+    delete: (input) => ipcRenderer.invoke('project:delete', input),
   },
   board: {
-    getDefault: (input) => ipcRenderer.invoke("board:getDefault", input),
-    updateColumns: (input) => ipcRenderer.invoke("board:updateColumns", input),
+    getDefault: (input) => ipcRenderer.invoke('board:getDefault', input),
+    updateColumns: (input) => ipcRenderer.invoke('board:updateColumns', input),
   },
   task: {
     onEvent: (callback) => {
       const listener = (_event: unknown, data: unknown) => {
         callback(data as TaskEvent)
       }
-      ipcRenderer.on("task:event", listener)
-      ipcRenderer.invoke("task:subscribeToEvents", {})
+      ipcRenderer.on('task:event', listener)
+      ipcRenderer.invoke('task:subscribeToEvents', {})
       return () => {
-        ipcRenderer.removeListener("task:event", listener)
-        ipcRenderer.invoke("task:unsubscribeFromEvents", {})
+        ipcRenderer.removeListener('task:event', listener)
+        ipcRenderer.invoke('task:unsubscribeFromEvents', {})
       }
     },
-    create: (input) => ipcRenderer.invoke("task:create", input),
-    listByBoard: (input) => ipcRenderer.invoke("task:listByBoard", input),
-    update: (input) => ipcRenderer.invoke("task:update", input),
-    move: (input) => ipcRenderer.invoke("task:move", input),
-    delete: (input) => ipcRenderer.invoke("task:delete", input),
+    create: (input) => ipcRenderer.invoke('task:create', input),
+    listByBoard: (input) => ipcRenderer.invoke('task:listByBoard', input),
+    update: (input) => ipcRenderer.invoke('task:update', input),
+    move: (input) => ipcRenderer.invoke('task:move', input),
+    delete: (input) => ipcRenderer.invoke('task:delete', input),
   },
   tag: {
-    create: (input) => ipcRenderer.invoke("tag:create", input),
-    update: (input) => ipcRenderer.invoke("tag:update", input),
-    delete: (input) => ipcRenderer.invoke("tag:delete", input),
-    list: (input) => ipcRenderer.invoke("tag:list", input),
+    create: (input) => ipcRenderer.invoke('tag:create', input),
+    update: (input) => ipcRenderer.invoke('tag:update', input),
+    delete: (input) => ipcRenderer.invoke('tag:delete', input),
+    list: (input) => ipcRenderer.invoke('tag:list', input),
   },
   deps: {
-    list: (input) => ipcRenderer.invoke("deps:list", input),
-    add: (input) => ipcRenderer.invoke("deps:add", input),
-    remove: (input) => ipcRenderer.invoke("deps:remove", input),
+    list: (input) => ipcRenderer.invoke('deps:list', input),
+    add: (input) => ipcRenderer.invoke('deps:add', input),
+    remove: (input) => ipcRenderer.invoke('deps:remove', input),
   },
   schedule: {
-    get: (input) => ipcRenderer.invoke("schedule:get", input),
-    update: (input) => ipcRenderer.invoke("schedule:update", input),
+    get: (input) => ipcRenderer.invoke('schedule:get', input),
+    update: (input) => ipcRenderer.invoke('schedule:update', input),
   },
   search: {
-    query: (input) => ipcRenderer.invoke("search:query", input),
+    query: (input) => ipcRenderer.invoke('search:query', input),
   },
   analytics: {
-    getOverview: (input) => ipcRenderer.invoke("analytics:getOverview", input),
-    getRunStats: (input) => ipcRenderer.invoke("analytics:getRunStats", input),
+    getOverview: (input) => ipcRenderer.invoke('analytics:getOverview', input),
+    getRunStats: (input) => ipcRenderer.invoke('analytics:getRunStats', input),
   },
   plugins: {
-    list: () => ipcRenderer.invoke("plugins:list"),
-    install: (input) => ipcRenderer.invoke("plugins:install", input),
-    enable: (input) => ipcRenderer.invoke("plugins:enable", input),
-    reload: () => ipcRenderer.invoke("plugins:reload"),
+    list: () => ipcRenderer.invoke('plugins:list'),
+    install: (input) => ipcRenderer.invoke('plugins:install', input),
+    enable: (input) => ipcRenderer.invoke('plugins:enable', input),
+    reload: () => ipcRenderer.invoke('plugins:reload'),
   },
   roles: {
-    list: () => ipcRenderer.invoke("roles:list"),
+    list: () => ipcRenderer.invoke('roles:list'),
   },
   backup: {
-    exportProject: (input) => ipcRenderer.invoke("backup:exportProject", input),
-    importProject: (input) => ipcRenderer.invoke("backup:importProject", input),
+    exportProject: (input) => ipcRenderer.invoke('backup:exportProject', input),
+    importProject: (input) => ipcRenderer.invoke('backup:importProject', input),
   },
   diagnostics: {
-    getLogs: (level, limit) => ipcRenderer.invoke("diagnostics:getLogs", level, limit),
-    getLogTail: (lines) => ipcRenderer.invoke("diagnostics:getLogTail", lines),
-    getSystemInfo: () => ipcRenderer.invoke("diagnostics:getSystemInfo"),
-    getDbInfo: () => ipcRenderer.invoke("diagnostics:getDbInfo"),
+    getLogs: (level, limit) => ipcRenderer.invoke('diagnostics:getLogs', level, limit),
+    getLogTail: (lines) => ipcRenderer.invoke('diagnostics:getLogTail', lines),
+    getSystemInfo: () => ipcRenderer.invoke('diagnostics:getSystemInfo'),
+    getDbInfo: () => ipcRenderer.invoke('diagnostics:getDbInfo'),
   },
   database: {
-    delete: (input) => ipcRenderer.invoke("database:delete", input),
+    delete: (input) => ipcRenderer.invoke('database:delete', input),
   },
   run: {
-    start: (input) => ipcRenderer.invoke("run:start", input),
-    cancel: (input) => ipcRenderer.invoke("run:cancel", input),
-    delete: (input) => ipcRenderer.invoke("run:delete", input),
-    listByTask: (input) => ipcRenderer.invoke("run:listByTask", input),
-    get: (input) => ipcRenderer.invoke("run:get", input),
+    start: (input) => ipcRenderer.invoke('run:start', input),
+    cancel: (input) => ipcRenderer.invoke('run:cancel', input),
+    delete: (input) => ipcRenderer.invoke('run:delete', input),
+    listByTask: (input) => ipcRenderer.invoke('run:listByTask', input),
+    get: (input) => ipcRenderer.invoke('run:get', input),
   },
   events: {
-    tail: (input) => ipcRenderer.invoke("run:events:tail", input),
+    tail: (input) => ipcRenderer.invoke('run:events:tail', input),
   },
   artifact: {
-    list: (input) => ipcRenderer.invoke("artifact:list", input),
-    get: (input) => ipcRenderer.invoke("artifact:get", input),
+    list: (input) => ipcRenderer.invoke('artifact:list', input),
+    get: (input) => ipcRenderer.invoke('artifact:get', input),
   },
   appSetting: {
-    getLastProjectId: () => ipcRenderer.invoke("appSetting:getLastProjectId"),
+    getLastProjectId: () => ipcRenderer.invoke('appSetting:getLastProjectId'),
     setLastProjectId: (input: { projectId: string }) =>
-      ipcRenderer.invoke("appSetting:setLastProjectId", input),
-    getSidebarCollapsed: () => ipcRenderer.invoke("appSetting:getSidebarCollapsed"),
+      ipcRenderer.invoke('appSetting:setLastProjectId', input),
+    getSidebarCollapsed: () => ipcRenderer.invoke('appSetting:getSidebarCollapsed'),
     setSidebarCollapsed: (input: { collapsed: boolean }) =>
-      ipcRenderer.invoke("appSetting:setSidebarCollapsed", input),
+      ipcRenderer.invoke('appSetting:setSidebarCollapsed', input),
   },
   vosk: {
-    downloadModel: (input) => ipcRenderer.invoke("vosk:downloadModel", input),
+    downloadModel: (input) => ipcRenderer.invoke('vosk:downloadModel', input),
   },
 }
 
-contextBridge.exposeInMainWorld("api", api)
+contextBridge.exposeInMainWorld('api', api)
 
 declare global {
   interface Window {

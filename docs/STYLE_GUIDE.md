@@ -16,8 +16,10 @@
 
 - **Основной фон**: `bg-[#0B0E14]`
 - **Вторичный фон**: `bg-[#11151C]`
+- **Фон инпутов**: `bg-[#161B26]`
 - **Контейнеры**: `bg-slate-900/40` (с прозрачностью)
-- **Границы**: `border-slate-800/60` (с низкой прозрачностью)
+- **Границы (пассивные)**: `border-slate-800/60`
+- **Границы (интерактивные)**: `border-slate-700`
 
 ### Акцентные цвета
 
@@ -232,15 +234,35 @@ uppercase
       value={value}
       onChange={(event) => setValue(event.target.value)}
       placeholder="Placeholder text"
-      className="w-full bg-[#0B0E14] border border-slate-800/60 text-sm text-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/40 transition-all placeholder:text-slate-400"
+      className="w-full bg-[#161B26] border border-slate-700 text-sm text-slate-200 rounded-xl px-4 py-2.5 hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.1)] transition-all placeholder:text-slate-500"
     />
   </div>
 </div>
 ```
 
 **Важные правила для ввода:**
-1. **Всегда** используйте `focus:outline-none`, чтобы убрать стандартную браузерную обводку.
-2. Используйте `placeholder:text-slate-400` для достаточной контрастности на темном фоне.
+1. **Заметность**: Инпуты используют более светлый фон `#161B26`, чтобы выделяться на основном фоне.
+2. **Hover**: Обязательно добавляйте `hover:border-slate-600` для визуального отклика.
+3. **Focus**: Используйте комбинацию `ring-4 ring-blue-500/10` и `shadow` для создания мягкого свечения.
+4. **Placeholder**: Используйте `text-slate-500` для баланса читаемости и иерархии.
+
+### Поле ввода чата (Chat Input)
+
+Паттерн для длинных текстовых сообщений с кнопкой отправки внутри:
+
+```tsx
+<div className="relative flex items-end w-full bg-[#161B26] border border-slate-700 rounded-2xl focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500/50 shadow-xl shadow-black/20 overflow-hidden transition-all duration-200">
+  <textarea
+    className="w-full min-h-[52px] max-h-[200px] pl-4 pr-14 py-4 bg-transparent border-none focus:outline-none focus:ring-0 text-sm text-slate-200 placeholder:text-slate-600 font-medium resize-none custom-scrollbar"
+    rows={1}
+  />
+  <div className="absolute right-2 bottom-2">
+    <button className="flex items-center justify-center w-9 h-9 rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/20 hover:scale-105 active:scale-95 transition-all">
+      <Send className="w-4 h-4" />
+    </button>
+  </div>
+</div>
+```
 
 ### Списки с группами и фильтрами (Collapsible Sections)
 

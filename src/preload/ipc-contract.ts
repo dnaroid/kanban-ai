@@ -40,6 +40,8 @@ import type {
   OpencodeModelsListResponse,
   OpencodeModelToggleInput,
   OpencodeModelToggleResponse,
+  OpencodeSendMessageInput,
+  OpencodeSendMessageResponse,
   OpenCodeSessionEvent,
   OpenCodeSessionMessagesInput,
   OpenCodeSessionMessagesResponse,
@@ -94,10 +96,10 @@ import type {
   UpdateProjectInput,
   VoskModelDownloadInput,
   VoskModelDownloadResponse,
-} from "../shared/types/ipc"
+} from '../shared/types/ipc'
 
-export type {OpenCodeSessionEvent} from "../shared/types/ipc"
-export type {TaskEvent} from "../shared/types/ipc"
+export type { OpenCodeSessionEvent } from '../shared/types/ipc'
+export type { TaskEvent } from '../shared/types/ipc'
 
 export interface MainToRenderer {
   app: {
@@ -115,6 +117,7 @@ export interface MainToRenderer {
     ): Promise<OpenCodeSessionMessagesResponse>
     listModels(): Promise<OpencodeModelsListResponse>
     toggleModel(input: OpencodeModelToggleInput): Promise<OpencodeModelToggleResponse>
+    sendMessage(input: OpencodeSendMessageInput): Promise<OpencodeSendMessageResponse>
   }
   project: {
     selectFolder(): Promise<{ path: string; name: string } | null>
