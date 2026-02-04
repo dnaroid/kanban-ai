@@ -358,6 +358,147 @@ for await (const event of response.stream) {
 - Нужно накапливать parts в сообщении, а не заменять их
 - После завершения генерации приходит финальное `message.updated` с метаданными
 - При обработке финального `message.updated` нужно сохранять накопленные parts
+
+### Живые vs Файловые сообщения
+
+#### Живые сообщения (Active/Live Sessions)
+
+**Характеристики:**
+- Сессия активна в `activeSessions`
+- Подписка через SSE: `client.event.subscribe({ directory })`
+- События приходят в real-time через SSE stream
+- Аватар ассистента пульсирует во время генерации
+- Parts накапливаются по мере поступления `message.part.updated`
+- Сообщение создается при первом `message.part.updated` (без предварительного `message.updated`)
+
+**Как работает:**
+```typescript
+// 1. Создается SSE stream
+const response = await client.event.subscribe({ directory: projectPath })
+const stream = response.stream
+
+// 2. Итерируем по событиям
+for await (const event of stream) {
+  if (event.type === 'message.part.updated') {
+    // Инкрементальное обновление
+    const part = event.properties.part
+    const delta = event.properties.delta // Новый текст
+    // Накапливаем part в сообщении
+    updateMessagePart(event.properties.messageID, part)
+  }
+  
+  if (event.type === 'message.updated') {
+    // Финальное обновление метаданных
+    // Сохраняем накопленные parts!
+    updateMessageMetadata(event.properties.info, existingParts)
+  }
+}
+```
+
+**UI поведение:**
+- Сообщение появляется сразу при первом part
+- Контент растет постепенно по мере поступления parts
+- Аватар пульсирует `animate-pulse`
+- После завершения генерации - аватар статичный, контент сохраняется
+
+#### Файловые сообщения (Historical/Static Sessions)
+
+**Характеристики:**
+- Сессия НЕ в `activeSessions`
+- Нет SSE подписки
+- Сообщения загружаются из файлов или через `client.session.messages.get()`
+- Аватар статичный (без пульсации)
+- Parts уже загружены полностью
+- Загрузка происходит при открытии исторической сессии
+
+**Как работает:**
+```typescript
+// 1. Загружаем сообщения из файлов
+const messages = await client.session.messages.get({
+  sessionID: sessionId
+})
+
+// 2. Или читаем напрямую из filesystem
+const sessionData = await readSessionFile(sessionID)
+const messages = sessionData.messages
+
+// 3. Отображаем с загруженными parts
+messages.forEach(msg => {
+  renderMessage({
+    role: msg.role,
+    parts: msg.parts, // Уже загружены полностью
+    content: msg.content
+  })
+})
+```
+
+**UI поведение:**
+- Сообщения появляются сразу с полным контентом
+- Никакой анимации пульсации
+- Контент статичный
+
+#### Как определить тип сообщения
+
+**В коде:**
+```typescript
+// 1. Проверяем активную сессию
+const isActive = activeSessions.has(sessionID)
+
+// 2. Проверяем наличие SSE stream
+const hasStream = sessionStreams.has(sessionID)
+
+// 3. По типу событий
+// Живое: получаем `message.part.updated` → streaming
+// Файловое: получаем только `message.updated` → static
+
+// 4. По timestamp
+// Недавно создано (< 1 минута) → возможно живое
+// Старое (> 1 минута) → файловое
+```
+
+**В UI:**
+```typescript
+// Отслеживаем активные сообщения через timeout
+const [streamingMessageIds, setStreamingMessageIds] = useState<Set<string>>(new Set())
+
+// При получении message.part.updated
+setStreamingMessageIds(prev => new Set(prev).add(messageID))
+
+// Сбрасываем через 2 секунды без активности
+setTimeout(() => {
+  setStreamingMessageIds(prev => {
+    const next = new Set(prev)
+    next.delete(messageID)
+    return next
+  })
+}, 2000)
+
+// Применяем анимацию только для streaming сообщений
+<div className={cn(
+  'avatar',
+  isStreaming && 'animate-pulse'
+)} />
+```
+
+#### Рекомендации
+
+1. **Для живых сообщений:**
+   - Использовать SSE подписку для real-time обновлений
+   - Накапливать parts по мере поступления
+   - Показывать анимацию пульсации аватара
+   - Сохранять parts при финальном `message.updated`
+
+2. **Для файловых сообщений:**
+   - Загружать из filesystem или через SDK
+   - Отображать сразу с полным контентом
+   - Не показывать анимацию пульсации
+   - Не пытаться подключать SSE
+
+3. **Обработка событий:**
+   - `message.part.updated` → всегда обновлять/добавлять part
+   - `message.updated` → обновлять метаданные, сохранять существующие parts
+   - `message.removed` → удалять сообщение
+   - `message.part.removed` → удалять part из сообщения
 ```
 
 ### Аутентификация

@@ -1,17 +1,17 @@
-import { setTimeout as delay } from 'node:timers/promises'
-import { artifactRepo } from '../db/artifact-repository.js'
-import { runEventRepo } from '../db/run-event-repository.js'
-import type { RunRecord } from '../db/run-types'
-import type { RunExecutor, RunStartResult } from './job-runner'
+import {setTimeout as delay} from "node:timers/promises"
+import {artifactRepo} from "../db/artifact-repository.js"
+import {runEventRepo} from "../db/run-event-repository.js"
+import type {RunRecord} from "../db/run-types"
+import type {RunExecutor, RunStartResult} from "./job-runner"
 
 type MockExecutorOptions = {
   autoCompleteMs?: number
 }
 
 export class MockExecutor implements RunExecutor {
-  private pending = new Map<string, () => void>()
   readonly started: string[] = []
   readonly canceled: string[] = []
+  private pending = new Map<string, () => void>()
 
   constructor(private options: MockExecutorOptions = {}) {}
 
@@ -20,32 +20,32 @@ export class MockExecutor implements RunExecutor {
 
     runEventRepo.create({
       runId: run.id,
-      eventType: 'stdout',
-      payload: 'mock stdout',
+      eventType: "stdout",
+      payload: "mock stdout",
     })
     runEventRepo.create({
       runId: run.id,
-      eventType: 'message',
-      payload: { text: 'mock message' },
+      eventType: "message",
+      payload: {text: "mock message"},
     })
 
     artifactRepo.create({
       runId: run.id,
-      kind: 'markdown',
-      title: 'Mock Artifact',
-      content: '# Mock Artifact',
+      kind: "markdown",
+      title: "Mock Artifact",
+      content: "# Mock Artifact",
     })
 
     if (this.options.autoCompleteMs !== undefined) {
       await delay(this.options.autoCompleteMs)
-      return 'completed'
+      return "completed"
     }
 
     await new Promise<void>((resolve) => {
       this.pending.set(run.id, resolve)
     })
 
-    return 'completed'
+    return "completed"
   }
 
   async cancel(runId: string): Promise<void> {

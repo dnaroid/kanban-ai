@@ -1,11 +1,12 @@
-import { runRepo } from '../db/run-repository.js'
-import { runEventRepo } from '../db/run-event-repository.js'
-import type { RunRecord, RunStatus } from '../db/run-types'
+import {runRepo} from "../db/run-repository.js"
+import {runEventRepo} from "../db/run-event-repository.js"
+import type {RunRecord, RunStatus} from "../db/run-types"
 
-export type RunStartResult = 'completed' | 'deferred'
+export type RunStartResult = "completed" | "deferred"
 
 export interface RunExecutor {
   start(run: RunRecord): Promise<RunStartResult>
+
   cancel(runId: string): Promise<void>
 }
 
@@ -43,7 +44,7 @@ export class JobRunner {
 
   enqueue(runId: string): void {
     const run = runRepo.getById(runId)
-    if (!run || run.status !== 'queued') return
+    if (!run || run.status !== "queued") return
     if (this.queue.includes(runId) || this.running.has(runId)) return
 
     this.queue.push(runId)
@@ -61,13 +62,13 @@ export class JobRunner {
     const run = runRepo.getById(runId)
     if (!run) return
 
-    if (this.running.has(runId) || run.status === 'running') {
+    if (this.running.has(runId) || run.status === "running") {
       await this.executor.cancel(runId)
       this.markCanceled(runId)
       return
     }
 
-    if (run.status === 'queued') {
+    if (run.status === "queued") {
       this.markCanceled(runId)
     }
   }
@@ -93,20 +94,20 @@ export class JobRunner {
   private async execute(runId: string): Promise<void> {
     try {
       const run = runRepo.getById(runId)
-      if (!run || run.status !== 'queued') return
+      if (!run || run.status !== "queued") return
 
       this.markRunning(runId)
       const result = await this.executor.start(run)
 
       const latest = runRepo.getById(runId)
-      if (latest?.status === 'canceled') return
+      if (latest?.status === "canceled") return
 
-      if (result === 'completed') {
+      if (result === "completed") {
         this.markSucceeded(runId)
       }
     } catch (error) {
       const latest = runRepo.getById(runId)
-      if (latest?.status === 'canceled') return
+      if (latest?.status === "canceled") return
 
       const errorText = error instanceof Error ? error.message : String(error)
       this.markFailed(runId, errorText)
@@ -118,29 +119,29 @@ export class JobRunner {
 
   private markRunning(runId: string): void {
     const now = new Date().toISOString()
-    runRepo.update(runId, { status: 'running', startedAt: now, errorText: '' })
-    this.emitStatus(runId, 'running')
+    runRepo.update(runId, {status: "running", startedAt: now, errorText: ""})
+    this.emitStatus(runId, "running")
   }
 
   private markSucceeded(runId: string): void {
     const now = new Date().toISOString()
-    runRepo.update(runId, { status: 'succeeded', finishedAt: now, errorText: '' })
-    this.emitStatus(runId, 'succeeded')
+    runRepo.update(runId, {status: "succeeded", finishedAt: now, errorText: ""})
+    this.emitStatus(runId, "succeeded")
   }
 
   private markFailed(runId: string, errorText: string): void {
     const now = new Date().toISOString()
-    runRepo.update(runId, { status: 'failed', finishedAt: now, errorText })
-    this.emitStatus(runId, 'failed', { errorText })
+    runRepo.update(runId, {status: "failed", finishedAt: now, errorText})
+    this.emitStatus(runId, "failed", {errorText})
   }
 
   private markCanceled(runId: string): void {
     const latest = runRepo.getById(runId)
-    if (!latest || latest.status === 'canceled') return
+    if (!latest || latest.status === "canceled") return
 
     const now = new Date().toISOString()
-    runRepo.update(runId, { status: 'canceled', finishedAt: now })
-    this.emitStatus(runId, 'canceled')
+    runRepo.update(runId, {status: "canceled", finishedAt: now})
+    this.emitStatus(runId, "canceled")
   }
 
   private emitStatus(
@@ -150,7 +151,7 @@ export class JobRunner {
   ): void {
     runEventRepo.create({
       runId,
-      eventType: 'status',
+      eventType: "status",
       payload: {
         status,
         ...payload,

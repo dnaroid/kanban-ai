@@ -157,6 +157,7 @@ CREATE TABLE IF NOT EXISTS run_events (
   ts TEXT NOT NULL,
   event_type TEXT NOT NULL,
   payload_json TEXT NOT NULL,
+  message_id TEXT,
   FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
 
@@ -173,6 +174,7 @@ CREATE TABLE IF NOT EXISTS artifacts (
 
 CREATE INDEX IF NOT EXISTS idx_runs_task ON runs(task_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_events_run ON run_events(run_id, ts);
+CREATE INDEX IF NOT EXISTS idx_run_events_message ON run_events(message_id);
 CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id, created_at);
 
 -- ---------------------------------------------------------------------------
@@ -434,126 +436,201 @@ export const migrations = [
   },
   {
     version: 1,
-    sql: `ALTER TABLE tasks ADD COLUMN difficulty TEXT;`,
+    sql: `ALTER TABLE tasks
+        ADD COLUMN difficulty TEXT;`,
   },
   {
     version: 2,
     sql: `
-      UPDATE tasks SET status = 'queued' WHERE status = 'todo';
-      UPDATE tasks SET status = 'running' WHERE status = 'in-progress';
-      -- done remains done, others are new
+        UPDATE tasks
+        SET status = 'queued'
+        WHERE status = 'todo';
+        UPDATE tasks
+        SET status = 'running'
+        WHERE status = 'in-progress';
+        -- done remains done, others are new
     `,
   },
   {
     version: 3,
     sql: `
-      ALTER TABLE tasks ADD COLUMN start_date TEXT;
-      ALTER TABLE tasks ADD COLUMN due_date TEXT;
-      ALTER TABLE tasks ADD COLUMN estimate_points REAL;
-      ALTER TABLE tasks ADD COLUMN estimate_hours REAL;
-      ALTER TABLE tasks ADD COLUMN assignee TEXT;
+        ALTER TABLE tasks
+            ADD COLUMN start_date TEXT;
+        ALTER TABLE tasks
+            ADD COLUMN due_date TEXT;
+        ALTER TABLE tasks
+            ADD COLUMN estimate_points REAL;
+        ALTER TABLE tasks
+            ADD COLUMN estimate_hours REAL;
+        ALTER TABLE tasks
+            ADD COLUMN assignee TEXT;
     `,
   },
   {
     version: 4,
     sql: `
-      UPDATE tasks SET priority = 'normal' WHERE priority = 'medium';
-      UPDATE tasks SET priority = 'urgent' WHERE priority = 'high';
-      -- low and urgent remain
+        UPDATE tasks
+        SET priority = 'normal'
+        WHERE priority = 'medium';
+        UPDATE tasks
+        SET priority = 'urgent'
+        WHERE priority = 'high';
+        -- low and urgent remain
     `,
   },
   {
     version: 5,
     sql: `
-      ALTER TABLE run_events ADD COLUMN message_id TEXT;
-      CREATE INDEX IF NOT EXISTS idx_run_events_message ON run_events(message_id);
+        ALTER TABLE run_events
+            ADD COLUMN message_id TEXT;
+        CREATE INDEX IF NOT EXISTS idx_run_events_message ON run_events(message_id);
     `,
   },
   {
     version: 6,
     sql: `
-      ALTER TABLE runs ADD COLUMN kind TEXT NOT NULL DEFAULT 'task-run';
+        ALTER TABLE runs
+            ADD COLUMN kind TEXT NOT NULL DEFAULT 'task-run';
     `,
   },
   {
     version: 7,
     sql: `
-      ALTER TABLE runs ADD COLUMN session_id TEXT;
+        ALTER TABLE runs
+            ADD COLUMN session_id TEXT;
     `,
   },
   {
     version: 8,
     sql: `
-      DROP TABLE IF EXISTS opencode_sessions;
+        DROP TABLE IF EXISTS opencode_sessions;
     `,
   },
   {
     version: 9,
     sql: `
-      CREATE TABLE IF NOT EXISTS tags (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        color TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-        UNIQUE(project_id, name)
-      );
+        CREATE TABLE IF NOT EXISTS tags
+        (
+            id
+            TEXT
+            PRIMARY
+            KEY,
+            project_id
+            TEXT
+            NOT
+            NULL,
+            name
+            TEXT
+            NOT
+            NULL,
+            color
+            TEXT
+            NOT
+            NULL,
+            created_at
+            TEXT
+            NOT
+            NULL,
+            updated_at
+            TEXT
+            NOT
+            NULL,
+            FOREIGN
+            KEY
+        (
+            project_id
+        ) REFERENCES projects
+        (
+            id
+        ) ON DELETE CASCADE,
+            UNIQUE
+        (
+            project_id,
+            name
+        )
+            );
     `,
   },
   {
     version: 10,
     sql: `
-      CREATE TABLE IF NOT EXISTS tags_new (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        color TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        UNIQUE(name)
-      );
+        CREATE TABLE IF NOT EXISTS tags_new
+        (
+            id
+            TEXT
+            PRIMARY
+            KEY,
+            name
+            TEXT
+            NOT
+            NULL,
+            color
+            TEXT
+            NOT
+            NULL,
+            created_at
+            TEXT
+            NOT
+            NULL,
+            updated_at
+            TEXT
+            NOT
+            NULL,
+            UNIQUE
+        (
+            name
+        )
+            );
 
-      INSERT INTO tags_new (id, name, color, created_at, updated_at)
-      SELECT t.id, t.name, t.color, t.created_at, t.updated_at
-      FROM tags t
-      JOIN (
-        SELECT name, MAX(updated_at) AS updated_at
-        FROM tags
-        GROUP BY name
-      ) latest ON latest.name = t.name AND latest.updated_at = t.updated_at
-      GROUP BY t.name;
+        INSERT INTO tags_new (id, name, color, created_at, updated_at)
+        SELECT t.id, t.name, t.color, t.created_at, t.updated_at
+        FROM tags t
+                 JOIN (SELECT name, MAX(updated_at) AS updated_at
+                       FROM tags
+                       GROUP BY name) latest ON latest.name = t.name AND latest.updated_at = t.updated_at
+        GROUP BY t.name;
 
-      DROP TABLE tags;
-      ALTER TABLE tags_new RENAME TO tags;
+        DROP TABLE tags;
+        ALTER TABLE tags_new RENAME TO tags;
     `,
   },
   {
     version: 11,
     sql: `
-      ALTER TABLE projects ADD COLUMN color TEXT NOT NULL DEFAULT '';
+        ALTER TABLE projects
+            ADD COLUMN color TEXT NOT NULL DEFAULT '';
     `,
   },
   {
     version: 12,
     sql: `
-      UPDATE board_columns
-      SET color = CASE
-        WHEN lower(name) = 'backlog' THEN '#3B82F6'
-        WHEN lower(name) = 'in progress' THEN '#F59E0B'
-        WHEN lower(name) = 'done' THEN '#10B981'
-        ELSE color
-      END
-      WHERE color IS NULL OR color = '';
+        UPDATE board_columns
+        SET color = CASE
+                        WHEN lower(name) = 'backlog' THEN '#3B82F6'
+                        WHEN lower(name) = 'in progress' THEN '#F59E0B'
+                        WHEN lower(name) = 'done' THEN '#10B981'
+                        ELSE color
+            END
+        WHERE color IS NULL
+           OR color = '';
     `,
   },
   {
     version: 13,
     sql: `
-      CREATE TABLE IF NOT EXISTS opencode_models (
-        name TEXT PRIMARY KEY,
-        enabled INTEGER NOT NULL DEFAULT 0
-      );
+        CREATE TABLE IF NOT EXISTS opencode_models
+        (
+            name
+            TEXT
+            PRIMARY
+            KEY,
+            enabled
+            INTEGER
+            NOT
+            NULL
+            DEFAULT
+            0
+        );
     `,
   },
 ] as const
