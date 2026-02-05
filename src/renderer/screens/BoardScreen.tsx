@@ -20,6 +20,7 @@ import { AlertCircle, Clock, Plus } from 'lucide-react'
 import type { Board, BoardColumn, BoardColumnInput, KanbanTask, Tag } from '@/shared/types/ipc.ts'
 import { TaskDrawer } from '../components/kanban/TaskDrawer'
 import { SortableColumn } from '../components/kanban/board/SortableColumn'
+import { SortableTask } from '../components/kanban/board/SortableTask'
 import { ColumnModal } from '../components/kanban/board/ColumnModal'
 
 interface BoardScreenProps {
@@ -27,7 +28,7 @@ interface BoardScreenProps {
   projectName: string
 }
 
-export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
+export function BoardScreen({ projectId }: BoardScreenProps) {
   const [board, setBoard] = useState<Board | null>(null)
   const [tasks, setTasks] = useState<KanbanTask[]>([])
   const [globalTags, setGlobalTags] = useState<Tag[]>([])
@@ -362,15 +363,11 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 
           <DragOverlay>
             {activeTask ? (
-              <div className="w-80 bg-[#11151C] border-2 border-blue-600 rounded-xl p-4 shadow-2xl rotate-3 scale-105 pointer-events-none opacity-90">
-                <div className="flex items-start justify-between gap-2 mb-3">
-                  <h4 className="text-sm font-semibold text-white leading-snug">
-                    {activeTask.title}
-                  </h4>
-                </div>
+              <div className="w-80 rotate-3 scale-105 pointer-events-none">
+                <SortableTask task={activeTask} globalTags={globalTags} />
               </div>
             ) : activeColumn ? (
-              <div className="bg-[#11151C] border-2 border-blue-500 rounded-2xl w-80 shadow-2xl rotate-2 opacity-90 p-4 pointer-events-none backdrop-blur-sm">
+              <div className="bg-[#11151C]/40 border-2 border-blue-500 rounded-2xl w-80 shadow-2xl rotate-2 opacity-90 p-4 pointer-events-none backdrop-blur-md">
                 <h3 className="text-sm font-bold text-white">
                   {columns.find((c) => c.id === activeColumn)?.name}
                 </h3>
