@@ -126,6 +126,8 @@ export class OpenCodeSessionWorker {
     const initialDelayMs = input.kind === 'task-description-improve' ? 6000 : 3000
     const deadline = Date.now() + timeoutMs
     let pollInterval = 2000
+    let lastStatusMessageId: string | null = null
+    let lastStatusValue: string | null = null
 
     console.log('[OpenCodeSessionWorker] trackSession:start', {
       runId: input.runId,
@@ -241,6 +243,14 @@ export class OpenCodeSessionWorker {
         }
 
         const status = statusMatch[1].toLowerCase()
+        const messageId = typeof lastMessage?.id === 'string' ? lastMessage.id : null
+        if (messageId && lastStatusMessageId === messageId && lastStatusValue === status) {
+          continue
+        }
+        if (messageId) {
+          lastStatusMessageId = messageId
+          lastStatusValue = status
+        }
         if (status === 'done') {
           runRepo.update(input.runId, {
             status: 'succeeded',
