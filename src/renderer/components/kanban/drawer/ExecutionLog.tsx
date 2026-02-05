@@ -14,16 +14,8 @@ import {
 import { AgentPart, FilePart, ReasoningPart, TextPart, ToolPart } from '../../chat/MessageParts'
 import { cn } from '../../../lib/utils'
 import type { OpenCodeMessage, Part, RunEvent } from '@/shared/types/ipc.ts'
+import { extractOpencodeStatus } from '@/shared/opencode-status'
 import { LightMarkdown } from '../../LightMarkdown'
-
-const STATUS_MARKER_PREFIX = '__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::'
-
-const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-const STATUS_MARKER_REGEX = new RegExp(
-  `^${escapeRegex(STATUS_MARKER_PREFIX)}(done|fail|question)$`,
-  'i'
-)
 
 export function ExecutionLog({
   runId,
@@ -619,10 +611,10 @@ export function ExecutionLog({
 
     if (event.eventType === 'status') {
       const payloadText = formatStatusPayload(event.payload)
-      const statusMatch = payloadText.trim().match(STATUS_MARKER_REGEX)
 
-      if (statusMatch) {
-        const status = statusMatch[1].toLowerCase()
+      const extracted = extractOpencodeStatus(payloadText.trim())
+      if (extracted) {
+        const status = extracted.status
         const config = {
           done: {
             icon: CheckCircle2,

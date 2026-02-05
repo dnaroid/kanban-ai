@@ -567,15 +567,20 @@ ipcHandlers.register(
   async (event, input) => {
     const { sessionID } = input
     const webContents = event.sender
+    const subscriberId = `renderer:${webContents.id}`
 
     console.log(`[IPC] opencode:subscribeToEvents called for session ${sessionID}`)
 
-    await sessionManager.subscribeToSessionEvents(sessionID, (sessionEvent: SessionEvent) => {
-      console.log(
-        `[IPC] Sending event to renderer: ${sessionEvent.type} for session ${sessionEvent.sessionId}`
-      )
-      webContents.send('opencode:event', sessionEvent)
-    })
+    await sessionManager.subscribeToSessionEvents(
+      sessionID,
+      subscriberId,
+      (sessionEvent: SessionEvent) => {
+        console.log(
+          `[IPC] Sending event to renderer: ${sessionEvent.type} for session ${sessionEvent.sessionId}`
+        )
+        webContents.send('opencode:event', sessionEvent)
+      }
+    )
 
     console.log(`[IPC] Successfully subscribed to session ${sessionID}`)
     return { ok: true, subscribed: true }
@@ -585,9 +590,11 @@ ipcHandlers.register(
 ipcHandlers.register(
   'opencode:unsubscribeFromEvents',
   z.object({ sessionID: z.string() }),
-  async (_, input) => {
+  async (event, input) => {
     const { sessionID } = input
-    await sessionManager.unsubscribeFromSessionEvents(sessionID)
+    const webContents = event.sender
+    const subscriberId = `renderer:${webContents.id}`
+    await sessionManager.unsubscribeFromSessionEvents(sessionID, subscriberId)
     return { ok: true, subscribed: false }
   }
 )

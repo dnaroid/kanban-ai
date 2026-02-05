@@ -250,7 +250,11 @@ export class OpenCodeSessionWorker {
             finishedAt: new Date().toISOString(),
             errorText: '',
           })
-          this.updateTask(input.taskId, { status: 'done' })
+          const doneColumnId = this.resolveDoneColumnId(input.taskId)
+          this.updateTask(input.taskId, {
+            status: 'done',
+            ...(doneColumnId ? { columnId: doneColumnId } : {}),
+          })
           await this.finishSession(input.sessionId, input.runId, 'completed', false)
           console.log('[OpenCodeSessionWorker] trackSession:done', {
             runId: input.runId,
@@ -429,24 +433,35 @@ export class OpenCodeSessionWorker {
   } | null {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const message = messages[index]
-      const content = this.extractAssistantText(message)
-      if (!content) continue
 
-      const statusLine = content
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .find((line) => OPENCODE_STATUS_REGEX.test(line))
-      if (!statusLine) continue
+      if (!message || message.role !== 'assistant') {
+        continue
+      }
 
-      const statusMatch = statusLine.match(OPENCODE_STATUS_REGEX)
-      if (!statusMatch) continue
+      const parts = Array.isArray(message.parts) ? message.parts : []
+      for (const part of parts as any[]) {
+        if (!part || part.type !== 'text' || typeof part.text !== 'string') {
+          continue
+        }
 
-      const messageId = typeof message?.id === 'string' ? message.id : null
-      return {
-        statusLine,
-        status: statusMatch[1].toLowerCase(),
-        messageId,
-        content,
+        const statusLine = part.text
+          .split(/\r?\n/)
+          .map((line: string) => line.trim())
+          .find((line: string) => OPENCODE_STATUS_REGEX.test(line))
+        if (!statusLine) continue
+
+        const statusMatch = statusLine.match(OPENCODE_STATUS_REGEX)
+        if (!statusMatch) continue
+
+        const messageId = typeof message?.id === 'string' ? message.id : null
+        const content = this.extractAssistantText(message) || part.text.trim() || ''
+
+        return {
+          statusLine,
+          status: statusMatch[1].toLowerCase(),
+          messageId,
+          content,
+        }
       }
     }
 
@@ -567,6 +582,39 @@ export class OpenCodeSessionWorker {
     if (column) return column.id
     const fallback = columns.find((entry) => entry.orderIndex === 1)
     return fallback?.id ?? null
+  }
+
+  private resolveDoneColumnId(taskId: string): string | null {
+    const task = taskRepo.getById(taskId)
+    if (!task) return null
+    const columns = boardRepo.getColumns(task.boardId)
+    if (columns.length === 0) return null
+
+    const normalizeName = (value: string) =>
+      value.toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim()
+
+    const nameMatches = (entry: { name: string }) => {
+      const normalized = normalizeName(entry.name)
+      return (
+        normalized === 'done' ||
+        normalized === 'completed' ||
+        normalized === 'complete' ||
+        normalized === 'finished' ||
+        normalized === 'готово' ||
+        normalized.includes('готов') ||
+        normalized === 'сделано' ||
+        normalized === 'выполнено' ||
+        normalized.includes('выполн') ||
+        normalized === 'завершено' ||
+        normalized.includes('заверш')
+      )
+    }
+
+    const doneColumn = columns.find(nameMatches)
+    if (doneColumn) return doneColumn.id
+
+    const lastByOrder = columns.reduce((acc, col) => (col.orderIndex > acc.orderIndex ? col : acc))
+    return lastByOrder?.id ?? null
   }
 
   private cleanStoryTitle(value: string): string {

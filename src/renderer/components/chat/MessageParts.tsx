@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import {
   Bot,
   Brain,
-  BrainCircuit,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -16,16 +15,8 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { Part, ToolState } from '@/shared/types/ipc'
+import { extractOpencodeStatus } from '@/shared/opencode-status'
 import { LightMarkdown } from '../LightMarkdown'
-
-const STATUS_MARKER_PREFIX = '__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::'
-
-const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-const STATUS_MARKER_REGEX = new RegExp(
-  `^${escapeRegex(STATUS_MARKER_PREFIX)}(done|fail|question)$`,
-  'i'
-)
 
 function StatusBadge({ status }: { status: string }) {
   const config = {
@@ -76,13 +67,10 @@ function StatusBadge({ status }: { status: string }) {
 export function TextPart({ part }: { part: { text: string } }) {
   if (!part.text) return null
 
-  const lines = part.text.split('\n')
-  const statusLineIndex = lines.findIndex((line) => STATUS_MARKER_REGEX.test(line.trim()))
-
-  if (statusLineIndex !== -1) {
-    const statusLine = lines[statusLineIndex]
-    const statusMatch = statusLine.trim().match(STATUS_MARKER_REGEX)
-    const status = statusMatch?.[1]?.toLowerCase() || 'done'
+  const extracted = extractOpencodeStatus(part.text)
+  if (extracted) {
+    const { status, statusLineIndex } = extracted
+    const lines = part.text.split('\n')
     const otherText = lines
       .filter((_, i) => i !== statusLineIndex)
       .join('\n')
@@ -238,13 +226,7 @@ export function ToolPart({
   )
 }
 
-export function ReasoningPart({
-  part,
-  expanded,
-}: {
-  part: { text: string }
-  expanded?: boolean
-}) {
+export function ReasoningPart({ part, expanded }: { part: { text: string }; expanded?: boolean }) {
   const [isExpanded, setIsExpanded] = useState(expanded ?? false)
 
   useEffect(() => {
@@ -263,11 +245,7 @@ export function ReasoningPart({
         >
           <Brain className="w-3.5 h-3.5" />
           <span className="text-[10px] font-bold uppercase tracking-wider">Reasoning</span>
-          {isExpanded ? (
-            <ChevronDown className="w-3 h-3" />
-          ) : (
-            <ChevronRight className="w-3 h-3" />
-          )}
+          {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
         </button>
         {isExpanded && (
           <LightMarkdown

@@ -4,11 +4,12 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-const OPENCODE_STATUS_TOKEN = '__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::'
-
-const opencodeStatusValues = ['done', 'fail', 'question'] as const
-
-export type OpencodeStatus = (typeof opencodeStatusValues)[number]
+export {
+  OPENCODE_STATUS_REGEX,
+  OPENCODE_STATUS_TOKEN,
+  buildOpencodeStatusLine,
+  type OpencodeStatus,
+} from '../../shared/opencode-status.js'
 
 type SessionTodo = {
   id: string
@@ -16,16 +17,6 @@ type SessionTodo = {
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled'
   priority: 'high' | 'medium' | 'low'
 }
-
-const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-export const OPENCODE_STATUS_REGEX = new RegExp(
-  `^${escapeRegex(OPENCODE_STATUS_TOKEN)}(${opencodeStatusValues.join('|')})$`,
-  'i'
-)
-
-export const buildOpencodeStatusLine = (status: OpencodeStatus): string =>
-  `${OPENCODE_STATUS_TOKEN}${status}`
 
 export interface SessionInfo {
   id: string
@@ -126,7 +117,34 @@ export class OpenCodeSessionManager {
   private sessionClients = new Map<string, ReturnType<typeof createOpencodeClient>>()
   private eventAbortControllers = new Map<string, AbortController>()
   private eventProcessing = new Map<string, Promise<void>>()
+  private eventSubscribers = new Map<
+    string,
+    Map<
+      string,
+      {
+        refs: number
+        callback: (event: SessionEvent) => void
+      }
+    >
+  >()
   private messageSessionIndex = new Map<string, string>()
+
+  private dispatchSessionEvent(sessionID: string, event: SessionEvent): void {
+    const subscribers = this.eventSubscribers.get(sessionID)
+    if (!subscribers || subscribers.size === 0) return
+
+    for (const subscriber of subscribers.values()) {
+      try {
+        subscriber.callback(event)
+      } catch (error) {
+        console.warn('[OpenCodeSessionManager] Session event subscriber failed', {
+          sessionID,
+          eventType: event.type,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+  }
 
   /**
    * Создать новую сессию для задачи
@@ -524,8 +542,21 @@ export class OpenCodeSessionManager {
    */
   async subscribeToSessionEvents(
     sessionID: string,
+    subscriberId: string,
     callback: (event: SessionEvent) => void
   ): Promise<void> {
+    const subscribers = this.eventSubscribers.get(sessionID) ?? new Map()
+    const existing = subscribers.get(subscriberId)
+    if (existing) {
+      existing.refs += 1
+      subscribers.set(subscriberId, existing)
+      this.eventSubscribers.set(sessionID, subscribers)
+      return
+    }
+
+    subscribers.set(subscriberId, { refs: 1, callback })
+    this.eventSubscribers.set(sessionID, subscribers)
+
     if (this.eventAbortControllers.has(sessionID)) {
       console.log(`[OpenCodeSessionManager] Already subscribed to session ${sessionID}`)
       return
@@ -536,11 +567,12 @@ export class OpenCodeSessionManager {
       console.warn(
         `[OpenCodeSessionManager] Session directory not found for ${sessionID}, cannot subscribe to SSE`
       )
-      callback({
+      this.dispatchSessionEvent(sessionID, {
         type: 'error',
         sessionId: sessionID,
         error: `Session not found: ${sessionID}`,
       })
+      this.eventSubscribers.delete(sessionID)
       return
     }
 
@@ -561,7 +593,7 @@ export class OpenCodeSessionManager {
           console.warn(
             `[OpenCodeSessionManager] Event stream error for session ${sessionID}: ${errorMessage}`
           )
-          callback({
+          this.dispatchSessionEvent(sessionID, {
             type: 'error',
             sessionId: sessionID,
             error: errorMessage,
@@ -592,7 +624,7 @@ export class OpenCodeSessionManager {
           console.warn(
             `[OpenCodeSessionManager] Event stream error for session ${sessionID}: ${errorMessage}`
           )
-          callback({
+          this.dispatchSessionEvent(sessionID, {
             type: 'error',
             sessionId: sessionID,
             error: errorMessage,
@@ -615,7 +647,7 @@ export class OpenCodeSessionManager {
             `[OpenCodeSessionManager] ${errorMessage} for session ${sessionID}. Stream:`,
             stream
           )
-          callback({
+          this.dispatchSessionEvent(sessionID, {
             type: 'error',
             sessionId: sessionID,
             error: errorMessage,
@@ -709,7 +741,7 @@ export class OpenCodeSessionManager {
             continue
           }
 
-          callback(sessionEvent)
+          this.dispatchSessionEvent(sessionID, sessionEvent)
         }
       } catch (error) {
         if (abortController.signal.aborted) {
@@ -717,7 +749,7 @@ export class OpenCodeSessionManager {
         }
         const message = error instanceof Error ? error.message : String(error)
         console.warn(`[OpenCodeSessionManager] Event stream error for session ${sessionID}:`, error)
-        callback({
+        this.dispatchSessionEvent(sessionID, {
           type: 'error',
           sessionId: sessionID,
           error: message,
@@ -725,6 +757,7 @@ export class OpenCodeSessionManager {
       } finally {
         this.eventAbortControllers.delete(sessionID)
         this.eventProcessing.delete(sessionID)
+        this.eventSubscribers.delete(sessionID)
         console.log(`[OpenCodeSessionManager] Event stream ended for session ${sessionID}`)
       }
     }
@@ -737,17 +770,45 @@ export class OpenCodeSessionManager {
   /**
    * Отписаться от событий сессии
    */
-  async unsubscribeFromSessionEvents(sessionID: string): Promise<void> {
-    const abortController = this.eventAbortControllers.get(sessionID)
-    if (abortController) {
-      abortController.abort()
-      console.log(`[OpenCodeSessionManager] Unsubscribed from events for session ${sessionID}`)
-      this.eventAbortControllers.delete(sessionID)
+  async unsubscribeFromSessionEvents(sessionID: string, subscriberId?: string): Promise<void> {
+    if (subscriberId) {
+      const subscribers = this.eventSubscribers.get(sessionID)
+      const existing = subscribers?.get(subscriberId)
+      if (existing && subscribers) {
+        existing.refs -= 1
+        if (existing.refs <= 0) {
+          subscribers.delete(subscriberId)
+        } else {
+          subscribers.set(subscriberId, existing)
+        }
 
-      const processingPromise = this.eventProcessing.get(sessionID)
-      if (processingPromise) {
-        await processingPromise.catch(() => {})
+        if (subscribers.size === 0) {
+          this.eventSubscribers.delete(sessionID)
+        } else {
+          this.eventSubscribers.set(sessionID, subscribers)
+        }
       }
+    } else {
+      this.eventSubscribers.delete(sessionID)
+    }
+
+    const hasSubscribers = (this.eventSubscribers.get(sessionID)?.size ?? 0) > 0
+    if (hasSubscribers) {
+      return
+    }
+
+    const abortController = this.eventAbortControllers.get(sessionID)
+    if (!abortController) {
+      return
+    }
+
+    abortController.abort()
+    console.log(`[OpenCodeSessionManager] Unsubscribed from events for session ${sessionID}`)
+    this.eventAbortControllers.delete(sessionID)
+
+    const processingPromise = this.eventProcessing.get(sessionID)
+    if (processingPromise) {
+      await processingPromise.catch(() => {})
     }
   }
 

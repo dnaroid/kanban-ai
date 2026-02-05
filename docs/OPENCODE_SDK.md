@@ -650,6 +650,137 @@ interface Todo {
 
 ---
 
+## Отслеживание статуса задач по меткам
+
+### Метки `__OPENCODE_STATUS__`
+
+OpenCode-агенты могут добавлять специальные маркеры в текстовые части сообщений для индикации статуса выполнения задачи:
+
+```typescript
+// Формат метки
+const STATUS_MARKER = '__OPENCODE_STATUS__::<UUID>::done|fail|question'
+
+// Примеры
+__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done
+__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::fail
+__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::question
+```
+
+**Статусы:**
+
+- `done` — задача успешно выполнена
+- `fail` — задача не выполнена (ошибка)
+- `question` — требуется уточнение от пользователя
+
+### Где определяются метки
+
+```typescript
+// src/main/run/opencode-session-manager.ts
+const OPENCODE_STATUS_TOKEN = '__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::'
+const opencodeStatusValues = ['done', 'fail', 'question'] as const
+
+export const OPENCODE_STATUS_REGEX = new RegExp(
+  `^${escapeRegex(OPENCODE_STATUS_TOKEN)}(${opencodeStatusValues.join('|')})$`,
+  'i'
+)
+```
+
+### Парсинг в UI-компонентах
+
+**MessageParts.tsx** — отображение статуса в чате:
+
+```typescript
+const STATUS_MARKER_PREFIX = '__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::'
+
+const STATUS_MARKER_REGEX = new RegExp(
+  `^${escapeRegex(STATUS_MARKER_PREFIX)}(done|fail|question)$`,
+  'i'
+)
+
+// Поиск и отображение статуса в текстовой части
+export function TextPart({ part }: { part: { text: string } }) {
+  const lines = part.text.split('\n')
+  const statusLineIndex = lines.findIndex((line) => STATUS_MARKER_REGEX.test(line.trim()))
+
+  if (statusLineIndex !== -1) {
+    const statusMatch = lines[statusLineIndex].trim().match(STATUS_MARKER_REGEX)
+    const status = statusMatch?.[1]?.toLowerCase() || 'done'
+    return <StatusBadge status={status} />
+  }
+}
+```
+
+**ExecutionLog.tsx** — отображение статуса в логе выполнения:
+
+```typescript
+// Поиск в событиях типа 'status'
+if (event.eventType === 'status') {
+  const payloadText = formatStatusPayload(event.payload)
+  const statusMatch = payloadText.trim().match(STATUS_MARKER_REGEX)
+
+  if (statusMatch) {
+    const status = statusMatch[1].toLowerCase()
+    return <SessionStatusBadge status={status} />
+  }
+}
+```
+
+---
+
+## Проблема: Нет фонового отслеживания статуса
+
+### Симптом
+
+Статус задачи по метке `__OPENCODE_STATUS__` не обновляется, когда пользователь не смотрит на чат.
+
+### Почему это происходит
+
+1. **Подписка привязана к UI-компоненту**
+
+   В `ExecutionLog.tsx` подписка на SSE события привязана к жизненному циклу компонента через `useEffect`:
+
+   ```typescript
+   useEffect(() => {
+     const cleanup = window.api.opencode.onEvent(effectiveSessionId, (event) => {
+       // Обработка событий...
+     })
+     return cleanup // Отписка при размонтировании компонента
+   }, [effectiveSessionId])
+   ```
+
+   Когда пользователь закрывает чат/компонент → компонент размонтируется → подписка отменяется.
+
+2. **Нет фонового сервиса**
+
+   Хотя `OpenCodeSessionManager.subscribeToSessionEvents()` существует, cleanup-функция (которая останавливает SSE через `abort()`) вызывается только при явной отписке. В текущем коде нет фонового подписчика, который продолжал бы получать события когда UI закрыт.
+
+3. **Отсутствует персистентность статуса**
+
+   Статус из `__OPENCODE_STATUS__` меток существует только в текстовых частях сообщений. Нет механизма для сохранения/обновления статуса задачи в базе данных при получении таких маркеров.
+
+### Результат
+
+Когда вы не смотрите на чат:
+
+- SSE может продолжаться в `sessionManager` (если не очищен), но UI не получает события → статус не обновляется
+- Нет персистентного слоя → статус не сохраняется для восстановления при возвращении
+
+### Что нужно для решения
+
+1. **Фоновый сервис в main process**
+   - Постоянная SSE подписка, независимая от UI
+   - Сохранение статуса в базу данных при получении метки
+
+2. **Персистентный слой для статуса**
+   - Таблица `task_status` в SQLite
+   - Методы для обновления статуса из SSE событий
+
+3. **Polling/события для обновления UI**
+   - При возвращении в чат загружать актуальный статус из базы
+   - Или использовать IPC для уведомления UI об изменениях
+
+---
+
 ## Документация
 
 исходники opencode - [/Volumes/128GBSSD/Projects/opencode]
