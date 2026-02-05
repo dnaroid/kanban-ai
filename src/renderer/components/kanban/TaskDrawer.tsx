@@ -23,6 +23,24 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
   const titleInputRef = useRef<HTMLInputElement>(null)
   const [isExpanded, setIsExpanded] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const hasCheckedRunsRef = useRef(false)
+
+  useEffect(() => {
+    if (!isOpen) {
+      hasCheckedRunsRef.current = false
+      setActiveTab('details')
+      return
+    }
+
+    if (task && !hasCheckedRunsRef.current) {
+      hasCheckedRunsRef.current = true
+      window.api.run.listByTask({ taskId: task.id }).then((response) => {
+        if (response.runs.length > 0) {
+          setActiveTab('runs')
+        }
+      })
+    }
+  }, [isOpen, task?.id])
 
   useEffect(() => {
     if (task) {
