@@ -143,7 +143,7 @@ export function RunDetailsView({
             <button
               onClick={() => setView('todo')}
               className={cn(
-                'flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200 relative',
+                'flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200',
                 view === 'todo'
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
                   : 'text-slate-500 hover:text-slate-300',
@@ -152,9 +152,6 @@ export function RunDetailsView({
             >
               <ListTodo className={cn('w-3 h-3', hasTodos && view !== 'todo' && 'text-amber-500')} />
               Todo
-              {hasTodos && view !== 'todo' && (
-                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-amber-500 rounded-full shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
-              )}
             </button>
             <button
               onClick={() => setView('artifacts')}
