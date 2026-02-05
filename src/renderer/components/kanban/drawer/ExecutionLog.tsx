@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ChevronsDown,
   Circle,
+  HelpCircle,
   RefreshCw,
   Send,
   Terminal,
@@ -627,7 +628,7 @@ export function ExecutionLog({
           },
           fail: { icon: XCircle, color: 'text-red-400', bg: 'bg-red-500/10', label: 'FAIL' },
           question: {
-            icon: Circle,
+            icon: HelpCircle,
             color: 'text-amber-400',
             bg: 'bg-amber-500/10',
             label: 'QUESTION',

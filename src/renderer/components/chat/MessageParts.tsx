@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Circle,
   FileIcon,
+  HelpCircle,
   ImageIcon,
   Loader2,
   Terminal,
@@ -43,7 +44,7 @@ function StatusBadge({ status }: { status: string }) {
       label: 'FAIL',
     },
     question: {
-      icon: Circle,
+      icon: HelpCircle,
       color: 'text-amber-400',
       bg: 'bg-amber-400/10',
       border: 'border-amber-400/20',

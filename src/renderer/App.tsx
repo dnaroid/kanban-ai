@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import {
-  AlertTriangle,
   ChevronRight,
   Search,
 } from 'lucide-react'
@@ -164,12 +163,6 @@ export default function App() {
               />
               <span className="absolute right-3 top-2 text-[10px] text-slate-600 font-semibold pointer-events-none">
                 {navigator.platform.toLowerCase().includes('mac') ? '⌘K' : 'Ctrl+K'}
-              </span>
-            </div>
-            <div className="px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center gap-2">
-              <AlertTriangle className="w-3 h-3 text-amber-500" />
-              <span className="text-[10px] text-amber-500 font-bold uppercase tracking-wider">
-                Dev Mode
               </span>
             </div>
           </div>
