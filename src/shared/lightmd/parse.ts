@@ -13,7 +13,13 @@ function isAllowedUrl(url: string): boolean {
   try {
     const u = new URL(url, 'https://example.invalid')
     const proto = u.protocol.toLowerCase()
-    return proto === 'http:' || proto === 'https:' || proto === 'mailto:' || proto === 'artifact:'
+    return (
+      proto === 'http:' ||
+      proto === 'https:' ||
+      proto === 'mailto:' ||
+      proto === 'artifact:' ||
+      proto === 'file:'
+    )
   } catch {
     return false
   }

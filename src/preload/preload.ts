@@ -4,6 +4,7 @@ import type { MainToRenderer, OpenCodeSessionEvent, TaskEvent } from './ipc-cont
 const api: MainToRenderer = {
   app: {
     getInfo: () => ipcRenderer.invoke('app:getInfo'),
+    openPath: (path: string) => ipcRenderer.invoke('app:openPath', path),
   },
   opencode: {
     onEvent: (sessionId, callback) => {

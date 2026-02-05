@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { config } from 'dotenv'
 import { createOpencodeService } from './services/opencode-service.js'
 import './ipc/handlers.js'
+import { registerContextMenu } from './ipc/context-menu.js'
 
 config()
 
@@ -25,6 +26,8 @@ function createWindow() {
       sandbox: false,
     },
   })
+
+  registerContextMenu(mainWindow)
 
   if (process.env.NODE_ENV === 'development') {
     mainWindow.loadURL('http://localhost:5173')

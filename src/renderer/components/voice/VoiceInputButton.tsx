@@ -203,7 +203,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
               ? 'bg-red-500/10 border-red-500/50 text-red-500 hover:bg-red-500/20'
               : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
           )}
-          title={isRecording ? 'Stop Recording' : 'Start Voice Input'}
+          title={`${isRecording ? 'Stop Recording' : 'Start Voice Input'} (${getStatusText()})`}
         >
           {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
         </button>
@@ -215,13 +215,13 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
             'text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5',
             getStatusColor()
           )}
+          title={getStatusText()}
         >
           {status === 'initializing' ? (
             <Loader2 className="w-2.5 h-2.5 animate-spin" />
           ) : status === 'error' ? (
             <AlertCircle className="w-2.5 h-2.5" />
           ) : null}
-          {getStatusText()}
         </div>
         {error && (
           <div className="text-[10px] text-red-400/80 max-w-[200px] truncate" title={error}>

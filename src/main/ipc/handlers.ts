@@ -1,4 +1,4 @@
-import { app, dialog } from 'electron'
+import { app, dialog, shell } from 'electron'
 import path from 'path'
 import { ipcHandlers } from './validation'
 import { z } from 'zod'
@@ -201,6 +201,10 @@ ipcHandlers.register('app:getInfo', z.unknown(), async () => {
     mode: app.isPackaged ? 'production' : 'development',
     userDataPath: app.getPath('userData'),
   })
+})
+
+ipcHandlers.register('app:openPath', z.string(), async (_, path) => {
+  await shell.openPath(path)
 })
 
 ipcHandlers.register('project:create', CreateProjectInputSchema, async (_, input) => {

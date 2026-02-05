@@ -222,12 +222,12 @@ describe('LightMD Parser - Security', () => {
     })
   })
 
-  it('block file: URLs', () => {
+  it('allow file: URLs', () => {
     const result = parseInline('[click](file:///etc/passwd)')
     expect(result).toHaveLength(1)
     expect(result[0]).toMatchObject({
-      type: 'text',
-      text: '[click](file:///etc/passwd)',
+      type: 'link',
+      url: 'file:///etc/passwd',
     })
   })
 

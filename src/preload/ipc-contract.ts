@@ -106,6 +106,7 @@ export type { TaskEvent } from '../shared/types/ipc'
 export interface MainToRenderer {
   app: {
     getInfo(): Promise<AppInfo>
+    openPath(path: string): Promise<void>
   }
   opencode: {
     onEvent(sessionId: string | null, callback: (event: OpenCodeSessionEvent) => void): () => void
@@ -219,6 +220,7 @@ export interface MainToRenderer {
 export interface RendererToMain {
   app: {
     getInfo(): Promise<AppInfo>
+    openPath(path: string): Promise<void>
   }
   opencode: {
     generateUserStory(
