@@ -908,6 +908,28 @@ export const OpenCodeSessionMessagesResponseSchema = z.object({
 
 export type OpenCodeSessionMessagesResponse = z.infer<typeof OpenCodeSessionMessagesResponseSchema>
 
+export const OpenCodeTodoSchema = z.object({
+  id: z.string(),
+  content: z.string(),
+  status: z.enum(['pending', 'in_progress', 'completed', 'cancelled']),
+  priority: z.enum(['high', 'medium', 'low']),
+})
+
+export type OpenCodeTodo = z.infer<typeof OpenCodeTodoSchema>
+
+export const OpenCodeSessionTodosInputSchema = z.object({
+  sessionId: z.string(),
+})
+
+export type OpenCodeSessionTodosInput = z.infer<typeof OpenCodeSessionTodosInputSchema>
+
+export const OpenCodeSessionTodosResponseSchema = z.object({
+  sessionId: z.string(),
+  todos: z.array(OpenCodeTodoSchema),
+})
+
+export type OpenCodeSessionTodosResponse = z.infer<typeof OpenCodeSessionTodosResponseSchema>
+
 export const TaskEventSchema = z.object({
   type: z.enum(['task.updated']),
   task: KanbanTaskSchema,
@@ -956,6 +978,11 @@ export const OpenCodeIsSubscribedResponseSchema = z.object({
 export type OpenCodeIsSubscribedResponse = z.infer<typeof OpenCodeIsSubscribedResponseSchema>
 
 export const OpenCodeSessionEventSchema = z.union([
+  z.object({
+    type: z.literal('todo.updated'),
+    sessionId: z.string(),
+    todos: z.array(OpenCodeTodoSchema),
+  }),
   z.object({
     type: z.literal('message.updated'),
     sessionId: z.string(),

@@ -10,6 +10,13 @@ const opencodeStatusValues = ['done', 'fail', 'question'] as const
 
 export type OpencodeStatus = (typeof opencodeStatusValues)[number]
 
+type SessionTodo = {
+  id: string
+  content: string
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled'
+  priority: 'high' | 'medium' | 'low'
+}
+
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 export const OPENCODE_STATUS_REGEX = new RegExp(
@@ -31,6 +38,11 @@ export type SessionEvent =
       type: 'message.updated'
       sessionId: string
       message: Message
+    }
+  | {
+      type: 'todo.updated'
+      sessionId: string
+      todos: SessionTodo[]
     }
   | {
       type: 'message.removed'
@@ -59,7 +71,7 @@ export type SessionEvent =
 const resolveOpencodeEventList = (
   client: unknown,
   directory: string
-): ((params: unknown, options?: unknown) => AsyncIterable<unknown>) | null => {
+): ((_params: unknown, options?: unknown) => AsyncIterable<unknown>) | null => {
   const root = client as Record<string, unknown>
   console.log('[OpenCodeSessionManager] resolveOpencodeEventList: client keys:', Object.keys(root))
 
@@ -68,14 +80,14 @@ const resolveOpencodeEventList = (
   if (event && typeof event['subscribe'] === 'function') {
     console.log('[OpenCodeSessionManager] resolveOpencodeEventList: found client.event.subscribe')
     // Wrap the subscribe method to pass directory parameter
-    return (params: unknown, options?: unknown) => {
+    return (_params: unknown, options?: unknown) => {
       const subscribe = event['subscribe'] as (
         args: unknown,
         options?: unknown
       ) => AsyncIterable<unknown>
       const args =
-        params && typeof params === 'object'
-          ? { ...(params as Record<string, unknown>), directory }
+        _params && typeof _params === 'object'
+          ? { ...(_params as Record<string, unknown>), directory }
           : { directory }
       return subscribe.call(event, args, options)
     }
@@ -99,6 +111,10 @@ function isMessageEvent(event: Event): boolean {
     event.type === 'message.part.updated' ||
     event.type === 'message.part.removed'
   )
+}
+
+function isTodoEvent(event: Event): boolean {
+  return event.type === 'todo.updated'
 }
 
 /**
@@ -255,6 +271,32 @@ export class OpenCodeSessionManager {
         timestamp: msg.time.created,
       }
     })
+  }
+
+  async getTodos(sessionID: string): Promise<SessionTodo[]> {
+    const directory = await this.resolveSessionDirectory(sessionID)
+    if (!directory) {
+      console.warn(`[OpenCodeSessionManager] getTodos: session not found ${sessionID}`)
+      return []
+    }
+
+    try {
+      const client = await this.getSessionClient(sessionID, directory)
+      const result = (await client.session.todo({ sessionID })) as unknown
+      if (Array.isArray(result)) {
+        return result as SessionTodo[]
+      }
+      if (result && typeof result === 'object' && 'data' in result) {
+        const data = (result as { data?: unknown }).data
+        if (Array.isArray(data)) {
+          return data as SessionTodo[]
+        }
+      }
+      return []
+    } catch (error) {
+      console.error(`[OpenCodeSessionManager] Failed to fetch todos for ${sessionID}:`, error)
+      return []
+    }
   }
 
   async getMessage(sessionID: string, messageID: string): Promise<SessionMessage | null> {
@@ -589,7 +631,20 @@ export class OpenCodeSessionManager {
           if (signal.aborted) break
           let sessionEvent: SessionEvent
 
-          if (isMessageEvent(event)) {
+          if (isTodoEvent(event)) {
+            const sessionId = (event as any).properties?.sessionID
+            if (!sessionId || sessionId !== sessionID) {
+              continue
+            }
+            sessionEvent = {
+              type: 'todo.updated',
+              sessionId,
+              todos: ((event as any).properties?.todos || []) as SessionTodo[],
+            }
+            console.log(
+              `[OpenCodeSessionManager] Sending todo.updated event for session ${sessionId}`
+            )
+          } else if (isMessageEvent(event)) {
             if (!this.shouldHandleSessionEvent(sessionID, event)) {
               console.log(
                 `[OpenCodeSessionManager] Event filtered out for session ${sessionID}:`,
@@ -870,6 +925,8 @@ export class OpenCodeSessionManager {
 
   private shouldHandleSessionEvent(sessionID: string, event: Event): boolean {
     switch (event.type) {
+      case 'todo.updated':
+        return true
       case 'message.updated':
         return true
       case 'message.removed':

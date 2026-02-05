@@ -1,9 +1,19 @@
 import { useState } from 'react'
-import { ArrowLeft, Brain, Files, RotateCcw, Square, Terminal, Trash2 } from 'lucide-react'
+import {
+  ArrowLeft,
+  Brain,
+  Files,
+  ListTodo,
+  RotateCcw,
+  Square,
+  Terminal,
+  Trash2,
+} from 'lucide-react'
 import { cn } from '../../../../lib/utils'
 import type { Run } from '@/shared/types/ipc.ts'
 import { ArtifactsPanel } from './ArtifactsPanel'
 import { ExecutionLog } from './ExecutionLog'
+import { RunTodosPanel } from './RunTodosPanel'
 
 export function RunDetailsView({
   runId,
@@ -22,7 +32,7 @@ export function RunDetailsView({
   onCancel?: (e: React.MouseEvent) => void
   showBack?: boolean
 }) {
-  const [view, setView] = useState<'log' | 'artifacts'>('log')
+  const [view, setView] = useState<'log' | 'artifacts' | 'todo'>('log')
   const [showReasoning, setShowReasoning] = useState(false)
 
   return (
@@ -112,6 +122,18 @@ export function RunDetailsView({
               <Files className="w-3 h-3" />
               Artifacts
             </button>
+            <button
+              onClick={() => setView('todo')}
+              className={cn(
+                'flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200',
+                view === 'todo'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                  : 'text-slate-500 hover:text-slate-300'
+              )}
+            >
+              <ListTodo className="w-3 h-3" />
+              Todo
+            </button>
           </div>
         </div>
       </div>
@@ -123,8 +145,10 @@ export function RunDetailsView({
             sessionId={run?.sessionId || ''}
             showReasoning={showReasoning}
           />
-        ) : (
+        ) : view === 'artifacts' ? (
           <ArtifactsPanel runId={runId} />
+        ) : (
+          <RunTodosPanel sessionId={run?.sessionId || ''} />
         )}
       </div>
     </div>

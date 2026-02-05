@@ -47,6 +47,8 @@ import type {
   OpenCodeSessionMessagesResponse,
   OpenCodeSessionStatusInput,
   OpenCodeSessionStatusResponse,
+  OpenCodeSessionTodosInput,
+  OpenCodeSessionTodosResponse,
   PluginsEnableInput,
   PluginsEnableResponse,
   PluginsInstallInput,
@@ -115,6 +117,7 @@ export interface MainToRenderer {
     getSessionMessages(
       input: OpenCodeSessionMessagesInput
     ): Promise<OpenCodeSessionMessagesResponse>
+    getSessionTodos(input: OpenCodeSessionTodosInput): Promise<OpenCodeSessionTodosResponse>
     listModels(): Promise<OpencodeModelsListResponse>
     toggleModel(input: OpencodeModelToggleInput): Promise<OpencodeModelToggleResponse>
     sendMessage(input: OpencodeSendMessageInput): Promise<OpencodeSendMessageResponse>
@@ -225,6 +228,7 @@ export interface RendererToMain {
     getSessionMessages(
       input: OpenCodeSessionMessagesInput
     ): Promise<OpenCodeSessionMessagesResponse>
+    getSessionTodos(input: OpenCodeSessionTodosInput): Promise<OpenCodeSessionTodosResponse>
     listModels(): Promise<OpencodeModelsListResponse>
     toggleModel(input: OpencodeModelToggleInput): Promise<OpencodeModelToggleResponse>
   }

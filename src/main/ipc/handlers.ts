@@ -54,6 +54,8 @@ import {
   OpenCodeSessionMessagesResponseSchema,
   OpenCodeSessionStatusInputSchema,
   OpenCodeSessionStatusResponseSchema,
+  OpenCodeSessionTodosInputSchema,
+  OpenCodeSessionTodosResponseSchema,
   OpencodeSendMessageInputSchema,
   OpencodeSendMessageResponseSchema,
   PluginsEnableInputSchema,
@@ -526,6 +528,18 @@ ipcHandlers.register(
     return OpenCodeSessionMessagesResponseSchema.parse({
       sessionId: input.sessionId,
       messages,
+    })
+  }
+)
+
+ipcHandlers.register(
+  'opencode:getSessionTodos',
+  OpenCodeSessionTodosInputSchema,
+  async (_, input) => {
+    const todos = await sessionManager.getTodos(input.sessionId)
+    return OpenCodeSessionTodosResponseSchema.parse({
+      sessionId: input.sessionId,
+      todos,
     })
   }
 )
