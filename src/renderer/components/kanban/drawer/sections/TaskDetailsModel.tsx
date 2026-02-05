@@ -80,7 +80,7 @@ export function TaskDetailsModel({ task, onUpdate }: TaskDetailsModelProps) {
       <button
         onClick={() => setIsPickerOpen(!isPickerOpen)}
         className={cn(
-          'min-w-[120px] flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-all border',
+          'w-max flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-all border whitespace-nowrap',
           isPickerOpen
             ? cn(taskStyles.bg, taskStyles.text, taskStyles.border, taskStyles.glow)
             : cn(
@@ -106,7 +106,7 @@ export function TaskDetailsModel({ task, onUpdate }: TaskDetailsModelProps) {
       {isPickerOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setIsPickerOpen(false)} />
-          <div className="absolute left-0 top-full mt-2 w-full bg-[#161B26] border border-slate-800 rounded-xl shadow-2xl z-20 py-2 animate-in fade-in zoom-in-95 duration-200">
+          <div className="absolute left-0 top-full mt-2 min-w-full w-max bg-[#161B26] border border-slate-800 rounded-xl shadow-2xl z-20 py-2 animate-in fade-in zoom-in-95 duration-200">
             {models.length === 0 ? (
               <div className="px-3 py-4 text-center text-xs text-slate-500 italic">
                 No enabled models found. Enable them in Settings.
