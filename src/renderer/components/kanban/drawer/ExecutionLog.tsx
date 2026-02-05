@@ -563,7 +563,7 @@ export function ExecutionLog({
                   ? 'bg-gradient-to-br from-violet-500 to-indigo-600 shadow-indigo-500/20'
                   : cn(
                       'bg-gradient-to-br from-blue-500 to-blue-600 shadow-blue-500/20',
-                      isStreaming && 'animate-pulse'
+                      (isStreaming || parts.length === 0) && 'animate-pulse'
                     )
               )}
             >
