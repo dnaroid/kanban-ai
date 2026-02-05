@@ -61,6 +61,19 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
     setIsEditingTitle(false)
   }
 
+  const handleStartRun = async () => {
+    if (!task) return
+    try {
+      const response = await window.api.roles.list()
+      const roles = response.roles
+      const roleId = roles.length > 0 ? roles[0].id : 'default'
+      await window.api.run.start({ taskId: task.id, roleId })
+      setActiveTab('runs')
+    } catch (error) {
+      console.error('Failed to start run from details:', error)
+    }
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleSaveTitle()
@@ -199,7 +212,12 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
           <div
             className={cn('absolute inset-0 flex flex-col', activeTab !== 'details' && 'hidden')}
           >
-            <TaskDrawerDetails task={task} onUpdate={onUpdate} columnName={columnName} />
+            <TaskDrawerDetails
+              task={task}
+              onUpdate={onUpdate}
+              columnName={columnName}
+              onStartRun={handleStartRun}
+            />
           </div>
 
           <div className={cn('absolute inset-0 flex flex-col', activeTab !== 'runs' && 'hidden')}>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, FileText, Loader2, Wand2, X } from 'lucide-react'
+import { AlertTriangle, FileText, Loader2, Play, Wand2, X } from 'lucide-react'
 import { cn } from '../../../../lib/utils'
 import type { KanbanTask } from '@/shared/types/ipc.ts'
 import { LightMarkdown } from '../../../LightMarkdown'
@@ -13,9 +13,10 @@ const VOSK_MODEL_PATHS = {
 interface TaskDetailsDescriptionProps {
   task: KanbanTask
   onUpdate?: (id: string, patch: Partial<KanbanTask>) => void
+  onStartRun?: () => void
 }
 
-export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptionProps) {
+export function TaskDetailsDescription({ task, onUpdate, onStartRun }: TaskDetailsDescriptionProps) {
   const [editedDescription, setEditedDescription] = useState(task.description || '')
   const [isGeneratingStory, setIsGeneratingStory] = useState(false)
   const [generationError, setGenerationError] = useState<string | null>(null)
@@ -198,6 +199,16 @@ export function TaskDetailsDescription({ task, onUpdate }: TaskDetailsDescriptio
             )}
           </div>
         )}
+      </div>
+
+      <div className="pt-2 flex shrink-0">
+        <button
+          onClick={onStartRun}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <Play className="w-4 h-4 fill-current" />
+          Run Task
+        </button>
       </div>
     </div>
   )

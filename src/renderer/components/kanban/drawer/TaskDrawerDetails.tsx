@@ -8,9 +8,10 @@ interface TaskDrawerDetailsProps {
   task: KanbanTask
   onUpdate?: (id: string, patch: Partial<KanbanTask>) => void
   columnName?: string
+  onStartRun?: () => void
 }
 
-export function TaskDrawerDetails({ task, onUpdate }: TaskDrawerDetailsProps) {
+export function TaskDrawerDetails({ task, onUpdate, onStartRun }: TaskDrawerDetailsProps) {
   return (
     <div className="flex flex-col h-full bg-[#0B0E14] animate-in fade-in duration-300">
       <div className="flex-none p-6 space-y-6">
@@ -18,7 +19,7 @@ export function TaskDrawerDetails({ task, onUpdate }: TaskDrawerDetailsProps) {
         <TaskDetailsTags task={task} onUpdate={onUpdate} />
       </div>
 
-      <TaskDetailsDescription task={task} onUpdate={onUpdate} />
+      <TaskDetailsDescription task={task} onUpdate={onUpdate} onStartRun={onStartRun} />
 
       <TaskDetailsDependencies task={task} />
     </div>
