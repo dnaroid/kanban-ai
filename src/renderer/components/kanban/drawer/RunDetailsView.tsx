@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ArrowLeft,
   Brain,
@@ -34,6 +34,36 @@ export function RunDetailsView({
 }) {
   const [view, setView] = useState<'log' | 'artifacts' | 'todo'>('log')
   const [showReasoning, setShowReasoning] = useState(false)
+  const [hasTodos, setHasTodos] = useState(false)
+
+  const sessionId = run?.sessionId
+
+  useEffect(() => {
+    if (!sessionId) {
+      setHasTodos(false)
+      return
+    }
+
+    const checkTodos = async () => {
+      try {
+        const response = await window.api.opencode.getSessionTodos({ sessionId })
+        setHasTodos(response.todos.length > 0)
+      } catch (error) {
+        console.error('Failed to check todos:', error)
+      }
+    }
+
+    checkTodos()
+
+    const cleanup = window.api.opencode.onEvent(sessionId, (event) => {
+      if (event.sessionId !== sessionId) return
+      if (event.type === 'todo.updated') {
+        setHasTodos(event.todos.length > 0)
+      }
+    })
+
+    return cleanup
+  }, [sessionId])
 
   return (
     <div className="flex flex-col h-full bg-[#0B0E14] overflow-hidden animate-in fade-in duration-300">
@@ -111,6 +141,22 @@ export function RunDetailsView({
               Log
             </button>
             <button
+              onClick={() => setView('todo')}
+              className={cn(
+                'flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200 relative',
+                view === 'todo'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                  : 'text-slate-500 hover:text-slate-300',
+                hasTodos && view !== 'todo' && 'animate-todo-pulse text-amber-500/80'
+              )}
+            >
+              <ListTodo className={cn('w-3 h-3', hasTodos && view !== 'todo' && 'text-amber-500')} />
+              Todo
+              {hasTodos && view !== 'todo' && (
+                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-amber-500 rounded-full shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
+              )}
+            </button>
+            <button
               onClick={() => setView('artifacts')}
               className={cn(
                 'flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200',
@@ -122,21 +168,19 @@ export function RunDetailsView({
               <Files className="w-3 h-3" />
               Artifacts
             </button>
-            <button
-              onClick={() => setView('todo')}
-              className={cn(
-                'flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200',
-                view === 'todo'
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
-                  : 'text-slate-500 hover:text-slate-300'
-              )}
-            >
-              <ListTodo className="w-3 h-3" />
-              Todo
-            </button>
           </div>
         </div>
       </div>
+
+      <style>{`
+        @keyframes todo-pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+        .animate-todo-pulse {
+          animation: todo-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+      `}</style>
 
       <div className="flex-1 overflow-hidden">
         {view === 'log' ? (
