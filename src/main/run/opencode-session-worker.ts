@@ -253,6 +253,12 @@ export class OpenCodeSessionWorker {
             runId: input.runId,
             sessionId: input.sessionId,
           })
+          runEventRepo.create({
+            runId: input.runId,
+            eventType: 'status',
+            payload: { message: statusLine },
+          })
+          return
         } else if (status === 'fail') {
           runRepo.update(input.runId, {
             status: 'failed',
@@ -265,27 +271,25 @@ export class OpenCodeSessionWorker {
             runId: input.runId,
             sessionId: input.sessionId,
           })
-        } else if (status === 'question') {
-          runRepo.update(input.runId, {
-            status: 'failed',
-            finishedAt: new Date().toISOString(),
-            errorText: content,
+          runEventRepo.create({
+            runId: input.runId,
+            eventType: 'status',
+            payload: { message: statusLine },
           })
+          return
+        } else if (status === 'question') {
           this.updateTask(input.taskId, { status: 'question' })
-          await this.finishSession(input.sessionId, input.runId, 'failed', false)
+          runEventRepo.create({
+            runId: input.runId,
+            eventType: 'status',
+            payload: { message: statusLine },
+          })
           console.log('[OpenCodeSessionWorker] trackSession:question', {
             runId: input.runId,
             sessionId: input.sessionId,
           })
+          continue
         }
-
-        runEventRepo.create({
-          runId: input.runId,
-          eventType: 'status',
-          payload: { message: statusLine },
-        })
-
-        return
       }
 
       runRepo.update(input.runId, {
