@@ -231,7 +231,7 @@ class DatabaseManager {
     }
 
     const insert = this.db.prepare(
-      'INSERT OR IGNORE INTO opencode_models (name, difficulty) VALUES (?, ?)'
+      'INSERT OR IGNORE INTO opencode_models (name, difficulty, enabled) VALUES (?, ?, 1)'
     )
     const tx = this.db.transaction(() => {
       for (const name of names) {

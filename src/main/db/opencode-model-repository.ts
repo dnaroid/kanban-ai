@@ -3,9 +3,28 @@ import type { OpencodeModel } from '../../shared/types/ipc'
 import { appSettingsRepo } from './app-settings-repository.js'
 
 export class OpencodeModelRepository {
+  getEnabled(): OpencodeModel[] {
+    const db = dbManager.connect()
+    const stmt = db.prepare(`
+      SELECT name, enabled, difficulty
+      FROM opencode_models
+      WHERE enabled = 1
+      ORDER BY difficulty, name
+    `)
+
+    const models = stmt.all() as Array<{ name: string; enabled: number; difficulty: string }>
+
+    return models.map((model) => ({
+      name: model.name,
+      enabled: Boolean(model.enabled),
+      difficulty: model.difficulty as 'easy' | 'medium' | 'hard' | 'epic',
+    }))
+  }
+
   getModelForDifficulty(difficulty: 'easy' | 'medium' | 'hard' | 'epic'): string | null {
     const defaultModel = appSettingsRepo.getDefaultModel(difficulty)
     if (defaultModel) {
+      console.log('[getModelForDifficulty] Using default model from settings:', defaultModel)
       return defaultModel
     }
 
@@ -18,6 +37,7 @@ export class OpencodeModelRepository {
       LIMIT 1
     `)
     const result = stmt.get(difficulty) as { name: string } | undefined
+    console.log('[getModelForDifficulty] difficulty:', difficulty, 'found model:', result?.name)
     return result?.name ?? null
   }
   getAll(): OpencodeModel[] {

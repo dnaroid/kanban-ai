@@ -1,6 +1,7 @@
 import type { KanbanTask } from '@/shared/types/ipc.ts'
 import { TaskDetailsTopBar } from './sections/TaskDetailsTopBar'
 import { TaskDetailsTags } from './sections/TaskDetailsTags'
+import { TaskDetailsModel } from './sections/TaskDetailsModel'
 import { TaskDetailsDescription } from './sections/TaskDetailsDescription'
 import { TaskDetailsDependencies } from './sections/TaskDetailsDependencies'
 
@@ -23,6 +24,7 @@ export function TaskDrawerDetails({
       <div className="flex-none p-6 space-y-6">
         <TaskDetailsTopBar task={task} onUpdate={onUpdate} />
         <TaskDetailsTags task={task} onUpdate={onUpdate} />
+        <TaskDetailsModel task={task} onUpdate={onUpdate} />
       </div>
 
       <TaskDetailsDescription

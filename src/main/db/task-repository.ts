@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { dbManager } from './index.js'
+import { opencodeModelRepo } from './opencode-model-repository.js'
 import type { CreateTaskInput, KanbanTask } from '../../shared/types/ipc'
 
 export class TaskRepository {
@@ -12,6 +13,9 @@ export class TaskRepository {
       .prepare('SELECT MAX(order_in_column) as maxOrder FROM tasks WHERE column_id = ?')
       .get(input.columnId) as { maxOrder: number | null }
     const orderIndex = (maxOrder.maxOrder ?? -1) + 1
+
+    const modelName =
+      input.modelName ?? opencodeModelRepo.getModelForDifficulty(input.difficulty ?? 'medium')
 
     const stmt = db.prepare(`
         INSERT INTO tasks (id, project_id, board_id, column_id, title, description,
@@ -32,7 +36,7 @@ export class TaskRepository {
       input.type,
       orderIndex,
       JSON.stringify(input.tags ?? []),
-      input.modelName ?? null,
+      modelName ?? null,
       now,
       now
     )
@@ -50,7 +54,7 @@ export class TaskRepository {
       type: input.type,
       orderInColumn: orderIndex,
       tags: input.tags ?? [],
-      modelName: input.modelName ?? null,
+      modelName: modelName ?? null,
       createdAt: now,
       updatedAt: now,
     }

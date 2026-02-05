@@ -126,6 +126,7 @@ export interface MainToRenderer {
     ): Promise<OpenCodeSessionMessagesResponse>
     getSessionTodos(input: OpenCodeSessionTodosInput): Promise<OpenCodeSessionTodosResponse>
     listModels(): Promise<OpencodeModelsListResponse>
+    listEnabledModels(): Promise<OpencodeModelsListResponse>
     toggleModel(input: OpencodeModelToggleInput): Promise<OpencodeModelToggleResponse>
     updateModelDifficulty(
       input: OpencodeModelUpdateDifficultyInput
@@ -248,6 +249,7 @@ export interface RendererToMain {
     ): Promise<OpenCodeSessionMessagesResponse>
     getSessionTodos(input: OpenCodeSessionTodosInput): Promise<OpenCodeSessionTodosResponse>
     listModels(): Promise<OpencodeModelsListResponse>
+    listEnabledModels(): Promise<OpencodeModelsListResponse>
     toggleModel(input: OpencodeModelToggleInput): Promise<OpencodeModelToggleResponse>
     updateModelDifficulty(
       input: OpencodeModelUpdateDifficultyInput

@@ -28,6 +28,7 @@ const api: MainToRenderer = {
     getSessionMessages: (input) => ipcRenderer.invoke('opencode:getSessionMessages', input),
     getSessionTodos: (input) => ipcRenderer.invoke('opencode:getSessionTodos', input),
     listModels: () => ipcRenderer.invoke('opencode:listModels'),
+    listEnabledModels: () => ipcRenderer.invoke('opencode:listEnabledModels'),
     toggleModel: (input) => ipcRenderer.invoke('opencode:toggleModel', input),
     updateModelDifficulty: (input) => ipcRenderer.invoke('opencode:updateModelDifficulty', input),
     sendMessage: (input) => ipcRenderer.invoke('opencode:sendMessage', input),

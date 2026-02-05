@@ -140,6 +140,12 @@ const updateTaskAndEmit = (taskId: string, patch: Parameters<typeof taskRepo.upd
 
   if ('difficulty' in finalPatch && typeof finalPatch.difficulty === 'string') {
     const model = opencodeModelRepo.getModelForDifficulty(finalPatch.difficulty)
+    console.log(
+      '[updateTaskAndEmit] Difficulty changed to:',
+      finalPatch.difficulty,
+      'Auto-selecting model:',
+      model
+    )
     if (model) {
       finalPatch.modelName = model
     }
@@ -273,7 +279,7 @@ ipcHandlers.register('task:listByBoard', TaskListByBoardInputSchema, async (_, {
 })
 
 ipcHandlers.register('task:update', TaskUpdateInputSchema, async (_, { taskId, patch }) => {
-  taskRepo.update(taskId, patch)
+  updateTaskAndEmit(taskId, patch)
   const task = taskRepo.getById(taskId)
   if (!task) {
     throw new Error('Task not found')
@@ -687,6 +693,17 @@ ipcHandlers.register('opencode:listModels', z.unknown(), async () => {
     const seedResult = dbManager.ensureOpencodeModelsSeeded()
     if (seedResult.seeded) {
       models = opencodeModelRepo.getAll()
+    }
+  }
+  return OpencodeModelsListResponseSchema.parse({ models })
+})
+
+ipcHandlers.register('opencode:listEnabledModels', z.unknown(), async () => {
+  let models = opencodeModelRepo.getEnabled()
+  if (models.length === 0) {
+    const seedResult = dbManager.ensureOpencodeModelsSeeded()
+    if (seedResult.seeded) {
+      models = opencodeModelRepo.getEnabled()
     }
   }
   return OpencodeModelsListResponseSchema.parse({ models })
