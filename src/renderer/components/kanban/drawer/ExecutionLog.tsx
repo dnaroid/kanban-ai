@@ -24,7 +24,15 @@ const STATUS_MARKER_REGEX = new RegExp(
   'i'
 )
 
-export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: string }) {
+export function ExecutionLog({
+  runId,
+  sessionId,
+  showReasoning,
+}: {
+  runId: string
+  sessionId: string
+  showReasoning?: boolean
+}) {
   const [events, setEvents] = useState<RunEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [autoScroll, setAutoScroll] = useState(true)
@@ -585,7 +593,7 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
 
                 switch (part.type) {
                   case 'reasoning':
-                    return <ReasoningPart key={idx} part={part} />
+                    return <ReasoningPart key={idx} part={part} expanded={showReasoning} />
                   case 'tool':
                     return <ToolPart key={idx} part={part} />
                   case 'file':

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Bot,
+  Brain,
   BrainCircuit,
   CheckCircle2,
   ChevronDown,
@@ -236,8 +237,20 @@ export function ToolPart({
   )
 }
 
-export function ReasoningPart({ part }: { part: { text: string } }) {
-  const [isExpanded, setIsExpanded] = useState(true)
+export function ReasoningPart({
+  part,
+  expanded,
+}: {
+  part: { text: string }
+  expanded?: boolean
+}) {
+  const [isExpanded, setIsExpanded] = useState(expanded ?? false)
+
+  useEffect(() => {
+    if (expanded !== undefined) {
+      setIsExpanded(expanded)
+    }
+  }, [expanded])
 
   return (
     <div className="relative group">
@@ -247,7 +260,7 @@ export function ReasoningPart({ part }: { part: { text: string } }) {
           onClick={() => setIsExpanded(!isExpanded)}
           className="flex items-center gap-2 text-violet-400/80 hover:text-violet-400 transition-colors px-1"
         >
-          <BrainCircuit className="w-3.5 h-3.5" />
+          <Brain className="w-3.5 h-3.5" />
           <span className="text-[10px] font-bold uppercase tracking-wider">Reasoning</span>
           {isExpanded ? (
             <ChevronDown className="w-3 h-3" />

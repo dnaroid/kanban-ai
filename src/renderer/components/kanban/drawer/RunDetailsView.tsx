@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowLeft, Files, RotateCcw, Square, Terminal, Trash2 } from 'lucide-react'
+import { ArrowLeft, Brain, Files, RotateCcw, Square, Terminal, Trash2 } from 'lucide-react'
 import { cn } from '../../../../lib/utils'
 import type { Run } from '@/shared/types/ipc.ts'
 import { ArtifactsPanel } from './ArtifactsPanel'
@@ -23,24 +23,7 @@ export function RunDetailsView({
   showBack?: boolean
 }) {
   const [view, setView] = useState<'log' | 'artifacts'>('log')
-
-  const statusTone =
-    run?.status === 'failed'
-      ? 'text-red-400 border-red-500/20 bg-red-500/10'
-      : run?.status === 'canceled'
-        ? 'text-slate-400 border-slate-500/20 bg-slate-500/10'
-        : run?.status === 'queued'
-          ? 'text-amber-400 border-amber-500/20 bg-amber-500/10'
-          : 'text-emerald-500 border-emerald-500/20 bg-emerald-500/10'
-
-  const statusDot =
-    run?.status === 'failed'
-      ? 'bg-red-500'
-      : run?.status === 'canceled'
-        ? 'bg-slate-400'
-        : run?.status === 'queued'
-          ? 'bg-amber-500'
-          : 'bg-emerald-500'
+  const [showReasoning, setShowReasoning] = useState(false)
 
   return (
     <div className="flex flex-col h-full bg-[#0B0E14] overflow-hidden animate-in fade-in duration-300">
@@ -88,6 +71,22 @@ export function RunDetailsView({
         </div>
 
         <div className="flex items-center gap-4">
+          {view === 'log' && (
+            <button
+              onClick={() => setShowReasoning(!showReasoning)}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all duration-200 border',
+                showReasoning
+                  ? 'bg-violet-500/10 text-violet-300 border-violet-500/20 hover:bg-violet-500/20'
+                  : 'bg-slate-900/50 text-slate-500 border-slate-800 hover:text-slate-300 hover:border-slate-700'
+              )}
+              title={showReasoning ? 'Hide reasoning' : 'Show reasoning'}
+            >
+              <Brain className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Thinking</span>
+            </button>
+          )}
+
           <div className="flex bg-slate-900/80 rounded-lg p-0.5 border border-slate-800/50 shadow-inner">
             <button
               onClick={() => setView('log')}
@@ -114,28 +113,16 @@ export function RunDetailsView({
               Artifacts
             </button>
           </div>
-
-          <div
-            className={cn(
-              'flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border',
-              statusTone
-            )}
-          >
-            <div
-              className={cn(
-                'w-1 h-1 rounded-full',
-                statusDot,
-                run?.status === 'running' && 'animate-pulse'
-              )}
-            />
-            {run?.status ?? 'running'}
-          </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-hidden">
         {view === 'log' ? (
-          <ExecutionLog runId={runId} sessionId={run?.sessionId || ''} />
+          <ExecutionLog
+            runId={runId}
+            sessionId={run?.sessionId || ''}
+            showReasoning={showReasoning}
+          />
         ) : (
           <ArtifactsPanel runId={runId} />
         )}
