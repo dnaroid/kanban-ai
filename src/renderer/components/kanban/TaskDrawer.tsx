@@ -217,6 +217,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
               onUpdate={onUpdate}
               columnName={columnName}
               onStartRun={handleStartRun}
+              isActive={activeTab === 'details'}
             />
           </div>
 

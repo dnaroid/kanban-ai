@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Check, ListTodo, RefreshCw, Square } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Check, ListTodo, RefreshCw } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 
 interface Todo {
@@ -12,6 +12,11 @@ interface Todo {
 export function RunTodosPanel({ sessionId }: { sessionId: string }) {
   const [todos, setTodos] = useState<Todo[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [isReconnecting, setIsReconnecting] = useState(false)
+  const retryAttemptRef = useRef(0)
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const unsubscribeRef = useRef<null | (() => void)>(null)
 
   const completedCount = todos.filter((t) => t.status === 'completed').length
   const totalCount = todos.length
@@ -25,8 +30,10 @@ export function RunTodosPanel({ sessionId }: { sessionId: string }) {
     try {
       const response = await window.api.opencode.getSessionTodos({ sessionId })
       setTodos(response.todos)
+      setErrorMessage(null)
     } catch (error) {
       console.error('Failed to fetch todos:', error)
+      setErrorMessage('Failed to fetch todos')
     } finally {
       setIsLoading(false)
     }
@@ -39,15 +46,69 @@ export function RunTodosPanel({ sessionId }: { sessionId: string }) {
   useEffect(() => {
     if (!sessionId) return
 
-    const cleanup = window.api.opencode.onEvent(sessionId, (event) => {
-      if (event.sessionId !== sessionId) return
-      if (event.type === 'todo.updated') {
-        setTodos(event.todos)
-      }
-    })
+    let isActive = true
 
-    return cleanup
-  }, [sessionId])
+    const clearRetry = () => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current)
+        retryTimerRef.current = null
+      }
+    }
+
+    const scheduleRetry = () => {
+      if (!isActive || retryTimerRef.current) return
+      retryAttemptRef.current = Math.min(retryAttemptRef.current + 1, 6)
+      const delay = Math.min(1000 * 2 ** (retryAttemptRef.current - 1), 15000)
+      setIsReconnecting(true)
+      retryTimerRef.current = setTimeout(() => {
+        retryTimerRef.current = null
+        if (isActive) {
+          subscribe()
+        }
+      }, delay)
+    }
+
+    const handleError = (message: string) => {
+      setErrorMessage(message)
+      if (message.includes('Session not found')) {
+        unsubscribeRef.current?.()
+        unsubscribeRef.current = null
+        setIsReconnecting(false)
+        return
+      }
+      void fetchTodos()
+      scheduleRetry()
+    }
+
+    const subscribe = () => {
+      unsubscribeRef.current?.()
+      unsubscribeRef.current = window.api.opencode.onEvent(sessionId, (event) => {
+        if (event.sessionId !== sessionId) return
+        if (event.type === 'todo.updated') {
+          setTodos(event.todos)
+          setErrorMessage(null)
+          setIsReconnecting(false)
+          retryAttemptRef.current = 0
+          clearRetry()
+          return
+        }
+        if (event.type === 'error') {
+          const message = typeof event.error === 'string' ? event.error : 'Stream error'
+          handleError(message)
+        }
+      })
+    }
+
+    subscribe()
+
+    return () => {
+      isActive = false
+      clearRetry()
+      unsubscribeRef.current?.()
+      unsubscribeRef.current = null
+      setIsReconnecting(false)
+    }
+  }, [sessionId, fetchTodos])
 
   if (!sessionId) {
     return (
@@ -74,6 +135,9 @@ export function RunTodosPanel({ sessionId }: { sessionId: string }) {
       <div className="flex flex-col items-center justify-center h-full space-y-2 opacity-30 animate-in fade-in duration-500">
         <ListTodo className="w-8 h-8" />
         <p className="text-xs text-slate-400 font-mono">No todos for this session</p>
+        {errorMessage && (
+          <p className="text-[10px] text-red-400 uppercase tracking-widest">{errorMessage}</p>
+        )}
       </div>
     )
   }
@@ -84,7 +148,11 @@ export function RunTodosPanel({ sessionId }: { sessionId: string }) {
         <div className="flex items-center gap-2">
           <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
             <ListTodo className="w-3.5 h-3.5 text-amber-500" />
-            Todos (<span className="text-amber-500/90">{completedCount}/{totalCount}</span>)
+            Todos (
+            <span className="text-amber-500/90">
+              {completedCount}/{totalCount}
+            </span>
+            )
           </span>
         </div>
         <button
@@ -95,6 +163,13 @@ export function RunTodosPanel({ sessionId }: { sessionId: string }) {
           <RefreshCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin')} />
         </button>
       </div>
+
+      {errorMessage && (
+        <div className="px-4 py-2 border-b border-red-500/20 bg-red-500/5 text-[10px] text-red-400 uppercase tracking-widest">
+          {errorMessage}
+          {isReconnecting && <span className="ml-2 text-red-300/80">Reconnecting…</span>}
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         <div className="divide-y divide-slate-800/40">

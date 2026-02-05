@@ -777,7 +777,7 @@ export class OpenCodeSessionManager {
         })
       )
       return parts.filter((p): p is NonNullable<typeof p> => p !== null)
-    } catch (error) {
+    } catch {
       return []
     }
   }

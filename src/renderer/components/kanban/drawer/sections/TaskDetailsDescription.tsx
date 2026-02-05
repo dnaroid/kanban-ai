@@ -14,9 +14,15 @@ interface TaskDetailsDescriptionProps {
   task: KanbanTask
   onUpdate?: (id: string, patch: Partial<KanbanTask>) => void
   onStartRun?: () => void
+  isActive?: boolean
 }
 
-export function TaskDetailsDescription({ task, onUpdate, onStartRun }: TaskDetailsDescriptionProps) {
+export function TaskDetailsDescription({
+  task,
+  onUpdate,
+  onStartRun,
+  isActive = false,
+}: TaskDetailsDescriptionProps) {
   const [editedDescription, setEditedDescription] = useState(task.description || '')
   const [isGeneratingStory, setIsGeneratingStory] = useState(false)
   const [generationError, setGenerationError] = useState<string | null>(null)
@@ -32,6 +38,12 @@ export function TaskDetailsDescription({ task, onUpdate, onStartRun }: TaskDetai
   useEffect(() => {
     setIsGeneratingStory(task.status === 'generating')
   }, [task.status])
+
+  useEffect(() => {
+    if (isActive && !isGeneratingStory && !task.description?.trim() && !isEditing) {
+      setIsEditing(true)
+    }
+  }, [isActive, task.description, isGeneratingStory, isEditing])
 
   const handleScroll = () => {
     if (textareaRef.current && overlayRef.current) {
