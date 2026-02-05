@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { registerDiagnosticsHandlers } from './diagnostics-handlers'
 import type { SessionEvent } from '../run/opencode-session-manager'
 import { sessionManager } from '../run/opencode-session-manager'
-import { onTaskEvent } from './task-event-bus'
+import { emitTaskEvent, onTaskEvent } from './task-event-bus'
 import { opencodeSessionWorker } from '../run/opencode-session-worker.js'
 import {
   AnalyticsGetOverviewInputSchema,
@@ -123,6 +123,38 @@ import { opencodeModelRepo } from '../db/opencode-model-repository'
 
 const opencodeExecutor = new OpenCodeExecutorSDK()
 
+const emitTaskUpdated = (taskId: string) => {
+  const task = taskRepo.getById(taskId)
+  if (!task) return
+  emitTaskEvent({ type: 'task.updated', task })
+}
+
+const updateTaskAndEmit = (taskId: string, patch: Parameters<typeof taskRepo.update>[1]) => {
+  taskRepo.update(taskId, patch)
+  emitTaskUpdated(taskId)
+}
+
+const resolveInProgressColumnId = (taskId: string): string | null => {
+  const task = taskRepo.getById(taskId)
+  if (!task) return null
+  const columns = boardRepo.getColumns(task.boardId)
+  const normalizeName = (value: string) =>
+    value.toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim()
+  const nameMatches = (entry: { name: string }) => {
+    const normalized = normalizeName(entry.name)
+    return (
+      normalized === 'in progress' ||
+      normalized.includes('progress') ||
+      normalized === 'в работе' ||
+      normalized.includes('работ')
+    )
+  }
+  const column = columns.find(nameMatches)
+  if (column) return column.id
+  const fallback = columns.find((entry) => entry.orderIndex === 1)
+  return fallback?.id ?? null
+}
+
 ipcHandlers.register('project:selectFolder', z.unknown(), async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory', 'createDirectory'],
@@ -222,7 +254,7 @@ ipcHandlers.register(
   TaskMoveInputSchema,
   async (_, { taskId, toColumnId, toIndex }) => {
     taskRepo.move(taskId, toColumnId, toIndex)
-    return TaskMoveResponseSchema.parse({ success: true })
+    return TaskMoveResponseSchema.parse({ ok: true })
   }
 )
 
@@ -364,6 +396,12 @@ ipcHandlers.register('run:start', RunStartInputSchema, async (_, input) => {
     contextSnapshotId: snapshot.id,
   })
   runService.enqueue(run.id)
+  const task = taskRepo.getById(input.taskId)
+  const inProgressColumnId = resolveInProgressColumnId(input.taskId)
+  if (task && inProgressColumnId && task.columnId !== inProgressColumnId) {
+    taskRepo.move(input.taskId, inProgressColumnId, Number.MAX_SAFE_INTEGER)
+  }
+  updateTaskAndEmit(input.taskId, { status: 'running' })
   return RunStartResponseSchema.parse({ runId: run.id })
 })
 
@@ -448,8 +486,17 @@ ipcHandlers.register(
   'opencode:generateUserStory',
   OpenCodeGenerateUserStoryInputSchema,
   async (_, input) => {
-    const runId = await opencodeExecutor.generateUserStory(input.taskId)
-    return OpenCodeGenerateUserStoryResponseSchema.parse({ runId })
+    const previousStatus = taskRepo.getById(input.taskId)?.status ?? null
+    updateTaskAndEmit(input.taskId, { status: 'generating' })
+    try {
+      const runId = await opencodeExecutor.generateUserStory(input.taskId)
+      return OpenCodeGenerateUserStoryResponseSchema.parse({ runId })
+    } catch (error) {
+      if (previousStatus) {
+        updateTaskAndEmit(input.taskId, { status: previousStatus })
+      }
+      throw error
+    }
   }
 )
 
@@ -585,7 +632,7 @@ ipcHandlers.register('opencode:toggleModel', OpencodeModelToggleInputSchema, asy
 })
 
 ipcHandlers.register('opencode:sendMessage', OpencodeSendMessageInputSchema, async (_, input) => {
-  await sessionManager.sendPromptAsync(input.sessionId, input.message)
+  await sessionManager.sendPrompt(input.sessionId, input.message)
   return OpencodeSendMessageResponseSchema.parse({ ok: true })
 })
 

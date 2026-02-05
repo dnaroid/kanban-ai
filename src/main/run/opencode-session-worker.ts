@@ -4,7 +4,7 @@ import { tagRepo } from '../db/tag-repository.js'
 import { taskRepo } from '../db/task-repository.js'
 import { boardRepo } from '../db/board-repository.js'
 import type { RunRecord } from '../db/run-types'
-import { sessionManager } from './opencode-session-manager.js'
+import { OPENCODE_STATUS_REGEX, sessionManager } from './opencode-session-manager.js'
 import { emitTaskEvent } from '../ipc/task-event-bus.js'
 
 const taskStatusValues = [
@@ -227,7 +227,15 @@ export class OpenCodeSessionWorker {
           return
         }
 
-        const statusMatch = content.match(/STATUS:\s*(done|fail|question)/i)
+        const statusLine = content
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .find((line) => OPENCODE_STATUS_REGEX.test(line))
+        if (!statusLine) {
+          continue
+        }
+
+        const statusMatch = statusLine.match(OPENCODE_STATUS_REGEX)
         if (!statusMatch) {
           continue
         }
@@ -274,7 +282,7 @@ export class OpenCodeSessionWorker {
         runEventRepo.create({
           runId: input.runId,
           eventType: 'status',
-          payload: { message: `STATUS: ${status}` },
+          payload: { message: statusLine },
         })
 
         return

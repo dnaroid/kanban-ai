@@ -4,6 +4,22 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+const OPENCODE_STATUS_TOKEN = '__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::'
+
+const opencodeStatusValues = ['done', 'fail', 'question'] as const
+
+export type OpencodeStatus = (typeof opencodeStatusValues)[number]
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+export const OPENCODE_STATUS_REGEX = new RegExp(
+  `^${escapeRegex(OPENCODE_STATUS_TOKEN)}(${opencodeStatusValues.join('|')})$`,
+  'i'
+)
+
+export const buildOpencodeStatusLine = (status: OpencodeStatus): string =>
+  `${OPENCODE_STATUS_TOKEN}${status}`
+
 export interface SessionInfo {
   id: string
   title: string
@@ -46,17 +62,25 @@ const resolveOpencodeEventList = (
 ): ((params: unknown, options?: unknown) => AsyncIterable<unknown>) | null => {
   const root = client as Record<string, unknown>
   console.log('[OpenCodeSessionManager] resolveOpencodeEventList: client keys:', Object.keys(root))
-  
+
   const event = root['event'] as Record<string, unknown> | undefined
-  
+
   if (event && typeof event['subscribe'] === 'function') {
     console.log('[OpenCodeSessionManager] resolveOpencodeEventList: found client.event.subscribe')
     // Wrap the subscribe method to pass directory parameter
     return (params: unknown, options?: unknown) => {
-      return event['subscribe']({ directory }, options) as AsyncIterable<unknown>
+      const subscribe = event['subscribe'] as (
+        args: unknown,
+        options?: unknown
+      ) => AsyncIterable<unknown>
+      const args =
+        params && typeof params === 'object'
+          ? { ...(params as Record<string, unknown>), directory }
+          : { directory }
+      return subscribe.call(event, args, options)
     }
   }
-  
+
   console.log('[OpenCodeSessionManager] resolveOpencodeEventList: subscribe method not found')
   return null
 }
@@ -141,12 +165,13 @@ export class OpenCodeSessionManager {
     }
 
     const sessionInfo = this.activeSessions.get(sessionID)
-    if (!sessionInfo) {
+    const directory = sessionInfo?.directory || (await this.resolveSessionDirectory(sessionID))
+    if (!directory) {
       throw new Error(`Session not found: ${sessionID}`)
     }
 
     try {
-      const client = await this.getSessionClient(sessionID, sessionInfo.directory)
+      const client = await this.getSessionClient(sessionID, directory)
       const response = await client.session.prompt({
         sessionID,
         parts: [textPart],
@@ -505,7 +530,7 @@ export class OpenCodeSessionManager {
         console.log(`[OpenCodeSessionManager] Calling listEvents for session ${sessionID}`)
         const streamPromise = listEvents({}, { signal })
         console.log(`[OpenCodeSessionManager] Stream promise created, awaiting...`)
-        
+
         const streamResult = await Promise.resolve(streamPromise).catch((error) => {
           console.error(
             `[OpenCodeSessionManager] Failed to create stream for session ${sessionID}:`,
@@ -514,7 +539,11 @@ export class OpenCodeSessionManager {
           throw error instanceof Error ? error : new Error(String(error))
         })
 
-        console.log(`[OpenCodeSessionManager] Stream result type:`, typeof streamResult, streamResult)
+        console.log(
+          `[OpenCodeSessionManager] Stream result type:`,
+          typeof streamResult,
+          streamResult
+        )
 
         if (!streamResult) {
           const errorMessage = 'Event stream is unavailable'
@@ -531,7 +560,12 @@ export class OpenCodeSessionManager {
 
         // Check if streamResult has a stream property (SSE response format)
         const stream = (streamResult as any).stream ?? (streamResult as any).data ?? streamResult
-        console.log(`[OpenCodeSessionManager] Extracted stream, type:`, typeof stream, 'isAsyncIterable:', stream && typeof stream[Symbol.asyncIterator] === 'function')
+        console.log(
+          `[OpenCodeSessionManager] Extracted stream, type:`,
+          typeof stream,
+          'isAsyncIterable:',
+          stream && typeof stream[Symbol.asyncIterator] === 'function'
+        )
 
         if (!stream || typeof stream[Symbol.asyncIterator] !== 'function') {
           const errorMessage = 'Stream is not async iterable'
@@ -547,7 +581,9 @@ export class OpenCodeSessionManager {
           return
         }
 
-        console.log(`[OpenCodeSessionManager] SSE stream created for session ${sessionID}, starting to listen for events`)
+        console.log(
+          `[OpenCodeSessionManager] SSE stream created for session ${sessionID}, starting to listen for events`
+        )
 
         for await (const event of stream as AsyncIterable<Event>) {
           if (signal.aborted) break
@@ -777,6 +813,13 @@ export class OpenCodeSessionManager {
    * Получить все сообщения из сессии
    */
   private getOpenCodeStoragePath(): string {
+    if (process.platform === 'darwin') {
+      return path.join(os.homedir(), 'Library', 'Application Support', 'opencode', 'storage')
+    }
+    if (process.platform === 'win32') {
+      const base = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming')
+      return path.join(base, 'opencode', 'storage')
+    }
     const userDataPath = path.join(os.homedir(), '.local', 'share')
     return path.join(userDataPath, 'opencode', 'storage')
   }
@@ -799,9 +842,7 @@ export class OpenCodeSessionManager {
         `[OpenCodeSessionManager] resolveSessionDirectory: found in storage for ${sessionID}: ${directory}`
       )
     } else {
-      console.warn(
-        `[OpenCodeSessionManager] resolveSessionDirectory: NOT FOUND for ${sessionID}`
-      )
+      console.warn(`[OpenCodeSessionManager] resolveSessionDirectory: NOT FOUND for ${sessionID}`)
     }
     return directory
   }

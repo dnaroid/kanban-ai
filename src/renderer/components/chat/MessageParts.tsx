@@ -16,8 +16,86 @@ import { cn } from '../../lib/utils'
 import { Part, ToolState } from '@/shared/types/ipc'
 import { LightMarkdown } from '../LightMarkdown'
 
+const STATUS_MARKER_PREFIX = '__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::'
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const STATUS_MARKER_REGEX = new RegExp(
+  `^${escapeRegex(STATUS_MARKER_PREFIX)}(done|fail|question)$`,
+  'i'
+)
+
+function StatusBadge({ status }: { status: string }) {
+  const config = {
+    done: {
+      icon: CheckCircle2,
+      color: 'text-emerald-400',
+      bg: 'bg-emerald-400/10',
+      border: 'border-emerald-400/20',
+      label: 'DONE',
+    },
+    fail: {
+      icon: XCircle,
+      color: 'text-red-400',
+      bg: 'bg-red-400/10',
+      border: 'border-red-400/20',
+      label: 'FAIL',
+    },
+    question: {
+      icon: Circle,
+      color: 'text-amber-400',
+      bg: 'bg-amber-400/10',
+      border: 'border-amber-400/20',
+      label: 'QUESTION',
+    },
+  }[status as 'done' | 'fail' | 'question'] || {
+    icon: Circle,
+    color: 'text-slate-400',
+    bg: 'bg-slate-400/10',
+    border: 'border-slate-400/20',
+    label: status.toUpperCase(),
+  }
+
+  return (
+    <div
+      className={cn(
+        'inline-flex items-center gap-1.5 px-2 py-0.5 rounded border font-mono text-[10px] font-bold tracking-wider',
+        config.bg,
+        config.border,
+        config.color
+      )}
+    >
+      <config.icon className="w-3 h-3" />
+      {config.label}
+    </div>
+  )
+}
+
 export function TextPart({ part }: { part: { text: string } }) {
   if (!part.text) return null
+
+  const lines = part.text.split('\n')
+  const statusLineIndex = lines.findIndex((line) => STATUS_MARKER_REGEX.test(line.trim()))
+
+  if (statusLineIndex !== -1) {
+    const statusLine = lines[statusLineIndex]
+    const statusMatch = statusLine.trim().match(STATUS_MARKER_REGEX)
+    const status = statusMatch?.[1]?.toLowerCase() || 'done'
+    const otherText = lines
+      .filter((_, i) => i !== statusLineIndex)
+      .join('\n')
+      .trim()
+
+    return (
+      <div className="space-y-2">
+        {otherText && (
+          <LightMarkdown text={otherText} className="text-sm text-slate-300 leading-relaxed" />
+        )}
+        <StatusBadge status={status} />
+      </div>
+    )
+  }
+
   return <LightMarkdown text={part.text} className="text-sm text-slate-300 leading-relaxed" />
 }
 
@@ -163,17 +241,18 @@ export function ReasoningPart({ part }: { part: { text: string } }) {
 
   return (
     <div className="relative group">
-      <div className="absolute inset-y-0 -left-3 w-[2px] bg-gradient-to-b from-violet-500/50 via-violet-500/20 to-transparent rounded-full" />
+      <div className="absolute inset-y-0 -left-2 w-[2px] bg-gradient-to-b from-violet-500/50 via-violet-500/20 to-transparent rounded-full" />
       <div className="space-y-2">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
           className="flex items-center gap-2 text-violet-400/80 hover:text-violet-400 transition-colors px-1"
         >
-          <BrainCircuit className="w-3 h-3" />
+          <BrainCircuit className="w-3.5 h-3.5" />
+          <span className="text-[10px] font-bold uppercase tracking-wider">Reasoning</span>
           {isExpanded ? (
-            <ChevronDown className="w-2.5 h-2.5" />
+            <ChevronDown className="w-3 h-3" />
           ) : (
-            <ChevronRight className="w-2.5 h-2.5" />
+            <ChevronRight className="w-3 h-3" />
           )}
         </button>
         {isExpanded && (
