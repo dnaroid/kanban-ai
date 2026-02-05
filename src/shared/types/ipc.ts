@@ -185,6 +185,7 @@ export const TaskPatchSchema = z.object({
   estimatePoints: z.number().optional(),
   estimateHours: z.number().optional(),
   assignee: z.string().optional(),
+  modelName: z.string().nullable().optional(),
 })
 
 export type TaskPatch = z.infer<typeof TaskPatchSchema>

@@ -1,7 +1,25 @@
 import { dbManager } from './index.js'
 import type { OpencodeModel } from '../../shared/types/ipc'
+import { appSettingsRepo } from './app-settings-repository.js'
 
 export class OpencodeModelRepository {
+  getModelForDifficulty(difficulty: 'easy' | 'medium' | 'hard' | 'epic'): string | null {
+    const defaultModel = appSettingsRepo.getDefaultModel(difficulty)
+    if (defaultModel) {
+      return defaultModel
+    }
+
+    const db = dbManager.connect()
+    const stmt = db.prepare(`
+      SELECT name
+      FROM opencode_models
+      WHERE enabled = 1 AND difficulty = ?
+      ORDER BY name
+      LIMIT 1
+    `)
+    const result = stmt.get(difficulty) as { name: string } | undefined
+    return result?.name ?? null
+  }
   getAll(): OpencodeModel[] {
     const db = dbManager.connect()
     const stmt = db.prepare(`

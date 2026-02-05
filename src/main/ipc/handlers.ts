@@ -136,7 +136,16 @@ const emitTaskUpdated = (taskId: string) => {
 }
 
 const updateTaskAndEmit = (taskId: string, patch: Parameters<typeof taskRepo.update>[1]) => {
-  taskRepo.update(taskId, patch)
+  const finalPatch = { ...patch }
+
+  if ('difficulty' in finalPatch && typeof finalPatch.difficulty === 'string') {
+    const model = opencodeModelRepo.getModelForDifficulty(finalPatch.difficulty)
+    if (model) {
+      finalPatch.modelName = model
+    }
+  }
+
+  taskRepo.update(taskId, finalPatch)
   emitTaskUpdated(taskId)
 }
 

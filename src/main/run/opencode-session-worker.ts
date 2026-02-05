@@ -3,6 +3,7 @@ import { runRepo } from '../db/run-repository.js'
 import { tagRepo } from '../db/tag-repository.js'
 import { taskRepo } from '../db/task-repository.js'
 import { boardRepo } from '../db/board-repository.js'
+import { opencodeModelRepo } from '../db/opencode-model-repository.js'
 import type { RunRecord } from '../db/run-types'
 import { OPENCODE_STATUS_REGEX, sessionManager } from './opencode-session-manager.js'
 import { emitTaskEvent } from '../ipc/task-event-bus.js'
@@ -206,6 +207,10 @@ export class OpenCodeSessionWorker {
           }
           if (parsed.difficulty) {
             patch.difficulty = parsed.difficulty
+            const model = opencodeModelRepo.getModelForDifficulty(parsed.difficulty)
+            if (model) {
+              patch.modelName = model
+            }
           }
 
           this.updateTask(input.taskId, patch)
