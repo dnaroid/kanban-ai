@@ -229,6 +229,316 @@ function ReasoningPart({ reasoning }: { reasoning: Extract<Part, { type: 'reason
 }
 ```
 
+### 3.3 Рендеринг Todo списков
+
+Todo списки в OpenCode реализуются как tool part с типом `todowrite`:
+
+```typescript
+interface Todo {
+  id: string
+  content: string
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled'
+  priority: 'high' | 'medium' | 'low'
+}
+```
+
+#### Базовый компонент для Todo
+
+```tsx
+interface TodoPartProps {
+  tool: Extract<Part, { type: 'tool' }>
+}
+
+function TodoPart({ tool }: TodoPartProps) {
+  // Получаем список todos из input или metadata
+  const todos = (tool.state.input?.todos || tool.metadata?.todos || []) as Todo[]
+
+  // Подсчитываем прогресс
+  const completedCount = todos.filter((t) => t.status === 'completed').length
+  const totalCount = todos.length
+  const progress = totalCount > 0 ? `${completedCount}/${totalCount}` : '0/0'
+
+  return (
+    <div className="todo-part">
+      <div className="todo-header">
+        <span className="todo-icon">✓</span>
+        <span className="todo-title">Todos</span>
+        <span className="todo-progress">{progress}</span>
+      </div>
+
+      <div className="todo-list">
+        {todos.map((todo, idx) => (
+          <TodoItem key={todo.id || idx} todo={todo} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function TodoItem({ todo }: { todo: Todo }) {
+  const isCompleted = todo.status === 'completed'
+
+  return (
+    <label className={`todo-item ${isCompleted ? 'completed' : ''}`}>
+      <input
+        type="checkbox"
+        checked={isCompleted}
+        readOnly // Только для отображения статуса
+        className="todo-checkbox"
+      />
+      <span className="todo-content" data-completed={isCompleted}>
+        {todo.content}
+      </span>
+      {todo.priority && <span className={`todo-priority ${todo.priority}`}>{todo.priority}</span>}
+    </label>
+  )
+}
+```
+
+#### Интеграция в renderParts
+
+```tsx
+function renderParts(parts: Part[], role: 'user' | 'assistant'): React.ReactNode {
+  return parts
+    .map((part, idx) => {
+      switch (part.type) {
+        case 'text':
+          if (part.ignored) return null
+          return <TextPart key={idx} text={part.text} />
+
+        case 'file':
+          return <FilePart key={idx} file={part} />
+
+        case 'agent':
+          return <AgentPart key={idx} agent={part} />
+
+        case 'tool':
+          // Обрабатываем todowrite как отдельный тип
+          if (part.tool === 'todowrite') {
+            return <TodoPart key={idx} tool={part} />
+          }
+          return <ToolPart key={idx} tool={part} />
+
+        case 'reasoning':
+          if (role === 'assistant') {
+            return <ReasoningPart key={idx} reasoning={part} />
+          }
+          return null
+
+        default:
+          return null
+      }
+    })
+    .filter(Boolean)
+}
+```
+
+#### Стили для Todo компонентов
+
+```css
+.todo-part {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 8px 0;
+  background: white;
+}
+
+.todo-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.todo-icon {
+  font-size: 18px;
+  color: #3b82f6;
+}
+
+.todo-title {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.todo-progress {
+  margin-left: auto;
+  font-size: 14px;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.todo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+  cursor: default;
+}
+
+.todo-item:hover {
+  background: #f9fafb;
+}
+
+.todo-item.completed {
+  opacity: 0.7;
+}
+
+.todo-checkbox {
+  margin-top: 2px;
+  cursor: default;
+  width: 16px;
+  height: 16px;
+}
+
+.todo-content {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #374151;
+}
+
+.todo-content[data-completed='true'] {
+  text-decoration: line-through;
+  color: #9ca3af;
+}
+
+.todo-priority {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.todo-priority.high {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.todo-priority.medium {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.todo-priority.low {
+  background: #dcfce7;
+  color: #166534;
+}
+```
+
+#### Расширенный пример с collapsible (как в OpenCode)
+
+```tsx
+import { useState } from 'react'
+
+function TodoPart({ tool }: TodoPartProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const todos = (tool.state.input?.todos || tool.metadata?.todos || []) as Todo[]
+
+  const completedCount = todos.filter((t) => t.status === 'completed').length
+  const totalCount = todos.length
+
+  return (
+    <details
+      className="todo-tool-part"
+      open={isOpen}
+      onToggle={(e) => setIsOpen((e.target as HTMLDetailsElement).open)}
+    >
+      <summary className="todo-tool-summary">
+        <div className="todo-tool-title">
+          <svg className="todo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+            />
+          </svg>
+          <span>Todos</span>
+        </div>
+        <span className="todo-progress-badge">
+          {completedCount}/{totalCount}
+        </span>
+      </summary>
+
+      <div className="todo-tool-content">
+        {todos.length === 0 ? (
+          <div className="todo-empty">Нет задач</div>
+        ) : (
+          <div className="todo-list">
+            {todos.map((todo) => (
+              <TodoItem key={todo.id} todo={todo} />
+            ))}
+          </div>
+        )}
+      </div>
+    </details>
+  )
+}
+```
+
+#### Реализация в SolidJS
+
+```tsx
+import { For, createMemo } from 'solid-js'
+
+export function SolidTodoPart(props: { tool: Extract<Part, { type: 'tool' }> }) {
+  const todos = createMemo(
+    () => (props.tool.state.input?.todos || props.tool.metadata?.todos || []) as Todo[]
+  )
+
+  const progress = createMemo(() => {
+    const list = todos()
+    const completed = list.filter((t) => t.status === 'completed').length
+    return `${completed}/${list.length}`
+  })
+
+  return (
+    <details class="todo-tool-part">
+      <summary class="todo-tool-summary">
+        <div class="todo-tool-title">
+          <span>✓</span>
+          <span>Todos</span>
+        </div>
+        <span class="todo-progress-badge">{progress()}</span>
+      </summary>
+
+      <div class="todo-tool-content">
+        <For each={todos()}>{(todo: Todo) => <TodoItem todo={todo} />}</For>
+      </div>
+    </details>
+  )
+}
+
+function TodoItem(props: { todo: Todo }) {
+  const isCompleted = () => props.todo.status === 'completed'
+
+  return (
+    <label class={`todo-item ${isCompleted() ? 'completed' : ''}`}>
+      <input type="checkbox" checked={isCompleted()} readOnly class="todo-checkbox" />
+      <span class="todo-content" data-completed={isCompleted()}>
+        {props.todo.content}
+      </span>
+    </label>
+  )
+}
+```
+
+````
+
 ---
 
 ## 4. Группировка по Turn'ам
@@ -284,7 +594,7 @@ function TurnComponent({ turn }: { turn: Turn }) {
     </div>
   )
 }
-```
+````
 
 ---
 

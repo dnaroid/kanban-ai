@@ -102,6 +102,17 @@ export function TaskDetailsDescription({ task, onUpdate, onStartRun }: TaskDetai
           Description
         </label>
         <div className="flex items-center gap-1">
+          {task.description && task.description.trim().length > 0 && (
+            <button
+              onClick={onStartRun}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border border-blue-500/20 hover:border-blue-500 shadow-lg shadow-blue-500/5 animate-pulse-subtle mr-1"
+              title="Run task"
+            >
+              <Play className="w-3 h-3 fill-current" />
+              <span>Run Task</span>
+            </button>
+          )}
+
           <VoiceInputButton
             modelPaths={VOSK_MODEL_PATHS}
             onDelta={handleVoiceDelta}
@@ -199,16 +210,6 @@ export function TaskDetailsDescription({ task, onUpdate, onStartRun }: TaskDetai
             )}
           </div>
         )}
-      </div>
-
-      <div className="pt-2 flex shrink-0">
-        <button
-          onClick={onStartRun}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 hover:scale-[1.02] active:scale-[0.98]"
-        >
-          <Play className="w-4 h-4 fill-current" />
-          Run Task
-        </button>
       </div>
     </div>
   )

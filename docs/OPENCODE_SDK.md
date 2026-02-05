@@ -23,11 +23,11 @@ yarn add @opencode-ai/sdk/v2
 ## Быстрый старт
 
 ```typescript
-import {createOpencodeClient} from "@opencode-ai/sdk/v2"
+import { createOpencodeClient } from '@opencode-ai/sdk/v2'
 
 // Создаём клиент
 const client = createOpencodeClient({
-  baseUrl: "http://localhost:4096", // URL запущенного opencode serve
+  baseUrl: 'http://localhost:4096', // URL запущенного opencode serve
   throwOnError: true, // Бросать ошибки вместо логирования
 })
 ```
@@ -40,15 +40,15 @@ const client = createOpencodeClient({
 
 ```typescript
 const session = await client.session.create({
-  title: "Название задачи/сессии",
-  directory: "/путь/к/проекту", // Рабочая директория
+  title: 'Название задачи/сессии',
+  directory: '/путь/к/проекту', // Рабочая директория
 })
 
 // Дополнительные опции
 const sessionWithOptions = await client.session.create({
-  title: "Task Name",
-  directory: "/path/to/project",
-  parentID: "parent_session_id", // Если нужно создать форк
+  title: 'Task Name',
+  directory: '/path/to/project',
+  parentID: 'parent_session_id', // Если нужно создать форк
 })
 ```
 
@@ -57,32 +57,32 @@ const sessionWithOptions = await client.session.create({
 ```typescript
 // Синхронная отправка (с ожиданием ответа)
 const message = await client.session.prompt({
-  sessionID: "session_id",
+  sessionID: 'session_id',
   message: {
-    role: "user",
-    content: "Реализуй feature X",
+    role: 'user',
+    content: 'Реализуй feature X',
   },
 })
 
 // Асинхронная отправка (без ожидания)
 await client.session.promptAsync({
-  sessionID: "session_id",
+  sessionID: 'session_id',
   message: {
-    role: "user",
-    content: "Запусти тесты",
+    role: 'user',
+    content: 'Запусти тесты',
   },
 })
 
 // Отправка команды
 const commandResult = await client.session.command({
-  sessionID: "session_id",
-  command: "npm test",
+  sessionID: 'session_id',
+  command: 'npm test',
 })
 
 // Выполнение shell команды
 const shellResult = await client.session.shell({
-  sessionID: "session_id",
-  command: "ls -la",
+  sessionID: 'session_id',
+  command: 'ls -la',
 })
 ```
 
@@ -91,25 +91,25 @@ const shellResult = await client.session.shell({
 ```typescript
 // Все сообщения в сессии
 const messages = await client.session.messages({
-  sessionID: "session_id",
+  sessionID: 'session_id',
 })
 
 // С ограничением количества
 const recentMessages = await client.session.messages({
-  sessionID: "session_id",
+  sessionID: 'session_id',
   limit: 10,
 })
 
 // Конкретное сообщение
 const specificMessage = await client.session.message({
-  sessionID: "session_id",
-  messageID: "message_id",
+  sessionID: 'session_id',
+  messageID: 'message_id',
 })
 
 // Структура сообщения
 interface Message {
   id: string
-  role: "user" | "assistant"
+  role: 'user' | 'assistant'
   content: string
   timestamp: number
   // ... другие поля
@@ -121,19 +121,19 @@ interface Message {
 ```typescript
 // Полное удаление сессии и всех данных
 await client.session.delete({
-  sessionID: "session_id",
+  sessionID: 'session_id',
 })
 
 // Прерывание активной сессии
 await client.session.abort({
-  sessionID: "session_id",
+  sessionID: 'session_id',
 })
 
 // Архивация сессии (удаление, но с возможностью восстановления)
 await client.session.update({
-  sessionID: "session_id",
+  sessionID: 'session_id',
   updates: {
-    time: {archived: Date.now()},
+    time: { archived: Date.now() },
   },
 })
 ```
@@ -143,7 +143,7 @@ await client.session.update({
 ## Полный пример: Менеджер сессий
 
 ```typescript
-import {createOpencodeClient} from "@opencode-ai/sdk/v2"
+import { createOpencodeClient } from '@opencode-ai/sdk/v2'
 
 interface SessionInfo {
   id: string
@@ -153,7 +153,7 @@ interface SessionInfo {
 
 class SessionManager {
   private client = createOpencodeClient({
-    baseUrl: "http://localhost:4096",
+    baseUrl: 'http://localhost:4096',
   })
 
   private activeSessions = new Map<string, SessionInfo>()
@@ -179,7 +179,7 @@ class SessionManager {
   async sendPrompt(sessionID: string, prompt: string) {
     const message = await this.client.session.prompt({
       sessionID,
-      message: {role: "user", content: prompt},
+      message: { role: 'user', content: prompt },
     })
 
     return message
@@ -195,18 +195,18 @@ class SessionManager {
 
   // Получить информацию о сессии
   async getSessionInfo(sessionID: string) {
-    return await this.client.session.get({sessionID})
+    return await this.client.session.get({ sessionID })
   }
 
   // Закрыть сессию
   async closeSession(sessionID: string) {
-    await this.client.session.delete({sessionID})
+    await this.client.session.delete({ sessionID })
     this.activeSessions.delete(sessionID)
   }
 
   // Прервать активную сессию
   async abortSession(sessionID: string) {
-    await this.client.session.abort({sessionID})
+    await this.client.session.abort({ sessionID })
     this.activeSessions.delete(sessionID)
   }
 
@@ -220,14 +220,17 @@ class SessionManager {
 const manager = new SessionManager()
 
 // Создать сессию для задачи
-const taskSession = await manager.createTaskSession("TASK-001: Fix authentication bug", "/path/to/project")
+const taskSession = await manager.createTaskSession(
+  'TASK-001: Fix authentication bug',
+  '/path/to/project'
+)
 
 // Отправить запрос
-await manager.sendPrompt(taskSession.id, "Как исправить ошибку авторизации?")
+await manager.sendPrompt(taskSession.id, 'Как исправить ошибку авторизации?')
 
 // Получить сообщения
 const messages = await manager.getMessages(taskSession.id)
-console.log("История сообщений:", messages)
+console.log('История сообщений:', messages)
 ```
 
 ---
@@ -240,8 +243,8 @@ console.log("История сообщений:", messages)
 
 ```typescript
 const forkedSession = await client.session.fork({
-  sessionID: "original_session_id",
-  messageID: "message_id", // С какой точки создать копию
+  sessionID: 'original_session_id',
+  messageID: 'message_id', // С какой точки создать копию
 })
 ```
 
@@ -249,15 +252,58 @@ const forkedSession = await client.session.fork({
 
 ```typescript
 // Получить todo задачи сессии
-const todos = await client.session.todo({sessionID: "session_id"})
+const todos = await client.session.todo({ sessionID: 'session_id' })
 
 // Структура todo:
 interface Todo {
-  id: string
-  content: string
-  status: "pending" | "in_progress" | "completed"
+  id: string // Уникальный ID todo элемента
+  content: string // Краткое описание задачи
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled' // Текущий статус
+  priority: 'high' | 'medium' | 'low' // Уровень приоритета
+}
+
+// Пример использования:
+const todos = await client.session.todo({ sessionID: 'my-session-id' })
+console.log(`Всего задач: ${todos.length}`)
+console.log(`Выполнено: ${todos.filter((t) => t.status === 'completed').length}`)
+
+// Фильтрация по статусу
+const pendingTodos = todos.filter((t) => t.status === 'pending')
+const inProgressTodos = todos.filter((t) => t.status === 'in_progress')
+const completedTodos = todos.filter((t) => t.status === 'completed')
+
+// Группировка по приоритету
+const highPriorityTodos = todos.filter((t) => t.priority === 'high')
+const mediumPriorityTodos = todos.filter((t) => t.priority === 'medium')
+const lowPriorityTodos = todos.filter((t) => t.priority === 'low')
+```
+
+#### Где искать todo в сообщениях
+
+Todo список может быть частью сообщения (tool part):
+
+```typescript
+interface TodoPart {
+  type: 'tool'
+  tool: 'todowrite' // или другое имя инструмента
+  state: {
+    status: 'pending' | 'running' | 'completed' | 'error'
+    input: {
+      todos: Todo[] // Массив todo задач
+    }
+    output?: string
+    title?: string
+  }
 }
 ```
+
+#### Реализация в чате
+
+При получении сообщений через SSE или API, todo список доступен в:
+
+1. **Tool part с todowrite**: `part.state.input.todos` или `part.metadata?.todos`
+2. **Входные параметры**: `props.input.todos`
+3. **Метаданные**: `props.metadata?.todos`
 
 ### Подписка на события (SSE)
 
@@ -265,7 +311,7 @@ interface Todo {
 // SDK поддерживает SSE для real-time обновлений
 // client.event.subscribe возвращает Promise<{ stream: AsyncGenerator<Event> }>
 const response = await client.event.subscribe({
-  directory: "/path/to/project"
+  directory: '/path/to/project',
 })
 
 // Извлечь async generator из response
@@ -274,25 +320,25 @@ const stream = response.stream
 // Итерировать по событиям
 for await (const event of stream) {
   console.log('Event type:', event.type)
-  
+
   switch (event.type) {
     case 'message.updated':
       // Новое сообщение или обновление метаданных
       console.log('Message:', event.properties.info)
       break
-      
+
     case 'message.part.updated':
       // Инкрементальное обновление части сообщения (streaming)
       const part = event.properties.part
       const delta = event.properties.delta // Новый текст
       console.log('Part updated:', part.id, delta)
       break
-      
+
     case 'message.removed':
       // Сообщение удалено
       console.log('Message removed:', event.properties.messageID)
       break
-      
+
     case 'message.part.removed':
       // Часть сообщения удалена
       console.log('Part removed:', event.properties.partID)
@@ -307,11 +353,11 @@ for await (const event of stream) {
 interface Event {
   type: 'message.updated' | 'message.removed' | 'message.part.updated' | 'message.part.removed'
   properties: {
-    info?: Message          // для message.updated
-    messageID?: string      // для message.removed, message.part.removed
-    part?: Part            // для message.part.updated
-    delta?: string         // для message.part.updated (инкрементальный текст)
-    partID?: string        // для message.part.removed
+    info?: Message // для message.updated
+    messageID?: string // для message.removed, message.part.removed
+    part?: Part // для message.part.updated
+    delta?: string // для message.part.updated (инкрементальный текст)
+    partID?: string // для message.part.removed
   }
 }
 ```
@@ -330,21 +376,21 @@ for await (const event of response.stream) {
       messages.set(msg.id, { role: msg.role, parts: [] })
     }
   }
-  
+
   if (event.type === 'message.part.updated') {
     const { part, delta } = event.properties
     const msg = messages.get(part.messageID)
     if (!msg) {
       messages.set(part.messageID, { role: 'assistant', parts: [part] })
     } else {
-      const existingPartIndex = msg.parts.findIndex(p => p.id === part.id)
+      const existingPartIndex = msg.parts.findIndex((p) => p.id === part.id)
       if (existingPartIndex === -1) {
         msg.parts.push(part)
       } else {
         msg.parts[existingPartIndex] = part
       }
     }
-    
+
     // Обновить UI с новым контентом
     updateChatUI(part.messageID, msg)
   }
@@ -364,6 +410,7 @@ for await (const event of response.stream) {
 #### Живые сообщения (Active/Live Sessions)
 
 **Характеристики:**
+
 - Сессия активна в `activeSessions`
 - Подписка через SSE: `client.event.subscribe({ directory })`
 - События приходят в real-time через SSE stream
@@ -372,6 +419,7 @@ for await (const event of response.stream) {
 - Сообщение создается при первом `message.part.updated` (без предварительного `message.updated`)
 
 **Как работает:**
+
 ```typescript
 // 1. Создается SSE stream
 const response = await client.event.subscribe({ directory: projectPath })
@@ -386,7 +434,7 @@ for await (const event of stream) {
     // Накапливаем part в сообщении
     updateMessagePart(event.properties.messageID, part)
   }
-  
+
   if (event.type === 'message.updated') {
     // Финальное обновление метаданных
     // Сохраняем накопленные parts!
@@ -396,6 +444,7 @@ for await (const event of stream) {
 ```
 
 **UI поведение:**
+
 - Сообщение появляется сразу при первом part
 - Контент растет постепенно по мере поступления parts
 - Аватар пульсирует `animate-pulse`
@@ -404,6 +453,7 @@ for await (const event of stream) {
 #### Файловые сообщения (Historical/Static Sessions)
 
 **Характеристики:**
+
 - Сессия НЕ в `activeSessions`
 - Нет SSE подписки
 - Сообщения загружаются из файлов или через `client.session.messages.get()`
@@ -412,10 +462,11 @@ for await (const event of stream) {
 - Загрузка происходит при открытии исторической сессии
 
 **Как работает:**
+
 ```typescript
 // 1. Загружаем сообщения из файлов
 const messages = await client.session.messages.get({
-  sessionID: sessionId
+  sessionID: sessionId,
 })
 
 // 2. Или читаем напрямую из filesystem
@@ -423,16 +474,17 @@ const sessionData = await readSessionFile(sessionID)
 const messages = sessionData.messages
 
 // 3. Отображаем с загруженными parts
-messages.forEach(msg => {
+messages.forEach((msg) => {
   renderMessage({
     role: msg.role,
     parts: msg.parts, // Уже загружены полностью
-    content: msg.content
+    content: msg.content,
   })
 })
 ```
 
 **UI поведение:**
+
 - Сообщения появляются сразу с полным контентом
 - Никакой анимации пульсации
 - Контент статичный
@@ -440,6 +492,7 @@ messages.forEach(msg => {
 #### Как определить тип сообщения
 
 **В коде:**
+
 ```typescript
 // 1. Проверяем активную сессию
 const isActive = activeSessions.has(sessionID)
@@ -457,6 +510,7 @@ const hasStream = sessionStreams.has(sessionID)
 ```
 
 **В UI:**
+
 ```typescript
 // Отслеживаем активные сообщения через timeout
 const [streamingMessageIds, setStreamingMessageIds] = useState<Set<string>>(new Set())
@@ -499,7 +553,8 @@ setTimeout(() => {
    - `message.updated` → обновлять метаданные, сохранять существующие parts
    - `message.removed` → удалять сообщение
    - `message.part.removed` → удалять part из сообщения
-```
+
+````
 
 ### Аутентификация
 
@@ -513,24 +568,24 @@ const client = createOpencodeClient({
     password: "secret",
   },
 })
-```
+````
 
 ---
 
 ## Обработка ошибок
 
 ```typescript
-import {SessionNotFoundError, ConnectionError} from "@opencode-ai/sdk/v2"
+import { SessionNotFoundError, ConnectionError } from '@opencode-ai/sdk/v2'
 
 try {
-  const session = await client.session.create({title: "Test"})
+  const session = await client.session.create({ title: 'Test' })
 } catch (error) {
   if (error instanceof SessionNotFoundError) {
-    showError("Сессия не найдена")
+    showError('Сессия не найдена')
   } else if (error instanceof ConnectionError) {
-    showError("Ошибка соединения с сервером")
+    showError('Ошибка соединения с сервером')
   } else {
-    showError("Неизвестная ошибка:", error)
+    showError('Неизвестная ошибка:', error)
   }
 }
 ```
@@ -560,13 +615,13 @@ interface Session {
     updated: number
     archived?: number
   }
-  status: "active" | "idle" | "completed"
+  status: 'active' | 'idle' | 'completed'
 }
 
 // Message
 interface Message {
   id: string
-  role: "user" | "assistant"
+  role: 'user' | 'assistant'
   content: string
   timestamp: number
   parts: MessagePart[]
@@ -576,7 +631,7 @@ interface Message {
 interface Todo {
   id: string
   content: string
-  status: "pending" | "in_progress" | "completed"
+  status: 'pending' | 'in_progress' | 'completed'
 }
 ```
 
