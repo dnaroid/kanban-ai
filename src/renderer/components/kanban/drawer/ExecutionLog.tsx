@@ -38,6 +38,7 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
   const seenMessageIdsRef = useRef<Set<string>>(new Set())
   const refreshMessagesRef = useRef<(() => Promise<void>) | null>(null)
   const streamingTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
+  const hiddenUserMessageIdRef = useRef<string | null>(null)
 
   const coerceText = (value: unknown): string => {
     if (typeof value === 'string') return value
@@ -164,6 +165,16 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
     }) => {
       const payloadId = payload?.id
       if (!payloadId) return
+      if (hiddenUserMessageIdRef.current) {
+        if (hiddenUserMessageIdRef.current === payloadId) {
+          setEvents((prev) => prev.filter((item) => item.id !== `msg-${payloadId}`))
+          return
+        }
+      } else if (payload.role === 'user') {
+        hiddenUserMessageIdRef.current = payloadId
+        setEvents((prev) => prev.filter((item) => item.id !== `msg-${payloadId}`))
+        return
+      }
       const id = `msg-${payloadId}`
       setEvents((prev) => {
         const existingIndex = prev.findIndex((item) => item.id === id)
@@ -362,6 +373,14 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
         })
         if (!isActive) return
         if (response.messages.length > 0) {
+          if (!hiddenUserMessageIdRef.current) {
+            const firstUserMessage = response.messages
+              .filter((message) => message.role === 'user')
+              .sort((a, b) => a.timestamp - b.timestamp)[0]
+            if (firstUserMessage) {
+              hiddenUserMessageIdRef.current = firstUserMessage.id
+            }
+          }
           setEvents((prev) => {
             const updated = [...prev]
             const indexById = new Map<string, number>()
@@ -371,6 +390,9 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
             })
 
             response.messages.forEach((msg: OpenCodeMessage) => {
+              if (hiddenUserMessageIdRef.current === msg.id) {
+                return
+              }
               const id = `msg-${msg.id}`
               const event: RunEvent = {
                 id,
@@ -400,7 +422,11 @@ export function ExecutionLog({ runId, sessionId }: { runId: string; sessionId: s
               }
             })
 
-            return updated.sort((a, b) => a.ts.localeCompare(b.ts)).slice(-500)
+            const hiddenId = hiddenUserMessageIdRef.current
+            const filtered = hiddenId
+              ? updated.filter((event) => event.id !== `msg-${hiddenId}`)
+              : updated
+            return filtered.sort((a, b) => a.ts.localeCompare(b.ts)).slice(-500)
           })
         }
       } catch (error) {
