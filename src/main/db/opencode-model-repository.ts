@@ -24,7 +24,6 @@ export class OpencodeModelRepository {
   getModelForDifficulty(difficulty: 'easy' | 'medium' | 'hard' | 'epic'): string | null {
     const defaultModel = appSettingsRepo.getDefaultModel(difficulty)
     if (defaultModel) {
-      console.log('[getModelForDifficulty] Using default model from settings:', defaultModel)
       return defaultModel
     }
 
@@ -37,7 +36,6 @@ export class OpencodeModelRepository {
       LIMIT 1
     `)
     const result = stmt.get(difficulty) as { name: string } | undefined
-    console.log('[getModelForDifficulty] difficulty:', difficulty, 'found model:', result?.name)
     return result?.name ?? null
   }
   getAll(): OpencodeModel[] {

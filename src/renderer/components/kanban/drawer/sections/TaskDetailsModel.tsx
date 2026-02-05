@@ -16,21 +16,9 @@ export function TaskDetailsModel({ task, onUpdate }: TaskDetailsModelProps) {
     loadEnabledModels()
   }, [])
 
-  useEffect(() => {
-    if (task.modelName) {
-      setModels((prev) => {
-        if (prev.find((m) => m.name === task.modelName)) {
-          return prev
-        }
-        return prev
-      })
-    }
-  }, [task.modelName])
-
   const loadEnabledModels = async () => {
     try {
       const response = await window.api.opencode.listEnabledModels({})
-      console.log('[TaskDetailsModel] Loaded models:', response.models)
       setModels(response.models)
     } catch (error) {
       console.error('Failed to load models:', error)
@@ -38,7 +26,6 @@ export function TaskDetailsModel({ task, onUpdate }: TaskDetailsModelProps) {
   }
 
   const selectModel = (modelName: string | null) => {
-    console.log('[TaskDetailsModel] Selecting model:', modelName)
     onUpdate?.(task.id, { modelName })
     setIsPickerOpen(false)
   }
@@ -49,15 +36,6 @@ export function TaskDetailsModel({ task, onUpdate }: TaskDetailsModelProps) {
   }
 
   const currentModel = getModelInfo(task.modelName || null)
-
-  console.log(
-    '[TaskDetailsModel] task.modelName:',
-    task.modelName,
-    'currentModel:',
-    currentModel,
-    'models:',
-    models
-  )
 
   return (
     <div className="space-y-2">

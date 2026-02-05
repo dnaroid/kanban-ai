@@ -140,15 +140,14 @@ const updateTaskAndEmit = (taskId: string, patch: Parameters<typeof taskRepo.upd
 
   if ('difficulty' in finalPatch && typeof finalPatch.difficulty === 'string') {
     const model = opencodeModelRepo.getModelForDifficulty(finalPatch.difficulty)
-    console.log(
-      '[updateTaskAndEmit] Difficulty changed to:',
-      finalPatch.difficulty,
-      'Auto-selecting model:',
-      model
-    )
     if (model) {
       finalPatch.modelName = model
     }
+  }
+
+  taskRepo.update(taskId, finalPatch)
+  emitTaskUpdated(taskId)
+}
   }
 
   taskRepo.update(taskId, finalPatch)
