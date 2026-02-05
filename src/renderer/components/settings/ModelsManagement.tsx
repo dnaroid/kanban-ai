@@ -9,6 +9,8 @@ import {
   Maximize2,
   Minimize2,
   Gift,
+  Trash2,
+  Star,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import type { OpencodeModel } from '../../../shared/types/ipc'
@@ -24,17 +26,42 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
   const [showFreeOnly, setShowFreeOnly] = useState(false)
   const [activeSubTab, setActiveSubTab] = useState<'all' | 'my'>('all')
+  const [defaultModels, setDefaultModels] = useState<Record<string, string>>({})
 
   const loadModels = async () => {
     try {
       setIsLoading(true)
       const response = await window.api.opencode.listModels()
       setModels(response.models)
+
+      // Load default models for each difficulty
+      const defaults: Record<string, string> = {}
+      for (const diff of ['easy', 'medium', 'hard', 'epic'] as const) {
+        const res = await window.api.appSetting.getDefaultModel({ difficulty: diff })
+        if (res.modelName) {
+          defaults[diff] = res.modelName
+        }
+      }
+      setDefaultModels(defaults)
     } catch (error) {
       console.error('Failed to load models:', error)
       onStatusChange({ message: 'Failed to load models', type: 'error' })
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleSetDefaultModel = async (
+    difficulty: 'easy' | 'medium' | 'hard' | 'epic',
+    modelName: string
+  ) => {
+    try {
+      await window.api.appSetting.setDefaultModel({ difficulty, modelName })
+      setDefaultModels((prev) => ({ ...prev, [difficulty]: modelName }))
+      onStatusChange({ message: `Set default ${difficulty} model`, type: 'success' })
+    } catch (error) {
+      console.error('Failed to set default model:', error)
+      onStatusChange({ message: 'Failed to set default model', type: 'error' })
     }
   }
 
@@ -49,6 +76,19 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
     } catch (error) {
       console.error('Failed to toggle model:', error)
       onStatusChange({ message: 'Failed to update model status', type: 'error' })
+    }
+  }
+
+  const handleUpdateDifficulty = async (
+    name: string,
+    difficulty: 'easy' | 'medium' | 'hard' | 'epic'
+  ) => {
+    try {
+      await window.api.opencode.updateModelDifficulty({ name, difficulty })
+      setModels((prev) => prev.map((m) => (m.name === name ? { ...m, difficulty } : m)))
+    } catch (error) {
+      console.error('Failed to update model difficulty:', error)
+      onStatusChange({ message: 'Failed to update model difficulty', type: 'error' })
     }
   }
 
@@ -115,6 +155,15 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
   const allProviders = Object.keys(groupedModels).sort()
   const isAllEnabled = stats.total > 0 && stats.enabled === stats.total
 
+  const enabledModels = useMemo(() => models.filter((m) => m.enabled), [models])
+
+  const difficulties = [
+    { value: 'easy', label: 'Easy', color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+    { value: 'medium', label: 'Medium', color: 'text-blue-400', bg: 'bg-blue-500/10' },
+    { value: 'hard', label: 'Hard', color: 'text-orange-400', bg: 'bg-orange-500/10' },
+    { value: 'epic', label: 'Epic', color: 'text-purple-400', bg: 'bg-purple-500/10' },
+  ] as const
+
   useEffect(() => {
     if (searchQuery.trim().length > 0 || showFreeOnly) {
       const newExpanded: Record<string, boolean> = {}
@@ -125,7 +174,18 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
     }
   }, [searchQuery, allProviders, showFreeOnly])
 
-  const enabledModels = useMemo(() => models.filter((m) => m.enabled), [models])
+  const enabledModelsByDifficulty = useMemo(() => {
+    const groups: Record<string, OpencodeModel[]> = {
+      easy: [],
+      medium: [],
+      hard: [],
+      epic: [],
+    }
+    enabledModels.forEach((m) => {
+      groups[m.difficulty].push(m)
+    })
+    return groups
+  }, [enabledModels])
 
   if (isLoading && models.length === 0) {
     return (
@@ -398,28 +458,124 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {enabledModels.map((model) => {
-                const chunks = model.name.split('/')
-                const modelDisplayName = chunks[chunks.length - 1]
+            <div className="space-y-8">
+              {difficulties.map((diff) => {
+                const groupModels = enabledModelsByDifficulty[diff.value]
+                if (groupModels.length === 0) return null
+
                 return (
-                  <div
-                    key={model.name}
-                    className="group relative p-4 rounded-xl border bg-blue-500/5 border-blue-500/40 shadow-lg shadow-blue-500/5 transition-all cursor-pointer"
-                    onClick={() => handleToggleModel(model.name, false)}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-bold text-slate-200 truncate group-hover:text-white transition-colors">
-                          {modelDisplayName}
-                        </div>
-                        <div className="text-[10px] text-slate-500 font-medium truncate">
-                          {model.name}
-                        </div>
-                      </div>
-                      <div className="w-8 h-4.5 rounded-full bg-blue-600 relative flex items-center px-1">
-                        <div className="w-2.5 h-2.5 rounded-full bg-white translate-x-3.5 shadow-sm" />
-                      </div>
+                  <div key={diff.value} className="space-y-4">
+                    <div className="flex items-center gap-3 px-1">
+                      <div
+                        className={cn(
+                          'w-2 h-2 rounded-full shadow-lg',
+                          diff.bg.replace('/10', ''),
+                          'shadow-' + diff.color.split('-')[1] + '-500/20'
+                        )}
+                      />
+                      <h4
+                        className={cn('text-xs font-black uppercase tracking-[0.2em]', diff.color)}
+                      >
+                        {diff.label} Models
+                      </h4>
+                      <div className="flex-1 h-px bg-slate-800/40" />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {groupModels.map((model) => {
+                        const chunks = model.name.split('/')
+                        const modelDisplayName = chunks[chunks.length - 1]
+                        const isDefault = defaultModels[diff.value] === model.name
+
+                        return (
+                          <div
+                            key={model.name}
+                            className={cn(
+                              'group relative p-5 rounded-2xl border transition-all duration-300',
+                              isDefault
+                                ? 'bg-blue-500/[0.03] border-blue-500/50 shadow-xl shadow-blue-500/10'
+                                : 'bg-[#11151C] border-slate-800/60 hover:border-slate-800'
+                            )}
+                          >
+                            <div className="flex items-start justify-between gap-4 mb-6">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className={cn(
+                                      'text-base font-bold truncate transition-colors',
+                                      isDefault
+                                        ? 'text-blue-400'
+                                        : 'text-white group-hover:text-blue-400'
+                                    )}
+                                  >
+                                    {modelDisplayName}
+                                  </div>
+                                  {isDefault && (
+                                    <div className="px-1.5 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/20 text-[9px] font-black uppercase tracking-tighter text-blue-400">
+                                      Default
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-slate-500 font-medium truncate mt-1">
+                                  {model.name}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleSetDefaultModel(diff.value, model.name)}
+                                  className={cn(
+                                    'p-2 rounded-lg transition-all',
+                                    isDefault
+                                      ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30'
+                                      : 'bg-slate-800/40 text-slate-500 hover:bg-blue-500/10 hover:text-blue-400'
+                                  )}
+                                  title={isDefault ? 'Default model' : 'Set as default model'}
+                                >
+                                  <Star className={cn('w-4 h-4', isDefault && 'fill-current')} />
+                                </button>
+                                <button
+                                  onClick={() => handleToggleModel(model.name, false)}
+                                  className="p-2 rounded-lg bg-slate-800/40 text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-all"
+                                  title="Remove model from my list"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                  Complexity
+                                </span>
+                                <div className="flex p-1 bg-[#0B0E14] border border-slate-800/60 rounded-xl gap-1">
+                                  {difficulties.map((d) => (
+                                    <button
+                                      key={d.value}
+                                      onClick={() => handleUpdateDifficulty(model.name, d.value)}
+                                      className={cn(
+                                        'px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all',
+                                        model.difficulty === d.value
+                                          ? cn(
+                                              d.bg,
+                                              d.color,
+                                              'ring-1 ring-inset',
+                                              d.color
+                                                .replace('text-', 'ring-')
+                                                .replace('-400', '/40')
+                                            )
+                                          : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                                      )}
+                                    >
+                                      {d.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )

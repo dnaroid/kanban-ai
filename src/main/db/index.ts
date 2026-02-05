@@ -230,10 +230,12 @@ class DatabaseManager {
       return { seeded: false, error: message }
     }
 
-    const insert = this.db.prepare('INSERT OR IGNORE INTO opencode_models (name) VALUES (?)')
+    const insert = this.db.prepare(
+      'INSERT OR IGNORE INTO opencode_models (name, difficulty) VALUES (?, ?)'
+    )
     const tx = this.db.transaction(() => {
       for (const name of names) {
-        insert.run(name)
+        insert.run(name, 'medium')
       }
     })
     tx()

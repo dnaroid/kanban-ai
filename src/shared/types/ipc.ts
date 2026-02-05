@@ -1200,6 +1200,7 @@ export type VoskModelDownloadResponse = z.infer<typeof VoskModelDownloadResponse
 export const OpencodeModelSchema = z.object({
   name: z.string().min(1),
   enabled: z.boolean(),
+  difficulty: z.enum(['easy', 'medium', 'hard', 'epic']),
 })
 
 export type OpencodeModel = z.infer<typeof OpencodeModelSchema>
@@ -1223,6 +1224,23 @@ export const OpencodeModelToggleResponseSchema = z.object({
 
 export type OpencodeModelToggleResponse = z.infer<typeof OpencodeModelToggleResponseSchema>
 
+export const OpencodeModelUpdateDifficultyInputSchema = z.object({
+  name: z.string().min(1),
+  difficulty: z.enum(['easy', 'medium', 'hard', 'epic']),
+})
+
+export type OpencodeModelUpdateDifficultyInput = z.infer<
+  typeof OpencodeModelUpdateDifficultyInputSchema
+>
+
+export const OpencodeModelUpdateDifficultyResponseSchema = z.object({
+  model: OpencodeModelSchema,
+})
+
+export type OpencodeModelUpdateDifficultyResponse = z.infer<
+  typeof OpencodeModelUpdateDifficultyResponseSchema
+>
+
 export const OpencodeSendMessageInputSchema = z.object({
   sessionId: z.string(),
   message: z.string(),
@@ -1235,3 +1253,32 @@ export const OpencodeSendMessageResponseSchema = z.object({
 })
 
 export type OpencodeSendMessageResponse = z.infer<typeof OpencodeSendMessageResponseSchema>
+
+export const AppSettingGetDefaultModelInputSchema = z.object({
+  difficulty: z.enum(['easy', 'medium', 'hard', 'epic']),
+})
+
+export type AppSettingGetDefaultModelInput = z.infer<typeof AppSettingGetDefaultModelInputSchema>
+
+export const AppSettingGetDefaultModelResponseSchema = z.object({
+  modelName: z.string().nullable(),
+})
+
+export type AppSettingGetDefaultModelResponse = z.infer<
+  typeof AppSettingGetDefaultModelResponseSchema
+>
+
+export const AppSettingSetDefaultModelInputSchema = z.object({
+  difficulty: z.enum(['easy', 'medium', 'hard', 'epic']),
+  modelName: z.string(),
+})
+
+export type AppSettingSetDefaultModelInput = z.infer<typeof AppSettingSetDefaultModelInputSchema>
+
+export const AppSettingSetDefaultModelResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type AppSettingSetDefaultModelResponse = z.infer<
+  typeof AppSettingSetDefaultModelResponseSchema
+>

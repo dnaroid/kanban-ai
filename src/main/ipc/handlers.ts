@@ -13,8 +13,12 @@ import {
   AnalyticsGetRunStatsInputSchema,
   AnalyticsGetRunStatsResponseSchema,
   AppInfoSchema,
+  AppSettingGetDefaultModelInputSchema,
+  AppSettingGetDefaultModelResponseSchema,
   AppSettingGetLastProjectIdResponseSchema,
   AppSettingGetSidebarCollapsedResponseSchema,
+  AppSettingSetDefaultModelInputSchema,
+  AppSettingSetDefaultModelResponseSchema,
   AppSettingSetLastProjectIdInputSchema,
   AppSettingSetLastProjectIdResponseSchema,
   AppSettingSetSidebarCollapsedInputSchema,
@@ -48,6 +52,8 @@ import {
   OpencodeModelsListResponseSchema,
   OpencodeModelToggleInputSchema,
   OpencodeModelToggleResponseSchema,
+  OpencodeModelUpdateDifficultyInputSchema,
+  OpencodeModelUpdateDifficultyResponseSchema,
   OpencodeSendMessageInputSchema,
   OpencodeSendMessageResponseSchema,
   OpenCodeSessionMessagesInputSchema,
@@ -56,8 +62,6 @@ import {
   OpenCodeSessionStatusResponseSchema,
   OpenCodeSessionTodosInputSchema,
   OpenCodeSessionTodosResponseSchema,
-  OpencodeSendMessageInputSchema,
-  OpencodeSendMessageResponseSchema,
   PluginsEnableInputSchema,
   PluginsEnableResponseSchema,
   PluginsInstallInputSchema,
@@ -496,6 +500,24 @@ ipcHandlers.register(
   }
 )
 
+ipcHandlers.register(
+  'appSetting:getDefaultModel',
+  AppSettingGetDefaultModelInputSchema,
+  async (_, input) => {
+    const modelName = appSettingsRepo.getDefaultModel(input.difficulty)
+    return AppSettingGetDefaultModelResponseSchema.parse({ modelName })
+  }
+)
+
+ipcHandlers.register(
+  'appSetting:setDefaultModel',
+  AppSettingSetDefaultModelInputSchema,
+  async (_, input) => {
+    appSettingsRepo.setDefaultModel(input.difficulty, input.modelName)
+    return AppSettingSetDefaultModelResponseSchema.parse({ ok: true })
+  }
+)
+
 ipcHandlers.register('database:delete', DatabaseDeleteInputSchema, async () => {
   dbManager.deleteDatabase()
   return DatabaseDeleteResponseSchema.parse({ ok: true })
@@ -668,6 +690,18 @@ ipcHandlers.register('opencode:toggleModel', OpencodeModelToggleInputSchema, asy
   }
   return OpencodeModelToggleResponseSchema.parse({ model: updatedModel })
 })
+
+ipcHandlers.register(
+  'opencode:updateModelDifficulty',
+  OpencodeModelUpdateDifficultyInputSchema,
+  async (_, input) => {
+    const updatedModel = opencodeModelRepo.updateDifficulty(input.name, input.difficulty)
+    if (!updatedModel) {
+      throw new Error(`Model "${input.name}" not found`)
+    }
+    return OpencodeModelUpdateDifficultyResponseSchema.parse({ model: updatedModel })
+  }
+)
 
 ipcHandlers.register('opencode:sendMessage', OpencodeSendMessageInputSchema, async (_, input) => {
   await sessionManager.sendPrompt(input.sessionId, input.message)

@@ -5,16 +5,17 @@ export class OpencodeModelRepository {
   getAll(): OpencodeModel[] {
     const db = dbManager.connect()
     const stmt = db.prepare(`
-      SELECT name, enabled
+      SELECT name, enabled, difficulty
       FROM opencode_models
       ORDER BY name
     `)
 
-    const models = stmt.all() as Array<{ name: string; enabled: number }>
+    const models = stmt.all() as Array<{ name: string; enabled: number; difficulty: string }>
 
     return models.map((model) => ({
       name: model.name,
       enabled: Boolean(model.enabled),
+      difficulty: model.difficulty as 'easy' | 'medium' | 'hard' | 'epic',
     }))
   }
 
@@ -36,15 +37,38 @@ export class OpencodeModelRepository {
     return this.getByName(name)
   }
 
+  updateDifficulty(
+    name: string,
+    difficulty: 'easy' | 'medium' | 'hard' | 'epic'
+  ): OpencodeModel | null {
+    const db = dbManager.connect()
+
+    const stmt = db.prepare(`
+      UPDATE opencode_models
+      SET difficulty = ?
+      WHERE name = ?
+    `)
+
+    const result = stmt.run(difficulty, name)
+
+    if (result.changes === 0) {
+      return null
+    }
+
+    return this.getByName(name)
+  }
+
   getByName(name: string): OpencodeModel | null {
     const db = dbManager.connect()
     const stmt = db.prepare(`
-      SELECT name, enabled
+      SELECT name, enabled, difficulty
       FROM opencode_models
       WHERE name = ?
     `)
 
-    const model = stmt.get(name) as { name: string; enabled: number } | undefined
+    const model = stmt.get(name) as
+      | { name: string; enabled: number; difficulty: string }
+      | undefined
 
     if (!model) {
       return null
@@ -53,6 +77,7 @@ export class OpencodeModelRepository {
     return {
       name: model.name,
       enabled: Boolean(model.enabled),
+      difficulty: model.difficulty as 'easy' | 'medium' | 'hard' | 'epic',
     }
   }
 }

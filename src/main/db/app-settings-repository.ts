@@ -9,6 +9,10 @@ interface AppSetting {
 export class AppSettingsRepository {
   private static readonly LAST_PROJECT_KEY = 'last_project_id'
   private static readonly SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed'
+  private static readonly DEFAULT_MODEL_EASY_KEY = 'default_model_easy'
+  private static readonly DEFAULT_MODEL_MEDIUM_KEY = 'default_model_medium'
+  private static readonly DEFAULT_MODEL_HARD_KEY = 'default_model_hard'
+  private static readonly DEFAULT_MODEL_EPIC_KEY = 'default_model_epic'
 
   set(key: string, value: string): void {
     const db = dbManager.connect()
@@ -54,6 +58,38 @@ export class AppSettingsRepository {
 
   setSidebarCollapsed(collapsed: boolean): void {
     this.set(AppSettingsRepository.SIDEBAR_COLLAPSED_KEY, String(collapsed))
+  }
+
+  getDefaultModel(difficulty: 'easy' | 'medium' | 'hard' | 'epic'): string | null {
+    switch (difficulty) {
+      case 'easy':
+        return this.get(AppSettingsRepository.DEFAULT_MODEL_EASY_KEY)
+      case 'medium':
+        return this.get(AppSettingsRepository.DEFAULT_MODEL_MEDIUM_KEY)
+      case 'hard':
+        return this.get(AppSettingsRepository.DEFAULT_MODEL_HARD_KEY)
+      case 'epic':
+        return this.get(AppSettingsRepository.DEFAULT_MODEL_EPIC_KEY)
+      default:
+        return null
+    }
+  }
+
+  setDefaultModel(difficulty: 'easy' | 'medium' | 'hard' | 'epic', modelName: string): void {
+    switch (difficulty) {
+      case 'easy':
+        this.set(AppSettingsRepository.DEFAULT_MODEL_EASY_KEY, modelName)
+        break
+      case 'medium':
+        this.set(AppSettingsRepository.DEFAULT_MODEL_MEDIUM_KEY, modelName)
+        break
+      case 'hard':
+        this.set(AppSettingsRepository.DEFAULT_MODEL_HARD_KEY, modelName)
+        break
+      case 'epic':
+        this.set(AppSettingsRepository.DEFAULT_MODEL_EPIC_KEY, modelName)
+        break
+    }
   }
 }
 

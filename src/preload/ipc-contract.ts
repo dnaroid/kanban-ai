@@ -6,10 +6,14 @@ import type {
   AppInfo,
   AppSettingGetLastProjectIdResponse,
   AppSettingGetSidebarCollapsedResponse,
+  AppSettingGetDefaultModelInput,
+  AppSettingGetDefaultModelResponse,
   AppSettingSetLastProjectIdInput,
   AppSettingSetLastProjectIdResponse,
   AppSettingSetSidebarCollapsedInput,
   AppSettingSetSidebarCollapsedResponse,
+  AppSettingSetDefaultModelInput,
+  AppSettingSetDefaultModelResponse,
   ArtifactGetInput,
   ArtifactGetResponse,
   ArtifactListInput,
@@ -40,6 +44,8 @@ import type {
   OpencodeModelsListResponse,
   OpencodeModelToggleInput,
   OpencodeModelToggleResponse,
+  OpencodeModelUpdateDifficultyInput,
+  OpencodeModelUpdateDifficultyResponse,
   OpencodeSendMessageInput,
   OpencodeSendMessageResponse,
   OpenCodeSessionEvent,
@@ -121,6 +127,9 @@ export interface MainToRenderer {
     getSessionTodos(input: OpenCodeSessionTodosInput): Promise<OpenCodeSessionTodosResponse>
     listModels(): Promise<OpencodeModelsListResponse>
     toggleModel(input: OpencodeModelToggleInput): Promise<OpencodeModelToggleResponse>
+    updateModelDifficulty(
+      input: OpencodeModelUpdateDifficultyInput
+    ): Promise<OpencodeModelUpdateDifficultyResponse>
     sendMessage(input: OpencodeSendMessageInput): Promise<OpencodeSendMessageResponse>
   }
   project: {
@@ -211,6 +220,12 @@ export interface MainToRenderer {
     setSidebarCollapsed(
       input: AppSettingSetSidebarCollapsedInput
     ): Promise<AppSettingSetSidebarCollapsedResponse>
+    getDefaultModel(
+      input: AppSettingGetDefaultModelInput
+    ): Promise<AppSettingGetDefaultModelResponse>
+    setDefaultModel(
+      input: AppSettingSetDefaultModelInput
+    ): Promise<AppSettingSetDefaultModelResponse>
   }
   vosk: {
     downloadModel(input: VoskModelDownloadInput): Promise<VoskModelDownloadResponse>
@@ -234,6 +249,9 @@ export interface RendererToMain {
     getSessionTodos(input: OpenCodeSessionTodosInput): Promise<OpenCodeSessionTodosResponse>
     listModels(): Promise<OpencodeModelsListResponse>
     toggleModel(input: OpencodeModelToggleInput): Promise<OpencodeModelToggleResponse>
+    updateModelDifficulty(
+      input: OpencodeModelUpdateDifficultyInput
+    ): Promise<OpencodeModelUpdateDifficultyResponse>
   }
   project: {
     selectFolder(): Promise<{ path: string; name: string } | null>
@@ -322,6 +340,12 @@ export interface RendererToMain {
     setSidebarCollapsed(
       input: AppSettingSetSidebarCollapsedInput
     ): Promise<AppSettingSetSidebarCollapsedResponse>
+    getDefaultModel(
+      input: AppSettingGetDefaultModelInput
+    ): Promise<AppSettingGetDefaultModelResponse>
+    setDefaultModel(
+      input: AppSettingSetDefaultModelInput
+    ): Promise<AppSettingSetDefaultModelResponse>
   }
   stt: {
     start(input: STTStartInput): Promise<void>

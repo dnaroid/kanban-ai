@@ -29,6 +29,7 @@ const api: MainToRenderer = {
     getSessionTodos: (input) => ipcRenderer.invoke('opencode:getSessionTodos', input),
     listModels: () => ipcRenderer.invoke('opencode:listModels'),
     toggleModel: (input) => ipcRenderer.invoke('opencode:toggleModel', input),
+    updateModelDifficulty: (input) => ipcRenderer.invoke('opencode:updateModelDifficulty', input),
     sendMessage: (input) => ipcRenderer.invoke('opencode:sendMessage', input),
   },
   project: {
@@ -127,6 +128,8 @@ const api: MainToRenderer = {
     getSidebarCollapsed: () => ipcRenderer.invoke('appSetting:getSidebarCollapsed'),
     setSidebarCollapsed: (input: { collapsed: boolean }) =>
       ipcRenderer.invoke('appSetting:setSidebarCollapsed', input),
+    getDefaultModel: (input: any) => ipcRenderer.invoke('appSetting:getDefaultModel', input),
+    setDefaultModel: (input: any) => ipcRenderer.invoke('appSetting:setDefaultModel', input),
   },
   vosk: {
     downloadModel: (input) => ipcRenderer.invoke('vosk:downloadModel', input),
