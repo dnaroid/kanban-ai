@@ -40,7 +40,7 @@ export function RunDetailsView({
           <span className="text-xs font-mono text-blue-400/80">{runId.slice(0, 8)}</span>
 
           <div className="flex items-center gap-1.5 ml-2 border-l border-slate-800 pl-3">
-            {onRestart && (
+            {onRestart && run && !['running', 'queued'].includes(run.status) && (
               <button
                 onClick={onRestart}
                 className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
@@ -49,7 +49,7 @@ export function RunDetailsView({
                 <RotateCcw className="w-3.5 h-3.5" />
               </button>
             )}
-            {onCancel && run?.status === 'running' && (
+            {onCancel && run && ['running', 'queued'].includes(run.status) && (
               <button
                 onClick={onCancel}
                 className="p-1.5 text-red-400/60 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
@@ -58,7 +58,7 @@ export function RunDetailsView({
                 <Square className="w-3.5 h-3.5 fill-current" />
               </button>
             )}
-            {onDelete && (
+            {onDelete && run && !['running', 'queued'].includes(run.status) && (
               <button
                 onClick={onDelete}
                 className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"

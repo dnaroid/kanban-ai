@@ -318,14 +318,16 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
                     onClick={() => setSelectedRunId(run.id)}
                   >
                     <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
-                      <button
-                        onClick={(e) => handleRetryRun(run, e)}
-                        className="p-1.5 bg-slate-800 text-slate-400 hover:text-white rounded-lg border border-slate-700 hover:border-slate-600 transition-colors shadow-lg"
-                        title="Retry run"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                      </button>
-                      {run.status === 'running' && (
+                      {!['running', 'queued'].includes(run.status) && (
+                        <button
+                          onClick={(e) => handleRetryRun(run, e)}
+                          className="p-1.5 bg-slate-800 text-slate-400 hover:text-white rounded-lg border border-slate-700 hover:border-slate-600 transition-colors shadow-lg"
+                          title="Retry run"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {['running', 'queued'].includes(run.status) && (
                         <button
                           onClick={(e) => handleCancelRun(run.id, e)}
                           className="p-1.5 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg border border-red-500/20 transition-colors shadow-lg"
@@ -334,13 +336,15 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
                           <Square className="w-3.5 h-3.5 fill-current" />
                         </button>
                       )}
-                      <button
-                        onClick={(e) => handleDeleteRun(run.id, e)}
-                        className="p-1.5 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg border border-red-500/20 transition-colors shadow-lg"
-                        title="Delete run"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {!['running', 'queued'].includes(run.status) && (
+                        <button
+                          onClick={(e) => handleDeleteRun(run.id, e)}
+                          className="p-1.5 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg border border-red-500/20 transition-colors shadow-lg"
+                          title="Delete run"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
 
                     <div className="flex items-start justify-between mb-3">
