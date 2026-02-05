@@ -24,7 +24,6 @@ export function TaskDrawerDetails({
       <div className="flex-none p-6 space-y-6">
         <TaskDetailsTopBar task={task} onUpdate={onUpdate} />
         <TaskDetailsTags task={task} onUpdate={onUpdate} />
-        <TaskDetailsModel task={task} onUpdate={onUpdate} />
       </div>
 
       <TaskDetailsDescription
@@ -32,6 +31,7 @@ export function TaskDrawerDetails({
         onUpdate={onUpdate}
         onStartRun={onStartRun}
         isActive={isActive}
+        headerLeft={<TaskDetailsModel task={task} onUpdate={onUpdate} />}
       />
 
       <TaskDetailsDependencies task={task} />

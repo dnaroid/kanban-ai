@@ -148,11 +148,6 @@ const updateTaskAndEmit = (taskId: string, patch: Parameters<typeof taskRepo.upd
   taskRepo.update(taskId, finalPatch)
   emitTaskUpdated(taskId)
 }
-  }
-
-  taskRepo.update(taskId, finalPatch)
-  emitTaskUpdated(taskId)
-}
 
 const resolveInProgressColumnId = (taskId: string): string | null => {
   const task = taskRepo.getById(taskId)

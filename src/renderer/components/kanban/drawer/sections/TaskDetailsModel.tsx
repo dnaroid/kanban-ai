@@ -76,85 +76,77 @@ export function TaskDetailsModel({ task, onUpdate }: TaskDetailsModelProps) {
   const taskStyles = DIFFICULTY_STYLES[task.difficulty]
 
   return (
-    <div className="space-y-2">
-      <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-2">
-        <Cpu className="w-3 h-3" />
-        Model
-      </label>
-
-      <div className="relative">
-        <button
-          onClick={() => setIsPickerOpen(!isPickerOpen)}
-          className={cn(
-            'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all border',
-            isPickerOpen
-              ? cn(taskStyles.bg, taskStyles.text, taskStyles.border, taskStyles.glow)
-              : cn(
-                  'bg-slate-800/50 border-slate-700',
-                  taskStyles.text,
-                  taskStyles.border,
-                  taskStyles.hover
-                )
-          )}
-        >
-          {currentModel ? (
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{getModelDisplayName(currentModel.name)}</span>
-            </div>
-          ) : (
-            <span className="text-slate-500 italic">Auto (based on difficulty)</span>
-          )}
-        </button>
-
-        {isPickerOpen && (
-          <>
-            <div className="fixed inset-0 z-10" onClick={() => setIsPickerOpen(false)} />
-            <div className="absolute left-0 top-full mt-2 w-full bg-[#161B26] border border-slate-800 rounded-xl shadow-2xl z-20 py-2 animate-in fade-in zoom-in-95 duration-200">
-              {models.length === 0 ? (
-                <div className="px-3 py-4 text-center text-xs text-slate-500 italic">
-                  No enabled models found. Enable them in Settings.
-                </div>
-              ) : (
-                <>
-                  <button
-                    onClick={() => selectModel(null)}
-                    className={cn(
-                      'w-full flex items-center px-3 py-2 rounded-lg text-xs transition-all',
-                      !task.modelName
-                        ? cn(taskStyles.bg, taskStyles.text)
-                        : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                    )}
-                  >
-                    <span className="italic">Auto (based on difficulty)</span>
-                  </button>
-                  {models.map((model) => {
-                    const isSelected = task.modelName === model.name
-                    const modelStyles = DIFFICULTY_STYLES[model.difficulty]
-                    return (
-                      <button
-                        key={model.name}
-                        onClick={() => selectModel(model.name)}
-                        className={cn(
-                          'w-full flex items-center px-3 py-2 rounded-lg text-xs transition-all',
-                          isSelected
-                            ? cn(modelStyles.bg, modelStyles.text)
-                            : cn(
-                                modelStyles.text,
-                                'opacity-70 hover:opacity-100',
-                                modelStyles.hover
-                              )
-                        )}
-                      >
-                        <span className="font-medium">{getModelDisplayName(model.name)}</span>
-                      </button>
-                    )
-                  })}
-                </>
-              )}
-            </div>
-          </>
+    <div className="relative">
+      <button
+        onClick={() => setIsPickerOpen(!isPickerOpen)}
+        className={cn(
+          'min-w-[120px] flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-all border',
+          isPickerOpen
+            ? cn(taskStyles.bg, taskStyles.text, taskStyles.border, taskStyles.glow)
+            : cn(
+                'bg-slate-800/50 border-slate-700',
+                taskStyles.text,
+                taskStyles.border,
+                taskStyles.hover
+              )
         )}
-      </div>
+      >
+        <div className="flex items-center gap-1.5">
+          <Cpu className="w-3 h-3" />
+          {currentModel ? (
+            <span className="font-semibold tracking-tight">
+              {getModelDisplayName(currentModel.name)}
+            </span>
+          ) : (
+            <span className="text-slate-500 italic">Auto</span>
+          )}
+        </div>
+      </button>
+
+      {isPickerOpen && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setIsPickerOpen(false)} />
+          <div className="absolute left-0 top-full mt-2 w-full bg-[#161B26] border border-slate-800 rounded-xl shadow-2xl z-20 py-2 animate-in fade-in zoom-in-95 duration-200">
+            {models.length === 0 ? (
+              <div className="px-3 py-4 text-center text-xs text-slate-500 italic">
+                No enabled models found. Enable them in Settings.
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={() => selectModel(null)}
+                  className={cn(
+                    'w-full flex items-center px-3 py-2 rounded-lg text-xs transition-all',
+                    !task.modelName
+                      ? cn(taskStyles.bg, taskStyles.text)
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                  )}
+                >
+                  <span className="italic">Auto (based on difficulty)</span>
+                </button>
+                {models.map((model) => {
+                  const isSelected = task.modelName === model.name
+                  const modelStyles = DIFFICULTY_STYLES[model.difficulty]
+                  return (
+                    <button
+                      key={model.name}
+                      onClick={() => selectModel(model.name)}
+                      className={cn(
+                        'w-full flex items-center px-3 py-2 rounded-lg text-xs transition-all',
+                        isSelected
+                          ? cn(modelStyles.bg, modelStyles.text)
+                          : cn(modelStyles.text, 'opacity-70 hover:opacity-100', modelStyles.hover)
+                      )}
+                    >
+                      <span className="font-medium">{getModelDisplayName(model.name)}</span>
+                    </button>
+                  )
+                })}
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }

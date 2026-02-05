@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, FileText, Loader2, Play, Wand2, X, Paperclip } from 'lucide-react'
+import { AlertTriangle, Loader2, Play, Wand2, X, Paperclip } from 'lucide-react'
 import { cn } from '../../../../lib/utils'
 import type { KanbanTask } from '@/shared/types/ipc.ts'
 import { LightMarkdown } from '../../../LightMarkdown'
@@ -16,6 +16,7 @@ interface TaskDetailsDescriptionProps {
   onStartRun?: () => void
   onFilesSelected?: (files: File[]) => void
   isActive?: boolean
+  headerLeft?: React.ReactNode
 }
 
 type AttachmentItem = {
@@ -31,6 +32,7 @@ export function TaskDetailsDescription({
   onStartRun,
   onFilesSelected,
   isActive = false,
+  headerLeft,
 }: TaskDetailsDescriptionProps) {
   const [editedDescription, setEditedDescription] = useState(task.description || '')
   const [isGeneratingStory, setIsGeneratingStory] = useState(false)
@@ -235,10 +237,7 @@ export function TaskDetailsDescription({
       )}
 
       <div className="flex items-center justify-between">
-        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-          <FileText className="w-3 h-3" />
-          Description
-        </label>
+        {headerLeft || <div />}
         <div className="flex items-center gap-1">
           {task.description && task.description.trim().length > 0 && (
             <button
