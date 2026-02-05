@@ -142,8 +142,7 @@ export const KanbanTaskSchema = z.object({
   estimatePoints: z.number().optional(),
   estimateHours: z.number().optional(),
   assignee: z.string().optional(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  modelName: z.string().nullable().optional(),
 })
 
 export type KanbanTask = z.infer<typeof KanbanTaskSchema>

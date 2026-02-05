@@ -15,8 +15,8 @@ export class TaskRepository {
 
     const stmt = db.prepare(`
         INSERT INTO tasks (id, project_id, board_id, column_id, title, description,
-                           status, priority, difficulty, type, order_in_column, tags_json, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           status, priority, difficulty, type, order_in_column, tags_json, model_name, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
 
     stmt.run(
@@ -32,6 +32,7 @@ export class TaskRepository {
       input.type,
       orderIndex,
       JSON.stringify(input.tags ?? []),
+      input.modelName ?? null,
       now,
       now
     )
@@ -49,6 +50,7 @@ export class TaskRepository {
       type: input.type,
       orderInColumn: orderIndex,
       tags: input.tags ?? [],
+      modelName: input.modelName ?? null,
       createdAt: now,
       updatedAt: now,
     }
@@ -76,13 +78,14 @@ export class TaskRepository {
                    t.created_at      as createdAt,
                    t.updated_at      as updatedAt,
                    t.start_date      as startDate,
-                   t.due_date        as dueDate,
-                   t.estimate_points as estimatePoints,
-                   t.estimate_hours  as estimateHours,
-                   t.assignee        as assignee
-            FROM tasks t
+                    t.due_date        as dueDate,
+                    t.estimate_points as estimatePoints,
+                    t.estimate_hours  as estimateHours,
+                    t.assignee        as assignee,
+                    t.model_name      as modelName
+             FROM tasks t
 
-            WHERE board_id = ?
+             WHERE board_id = ?
             ORDER BY order_in_column ASC
         `
       )
@@ -101,6 +104,7 @@ export class TaskRepository {
       estimatePoints: row.estimatePoints ?? undefined,
       estimateHours: row.estimateHours ?? undefined,
       assignee: row.assignee ?? undefined,
+      modelName: row.modelName ?? null,
     }))
   }
 
@@ -126,13 +130,14 @@ export class TaskRepository {
                    t.created_at      as createdAt,
                    t.updated_at      as updatedAt,
                    t.start_date      as startDate,
-                   t.due_date        as dueDate,
-                   t.estimate_points as estimatePoints,
-                   t.estimate_hours  as estimateHours,
-                   t.assignee        as assignee
-            FROM tasks t
+                    t.due_date        as dueDate,
+                    t.estimate_points as estimatePoints,
+                    t.estimate_hours  as estimateHours,
+                    t.assignee        as assignee,
+                    t.model_name      as modelName
+             FROM tasks t
 
-            WHERE id = ? LIMIT 1
+             WHERE id = ? LIMIT 1
         `
       )
       .get(taskId) as any | undefined
@@ -151,6 +156,7 @@ export class TaskRepository {
       estimatePoints: row.estimatePoints ?? undefined,
       estimateHours: row.estimateHours ?? undefined,
       assignee: row.assignee ?? undefined,
+      modelName: row.modelName ?? null,
     }
   }
 
@@ -177,6 +183,7 @@ export class TaskRepository {
       'assignee',
       'startDate',
       'dueDate',
+      'modelName',
     ]
 
     allowedFields.forEach((field) => {
@@ -204,6 +211,9 @@ export class TaskRepository {
           values.push(patch[field])
         } else if (field === 'estimateHours') {
           sets.push('estimate_hours = ?')
+          values.push(patch[field])
+        } else if (field === 'modelName') {
+          sets.push('model_name = ?')
           values.push(patch[field])
         } else {
           sets.push(`${field} = ?`)

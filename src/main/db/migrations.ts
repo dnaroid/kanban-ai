@@ -640,6 +640,13 @@ export const migrations = [
             ADD COLUMN difficulty TEXT NOT NULL DEFAULT 'medium';
     `,
   },
+  {
+    version: 15,
+    sql: `
+        ALTER TABLE tasks
+            ADD COLUMN model_name TEXT;
+    `,
+  },
 ] as const
 
 export type Migration = (typeof migrations)[number]
