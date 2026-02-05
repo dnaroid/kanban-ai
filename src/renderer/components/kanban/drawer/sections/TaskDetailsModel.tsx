@@ -8,6 +8,43 @@ interface TaskDetailsModelProps {
   onUpdate?: (id: string, patch: Partial<KanbanTask>) => void
 }
 
+const getModelDisplayName = (name: string) => name.split('/').pop() || name
+
+const DIFFICULTY_STYLES = {
+  easy: {
+    text: 'text-emerald-400',
+    border: 'border-emerald-500/50',
+    bg: 'bg-emerald-500/10',
+    badge: 'bg-emerald-500/20 text-emerald-400',
+    glow: 'shadow-[0_0_10px_rgba(16,185,129,0.2)]',
+    hover: 'hover:text-emerald-400 hover:border-emerald-500/50 hover:bg-emerald-500/5',
+  },
+  medium: {
+    text: 'text-blue-400',
+    border: 'border-blue-500/50',
+    bg: 'bg-blue-500/10',
+    badge: 'bg-blue-500/20 text-blue-400',
+    glow: 'shadow-[0_0_10px_rgba(59,130,246,0.2)]',
+    hover: 'hover:text-blue-400 hover:border-blue-500/50 hover:bg-blue-500/5',
+  },
+  hard: {
+    text: 'text-amber-400',
+    border: 'border-amber-500/50',
+    bg: 'bg-amber-500/10',
+    badge: 'bg-amber-500/20 text-amber-400',
+    glow: 'shadow-[0_0_10px_rgba(245,158,11,0.2)]',
+    hover: 'hover:text-amber-400 hover:border-amber-500/50 hover:bg-amber-500/5',
+  },
+  epic: {
+    text: 'text-purple-400',
+    border: 'border-purple-500/50',
+    bg: 'bg-purple-500/10',
+    badge: 'bg-purple-500/20 text-purple-400',
+    glow: 'shadow-[0_0_10px_rgba(168,85,247,0.2)]',
+    hover: 'hover:text-purple-400 hover:border-purple-500/50 hover:bg-purple-500/5',
+  },
+} as const
+
 export function TaskDetailsModel({ task, onUpdate }: TaskDetailsModelProps) {
   const [models, setModels] = useState<OpencodeModel[]>([])
   const [isPickerOpen, setIsPickerOpen] = useState(false)
@@ -18,7 +55,7 @@ export function TaskDetailsModel({ task, onUpdate }: TaskDetailsModelProps) {
 
   const loadEnabledModels = async () => {
     try {
-      const response = await window.api.opencode.listEnabledModels({})
+      const response = await window.api.opencode.listEnabledModels()
       setModels(response.models)
     } catch (error) {
       console.error('Failed to load models:', error)
@@ -36,6 +73,7 @@ export function TaskDetailsModel({ task, onUpdate }: TaskDetailsModelProps) {
   }
 
   const currentModel = getModelInfo(task.modelName || null)
+  const taskStyles = DIFFICULTY_STYLES[task.difficulty]
 
   return (
     <div className="space-y-2">
@@ -48,21 +86,23 @@ export function TaskDetailsModel({ task, onUpdate }: TaskDetailsModelProps) {
         <button
           onClick={() => setIsPickerOpen(!isPickerOpen)}
           className={cn(
-            'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all',
+            'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all border',
             isPickerOpen
-              ? 'bg-blue-500/10 text-blue-400 border border-blue-500/50 shadow-[0_0_10px_rgba(59,130,246,0.2)]'
-              : 'bg-slate-800/50 text-slate-400 border border-slate-700 hover:text-blue-400 hover:border-blue-500/50 hover:bg-blue-500/5'
+              ? cn(taskStyles.bg, taskStyles.text, taskStyles.border, taskStyles.glow)
+              : cn(
+                  'bg-slate-800/50 border-slate-700',
+                  taskStyles.text,
+                  taskStyles.border,
+                  taskStyles.hover
+                )
           )}
         >
           {currentModel ? (
             <div className="flex items-center gap-2">
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-500/20 text-blue-400">
-                {currentModel.difficulty}
-              </span>
-              <span>{currentModel.name}</span>
+              <span className="font-medium">{getModelDisplayName(currentModel.name)}</span>
             </div>
           ) : (
-            <span>Select a model...</span>
+            <span className="text-slate-500 italic">Auto (based on difficulty)</span>
           )}
         </button>
 
@@ -79,33 +119,33 @@ export function TaskDetailsModel({ task, onUpdate }: TaskDetailsModelProps) {
                   <button
                     onClick={() => selectModel(null)}
                     className={cn(
-                      'w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all',
+                      'w-full flex items-center px-3 py-2 rounded-lg text-xs transition-all',
                       !task.modelName
-                        ? 'bg-blue-500/10 text-blue-400'
+                        ? cn(taskStyles.bg, taskStyles.text)
                         : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
                     )}
                   >
-                    <span>Auto (based on difficulty)</span>
+                    <span className="italic">Auto (based on difficulty)</span>
                   </button>
                   {models.map((model) => {
                     const isSelected = task.modelName === model.name
+                    const modelStyles = DIFFICULTY_STYLES[model.difficulty]
                     return (
                       <button
                         key={model.name}
                         onClick={() => selectModel(model.name)}
                         className={cn(
-                          'w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all',
+                          'w-full flex items-center px-3 py-2 rounded-lg text-xs transition-all',
                           isSelected
-                            ? 'bg-blue-500/10 text-blue-400'
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                            ? cn(modelStyles.bg, modelStyles.text)
+                            : cn(
+                                modelStyles.text,
+                                'opacity-70 hover:opacity-100',
+                                modelStyles.hover
+                              )
                         )}
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-slate-700/50 text-slate-400">
-                            {model.difficulty}
-                          </span>
-                          <span>{model.name}</span>
-                        </div>
+                        <span className="font-medium">{getModelDisplayName(model.name)}</span>
                       </button>
                     )
                   })}
