@@ -32,6 +32,7 @@ const api: MainToRenderer = {
   },
   project: {
     selectFolder: () => ipcRenderer.invoke('project:selectFolder'),
+    selectFiles: () => ipcRenderer.invoke('project:selectFiles'),
     create: (input) => ipcRenderer.invoke('project:create', input),
     getAll: () => ipcRenderer.invoke('project:getAll'),
     getById: (id) => ipcRenderer.invoke('project:getById', id),

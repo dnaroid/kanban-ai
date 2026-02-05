@@ -158,7 +158,6 @@ export class OpenCodeSessionWorker {
         pollInterval = 2000
 
         const lastMessage = messages[messages.length - 1]
-        const content = this.extractAssistantText(lastMessage)
 
         const current = this.active.get(input.sessionId)
         if (current) {
@@ -167,18 +166,22 @@ export class OpenCodeSessionWorker {
           this.emitUpdate(current)
         }
 
-        if (!content) {
-          continue
+        const latestContent = this.findLatestAssistantContent(messages)
+        const latestStatus = this.findLatestStatus(messages)
+
+        if (latestContent) {
+          console.log('[OpenCodeSessionWorker] trackSession:content', {
+            runId: input.runId,
+            sessionId: input.sessionId,
+            kind: input.kind,
+          })
         }
 
-        console.log('[OpenCodeSessionWorker] trackSession:content', {
-          runId: input.runId,
-          sessionId: input.sessionId,
-          kind: input.kind,
-        })
-
         if (input.kind === 'task-description-improve') {
-          const parsed = this.parseUserStoryResponse(content)
+          if (!latestContent) {
+            continue
+          }
+          const parsed = this.parseUserStoryResponse(latestContent)
           const patch: Partial<{
             status: TaskStatus
             title: string
@@ -229,21 +232,11 @@ export class OpenCodeSessionWorker {
           return
         }
 
-        const statusLine = content
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .find((line) => OPENCODE_STATUS_REGEX.test(line))
-        if (!statusLine) {
+        if (!latestStatus) {
           continue
         }
 
-        const statusMatch = statusLine.match(OPENCODE_STATUS_REGEX)
-        if (!statusMatch) {
-          continue
-        }
-
-        const status = statusMatch[1].toLowerCase()
-        const messageId = typeof lastMessage?.id === 'string' ? lastMessage.id : null
+        const { statusLine, status, messageId } = latestStatus
         if (messageId && lastStatusMessageId === messageId && lastStatusValue === status) {
           continue
         }
@@ -273,7 +266,7 @@ export class OpenCodeSessionWorker {
           runRepo.update(input.runId, {
             status: 'failed',
             finishedAt: new Date().toISOString(),
-            errorText: content,
+            errorText: latestContent || '',
           })
           this.updateTask(input.taskId, { status: 'failed' })
           await this.finishSession(input.sessionId, input.runId, 'failed', false)
@@ -414,6 +407,50 @@ export class OpenCodeSessionWorker {
       .join('\n')
 
     return content.trim() || null
+  }
+
+  private findLatestAssistantContent(
+    messages: Array<{ id?: unknown; role?: unknown; parts?: unknown[] }>
+  ): string | null {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index]
+      const content = this.extractAssistantText(message)
+      if (content) return content
+    }
+
+    return null
+  }
+
+  private findLatestStatus(messages: Array<{ id?: unknown; role?: unknown; parts?: unknown[] }>): {
+    statusLine: string
+    status: string
+    messageId: string | null
+    content: string
+  } | null {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index]
+      const content = this.extractAssistantText(message)
+      if (!content) continue
+
+      const statusLine = content
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .find((line) => OPENCODE_STATUS_REGEX.test(line))
+      if (!statusLine) continue
+
+      const statusMatch = statusLine.match(OPENCODE_STATUS_REGEX)
+      if (!statusMatch) continue
+
+      const messageId = typeof message?.id === 'string' ? message.id : null
+      return {
+        statusLine,
+        status: statusMatch[1].toLowerCase(),
+        messageId,
+        content,
+      }
+    }
+
+    return null
   }
 
   private parseUserStoryResponse(content: string): {

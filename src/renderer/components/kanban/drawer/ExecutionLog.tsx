@@ -191,7 +191,7 @@ export function ExecutionLog({
           seenMessageIdsRef.current.add(id)
           const newEvent = buildMessageEvent(payloadId, payload)
           const next = [...prev, newEvent]
-          return next.sort((a, b) => a.ts.localeCompare(b.ts)).slice(-500)
+          return next.slice(-500)
         }
         const updated = [...prev]
         const existing = updated[existingIndex]
@@ -207,7 +207,7 @@ export function ExecutionLog({
 
         const updatedEvent = buildMessageEvent(payloadId, mergedPayload, existing.ts)
         updated[existingIndex] = updatedEvent
-        return updated.sort((a, b) => a.ts.localeCompare(b.ts))
+        return updated
       })
     }
 
@@ -360,7 +360,7 @@ export function ExecutionLog({
         if (response.events.length > 0) {
           setEvents((prev) => {
             const next = [...prev, ...response.events]
-            return next.sort((a, b) => a.ts.localeCompare(b.ts)).slice(-500)
+            return next.slice(-500)
           })
           lastTsRef.current = response.events[response.events.length - 1].ts
         }
@@ -383,9 +383,13 @@ export function ExecutionLog({
         if (!isActive) return
         if (response.messages.length > 0) {
           if (!hiddenUserMessageIdRef.current) {
-            const firstUserMessage = response.messages
-              .filter((message) => message.role === 'user')
-              .sort((a, b) => a.timestamp - b.timestamp)[0]
+            let firstUserMessage: OpenCodeMessage | null = null
+            for (const message of response.messages) {
+              if (message.role !== 'user') continue
+              if (!firstUserMessage || message.timestamp < firstUserMessage.timestamp) {
+                firstUserMessage = message
+              }
+            }
             if (firstUserMessage) {
               hiddenUserMessageIdRef.current = firstUserMessage.id
             }
@@ -435,7 +439,7 @@ export function ExecutionLog({
             const filtered = hiddenId
               ? updated.filter((event) => event.id !== `msg-${hiddenId}`)
               : updated
-            return filtered.sort((a, b) => a.ts.localeCompare(b.ts)).slice(-500)
+            return filtered.slice(-500)
           })
         }
       } catch (error) {

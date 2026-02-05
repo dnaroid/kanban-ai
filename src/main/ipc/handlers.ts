@@ -176,6 +176,19 @@ ipcHandlers.register('project:selectFolder', z.unknown(), async () => {
   }
 })
 
+ipcHandlers.register('project:selectFiles', z.unknown(), async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile', 'multiSelections'],
+    title: 'Select Files',
+  })
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null
+  }
+
+  return result.filePaths
+})
+
 ipcHandlers.register('app:getInfo', z.unknown(), async () => {
   return AppInfoSchema.parse({
     name: app.getName(),

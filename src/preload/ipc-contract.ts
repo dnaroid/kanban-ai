@@ -124,6 +124,7 @@ export interface MainToRenderer {
   }
   project: {
     selectFolder(): Promise<{ path: string; name: string } | null>
+    selectFiles(): Promise<string[] | null>
     create(input: CreateProjectInput): Promise<Project>
     getAll(): Promise<Project[]>
     getById(id: string): Promise<Project | null>
@@ -234,6 +235,7 @@ export interface RendererToMain {
   }
   project: {
     selectFolder(): Promise<{ path: string; name: string } | null>
+    selectFiles(): Promise<string[] | null>
     create(input: CreateProjectInput): Promise<Project>
     getAll(): Promise<Project[]>
     getById(id: string): Promise<Project | null>
