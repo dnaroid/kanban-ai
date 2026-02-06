@@ -683,47 +683,6 @@ ipcHandlers.register('vosk:downloadModel', VoskModelDownloadInputSchema, async (
 })
 
 ipcHandlers.register('opencode:listModels', z.unknown(), async () => {
-  const baseUrl = process.env.OPENCODE_URL || 'http://127.0.0.1:4096'
-  const client = createOpencodeClient({
-    baseUrl,
-    throwOnError: true,
-    directory: app.getPath('userData'),
-  })
-
-  const providers = await client.provider.list()
-  const allProviders = providers.data?.all || []
-  const connected = new Set(providers.data?.connected || [])
-
-  for (const provider of allProviders) {
-    if (!provider || typeof provider !== 'object') continue
-    const providerInfo = provider as {
-      id?: string
-      models?: Record<string, unknown>
-    }
-    if (!providerInfo.id) continue
-    if (!connected.has(providerInfo.id)) continue
-
-    const models = Object.values(providerInfo.models || {})
-    for (const model of models) {
-      if (!model || typeof model !== 'object') continue
-      const modelInfo = model as {
-        id?: string
-        reasoning?: boolean
-        variants?: Record<string, unknown>
-      }
-      if (!modelInfo.id) continue
-
-      const baseName = `${providerInfo.id}/${modelInfo.id}`
-      opencodeModelRepo.ensureExists(baseName)
-
-      if (modelInfo.reasoning && modelInfo.variants) {
-        for (const variant of Object.keys(modelInfo.variants)) {
-          opencodeModelRepo.ensureExists(`${baseName}#${variant}`)
-        }
-      }
-    }
-  }
-
   return OpencodeModelsListResponseSchema.parse({ models: opencodeModelRepo.getAll() })
 })
 
@@ -733,6 +692,10 @@ ipcHandlers.register('opencode:logProviders', z.object({}), async () => {
 })
 
 ipcHandlers.register('opencode:listEnabledModels', z.unknown(), async () => {
+  return OpencodeModelsListResponseSchema.parse({ models: opencodeModelRepo.getEnabled() })
+})
+
+ipcHandlers.register('opencode:refreshModels', z.unknown(), async () => {
   const baseUrl = process.env.OPENCODE_URL || 'http://127.0.0.1:4096'
   const client = createOpencodeClient({
     baseUrl,
@@ -743,6 +706,8 @@ ipcHandlers.register('opencode:listEnabledModels', z.unknown(), async () => {
   const providers = await client.provider.list()
   const allProviders = providers.data?.all || []
   const connected = new Set(providers.data?.connected || [])
+
+  const names: string[] = []
 
   for (const provider of allProviders) {
     if (!provider || typeof provider !== 'object') continue
@@ -764,17 +729,19 @@ ipcHandlers.register('opencode:listEnabledModels', z.unknown(), async () => {
       if (!modelInfo.id) continue
 
       const baseName = `${providerInfo.id}/${modelInfo.id}`
-      opencodeModelRepo.ensureExists(baseName)
+      names.push(baseName)
 
+      // reasoning variants -> provider/model#reasoning_level
       if (modelInfo.reasoning && modelInfo.variants) {
-        for (const variant of Object.keys(modelInfo.variants)) {
-          opencodeModelRepo.ensureExists(`${baseName}#${variant}`)
+        for (const reasoningLevel of Object.keys(modelInfo.variants)) {
+          names.push(`${baseName}#${reasoningLevel}`)
         }
       }
     }
   }
 
-  return OpencodeModelsListResponseSchema.parse({ models: opencodeModelRepo.getEnabled() })
+  opencodeModelRepo.syncFromNames(names)
+  return OpencodeModelsListResponseSchema.parse({ models: opencodeModelRepo.getAll() })
 })
 
 ipcHandlers.register('opencode:toggleModel', OpencodeModelToggleInputSchema, async (_, input) => {

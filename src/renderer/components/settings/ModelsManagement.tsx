@@ -110,13 +110,17 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
     }
   }
 
-  const handleRefreshProviders = async () => {
+  const handleRefreshModels = async () => {
     try {
-      await window.api.opencode.logProviders({})
-      onStatusChange({ message: 'Provider list logged to console', type: 'success' })
+      setIsLoading(true)
+      await window.api.opencode.refreshModels()
+      await loadModels()
+      onStatusChange({ message: 'Models refreshed from connected providers', type: 'success' })
     } catch (error) {
-      console.error('Failed to log providers:', error)
-      onStatusChange({ message: 'Failed to log providers', type: 'error' })
+      console.error('Failed to refresh models:', error)
+      onStatusChange({ message: 'Failed to refresh models', type: 'error' })
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -254,8 +258,8 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={handleRefreshProviders}
-                title="Refresh Providers (log to console)"
+                onClick={handleRefreshModels}
+                title="Refresh models from connected providers"
                 className="px-3 py-2 bg-slate-800/40 border border-slate-800/60 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all flex items-center gap-2"
               >
                 <RefreshCw className="w-4 h-4" />

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { MainToRenderer, OpenCodeSessionEvent, TaskEvent } from './ipc-contract.js'
+import type { MainToRenderer, OpenCodeSessionEvent, TaskEvent } from './ipc-contract'
 
 const api: MainToRenderer = {
   app: {
@@ -29,6 +29,7 @@ const api: MainToRenderer = {
     getSessionTodos: (input) => ipcRenderer.invoke('opencode:getSessionTodos', input),
     listModels: () => ipcRenderer.invoke('opencode:listModels'),
     listEnabledModels: () => ipcRenderer.invoke('opencode:listEnabledModels'),
+    refreshModels: () => ipcRenderer.invoke('opencode:refreshModels'),
     toggleModel: (input) => ipcRenderer.invoke('opencode:toggleModel', input),
     updateModelDifficulty: (input) => ipcRenderer.invoke('opencode:updateModelDifficulty', input),
     sendMessage: (input) => ipcRenderer.invoke('opencode:sendMessage', input),

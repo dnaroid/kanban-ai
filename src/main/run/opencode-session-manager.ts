@@ -122,7 +122,6 @@ export class OpenCodeSessionManager {
   private activeSessions = new Map<string, SessionInfo>()
   private sessionClients = new Map<string, ReturnType<typeof createOpencodeClient>>()
   private directoryClients = new Map<string, ReturnType<typeof createOpencodeClient>>()
-  private loggedDirectories = new Set<string>()
   private eventAbortControllers = new Map<string, AbortController>()
   private eventProcessing = new Map<string, Promise<void>>()
   private eventSubscribers = new Map<
