@@ -65,7 +65,7 @@ export class OpenCodeExecutorSDK implements RunExecutor {
     })
 
     console.log('[OpenCodeExecutorSDK] start:prompt', { runId: run.id, sessionId })
-    await sessionManager.sendPromptAsync(sessionId, prompt)
+    await sessionManager.sendPromptAsync(sessionId, prompt, task.modelName)
 
     opencodeSessionWorker.startTracking({
       runId: run.id,
@@ -140,7 +140,7 @@ export class OpenCodeExecutorSDK implements RunExecutor {
         runId: run.id,
         sessionId,
       })
-      await sessionManager.sendPromptAsync(sessionId, input.prompt)
+      await sessionManager.sendPromptAsync(sessionId, input.prompt, task.modelName)
 
       opencodeSessionWorker.startTracking({
         runId: run.id,

@@ -32,6 +32,7 @@ const api: MainToRenderer = {
     toggleModel: (input) => ipcRenderer.invoke('opencode:toggleModel', input),
     updateModelDifficulty: (input) => ipcRenderer.invoke('opencode:updateModelDifficulty', input),
     sendMessage: (input) => ipcRenderer.invoke('opencode:sendMessage', input),
+    logProviders: (input) => ipcRenderer.invoke('opencode:logProviders', input),
   },
   project: {
     selectFolder: () => ipcRenderer.invoke('project:selectFolder'),

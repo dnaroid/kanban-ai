@@ -24,6 +24,12 @@ export interface SessionInfo {
   directory: string
 }
 
+type PromptModel = {
+  providerID: string
+  modelID: string
+  variant?: string
+}
+
 export type SessionEvent =
   | {
       type: 'message.updated'
@@ -115,6 +121,8 @@ function isTodoEvent(event: Event): boolean {
 export class OpenCodeSessionManager {
   private activeSessions = new Map<string, SessionInfo>()
   private sessionClients = new Map<string, ReturnType<typeof createOpencodeClient>>()
+  private directoryClients = new Map<string, ReturnType<typeof createOpencodeClient>>()
+  private loggedDirectories = new Set<string>()
   private eventAbortControllers = new Map<string, AbortController>()
   private eventProcessing = new Map<string, Promise<void>>()
   private eventSubscribers = new Map<
@@ -184,6 +192,25 @@ export class OpenCodeSessionManager {
     return sessionInfo
   }
 
+  private parseModelName(modelName: string): PromptModel | null {
+    const trimmed = modelName.trim()
+    if (!trimmed) return null
+
+    const hash = trimmed.indexOf('#')
+    const namePart = hash >= 0 ? trimmed.slice(0, hash).trim() : trimmed
+    const variant = hash >= 0 ? trimmed.slice(hash + 1).trim() : ''
+
+    const slash = namePart.indexOf('/')
+    if (slash <= 0) return null
+
+    const providerID = namePart.slice(0, slash).trim()
+    const modelID = namePart.slice(slash + 1).trim()
+
+    if (!providerID || !modelID) return null
+
+    return variant ? { providerID, modelID, variant } : { providerID, modelID }
+  }
+
   /**
    * Отправить промпт в сессию (синхронно)
    * Пример использования:
@@ -192,7 +219,7 @@ export class OpenCodeSessionManager {
    * console.log('Ответ:', response)
    * ```
    */
-  async sendPrompt(sessionID: string, prompt: string): Promise<Message> {
+  async sendPrompt(sessionID: string, prompt: string, modelName?: string | null): Promise<Message> {
     const textPart: TextPartInput = {
       type: 'text',
       text: prompt,
@@ -206,10 +233,20 @@ export class OpenCodeSessionManager {
 
     try {
       const client = await this.getSessionClient(sessionID, directory)
-      const response = await client.session.prompt({
-        sessionID,
-        parts: [textPart],
-      })
+      const model = modelName ? this.parseModelName(modelName) : null
+      const response = await client.session.prompt(
+        model
+          ? {
+              sessionID,
+              model,
+              ...(model.variant ? { variant: model.variant } : {}),
+              parts: [textPart],
+            }
+          : {
+              sessionID,
+              parts: [textPart],
+            }
+      )
 
       if (response.error) {
         console.error('[OpenCodeSessionManager] sendPrompt ERROR:', response.error)
@@ -228,7 +265,11 @@ export class OpenCodeSessionManager {
   /**
    * Отправить промпт в сессию (асинхронно)
    */
-  async sendPromptAsync(sessionID: string, prompt: string): Promise<void> {
+  async sendPromptAsync(
+    sessionID: string,
+    prompt: string,
+    modelName?: string | null
+  ): Promise<void> {
     const textPart: TextPartInput = {
       type: 'text',
       text: prompt,
@@ -240,10 +281,20 @@ export class OpenCodeSessionManager {
     }
 
     const client = await this.getSessionClient(sessionID, directory)
-    const response = await client.session.promptAsync({
-      sessionID,
-      parts: [textPart],
-    })
+    const model = modelName ? this.parseModelName(modelName) : null
+    const response = await client.session.promptAsync(
+      model
+        ? {
+            sessionID,
+            model,
+            ...(model.variant ? { variant: model.variant } : {}),
+            parts: [textPart],
+          }
+        : {
+            sessionID,
+            parts: [textPart],
+          }
+    )
 
     if (response.error) {
       console.error('[OpenCodeSessionManager] sendPromptAsync ERROR:', response.error)
@@ -535,6 +586,17 @@ export class OpenCodeSessionManager {
    */
   isSessionActive(sessionID: string): boolean {
     return this.activeSessions.has(sessionID)
+  }
+
+  async logProviders(directory?: string): Promise<void> {
+    const client = directory
+      ? await this.createClientForDirectory(directory)
+      : createOpencodeClient({
+          baseUrl: process.env.OPENCODE_URL || 'http://127.0.0.1:4096',
+          throwOnError: true,
+        })
+
+    await this.logProvidersInternal(client)
   }
 
   /**
@@ -909,12 +971,85 @@ export class OpenCodeSessionManager {
   }
 
   private async createClientForDirectory(directory: string) {
+    const cached = this.directoryClients.get(directory)
+    if (cached) {
+      return cached
+    }
+
     const baseUrl = process.env.OPENCODE_URL || 'http://127.0.0.1:4096'
-    return createOpencodeClient({
+    const client = createOpencodeClient({
       baseUrl,
       throwOnError: true,
       directory,
     })
+
+    this.directoryClients.set(directory, client)
+
+    return client
+  }
+
+  private async logProvidersInternal(
+    client: ReturnType<typeof createOpencodeClient>
+  ): Promise<void> {
+    try {
+      const providers = await client.provider.list()
+      if (providers.data) {
+        console.log('[OpenCodeSessionManager] Available providers and models:')
+        const allProviders = providers.data.all || []
+
+        for (const provider of allProviders) {
+          if (!provider || typeof provider !== 'object') continue
+          const providerInfo = provider as {
+            id?: string
+            name?: string
+            models?: Record<string, unknown>
+          }
+
+          console.log(
+            `\n  Provider: ${providerInfo.name || 'unknown'} (${providerInfo.id || 'unknown'})`
+          )
+
+          const models = Object.values(providerInfo.models || {})
+          for (const model of models) {
+            if (!model || typeof model !== 'object') continue
+
+            const modelInfo = model as {
+              name?: string
+              capabilities?: { reasoning?: boolean }
+              status?: string
+            }
+            const reasoning = modelInfo.capabilities?.reasoning ? ' [reasoning]' : ''
+            const status = modelInfo.status ? ` [${modelInfo.status}]` : ''
+            console.log(`    - ${modelInfo.name || 'unknown'}${reasoning}${status}`)
+
+            if (modelInfo.capabilities?.reasoning) {
+              const variants = this.getReasoningVariants(providerInfo.id || '')
+              if (variants.length > 0) {
+                console.log(`      Reasoning variants: ${variants.join(', ')}`)
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('[OpenCodeSessionManager] Failed to fetch providers:', error)
+    }
+  }
+
+  private getReasoningVariants(providerId: string): string[] {
+    const providerIdLower = providerId.toLowerCase()
+
+    if (providerIdLower.includes('anthropic')) {
+      return ['high', 'max']
+    }
+    if (providerIdLower.includes('openai')) {
+      return ['none', 'minimal', 'low', 'medium', 'high', 'xhigh']
+    }
+    if (providerIdLower.includes('google')) {
+      return ['low', 'high']
+    }
+
+    return []
   }
 
   private async getSessionClient(sessionID: string, directory: string) {

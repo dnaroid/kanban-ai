@@ -3,6 +3,14 @@ import type { OpencodeModel } from '../../shared/types/ipc'
 import { appSettingsRepo } from './app-settings-repository.js'
 
 export class OpencodeModelRepository {
+  ensureExists(name: string): void {
+    const db = dbManager.connect()
+    const stmt = db.prepare(
+      'INSERT OR IGNORE INTO opencode_models (name, enabled, difficulty) VALUES (?, 1, ?)'
+    )
+    stmt.run(name, 'medium')
+  }
+
   getEnabled(): OpencodeModel[] {
     const db = dbManager.connect()
     const stmt = db.prepare(`

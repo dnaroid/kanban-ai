@@ -49,6 +49,8 @@ import type {
   OpencodeSendMessageInput,
   OpencodeSendMessageResponse,
   OpenCodeSessionEvent,
+  OpenCodeLogProvidersInput,
+  OpenCodeLogProvidersResponse,
   OpenCodeSessionMessagesInput,
   OpenCodeSessionMessagesResponse,
   OpenCodeSessionStatusInput,
@@ -132,6 +134,7 @@ export interface MainToRenderer {
       input: OpencodeModelUpdateDifficultyInput
     ): Promise<OpencodeModelUpdateDifficultyResponse>
     sendMessage(input: OpencodeSendMessageInput): Promise<OpencodeSendMessageResponse>
+    logProviders(input: OpenCodeLogProvidersInput): Promise<OpenCodeLogProvidersResponse>
   }
   project: {
     selectFolder(): Promise<{ path: string; name: string } | null>

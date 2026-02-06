@@ -2,7 +2,6 @@ import Database from 'better-sqlite3'
 import { app } from 'electron'
 import path from 'path'
 import fs from 'node:fs'
-import { spawnSync } from 'node:child_process'
 import { INIT_DB_SQL, migrations } from './migrations'
 
 const DB_PATH = process.env.DB_PATH || path.join(app.getPath('userData'), 'kanban.db')
@@ -30,7 +29,6 @@ class DatabaseManager {
       this.runMigrations()
     }
     this.seedAgentRoles()
-    this.ensureOpencodeModelsSeeded()
 
     return this.db
   }
@@ -183,65 +181,6 @@ class DatabaseManager {
     tx()
 
     console.log('[DB] Seeded agent roles:', roles.map((role) => role.id).join(', '))
-  }
-
-  ensureOpencodeModelsSeeded(): { seeded: boolean; error?: string } {
-    return this.seedOpencodeModels()
-  }
-
-  private seedOpencodeModels(): { seeded: boolean; error?: string } {
-    if (!this.db) return { seeded: false, error: 'Database not initialized' }
-
-    const row = this.db.prepare('SELECT COUNT(*) as count FROM opencode_models').get() as {
-      count: number
-    }
-    if (row.count > 0) {
-      return { seeded: false }
-    }
-
-    const result = spawnSync('opencode', ['models'], { encoding: 'utf8' })
-    if (result.error) {
-      const message = `Failed to run \`opencode models\`: ${result.error.message}`
-      console.error('[DB]', message)
-      return { seeded: false, error: message }
-    }
-
-    if (result.status !== 0) {
-      const message = `\`opencode models\` exited with code ${result.status ?? 'unknown'}`
-      console.error('[DB]', message, result.stderr)
-      return { seeded: false, error: message }
-    }
-
-    const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`
-    const names = output
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .filter((line) => {
-        const normalized = line.toLowerCase()
-        return !normalized.startsWith('name') && !normalized.startsWith('model')
-      })
-      .map((line) => line.split(/\s+/)[0])
-      .filter((name) => name.length > 0)
-
-    if (names.length === 0) {
-      const message = 'No models found from `opencode models` output'
-      console.warn('[DB]', message)
-      return { seeded: false, error: message }
-    }
-
-    const insert = this.db.prepare(
-      'INSERT OR IGNORE INTO opencode_models (name, difficulty, enabled) VALUES (?, ?, 1)'
-    )
-    const tx = this.db.transaction(() => {
-      for (const name of names) {
-        insert.run(name, 'medium')
-      }
-    })
-    tx()
-
-    console.log('[DB] Seeded opencode models:', names.join(', '))
-    return { seeded: true }
   }
 }
 

@@ -157,6 +157,7 @@ export const CreateTaskInputSchema = z.object({
   priority: z.enum(['postpone', 'low', 'normal', 'urgent']).default('normal'),
   difficulty: z.enum(['easy', 'medium', 'hard', 'epic']).default('medium'),
   tags: z.array(z.string()).default([]),
+  modelName: z.string().nullable().optional(),
 })
 
 export type CreateTaskInput = z.infer<typeof CreateTaskInputSchema>
@@ -1236,6 +1237,16 @@ export type OpencodeModelUpdateDifficultyInput = z.infer<
 export const OpencodeModelUpdateDifficultyResponseSchema = z.object({
   model: OpencodeModelSchema,
 })
+
+export const OpenCodeLogProvidersInputSchema = z.object({})
+
+export type OpenCodeLogProvidersInput = z.infer<typeof OpenCodeLogProvidersInputSchema>
+
+export const OpenCodeLogProvidersResponseSchema = z.object({
+  success: z.literal(true),
+})
+
+export type OpenCodeLogProvidersResponse = z.infer<typeof OpenCodeLogProvidersResponseSchema>
 
 export type OpencodeModelUpdateDifficultyResponse = z.infer<
   typeof OpencodeModelUpdateDifficultyResponseSchema
