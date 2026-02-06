@@ -54,7 +54,6 @@ import {
   DepsRemoveResponseSchema,
   OhMyOpencodeBackupConfigInputSchema,
   OhMyOpencodeBackupConfigResponseSchema,
-  OhMyOpencodeConfigSchema,
   OhMyOpencodeReadConfigInputSchema,
   OhMyOpencodeReadConfigResponseSchema,
   OhMyOpencodeRestoreConfigInputSchema,
@@ -830,6 +829,13 @@ ipcHandlers.register(
           } else {
             extractModelFields(nested, [...prefix, key])
           }
+        } else if (typeof value === 'string') {
+          modelFields.push({
+            key: key,
+            path: [...prefix, key],
+            value: value as string,
+            variant: null,
+          })
         }
       }
     }
@@ -842,7 +848,7 @@ ipcHandlers.register(
     }
 
     return OhMyOpencodeReadConfigResponseSchema.parse({
-      config: OhMyOpencodeConfigSchema.parse(config),
+      config,
       modelFields,
     })
   }

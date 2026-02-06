@@ -1305,9 +1305,13 @@ export const OhMyOpencodeModelFieldSchema = z.object({
 
 export type OhMyOpencodeModelField = z.infer<typeof OhMyOpencodeModelFieldSchema>
 
+// Allow either a string (model name) or an object with model/variant fields
+// Using loose validation to support both formats
+const ohMyOpencodeEntrySchema = z.union([z.string(), z.record(z.unknown())])
+
 export const OhMyOpencodeConfigSchema = z.object({
-  categories: z.record(z.object({ model: z.string().optional() }).optional()),
-  agents: z.record(z.object({ model: z.string().optional() }).optional()),
+  categories: z.record(ohMyOpencodeEntrySchema).optional(),
+  agents: z.record(ohMyOpencodeEntrySchema).optional(),
   systemDefaultModel: z.string().optional(),
   $schema: z.string().optional(),
 })
@@ -1345,7 +1349,7 @@ export const OhMyOpencodeReadConfigInputSchema = z.object({
 export type OhMyOpencodeReadConfigInput = z.infer<typeof OhMyOpencodeReadConfigInputSchema>
 
 export const OhMyOpencodeReadConfigResponseSchema = z.object({
-  config: OhMyOpencodeConfigSchema,
+  config: z.any(),
   modelFields: z.array(OhMyOpencodeModelFieldSchema),
 })
 
