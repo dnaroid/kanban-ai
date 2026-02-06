@@ -52,7 +52,7 @@ function renderInlines(
         }
 
         return (
-          <div key={i} className="inline-flex items-center mx-0.5 my-0.5 group/pill">
+          <span key={i} className="inline-flex items-center mx-0.5 my-0.5 group/pill">
             <a
               href={n.url}
               target="_blank"
@@ -84,7 +84,7 @@ function renderInlines(
                 <X className="w-3 h-3" />
               </button>
             )}
-          </div>
+          </span>
         )
       }
       default:
