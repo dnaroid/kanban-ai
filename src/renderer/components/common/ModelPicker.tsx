@@ -46,6 +46,7 @@ interface ModelPickerProps {
   className?: string
   allowAuto?: boolean
   difficulty?: string
+  showVariantSelector?: boolean
 }
 
 const getModelDisplayName = (name: string) => name.split('/').pop() || name
@@ -58,6 +59,7 @@ export function ModelPicker({
   className,
   allowAuto = false,
   difficulty,
+  showVariantSelector = true,
 }: ModelPickerProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false)
   const [hoveredModel, setHoveredModel] = useState<string | null>(null)
@@ -178,7 +180,7 @@ export function ModelPicker({
         )}
       </div>
 
-      {currentModel && currentModel.variants && (
+      {showVariantSelector && currentModel && currentModel.variants && (
         <div className="relative group/variant">
           <select
             value={variant || currentModel.variants.split(',')[0].trim()}
