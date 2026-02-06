@@ -257,7 +257,7 @@ export function TaskDetailsDescription({
 
           <button
             onClick={handlePickFiles}
-            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-500/10 rounded-lg transition-colors"
+            className="w-8 h-8 flex items-center justify-center bg-slate-500/10 hover:bg-slate-500 text-slate-400 hover:text-white rounded-lg transition-all border border-slate-500/20 hover:border-slate-500"
             title="Attach files"
           >
             <Paperclip className="w-4 h-4" />
@@ -267,7 +267,7 @@ export function TaskDetailsDescription({
             onClick={handleImproveDescription}
             disabled={isGeneratingStory}
             className={cn(
-              'w-8 h-8 flex items-center justify-center text-violet-400 hover:text-white hover:bg-violet-500/10 rounded-lg transition-colors',
+              'w-8 h-8 flex items-center justify-center bg-violet-600/10 hover:bg-violet-600 text-violet-400 hover:text-white rounded-lg transition-all border border-violet-500/20 hover:border-violet-500',
               isGeneratingStory && 'opacity-50 cursor-not-allowed'
             )}
             title="Improve with AI"
