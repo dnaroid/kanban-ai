@@ -12,6 +12,7 @@ import {
   Trash2,
   Star,
   RefreshCw,
+  AlertCircle,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import type { OpencodeModel } from '../../../shared/types/ipc'
@@ -138,6 +139,9 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
     allProviders.forEach((provider) => {
       newExpanded[provider] = expanded
     })
+    difficulties.forEach((d) => {
+      newExpanded[`diff:${d.value}`] = expanded
+    })
     setExpandedGroups(newExpanded)
   }
 
@@ -214,6 +218,41 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
       border: `hsla(${h}, 70%, 50%, 0.4)`,
       bg: `hsla(${h}, 70%, 50%, 0.05)`,
       text: `hsl(${h}, 70%, 60%)`,
+    }
+  }
+
+  const getDifficultyStyles = (diff: string) => {
+    switch (diff) {
+      case 'easy':
+        return {
+          border: 'rgba(16, 185, 129, 0.4)',
+          bg: 'rgba(16, 185, 129, 0.05)',
+          text: 'rgb(52, 211, 153)',
+        }
+      case 'medium':
+        return {
+          border: 'rgba(59, 130, 246, 0.4)',
+          bg: 'rgba(59, 130, 246, 0.05)',
+          text: 'rgb(96, 165, 250)',
+        }
+      case 'hard':
+        return {
+          border: 'rgba(249, 115, 22, 0.4)',
+          bg: 'rgba(249, 115, 22, 0.05)',
+          text: 'rgb(251, 146, 60)',
+        }
+      case 'epic':
+        return {
+          border: 'rgba(168, 85, 247, 0.4)',
+          bg: 'rgba(168, 85, 247, 0.05)',
+          text: 'rgb(192, 132, 252)',
+        }
+      default:
+        return {
+          border: 'rgba(100, 116, 139, 0.4)',
+          bg: 'rgba(100, 116, 139, 0.05)',
+          text: 'rgb(148, 163, 184)',
+        }
     }
   }
 
@@ -486,15 +525,47 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
         </>
       ) : (
         <div className="space-y-4">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center text-blue-400">
-              <Cpu className="w-5 h-5" />
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center text-blue-400">
+                <Cpu className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white tracking-tight">My Models</h3>
+                <p className="text-xs text-slate-500 font-medium">List of your selected models</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-white tracking-tight">My Models</h3>
-              <p className="text-xs text-slate-500 font-medium">List of your selected models</p>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setAllExpanded(true)}
+                title="Expand All"
+                className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-all bg-slate-900/40 border border-slate-800/60"
+              >
+                <Maximize2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setAllExpanded(false)}
+                title="Collapse All"
+                className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-all bg-slate-900/40 border border-slate-800/60"
+              >
+                <Minimize2 className="w-4 h-4" />
+              </button>
             </div>
           </div>
+
+          {difficulties.some((d) => !defaultModels[d.value]) && (
+            <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-red-400 mb-6">
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              <div className="text-xs font-semibold">
+                Missing default models for:{' '}
+                {difficulties
+                  .filter((d) => !defaultModels[d.value])
+                  .map((d) => d.label)
+                  .join(', ')}
+              </div>
+            </div>
+          )}
 
           {enabledModels.length === 0 ? (
             <div className="text-center py-12 bg-slate-900/40 rounded-2xl border border-dashed border-slate-800/60">
@@ -503,168 +574,224 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
               </p>
             </div>
           ) : (
-            <div className="space-y-8">
+            <div className="space-y-4">
               {difficulties.map((diff) => {
                 const groupModels = enabledModelsByDifficulty[diff.value]
                 if (groupModels.length === 0) return null
 
+                const isExpanded = expandedGroups[`diff:${diff.value}`] ?? false
+                const styles = getDifficultyStyles(diff.value)
+                const isDefaultSet = !!defaultModels[diff.value]
+                const defaultModelId = defaultModels[diff.value] || ''
+
                 return (
-                  <div key={diff.value} className="space-y-4">
-                    <div className="flex items-center gap-3 px-1">
-                      <div
-                        className={cn(
-                          'w-2 h-2 rounded-full shadow-lg',
-                          diff.bg.replace('/10', ''),
-                          'shadow-' + diff.color.split('-')[1] + '-500/20'
-                        )}
-                      />
-                      <h4
-                        className={cn('text-xs font-black uppercase tracking-[0.2em]', diff.color)}
-                      >
-                        {diff.label} Models
-                      </h4>
-                      <div className="flex-1 h-px bg-slate-800/40" />
+                  <div
+                    key={diff.value}
+                    className={cn(
+                      'border rounded-2xl overflow-hidden shadow-xl transition-all duration-300'
+                    )}
+                    style={{
+                      backgroundColor: styles.bg,
+                      borderColor: isDefaultSet ? styles.border : 'rgba(239, 68, 68, 0.3)',
+                    }}
+                  >
+                    <div
+                      onClick={() => toggleGroup(`diff:${diff.value}`)}
+                      className={cn(
+                        'flex items-center justify-between p-4 cursor-pointer transition-all hover:bg-white/5'
+                      )}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div
+                          className="transition-colors flex-shrink-0"
+                          style={{ color: styles.text }}
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="w-4 h-4" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4" />
+                          )}
+                        </div>
+                        <h4
+                          className="text-[10px] font-black uppercase tracking-[0.2em] transition-colors flex-shrink-0"
+                          style={{ color: 'white' }}
+                        >
+                          {diff.label}
+                        </h4>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {isDefaultSet ? (
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="text-[10px] font-bold text-slate-400 truncate">
+                                {defaultModelId.split('#')[0]}
+                              </span>
+                              {defaultModelId.includes('#') && (
+                                <span className="text-[9px] font-black uppercase tracking-widest text-blue-500/80 bg-blue-500/5 px-1.5 py-0.5 rounded border border-blue-500/10 flex-shrink-0">
+                                  {defaultModelId.split('#')[1]}
+                                </span>
+                              )}
+                              <div className="w-1 h-1 rounded-full bg-slate-700 flex-shrink-0" />
+                            </div>
+                          ) : (
+                            <span className="flex items-center gap-1 text-[9px] font-bold text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20 uppercase tracking-tighter flex-shrink-0">
+                              <AlertCircle className="w-3 h-3" />
+                              Not Configured
+                            </span>
+                          )}
+                          <span
+                            className="px-2 py-0.5 rounded-full text-[9px] font-bold border transition-all flex-shrink-0"
+                            style={{
+                              backgroundColor: styles.bg,
+                              color: styles.text,
+                              borderColor: styles.border,
+                            }}
+                          >
+                            {groupModels.length} models
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {groupModels.map((model) => {
-                        const chunks = model.name.split('/')
-                        const modelDisplayName = chunks[chunks.length - 1]
-                        const fullDefaultName = defaultModels[diff.value] || ''
-                        const [defaultBaseName, defaultVariant] = fullDefaultName.split('#')
-                        const isDefault = defaultBaseName === model.name
+                    {isExpanded && (
+                      <div className="p-4 pt-0 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {groupModels.map((model) => {
+                          const chunks = model.name.split('/')
+                          const modelDisplayName = chunks[chunks.length - 1]
+                          const fullDefaultName = defaultModels[diff.value] || ''
+                          const [defaultBaseName, defaultVariant] = fullDefaultName.split('#')
+                          const isDefault = defaultBaseName === model.name
 
-                        const variantsList = model.variants
-                          ? model.variants.split(',').map((v) => v.trim())
-                          : []
+                          const variantsList = model.variants
+                            ? model.variants.split(',').map((v) => v.trim())
+                            : []
 
-                        return (
-                          <div
-                            key={model.name}
-                            className={cn(
-                              'group relative p-5 rounded-2xl border transition-all duration-300',
-                              isDefault
-                                ? 'bg-blue-500/[0.03] border-blue-500/50 shadow-xl shadow-blue-500/10'
-                                : 'bg-[#11151C] border-slate-800/60 hover:border-slate-800'
-                            )}
-                          >
-                            <div className="flex items-start justify-between gap-4 mb-6">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <div
-                                    className={cn(
-                                      'text-base font-bold truncate transition-colors',
-                                      isDefault
-                                        ? 'text-blue-400'
-                                        : 'text-white group-hover:text-blue-400'
-                                    )}
-                                  >
-                                    {modelDisplayName}
-                                  </div>
-                                  {isDefault && (
-                                    <div className="px-1.5 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/20 text-[9px] font-black uppercase tracking-tighter text-blue-400">
-                                      Default
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="text-[11px] text-slate-500 font-medium truncate mt-1">
-                                  {model.name}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() =>
-                                    handleSetDefaultModel(
-                                      diff.value,
-                                      model.name,
-                                      variantsList.length > 0
-                                        ? defaultVariant || variantsList[0]
-                                        : undefined
-                                    )
-                                  }
-                                  className={cn(
-                                    'p-2 rounded-lg transition-all',
-                                    isDefault
-                                      ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30'
-                                      : 'bg-slate-800/40 text-slate-500 hover:bg-blue-500/10 hover:text-blue-400'
-                                  )}
-                                  title={isDefault ? 'Default model' : 'Set as default model'}
-                                >
-                                  <Star className={cn('w-4 h-4', isDefault && 'fill-current')} />
-                                </button>
-                                <button
-                                  onClick={() => handleToggleModel(model.name, false)}
-                                  className="p-2 rounded-lg bg-slate-800/40 text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-all"
-                                  title="Remove model from my list"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="space-y-4">
-                              {variantsList.length > 0 && (
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                                    Variant
-                                  </span>
-                                  <div className="flex p-1 bg-[#0B0E14] border border-slate-800/60 rounded-xl gap-1 overflow-x-auto no-scrollbar">
-                                    {variantsList.map((v) => {
-                                      const isVariantActive = isDefault && defaultVariant === v
-                                      return (
-                                        <button
-                                          key={v}
-                                          onClick={() =>
-                                            handleSetDefaultModel(diff.value, model.name, v)
-                                          }
-                                          className={cn(
-                                            'px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap',
-                                            isVariantActive
-                                              ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/40'
-                                              : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
-                                          )}
-                                        >
-                                          {v}
-                                        </button>
-                                      )
-                                    })}
-                                  </div>
-                                </div>
+                          return (
+                            <div
+                              key={model.name}
+                              className={cn(
+                                'group relative p-5 rounded-2xl border transition-all duration-300',
+                                isDefault
+                                  ? 'bg-blue-500/[0.03] border-blue-500/50 shadow-xl shadow-blue-500/10'
+                                  : 'bg-[#11151C] border-slate-800/60 hover:border-slate-800'
                               )}
-
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                                  Complexity
-                                </span>
-                                <div className="flex p-1 bg-[#0B0E14] border border-slate-800/60 rounded-xl gap-1">
-                                  {difficulties.map((d) => (
-                                    <button
-                                      key={d.value}
-                                      onClick={() => handleUpdateDifficulty(model.name, d.value)}
+                            >
+                              <div className="flex items-start justify-between gap-4 mb-6">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <div
                                       className={cn(
-                                        'px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all',
-                                        model.difficulty === d.value
-                                          ? cn(
-                                              d.bg,
-                                              d.color,
-                                              'ring-1 ring-inset',
-                                              d.color
-                                                .replace('text-', 'ring-')
-                                                .replace('-400', '/40')
-                                            )
-                                          : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                                        'text-base font-bold truncate transition-colors',
+                                        isDefault
+                                          ? 'text-blue-400'
+                                          : 'text-white group-hover:text-blue-400'
                                       )}
                                     >
-                                      {d.label}
-                                    </button>
-                                  ))}
+                                      {modelDisplayName}
+                                    </div>
+                                    {isDefault && (
+                                      <div className="px-1.5 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/20 text-[9px] font-black uppercase tracking-tighter text-blue-400">
+                                        Default
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="text-[11px] text-slate-500 font-medium truncate mt-1">
+                                    {model.name}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() =>
+                                      handleSetDefaultModel(
+                                        diff.value,
+                                        model.name,
+                                        variantsList.length > 0
+                                          ? defaultVariant || variantsList[0]
+                                          : undefined
+                                      )
+                                    }
+                                    className={cn(
+                                      'p-2 rounded-lg transition-all',
+                                      isDefault
+                                        ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30'
+                                        : 'bg-slate-800/40 text-slate-500 hover:bg-blue-500/10 hover:text-blue-400'
+                                    )}
+                                    title={isDefault ? 'Default model' : 'Set as default model'}
+                                  >
+                                    <Star className={cn('w-4 h-4', isDefault && 'fill-current')} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleToggleModel(model.name, false)}
+                                    className="p-2 rounded-lg bg-slate-800/40 text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-all"
+                                    title="Remove model from my list"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="space-y-4">
+                                {variantsList.length > 0 && (
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                      Variant
+                                    </span>
+                                    <div className="flex p-1 bg-[#0B0E14] border border-slate-800/60 rounded-xl gap-1 overflow-x-auto no-scrollbar">
+                                      {variantsList.map((v) => {
+                                        const isVariantActive = isDefault && defaultVariant === v
+                                        return (
+                                          <button
+                                            key={v}
+                                            onClick={() =>
+                                              handleSetDefaultModel(diff.value, model.name, v)
+                                            }
+                                            className={cn(
+                                              'px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap',
+                                              isVariantActive
+                                                ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/40'
+                                                : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                                            )}
+                                          >
+                                            {v}
+                                          </button>
+                                        )
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                    Complexity
+                                  </span>
+                                  <div className="flex p-1 bg-[#0B0E14] border border-slate-800/60 rounded-xl gap-1">
+                                    {difficulties.map((d) => (
+                                      <button
+                                        key={d.value}
+                                        onClick={() => handleUpdateDifficulty(model.name, d.value)}
+                                        className={cn(
+                                          'px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all',
+                                          model.difficulty === d.value
+                                            ? cn(
+                                                d.bg,
+                                                d.color,
+                                                'ring-1 ring-inset',
+                                                d.color
+                                                  .replace('text-', 'ring-')
+                                                  .replace('-400', '/40')
+                                              )
+                                            : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                                        )}
+                                      >
+                                        {d.label}
+                                      </button>
+                                    ))}
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        )
-                      })}
-                    </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 )
               })}
