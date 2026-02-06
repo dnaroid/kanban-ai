@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Check,
-  Clock,
   Play,
   Plus,
   RefreshCw,
@@ -10,9 +8,6 @@ import {
   Terminal,
   Trash2,
   User,
-  X,
-  PauseCircle,
-  HelpCircle,
 } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import type { KanbanTask, Run } from '@/shared/types/ipc.ts'
