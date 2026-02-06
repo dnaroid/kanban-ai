@@ -82,7 +82,7 @@ export function SortableTask({ task, globalTags, onDelete, onClick }: SortableTa
       {...listeners}
       onClick={() => onClick?.(task)}
       className={cn(
-        'bg-[#11151C]/20 backdrop-blur-md border rounded-xl mb-3 group hover:shadow-lg hover:shadow-black/20 transition-all cursor-grab active:cursor-grabbing overflow-hidden relative',
+        'bg-slate-900/40 backdrop-blur-md border rounded-xl mb-3 group hover:shadow-lg hover:shadow-black/20 transition-all cursor-grab active:cursor-grabbing overflow-hidden relative',
         sConfig?.border ?? 'border-slate-700',
         !sConfig && 'hover:border-slate-600',
         isDragging && 'opacity-50 shadow-2xl scale-105',
