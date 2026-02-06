@@ -214,8 +214,8 @@ function PermissionEditor({ value, onChange }: { value: AgentPermission | undefi
   )
 
   return (
-    <div className="space-y-3 p-5 bg-slate-900/40 border border-slate-800/50 rounded-2xl">
-      <div className="flex items-center justify-between">
+    <div className="space-y-3">
+      <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <ShieldAlert className="w-4 h-4 text-orange-400" />
           <span className="text-sm font-bold text-slate-300">Custom Permissions</span>
@@ -228,7 +228,7 @@ function PermissionEditor({ value, onChange }: { value: AgentPermission | undefi
       </div>
 
       {isEnabled && (
-        <div className="space-y-1 pt-3 border-t border-slate-800/40">
+        <div className="space-y-1 p-5 bg-slate-900/40 border border-slate-800/50 rounded-2xl">
           {renderSelect("edit", "File Editing", <FileText className="w-4 h-4 text-slate-500" />)}
           {renderSelect("webfetch", "Web Access", <Globe className="w-4 h-4 text-slate-500" />)}
           {renderSelect("bash", "Shell Execution", <Terminal className="w-4 h-4 text-slate-500" />)}
