@@ -54,11 +54,13 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
 
   const handleSetDefaultModel = async (
     difficulty: 'easy' | 'medium' | 'hard' | 'epic',
-    modelName: string
+    modelName: string,
+    variant?: string
   ) => {
     try {
-      await window.api.appSetting.setDefaultModel({ difficulty, modelName })
-      setDefaultModels((prev) => ({ ...prev, [difficulty]: modelName }))
+      const fullId = variant ? `${modelName}#${variant}` : modelName
+      await window.api.appSetting.setDefaultModel({ difficulty, modelName: fullId })
+      setDefaultModels((prev) => ({ ...prev, [difficulty]: fullId }))
       onStatusChange({ message: `Set default ${difficulty} model`, type: 'success' })
     } catch (error) {
       console.error('Failed to set default model:', error)
@@ -528,7 +530,13 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
                       {groupModels.map((model) => {
                         const chunks = model.name.split('/')
                         const modelDisplayName = chunks[chunks.length - 1]
-                        const isDefault = defaultModels[diff.value] === model.name
+                        const fullDefaultName = defaultModels[diff.value] || ''
+                        const [defaultBaseName, defaultVariant] = fullDefaultName.split('#')
+                        const isDefault = defaultBaseName === model.name
+
+                        const variantsList = model.variants
+                          ? model.variants.split(',').map((v) => v.trim())
+                          : []
 
                         return (
                           <div
@@ -565,7 +573,15 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
                               </div>
                               <div className="flex items-center gap-2">
                                 <button
-                                  onClick={() => handleSetDefaultModel(diff.value, model.name)}
+                                  onClick={() =>
+                                    handleSetDefaultModel(
+                                      diff.value,
+                                      model.name,
+                                      variantsList.length > 0
+                                        ? defaultVariant || variantsList[0]
+                                        : undefined
+                                    )
+                                  }
                                   className={cn(
                                     'p-2 rounded-lg transition-all',
                                     isDefault
@@ -586,7 +602,36 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
                               </div>
                             </div>
 
-                            <div className="space-y-3">
+                            <div className="space-y-4">
+                              {variantsList.length > 0 && (
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                    Variant
+                                  </span>
+                                  <div className="flex p-1 bg-[#0B0E14] border border-slate-800/60 rounded-xl gap-1 overflow-x-auto no-scrollbar">
+                                    {variantsList.map((v) => {
+                                      const isVariantActive = isDefault && defaultVariant === v
+                                      return (
+                                        <button
+                                          key={v}
+                                          onClick={() =>
+                                            handleSetDefaultModel(diff.value, model.name, v)
+                                          }
+                                          className={cn(
+                                            'px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap',
+                                            isVariantActive
+                                              ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/40'
+                                              : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                                          )}
+                                        >
+                                          {v}
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
                               <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
                                   Complexity
