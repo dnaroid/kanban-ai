@@ -91,7 +91,7 @@
     "metis": {
       "model": "openai/gpt-5.2",
       "temperature": 0.08,
-      "reasoningEffort": "high",
+      "reasoningEffort": "xhigh",
       "variant": "max"
     },
     "momus": {

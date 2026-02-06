@@ -1309,14 +1309,16 @@ export type OhMyOpencodeModelField = z.infer<typeof OhMyOpencodeModelFieldSchema
 
 // Allow either a string (model name) or an object with model/variant fields
 // Using loose validation to support both formats
-const ohMyOpencodeEntrySchema = z.union([z.string(), z.record(z.unknown())])
+const ohMyOpencodeEntrySchema = z.union([z.string(), z.record(z.string(), z.unknown())])
 
-export const OhMyOpencodeConfigSchema = z.object({
-  categories: z.record(ohMyOpencodeEntrySchema).optional(),
-  agents: z.record(ohMyOpencodeEntrySchema).optional(),
-  systemDefaultModel: z.string().optional(),
-  $schema: z.string().optional(),
-})
+export const OhMyOpencodeConfigSchema = z
+  .object({
+    categories: z.record(z.string(), ohMyOpencodeEntrySchema).optional(),
+    agents: z.record(z.string(), ohMyOpencodeEntrySchema).optional(),
+    systemDefaultModel: z.string().optional(),
+    $schema: z.string().optional(),
+  })
+  .passthrough()
 
 export type OhMyOpencodeConfig = z.infer<typeof OhMyOpencodeConfigSchema>
 

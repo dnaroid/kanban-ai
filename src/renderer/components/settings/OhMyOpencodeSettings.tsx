@@ -864,6 +864,14 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
 
         <div className="flex items-center gap-1.5">
           <button
+            onClick={handleSelectFile}
+            className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors focus:outline-none"
+            title="Change Config File"
+          >
+            <FolderOpen className="w-3 h-3" />
+          </button>
+          <div className="w-px h-4 bg-slate-800 mx-0.5" />
+          <button
             onClick={handleSave}
             disabled={!unsavedChanges}
             className={cn(

@@ -139,6 +139,29 @@ import { artifactRepo } from '../db/artifact-repository'
 import { runService } from '../run/run-service'
 import { buildContextSnapshot } from '../run/context-snapshot-builder'
 import { downloadModelIfNeeded } from '../vosk-model-loader'
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value)
+
+const mergeInPlace = (target: Record<string, unknown>, source: Record<string, unknown>) => {
+  for (const key of Object.keys(target)) {
+    if (!(key in source)) delete target[key]
+  }
+
+  for (const [key, value] of Object.entries(source)) {
+    if (value === undefined) {
+      delete target[key]
+      continue
+    }
+
+    const existing = target[key]
+    if (isPlainObject(existing) && isPlainObject(value)) {
+      mergeInPlace(existing, value)
+    } else {
+      target[key] = value
+    }
+  }
+}
 import { opencodeModelRepo } from '../db/opencode-model-repository'
 import { createOpencodeClient } from '@opencode-ai/sdk/v2/client'
 
@@ -866,7 +889,17 @@ ipcHandlers.register(
   'ohMyOpencode:saveConfig',
   OhMyOpencodeSaveConfigInputSchema,
   async (_, input) => {
-    await fs.writeFile(input.path, JSON.stringify(input.config, null, 2), 'utf-8')
+    const fileContent = await fs.readFile(input.path, 'utf-8')
+    const parsedConfig = parse(fileContent) as unknown
+
+    let outputConfig: unknown = input.config
+
+    if (isPlainObject(parsedConfig) && isPlainObject(input.config)) {
+      mergeInPlace(parsedConfig, input.config)
+      outputConfig = parsedConfig
+    }
+
+    await fs.writeFile(input.path, JSON.stringify(outputConfig, null, 2), 'utf-8')
     return OhMyOpencodeSaveConfigResponseSchema.parse({ ok: true })
   }
 )
