@@ -1202,6 +1202,7 @@ export const OpencodeModelSchema = z.object({
   name: z.string().min(1),
   enabled: z.boolean(),
   difficulty: z.enum(['easy', 'medium', 'hard', 'epic']),
+  variants: z.string().default(''),
 })
 
 export type OpencodeModel = z.infer<typeof OpencodeModelSchema>

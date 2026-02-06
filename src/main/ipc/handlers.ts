@@ -707,7 +707,7 @@ ipcHandlers.register('opencode:refreshModels', z.unknown(), async () => {
   const allProviders = providers.data?.all || []
   const connected = new Set(providers.data?.connected || [])
 
-  const names: string[] = []
+  const variantsByModel = new Map<string, Set<string>>()
 
   for (const provider of allProviders) {
     if (!provider || typeof provider !== 'object') continue
@@ -729,18 +729,26 @@ ipcHandlers.register('opencode:refreshModels', z.unknown(), async () => {
       if (!modelInfo.id) continue
 
       const baseName = `${providerInfo.id}/${modelInfo.id}`
-      names.push(baseName)
 
-      // reasoning variants -> provider/model#reasoning_level
-      if (modelInfo.reasoning && modelInfo.variants) {
-        for (const reasoningLevel of Object.keys(modelInfo.variants)) {
-          names.push(`${baseName}#${reasoningLevel}`)
+      if (!variantsByModel.has(baseName)) {
+        variantsByModel.set(baseName, new Set())
+      }
+
+      const set = variantsByModel.get(baseName)!
+      if (modelInfo.variants) {
+        for (const variant of Object.keys(modelInfo.variants)) {
+          set.add(variant)
         }
       }
     }
   }
 
-  opencodeModelRepo.syncFromNames(names)
+  const models = Array.from(variantsByModel.entries()).map(([name, variants]) => ({
+    name,
+    variants: Array.from(variants).sort(),
+  }))
+
+  opencodeModelRepo.syncFromSdkModels(models)
   return OpencodeModelsListResponseSchema.parse({ models: opencodeModelRepo.getAll() })
 })
 

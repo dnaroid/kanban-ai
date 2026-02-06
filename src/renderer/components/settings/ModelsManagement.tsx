@@ -202,6 +202,19 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
     return groups
   }, [enabledModels])
 
+  const getProviderColor = (name: string) => {
+    let hash = 0
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash)
+    }
+    const h = Math.abs(hash) % 360
+    return {
+      border: `hsla(${h}, 70%, 50%, 0.4)`,
+      bg: `hsla(${h}, 70%, 50%, 0.05)`,
+      text: `hsl(${h}, 70%, 60%)`,
+    }
+  }
+
   if (isLoading && models.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -341,32 +354,30 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
                 const isExpanded = expandedGroups[provider] || false
                 const isProviderAllEnabled = group.enabled === group.models.length
                 const hasEnabledModels = group.enabled > 0
+                const colors = getProviderColor(provider)
 
                 return (
                   <div
                     key={provider}
                     className={cn(
-                      'bg-[#11151C] border rounded-2xl overflow-hidden shadow-xl transition-all duration-300',
-                      hasEnabledModels
-                        ? 'border-blue-500/30 shadow-blue-500/5'
-                        : 'border-slate-800/50'
+                      'border rounded-2xl overflow-hidden shadow-xl transition-all duration-300',
+                      hasEnabledModels ? 'shadow-blue-500/5' : ''
                     )}
+                    style={{
+                      backgroundColor: colors.bg,
+                      borderColor: hasEnabledModels ? colors.border : 'rgba(30, 41, 59, 0.5)',
+                    }}
                   >
                     <div
                       onClick={() => toggleGroup(provider)}
                       className={cn(
-                        'flex items-center justify-between p-4 cursor-pointer transition-all',
-                        hasEnabledModels
-                          ? 'bg-blue-500/[0.03] hover:bg-blue-500/[0.06]'
-                          : 'hover:bg-slate-800/20'
+                        'flex items-center justify-between p-4 cursor-pointer transition-all hover:bg-white/5'
                       )}
                     >
                       <div className="flex items-center gap-3">
                         <div
-                          className={cn(
-                            'transition-colors',
-                            hasEnabledModels ? 'text-blue-400' : 'text-slate-500'
-                          )}
+                          className="transition-colors"
+                          style={{ color: hasEnabledModels ? colors.text : 'rgb(100, 116, 139)' }}
                         >
                           {isExpanded ? (
                             <ChevronDown className="w-4 h-4" />
@@ -375,20 +386,18 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
                           )}
                         </div>
                         <h4
-                          className={cn(
-                            'text-[10px] font-black uppercase tracking-[0.2em] transition-colors',
-                            hasEnabledModels ? 'text-slate-200' : 'text-slate-400'
-                          )}
+                          className="text-[10px] font-black uppercase tracking-[0.2em] transition-colors"
+                          style={{ color: hasEnabledModels ? 'white' : 'rgb(148, 163, 184)' }}
                         >
                           {provider}
                         </h4>
                         <span
-                          className={cn(
-                            'px-2 py-0.5 rounded-full text-[9px] font-bold border transition-all',
-                            hasEnabledModels
-                              ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                              : 'bg-slate-800 text-slate-500 border-slate-700/50'
-                          )}
+                          className="px-2 py-0.5 rounded-full text-[9px] font-bold border transition-all"
+                          style={{
+                            backgroundColor: hasEnabledModels ? colors.bg : 'rgba(30, 41, 59, 1)',
+                            color: hasEnabledModels ? colors.text : 'rgb(100, 116, 139)',
+                            borderColor: hasEnabledModels ? colors.border : 'rgba(51, 65, 85, 0.5)',
+                          }}
                         >
                           {group.enabled} / {group.models.length}
                         </span>
@@ -399,9 +408,11 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
                           handleToggleAll(group.models, !isProviderAllEnabled)
                         }}
                         className={cn(
-                          'w-8 h-4.5 rounded-full transition-all relative flex items-center px-1 cursor-pointer',
-                          isProviderAllEnabled ? 'bg-blue-600' : 'bg-slate-700'
+                          'w-8 h-4.5 rounded-full transition-all relative flex items-center px-1 cursor-pointer'
                         )}
+                        style={{
+                          backgroundColor: isProviderAllEnabled ? colors.text : 'rgb(51, 65, 85)',
+                        }}
                       >
                         <div
                           className={cn(
@@ -422,11 +433,16 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
                               key={model.name}
                               onClick={() => handleToggleModel(model.name, !model.enabled)}
                               className={cn(
-                                'group relative p-4 rounded-xl border transition-all cursor-pointer',
-                                model.enabled
-                                  ? 'bg-blue-500/5 border-blue-500/40 shadow-lg shadow-blue-500/5'
-                                  : 'bg-[#0B0E14] border-slate-800/60 hover:border-slate-800'
+                                'group relative p-4 rounded-xl border transition-all cursor-pointer'
                               )}
+                              style={{
+                                backgroundColor: model.enabled
+                                  ? 'rgba(255, 255, 255, 0.03)'
+                                  : 'transparent',
+                                borderColor: model.enabled
+                                  ? colors.border
+                                  : 'rgba(30, 41, 59, 0.6)',
+                              }}
                             >
                               <div className="flex items-center justify-between gap-3">
                                 <div className="flex-1 min-w-0">
@@ -439,9 +455,13 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
                                 </div>
                                 <div
                                   className={cn(
-                                    'w-8 h-4.5 rounded-full transition-all relative flex items-center px-1',
-                                    model.enabled ? 'bg-blue-600' : 'bg-slate-700'
+                                    'w-8 h-4.5 rounded-full transition-all relative flex items-center px-1'
                                   )}
+                                  style={{
+                                    backgroundColor: model.enabled
+                                      ? colors.text
+                                      : 'rgb(51, 65, 85)',
+                                  }}
                                 >
                                   <div
                                     className={cn(

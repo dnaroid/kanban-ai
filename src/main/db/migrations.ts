@@ -647,6 +647,13 @@ export const migrations = [
             ADD COLUMN model_name TEXT;
     `,
   },
+  {
+    version: 16,
+    sql: `
+        ALTER TABLE opencode_models
+            ADD COLUMN variants TEXT NOT NULL DEFAULT '';
+    `,
+  },
 ] as const
 
 export type Migration = (typeof migrations)[number]
