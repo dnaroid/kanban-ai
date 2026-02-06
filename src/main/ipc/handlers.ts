@@ -824,7 +824,13 @@ ipcHandlers.register(
               key: key,
               path: [...prefix, key],
               value: nested.model as string,
+              reasoningEffort:
+                'reasoningEffort' in nested ? ((nested.reasoningEffort as string) ?? null) : null,
               variant: 'variant' in nested ? ((nested.variant as string) ?? null) : null,
+              temperature:
+                'temperature' in nested && typeof nested.temperature === 'number'
+                  ? nested.temperature
+                  : null,
             })
           } else {
             extractModelFields(nested, [...prefix, key])
@@ -834,7 +840,9 @@ ipcHandlers.register(
             key: key,
             path: [...prefix, key],
             value: value as string,
+            reasoningEffort: null,
             variant: null,
+            temperature: null,
           })
         }
       }

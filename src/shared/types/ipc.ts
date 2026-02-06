@@ -1300,7 +1300,9 @@ export const OhMyOpencodeModelFieldSchema = z.object({
   key: z.string(),
   path: z.array(z.string()),
   value: z.string(),
+  reasoningEffort: z.string().nullable().optional(),
   variant: z.string().nullable().optional(),
+  temperature: z.number().nullable().optional(),
 })
 
 export type OhMyOpencodeModelField = z.infer<typeof OhMyOpencodeModelFieldSchema>
