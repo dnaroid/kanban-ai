@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ListTodo, RefreshCw } from 'lucide-react'
+import { ListTodo, RefreshCw } from 'lucide-react'
 import { cn } from '../../../lib/utils'
+import { todoStatusConfig } from './TaskPropertyConfigs'
 
 interface Todo {
   id: string
@@ -173,44 +174,46 @@ export function RunTodosPanel({ sessionId }: { sessionId: string }) {
 
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         <div className="divide-y divide-slate-800/40">
-          {todos.map((todo) => (
-            <div
-              key={todo.id}
-              className="group px-4 py-2.5 flex items-center gap-3 transition-all hover:bg-slate-800/20"
-            >
-              <div className="shrink-0">
-                <div
-                  className={cn(
-                    'w-4 h-4 rounded border flex items-center justify-center transition-all duration-200',
-                    todo.status === 'completed'
-                      ? 'bg-amber-900/20 border-amber-700/40 text-amber-500/80'
-                      : todo.status === 'in_progress'
-                        ? 'border-amber-400 bg-amber-400/10 text-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.3)]'
-                        : 'border-slate-700 bg-slate-900/50 text-slate-600'
-                  )}
-                >
-                  {todo.status === 'completed' ? (
-                    <Check className="w-3 h-3 stroke-[3]" />
-                  ) : todo.status === 'in_progress' ? (
-                    <div className="w-1.5 h-1.5 rounded-sm bg-amber-400 animate-pulse" />
-                  ) : null}
+          {todos.map((todo) => {
+            const config = todoStatusConfig[todo.status] || todoStatusConfig.pending
+            return (
+              <div
+                key={todo.id}
+                className="group px-4 py-2.5 flex items-center gap-3 transition-all hover:bg-slate-800/20"
+              >
+                <div className="shrink-0">
+                  <div
+                    className={cn(
+                      'w-4 h-4 rounded border flex items-center justify-center transition-all duration-200',
+                      config.bg,
+                      config.border,
+                      config.color
+                    )}
+                  >
+                    <config.icon
+                      className={cn(
+                        'w-3 h-3 stroke-[3]',
+                        todo.status === 'in_progress' && 'animate-spin'
+                      )}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <p
+                    className={cn(
+                      'text-[13px] leading-snug transition-all font-semibold',
+                      todo.status === 'completed'
+                        ? 'text-slate-500 line-through decoration-slate-600/50'
+                        : config.color
+                    )}
+                  >
+                    {todo.content}
+                  </p>
                 </div>
               </div>
-
-              <div className="flex-1 min-w-0">
-                <p
-                  className={cn(
-                    'text-[13px] leading-snug transition-all font-semibold',
-                    todo.status === 'completed'
-                      ? 'text-amber-700/80'
-                      : 'text-amber-300 tracking-tight'
-                  )}
-                >
-                  {todo.content}
-                </p>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     </div>

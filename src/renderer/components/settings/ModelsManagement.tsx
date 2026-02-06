@@ -17,6 +17,8 @@ import {
 import { cn } from '../../lib/utils'
 import type { OpencodeModel } from '../../../shared/types/ipc'
 
+import { ModelPicker } from '../common/ModelPicker'
+
 type ModelsManagementProps = {
   onStatusChange: (status: { message: string; type: 'info' | 'error' | 'success' }) => void
 }
@@ -582,7 +584,6 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
                 const isExpanded = expandedGroups[`diff:${diff.value}`] ?? false
                 const styles = getDifficultyStyles(diff.value)
                 const isDefaultSet = !!defaultModels[diff.value]
-                const defaultModelId = defaultModels[diff.value] || ''
 
                 return (
                   <div
@@ -619,24 +620,18 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
                           {diff.label}
                         </h4>
                         <div className="flex items-center gap-2 min-w-0">
-                          {isDefaultSet ? (
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="text-[10px] font-bold text-slate-400 truncate">
-                                {defaultModelId.split('#')[0]}
-                              </span>
-                              {defaultModelId.includes('#') && (
-                                <span className="text-[9px] font-black uppercase tracking-widest text-blue-500/80 bg-blue-500/5 px-1.5 py-0.5 rounded border border-blue-500/10 flex-shrink-0">
-                                  {defaultModelId.split('#')[1]}
-                                </span>
-                              )}
-                              <div className="w-1 h-1 rounded-full bg-slate-700 flex-shrink-0" />
-                            </div>
-                          ) : (
-                            <span className="flex items-center gap-1 text-[9px] font-bold text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20 uppercase tracking-tighter flex-shrink-0">
-                              <AlertCircle className="w-3 h-3" />
-                              Not Configured
-                            </span>
-                          )}
+                          <ModelPicker
+                            value={defaultModels[diff.value] || null}
+                            models={groupModels}
+                            onChange={(val) => {
+                              if (val) {
+                                const [name, variant] = val.split('#')
+                                handleSetDefaultModel(diff.value, name, variant)
+                              }
+                            }}
+                            difficulty={diff.value}
+                            placeholder="Select Default"
+                          />
                           <span
                             className="px-2 py-0.5 rounded-full text-[9px] font-bold border transition-all flex-shrink-0"
                             style={{

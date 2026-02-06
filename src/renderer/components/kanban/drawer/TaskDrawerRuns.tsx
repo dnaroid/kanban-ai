@@ -17,88 +17,11 @@ import {
 import { cn } from '../../../lib/utils'
 import type { KanbanTask, Run } from '@/shared/types/ipc.ts'
 import { RunDetailsView } from './RunDetailsView'
+import { statusConfig, runStatusConfig } from './TaskPropertyConfigs'
 
 interface TaskDrawerRunsProps {
   task: KanbanTask
   isActive: boolean
-}
-
-const taskStatusConfig = {
-  queued: {
-    icon: Clock,
-    color: 'text-amber-500',
-    bg: 'bg-amber-500/10',
-    border: 'border-amber-500/20',
-  },
-  running: {
-    icon: RefreshCw,
-    color: 'text-blue-500',
-    bg: 'bg-blue-500/10',
-    border: 'border-blue-500/20',
-  },
-  generating: {
-    icon: RefreshCw,
-    color: 'text-purple-500',
-    bg: 'bg-purple-500/10',
-    border: 'border-purple-500/20',
-  },
-  question: {
-    icon: HelpCircle,
-    color: 'text-purple-500',
-    bg: 'bg-purple-500/10',
-    border: 'border-purple-500/20',
-  },
-  paused: {
-    icon: PauseCircle,
-    color: 'text-slate-500',
-    bg: 'bg-slate-500/10',
-    border: 'border-slate-500/20',
-  },
-  done: {
-    icon: Check,
-    color: 'text-emerald-500',
-    bg: 'bg-emerald-500/10',
-    border: 'border-emerald-500/20',
-  },
-  failed: {
-    icon: X,
-    color: 'text-red-500',
-    bg: 'bg-red-500/10',
-    border: 'border-red-500/20',
-  },
-}
-
-const runStatusConfig = {
-  queued: {
-    icon: Clock,
-    color: 'text-amber-500',
-    bg: 'bg-amber-500/10',
-    border: 'border-amber-500/20',
-  },
-  running: {
-    icon: RefreshCw,
-    color: 'text-blue-500',
-    bg: 'bg-blue-500/10',
-    border: 'border-blue-500/20',
-  },
-  success: {
-    icon: Check,
-    color: 'text-emerald-500',
-    bg: 'bg-emerald-500/10',
-    border: 'border-emerald-500/20',
-  },
-  failed: {
-    icon: X,
-    color: 'text-red-500',
-    bg: 'bg-red-500/10',
-    border: 'border-red-500/20',
-  },
-  canceled: {
-    icon: Square,
-    color: 'text-slate-500',
-    bg: 'bg-slate-500/10',
-    border: 'border-slate-500/20',
-  },
 }
 
 export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
@@ -206,8 +129,8 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
   }, []) // Dependencies empty to fetch once on mount
 
   const selectedRun = runs.find((r) => r.id === selectedRunId) || null
-  const statusConfig =
-    taskStatusConfig[task.status as keyof typeof taskStatusConfig] || taskStatusConfig.queued
+  const currentStatusConfig =
+    statusConfig[task.status as keyof typeof statusConfig] || statusConfig.queued
 
   return (
     <div className="flex flex-col h-full bg-[#0B0E14] animate-in fade-in duration-300">
@@ -216,12 +139,12 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
           <div
             className={cn(
               'p-2 rounded-lg border',
-              statusConfig.bg,
-              statusConfig.border,
-              statusConfig.color
+              currentStatusConfig.bg,
+              currentStatusConfig.border,
+              currentStatusConfig.color
             )}
           >
-            <statusConfig.icon
+            <currentStatusConfig.icon
               className={cn(
                 'w-4 h-4',
                 (task.status === 'running' || task.status === 'generating') && 'animate-spin'

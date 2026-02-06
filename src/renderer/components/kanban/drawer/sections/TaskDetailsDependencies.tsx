@@ -1,7 +1,32 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link2, Plus, X } from 'lucide-react'
+import { Link2, Plus, X, ArrowDownRight, ArrowUpRight, Link as LinkIcon } from 'lucide-react'
+import { PillSelect } from '../../../common/PillSelect'
 import { cn } from '../../../../lib/utils'
 import type { KanbanTask, TaskLink, TaskLinkType } from '@/shared/types/ipc.ts'
+
+const dependencyRelationshipConfig = {
+  blocks: {
+    icon: ArrowUpRight,
+    color: 'text-amber-400',
+    bg: 'bg-amber-400/10',
+    border: 'border-amber-400/20',
+    label: 'Blocks',
+  },
+  blocked_by: {
+    icon: ArrowDownRight,
+    color: 'text-red-400',
+    bg: 'bg-red-400/10',
+    border: 'border-red-400/20',
+    label: 'Blocked By',
+  },
+  relates: {
+    icon: LinkIcon,
+    color: 'text-blue-400',
+    bg: 'bg-blue-400/10',
+    border: 'border-blue-400/20',
+    label: 'Relates To',
+  },
+} as const
 
 interface TaskDetailsDependenciesProps {
   task: KanbanTask
@@ -129,16 +154,13 @@ export function TaskDetailsDependencies({ task }: TaskDetailsDependenciesProps) 
 
       {isAddingDependency && (
         <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800 space-y-3 animate-in fade-in slide-in-from-top-2">
-          <div className="flex gap-2">
-            <select
+          <div className="flex gap-4 items-end">
+            <PillSelect
+              label="Relationship"
               value={dependencyRelationship}
-              onChange={(e) => setDependencyRelationship(e.target.value as TaskLinkType)}
-              className="bg-[#161B26] border border-slate-700 text-xs text-slate-300 rounded px-2 py-1.5 focus:outline-none focus:border-blue-500/50"
-            >
-              <option value="blocks">Blocks</option>
-              <option value="blocked_by">Blocked By</option>
-              <option value="relates">Relates To</option>
-            </select>
+              options={dependencyRelationshipConfig as any}
+              onChange={(val) => setDependencyRelationship(val as any)}
+            />
             <div className="flex-1 relative">
               <input
                 type="text"

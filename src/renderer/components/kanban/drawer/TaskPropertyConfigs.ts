@@ -4,12 +4,16 @@ import {
   Bug,
   Check,
   ChevronDown,
+  Circle,
   Clock,
   FileText,
   HelpCircle,
+  Loader2,
   Pause,
   Play,
+  RefreshCw,
   Sparkles,
+  Square,
   XCircle,
   Zap,
 } from 'lucide-react'
@@ -93,9 +97,9 @@ export const typeConfig = {
 export const statusConfig = {
   queued: {
     icon: Clock,
-    color: 'text-slate-400',
-    bg: 'bg-slate-400/10',
-    border: 'border-slate-400/20',
+    color: 'text-amber-400',
+    bg: 'bg-amber-400/10',
+    border: 'border-amber-400/20',
   },
   running: {
     icon: Play,
@@ -132,5 +136,65 @@ export const statusConfig = {
     color: 'text-red-400',
     bg: 'bg-red-400/10',
     border: 'border-red-400/20',
+  },
+} as const
+
+export const runStatusConfig = {
+  queued: {
+    icon: Clock,
+    color: 'text-amber-400',
+    bg: 'bg-amber-400/10',
+    border: 'border-amber-400/20',
+  },
+  running: {
+    icon: RefreshCw,
+    color: 'text-blue-400',
+    bg: 'bg-blue-400/10',
+    border: 'border-blue-400/20',
+  },
+  succeeded: {
+    icon: Check,
+    color: 'text-emerald-400',
+    bg: 'bg-emerald-400/10',
+    border: 'border-emerald-400/20',
+  },
+  failed: {
+    icon: XCircle,
+    color: 'text-red-400',
+    bg: 'bg-red-400/10',
+    border: 'border-red-400/20',
+  },
+  canceled: {
+    icon: Square,
+    color: 'text-slate-400',
+    bg: 'bg-slate-400/10',
+    border: 'border-slate-400/20',
+  },
+} as const
+
+export const todoStatusConfig = {
+  pending: {
+    icon: Circle,
+    color: 'text-slate-400',
+    bg: 'bg-slate-400/10',
+    border: 'border-slate-400/20',
+  },
+  in_progress: {
+    icon: Loader2,
+    color: 'text-amber-400',
+    bg: 'bg-amber-400/10',
+    border: 'border-amber-400/20',
+  },
+  completed: {
+    icon: Check,
+    color: 'text-emerald-400',
+    bg: 'bg-emerald-400/10',
+    border: 'border-emerald-400/20',
+  },
+  cancelled: {
+    icon: XCircle,
+    color: 'text-slate-400',
+    bg: 'bg-slate-400/10',
+    border: 'border-slate-400/20',
   },
 } as const
