@@ -124,15 +124,15 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 border-b border-slate-800/40 mb-6">
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="bg-slate-950 flex items-center p-1 bg-slate-900/50 rounded-xl border border-slate-800/40 mb-4 w-fit shrink-0">
         <button
           onClick={() => setActiveSubTab('all')}
           className={cn(
-            'px-4 py-2 text-xs font-bold uppercase tracking-widest transition-all border-b-2',
+            'px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-all rounded-lg focus:outline-none',
             activeSubTab === 'all'
-              ? 'border-blue-500 text-blue-400'
-              : 'border-transparent text-slate-500 hover:text-slate-300'
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+              : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40'
           )}
         >
           All Models
@@ -140,10 +140,10 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
         <button
           onClick={() => setActiveSubTab('my')}
           className={cn(
-            'px-4 py-2 text-xs font-bold uppercase tracking-widest transition-all border-b-2',
+            'px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-all rounded-lg focus:outline-none',
             activeSubTab === 'my'
-              ? 'border-blue-500 text-blue-400'
-              : 'border-transparent text-slate-500 hover:text-slate-300'
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+              : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40'
           )}
         >
           My Models ({enabledModelsCount})
@@ -151,40 +151,42 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
         <button
           onClick={() => setActiveSubTab('oh-my-opencode')}
           className={cn(
-            'px-4 py-2 text-xs font-bold uppercase tracking-widest transition-all border-b-2',
+            'px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-all rounded-lg focus:outline-none',
             activeSubTab === 'oh-my-opencode'
-              ? 'border-purple-500 text-purple-400'
-              : 'border-transparent text-slate-500 hover:text-slate-300'
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+              : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40'
           )}
         >
           Oh-My-OpenCode
         </button>
       </div>
 
-      {activeSubTab === 'all' && (
-        <AllModelsTab
-          models={models}
-          onStatusChange={onStatusChange}
-          handleToggleModel={handleToggleModel}
-          handleToggleAll={handleToggleAll}
-          handleRefreshModels={handleRefreshModels}
-        />
-      )}
+      <div className="flex-1 overflow-hidden">
+        {activeSubTab === 'all' && (
+          <AllModelsTab
+            models={models}
+            onStatusChange={onStatusChange}
+            handleToggleModel={handleToggleModel}
+            handleToggleAll={handleToggleAll}
+            handleRefreshModels={handleRefreshModels}
+          />
+        )}
 
-      {activeSubTab === 'my' && (
-        <MyModelsTab
-          models={models}
-          defaultModels={defaultModels}
-          onStatusChange={onStatusChange}
-          handleToggleModel={handleToggleModel}
-          handleUpdateDifficulty={handleUpdateDifficulty}
-          handleSetDefaultModel={handleSetDefaultModel}
-        />
-      )}
+        {activeSubTab === 'my' && (
+          <MyModelsTab
+            models={models}
+            defaultModels={defaultModels}
+            onStatusChange={onStatusChange}
+            handleToggleModel={handleToggleModel}
+            handleUpdateDifficulty={handleUpdateDifficulty}
+            handleSetDefaultModel={handleSetDefaultModel}
+          />
+        )}
 
-      {activeSubTab === 'oh-my-opencode' && (
-        <OhMyOpencodeSettings onStatusChange={onStatusChange} />
-      )}
+        {activeSubTab === 'oh-my-opencode' && (
+          <OhMyOpencodeSettings onStatusChange={onStatusChange} />
+        )}
+      </div>
     </div>
   )
 }

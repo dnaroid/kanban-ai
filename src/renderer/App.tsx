@@ -1,8 +1,5 @@
 import { useEffect, useState } from 'react'
-import {
-  ChevronRight,
-  Search,
-} from 'lucide-react'
+import { ChevronRight, Search } from 'lucide-react'
 import { ProjectsScreen } from './screens/ProjectsScreen'
 import { DiagnosticsScreen } from './screens/DiagnosticsScreen'
 import { BoardScreen } from './screens/BoardScreen'
@@ -168,7 +165,12 @@ export default function App() {
           </div>
         </header>
 
-        <div className={cn('flex-1 overflow-hidden flex flex-col', screen.id !== 'board' && 'p-8')}>
+        <div
+          className={cn(
+            'flex-1 overflow-hidden flex flex-col',
+            screen.id !== 'board' && (screen.id === 'settings' ? 'px-8 pb-8 pt-2' : 'p-8')
+          )}
+        >
           {screen.id === 'projects' && (
             <ProjectsScreen
               onProjectSelect={(id, name) => {

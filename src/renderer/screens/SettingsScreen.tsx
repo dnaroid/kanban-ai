@@ -81,7 +81,7 @@ export function SettingsScreen({ projectId, projectName, onProjectDeleted }: Set
         </div>
       )}
 
-      <div className="flex items-center gap-2 mb-8 border-b border-slate-800/40">
+      <div className="flex items-center gap-2 mb-4 border-b border-slate-800/40">
         {tabs.map((tab) => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
@@ -90,7 +90,7 @@ export function SettingsScreen({ projectId, projectName, onProjectDeleted }: Set
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-widest rounded-t-xl transition-all border-b-2',
+                'flex items-center gap-2 px-4 py-1.5 text-xs font-bold uppercase tracking-widest rounded-t-xl transition-all border-b-2 focus:outline-none',
                 isActive
                   ? 'border-blue-500 text-blue-400 bg-blue-500/5'
                   : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-800/20'
@@ -103,25 +103,32 @@ export function SettingsScreen({ projectId, projectName, onProjectDeleted }: Set
         })}
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-20 custom-scrollbar">
+      <div className="flex-1 flex flex-col overflow-hidden">
         {activeTab === 'models' && <ModelsManagement onStatusChange={setStatus} />}
-        {activeTab === 'tags' && <TagManagement />}
-        {activeTab === 'migration' && (
-          <BackupAndRestoreSettings
-            projects={projects}
-            currentProjectId={projectId}
-            onStatusChange={setStatus}
-          />
-        )}
-        {activeTab === 'danger' && (
-          <DangerZoneSettings
-            projects={projects}
-            currentProjectId={projectId}
-            currentProjectName={projectName}
-            onStatusChange={setStatus}
-            onProjectDeleted={onProjectDeleted}
-          />
-        )}
+        <div
+          className={cn(
+            'flex-1 overflow-y-auto pb-20 custom-scrollbar',
+            activeTab === 'models' && 'hidden'
+          )}
+        >
+          {activeTab === 'tags' && <TagManagement />}
+          {activeTab === 'migration' && (
+            <BackupAndRestoreSettings
+              projects={projects}
+              currentProjectId={projectId}
+              onStatusChange={setStatus}
+            />
+          )}
+          {activeTab === 'danger' && (
+            <DangerZoneSettings
+              projects={projects}
+              currentProjectId={projectId}
+              currentProjectName={projectName}
+              onStatusChange={setStatus}
+              onProjectDeleted={onProjectDeleted}
+            />
+          )}
+        </div>
       </div>
     </div>
   )

@@ -112,272 +112,277 @@ export function MyModelsTab({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center text-blue-400">
-            <Cpu className="w-5 h-5" />
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex-none bg-slate-950/80 backdrop-blur-md pb-3 px-0 flex items-center justify-between border-b border-slate-800/60 mb-4">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center text-blue-400">
+            <Cpu className="w-3.5 h-3.5" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-white tracking-tight">My Models</h3>
-            <p className="text-xs text-slate-500 font-medium">List of your selected models</p>
+            <h3 className="text-sm font-bold text-white tracking-tight leading-none">My Models</h3>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => setAllExpanded(true)}
             title="Expand All"
-            className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-all bg-slate-900/40 border border-slate-800/60"
+            className="p-1 hover:bg-slate-800 rounded-md text-slate-400 hover:text-slate-200 transition-all bg-slate-900/40 border border-slate-800/60 focus:outline-none"
           >
-            <Maximize2 className="w-4 h-4" />
+            <Maximize2 className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => setAllExpanded(false)}
             title="Collapse All"
-            className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-all bg-slate-900/40 border border-slate-800/60"
+            className="p-1 hover:bg-slate-800 rounded-md text-slate-400 hover:text-slate-200 transition-all bg-slate-900/40 border border-slate-800/60 focus:outline-none"
           >
-            <Minimize2 className="w-4 h-4" />
+            <Minimize2 className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {difficulties.some((d) => !defaultModels[d.value]) && (
-        <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-red-400 mb-6">
-          <AlertCircle className="w-5 h-5 flex-shrink-0" />
-          <div className="text-xs font-semibold">
-            Missing default models for:{' '}
-            {difficulties
-              .filter((d) => !defaultModels[d.value])
-              .map((d) => d.label)
-              .join(', ')}
-          </div>
-        </div>
-      )}
-
-      {enabledModels.length === 0 ? (
-        <div className="text-center py-12 bg-slate-900/40 rounded-2xl border border-dashed border-slate-800/60">
-          <p className="text-slate-500 text-sm">
-            You haven't selected any models yet. Go to "All Models" to enable some.
-          </p>
-        </div>
-      ) : (
+      <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-10">
         <div className="space-y-4">
-          {difficulties.map((diff) => {
-            const groupModels = enabledModelsByDifficulty[diff.value]
-            if (groupModels.length === 0) return null
+          {difficulties.some((d) => !defaultModels[d.value]) && (
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-2 text-red-400 mb-4">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <div className="text-[10px] font-semibold">
+                Missing default models for:{' '}
+                {difficulties
+                  .filter((d) => !defaultModels[d.value])
+                  .map((d) => d.label)
+                  .join(', ')}
+              </div>
+            </div>
+          )}
 
-            const isExpanded = expandedGroups[`diff:${diff.value}`] ?? false
-            const styles = getDifficultyStyles(diff.value)
-            const isDefaultSet = !!defaultModels[diff.value]
+          {enabledModels.length === 0 ? (
+            <div className="text-center py-12 bg-slate-900/40 rounded-2xl border border-dashed border-slate-800/60">
+              <p className="text-slate-500 text-sm">
+                You haven't selected any models yet. Go to "All Models" to enable some.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {difficulties.map((diff) => {
+                const groupModels = enabledModelsByDifficulty[diff.value]
+                if (groupModels.length === 0) return null
 
-            return (
-              <div
-                key={diff.value}
-                className={cn(
-                  'border rounded-2xl overflow-hidden shadow-xl transition-all duration-300'
-                )}
-                style={{
-                  backgroundColor: styles.bg,
-                  borderColor: isDefaultSet ? styles.border : 'rgba(239, 68, 68, 0.3)',
-                }}
-              >
-                <div
-                  onClick={() => toggleGroup(`diff:${diff.value}`)}
-                  className={cn(
-                    'flex items-center justify-between p-4 cursor-pointer transition-all hover:bg-white/5'
-                  )}
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                const isExpanded = expandedGroups[`diff:${diff.value}`] ?? false
+                const styles = getDifficultyStyles(diff.value)
+                const isDefaultSet = !!defaultModels[diff.value]
+
+                return (
+                  <div
+                    key={diff.value}
+                    className={cn(
+                      'border rounded-2xl overflow-hidden shadow-xl transition-all duration-300'
+                    )}
+                    style={{
+                      backgroundColor: styles.bg,
+                      borderColor: isDefaultSet ? styles.border : 'rgba(239, 68, 68, 0.3)',
+                    }}
+                  >
                     <div
-                      className="transition-colors flex-shrink-0"
-                      style={{ color: styles.text }}
-                    >
-                      {isExpanded ? (
-                        <ChevronDown className="w-4 h-4" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4" />
+                      onClick={() => toggleGroup(`diff:${diff.value}`)}
+                      className={cn(
+                        'flex items-center justify-between p-3 cursor-pointer transition-all hover:bg-white/5'
                       )}
-                    </div>
-                    <h4
-                      className="text-[10px] font-black uppercase tracking-[0.2em] transition-colors flex-shrink-0"
-                      style={{ color: 'white' }}
                     >
-                      {diff.label}
-                    </h4>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <ModelPicker
-                        value={defaultModels[diff.value] || null}
-                        models={groupModels}
-                        onChange={(val) => {
-                          if (val) {
-                            const [name, variant] = val.split('#')
-                            handleSetDefaultModel(diff.value, name, variant)
-                          }
-                        }}
-                        difficulty={diff.value}
-                        placeholder="Select Default"
-                      />
-                      <span
-                        className="px-2 py-0.5 rounded-full text-[9px] font-bold border transition-all flex-shrink-0"
-                        style={{
-                          backgroundColor: styles.bg,
-                          color: styles.text,
-                          borderColor: styles.border,
-                        }}
-                      >
-                        {groupModels.length} models
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {isExpanded && (
-                  <div className="p-4 pt-0 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {groupModels.map((model) => {
-                      const chunks = model.name.split('/')
-                      const modelDisplayName = chunks[chunks.length - 1]
-                      const fullDefaultName = defaultModels[diff.value] || ''
-                      const [defaultBaseName, defaultVariant] = fullDefaultName.split('#')
-                      const isDefault = defaultBaseName === model.name
-
-                      const variantsList = model.variants
-                        ? model.variants.split(',').map((v) => v.trim())
-                        : []
-
-                      return (
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
                         <div
-                          key={model.name}
-                          className={cn(
-                            'group relative p-5 rounded-2xl border transition-all duration-300',
-                            isDefault
-                              ? 'bg-blue-500/[0.03] border-blue-500/50 shadow-xl shadow-blue-500/10'
-                              : 'bg-[#11151C] border-slate-800/60 hover:border-slate-800'
-                          )}
+                          className="transition-colors flex-shrink-0"
+                          style={{ color: styles.text }}
                         >
-                          <div className="flex items-start justify-between gap-4 mb-6">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <div
-                                  className={cn(
-                                    'text-base font-bold truncate transition-colors',
-                                    isDefault
-                                      ? 'text-blue-400'
-                                      : 'text-white group-hover:text-blue-400'
-                                  )}
-                                >
-                                  {modelDisplayName}
+                          {isExpanded ? (
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          ) : (
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          )}
+                        </div>
+                        <h4
+                          className="text-[9px] font-black uppercase tracking-[0.2em] transition-colors flex-shrink-0"
+                          style={{ color: 'white' }}
+                        >
+                          {diff.label}
+                        </h4>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <ModelPicker
+                            value={defaultModels[diff.value] || null}
+                            models={groupModels}
+                            onChange={(val) => {
+                              if (val) {
+                                const [name, variant] = val.split('#')
+                                handleSetDefaultModel(diff.value, name, variant)
+                              }
+                            }}
+                            difficulty={diff.value}
+                            placeholder="Select Default"
+                          />
+                          <span
+                            className="px-2 py-0.5 rounded-full text-[8px] font-bold border transition-all flex-shrink-0"
+                            style={{
+                              backgroundColor: styles.bg,
+                              color: styles.text,
+                              borderColor: styles.border,
+                            }}
+                          >
+                            {groupModels.length} models
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="p-3 pt-0 grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {groupModels.map((model) => {
+                          const chunks = model.name.split('/')
+                          const modelDisplayName = chunks[chunks.length - 1]
+                          const fullDefaultName = defaultModels[diff.value] || ''
+                          const [defaultBaseName, defaultVariant] = fullDefaultName.split('#')
+                          const isDefault = defaultBaseName === model.name
+
+                          const variantsList = model.variants
+                            ? model.variants.split(',').map((v) => v.trim())
+                            : []
+
+                          return (
+                            <div
+                              key={model.name}
+                              className={cn(
+                                'group relative p-4 rounded-xl border transition-all duration-300',
+                                isDefault
+                                  ? 'bg-blue-500/[0.03] border-blue-500/50 shadow-xl shadow-blue-500/10'
+                                  : 'bg-[#11151C] border-slate-800/60 hover:border-slate-800'
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-3 mb-4">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <div
+                                      className={cn(
+                                        'text-sm font-bold truncate transition-colors',
+                                        isDefault
+                                          ? 'text-blue-400'
+                                          : 'text-white group-hover:text-blue-400'
+                                      )}
+                                    >
+                                      {modelDisplayName}
+                                    </div>
+                                    {isDefault && (
+                                      <div className="px-1 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-[8px] font-black uppercase tracking-tighter text-blue-400">
+                                        Default
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="text-[10px] text-slate-500 font-medium truncate mt-0.5">
+                                    {model.name}
+                                  </div>
                                 </div>
-                                {isDefault && (
-                                  <div className="px-1.5 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/20 text-[9px] font-black uppercase tracking-tighter text-blue-400">
-                                    Default
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    onClick={() =>
+                                      handleSetDefaultModel(
+                                        diff.value,
+                                        model.name,
+                                        variantsList.length > 0
+                                          ? defaultVariant || variantsList[0]
+                                          : undefined
+                                      )
+                                    }
+                                    className={cn(
+                                      'p-1.5 rounded-lg transition-all focus:outline-none',
+                                      isDefault
+                                        ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30'
+                                        : 'bg-slate-800/40 text-slate-500 hover:bg-blue-500/10 hover:text-blue-400'
+                                    )}
+                                    title={isDefault ? 'Default model' : 'Set as default model'}
+                                  >
+                                    <Star
+                                      className={cn('w-3.5 h-3.5', isDefault && 'fill-current')}
+                                    />
+                                  </button>
+                                  <button
+                                    onClick={() => handleToggleModel(model.name, false)}
+                                    className="p-1.5 rounded-lg bg-slate-800/40 text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-all focus:outline-none"
+                                    title="Remove model from my list"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="space-y-3">
+                                {variantsList.length > 0 && (
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                      Variant
+                                    </span>
+                                    <div className="flex p-0.5 bg-[#0B0E14] border border-slate-800/60 rounded-lg gap-0.5 overflow-x-auto no-scrollbar">
+                                      {variantsList.map((v) => {
+                                        const isVariantActive = isDefault && defaultVariant === v
+                                        return (
+                                          <button
+                                            key={v}
+                                            onClick={() =>
+                                              handleSetDefaultModel(diff.value, model.name, v)
+                                            }
+                                            className={cn(
+                                              'px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all whitespace-nowrap focus:outline-none',
+                                              isVariantActive
+                                                ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/40'
+                                                : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                                            )}
+                                          >
+                                            {v}
+                                          </button>
+                                        )
+                                      })}
+                                    </div>
                                   </div>
                                 )}
-                              </div>
-                              <div className="text-[11px] text-slate-500 font-medium truncate mt-1">
-                                {model.name}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() =>
-                                  handleSetDefaultModel(
-                                    diff.value,
-                                    model.name,
-                                    variantsList.length > 0
-                                      ? defaultVariant || variantsList[0]
-                                      : undefined
-                                  )
-                                }
-                                className={cn(
-                                  'p-2 rounded-lg transition-all',
-                                  isDefault
-                                    ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30'
-                                    : 'bg-slate-800/40 text-slate-500 hover:bg-blue-500/10 hover:text-blue-400'
-                                )}
-                                title={isDefault ? 'Default model' : 'Set as default model'}
-                              >
-                                <Star className={cn('w-4 h-4', isDefault && 'fill-current')} />
-                              </button>
-                              <button
-                                onClick={() => handleToggleModel(model.name, false)}
-                                className="p-2 rounded-lg bg-slate-800/40 text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-all"
-                                title="Remove model from my list"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
 
-                          <div className="space-y-4">
-                            {variantsList.length > 0 && (
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                                  Variant
-                                </span>
-                                <div className="flex p-1 bg-[#0B0E14] border border-slate-800/60 rounded-xl gap-1 overflow-x-auto no-scrollbar">
-                                  {variantsList.map((v) => {
-                                    const isVariantActive = isDefault && defaultVariant === v
-                                    return (
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                    Complexity
+                                  </span>
+                                  <div className="flex p-0.5 bg-[#0B0E14] border border-slate-800/60 rounded-lg gap-0.5">
+                                    {difficulties.map((d) => (
                                       <button
-                                        key={v}
-                                        onClick={() =>
-                                          handleSetDefaultModel(diff.value, model.name, v)
-                                        }
+                                        key={d.value}
+                                        onClick={() => handleUpdateDifficulty(model.name, d.value)}
                                         className={cn(
-                                          'px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap',
-                                          isVariantActive
-                                            ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/40'
+                                          'px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all focus:outline-none',
+                                          model.difficulty === d.value
+                                            ? cn(
+                                                d.bg,
+                                                d.color,
+                                                'ring-1 ring-inset',
+                                                d.color
+                                                  .replace('text-', 'ring-')
+                                                  .replace('-400', '/40')
+                                              )
                                             : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
                                         )}
                                       >
-                                        {v}
+                                        {d.label}
                                       </button>
-                                    )
-                                  })}
+                                    ))}
+                                  </div>
                                 </div>
                               </div>
-                            )}
-
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                                Complexity
-                              </span>
-                              <div className="flex p-1 bg-[#0B0E14] border border-slate-800/60 rounded-xl gap-1">
-                                {difficulties.map((d) => (
-                                  <button
-                                    key={d.value}
-                                    onClick={() => handleUpdateDifficulty(model.name, d.value)}
-                                    className={cn(
-                                      'px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all',
-                                      model.difficulty === d.value
-                                        ? cn(
-                                            d.bg,
-                                            d.color,
-                                            'ring-1 ring-inset',
-                                            d.color
-                                              .replace('text-', 'ring-')
-                                              .replace('-400', '/40')
-                                          )
-                                        : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
-                                    )}
-                                  >
-                                    {d.label}
-                                  </button>
-                                ))}
-                              </div>
                             </div>
-                          </div>
-                        </div>
-                      )
-                    })}
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            )
-          })}
+                )
+              })}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
