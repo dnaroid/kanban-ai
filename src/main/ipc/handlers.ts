@@ -54,12 +54,18 @@ import {
   DepsRemoveResponseSchema,
   OhMyOpencodeBackupConfigInputSchema,
   OhMyOpencodeBackupConfigResponseSchema,
+  OhMyOpencodeListPresetsInputSchema,
+  OhMyOpencodeListPresetsResponseSchema,
   OhMyOpencodeReadConfigInputSchema,
   OhMyOpencodeReadConfigResponseSchema,
+  OhMyOpencodeSavePresetInputSchema,
+  OhMyOpencodeSavePresetResponseSchema,
   OhMyOpencodeRestoreConfigInputSchema,
   OhMyOpencodeRestoreConfigResponseSchema,
   OhMyOpencodeSaveConfigInputSchema,
   OhMyOpencodeSaveConfigResponseSchema,
+  OhMyOpencodeLoadPresetInputSchema,
+  OhMyOpencodeLoadPresetResponseSchema,
   OpenCodeActiveSessionsResponseSchema,
   OpenCodeGenerateUserStoryInputSchema,
   OpenCodeGenerateUserStoryResponseSchema,
@@ -140,6 +146,9 @@ import { runService } from '../run/run-service'
 import { buildContextSnapshot } from '../run/context-snapshot-builder'
 import { downloadModelIfNeeded } from '../vosk-model-loader'
 
+const PRESET_SUFFIX = '.oh-my-opencode.json'
+const ORIGINAL_PRESET_NAME = `_original${PRESET_SUFFIX}`
+
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value)
 
@@ -161,6 +170,52 @@ const mergeInPlace = (target: Record<string, unknown>, source: Record<string, un
       target[key] = value
     }
   }
+}
+
+const buildOhMyOpencodeModelFields = (config: Record<string, unknown>) => {
+  const modelFields: OhMyOpencodeModelField[] = []
+
+  const extractModelFields = (obj: Record<string, unknown>, prefix: string[]) => {
+    for (const [key, value] of Object.entries(obj)) {
+      if (value && typeof value === 'object') {
+        const nested = value as Record<string, unknown>
+        if ('model' in nested && typeof nested.model === 'string') {
+          modelFields.push({
+            key: key,
+            path: [...prefix, key],
+            value: nested.model as string,
+            reasoningEffort:
+              'reasoningEffort' in nested ? ((nested.reasoningEffort as string) ?? null) : null,
+            variant: 'variant' in nested ? ((nested.variant as string) ?? null) : null,
+            temperature:
+              'temperature' in nested && typeof nested.temperature === 'number'
+                ? nested.temperature
+                : null,
+          })
+        } else {
+          extractModelFields(nested, [...prefix, key])
+        }
+      } else if (typeof value === 'string') {
+        modelFields.push({
+          key: key,
+          path: [...prefix, key],
+          value: value as string,
+          reasoningEffort: null,
+          variant: null,
+          temperature: null,
+        })
+      }
+    }
+  }
+
+  if (config.categories) {
+    extractModelFields(config.categories as Record<string, unknown>, ['categories'])
+  }
+  if (config.agents) {
+    extractModelFields(config.agents as Record<string, unknown>, ['agents'])
+  }
+
+  return modelFields
 }
 import { opencodeModelRepo } from '../db/opencode-model-repository'
 import { createOpencodeClient } from '@opencode-ai/sdk/v2/client'
@@ -835,48 +890,8 @@ ipcHandlers.register(
   async (_, input) => {
     const fileContent = await fs.readFile(input.path, 'utf-8')
 
-    const config = parse(fileContent) as any
-    const modelFields: OhMyOpencodeModelField[] = []
-
-    const extractModelFields = (obj: Record<string, unknown>, prefix: string[]) => {
-      for (const [key, value] of Object.entries(obj)) {
-        if (value && typeof value === 'object') {
-          const nested = value as Record<string, unknown>
-          if ('model' in nested && typeof nested.model === 'string') {
-            modelFields.push({
-              key: key,
-              path: [...prefix, key],
-              value: nested.model as string,
-              reasoningEffort:
-                'reasoningEffort' in nested ? ((nested.reasoningEffort as string) ?? null) : null,
-              variant: 'variant' in nested ? ((nested.variant as string) ?? null) : null,
-              temperature:
-                'temperature' in nested && typeof nested.temperature === 'number'
-                  ? nested.temperature
-                  : null,
-            })
-          } else {
-            extractModelFields(nested, [...prefix, key])
-          }
-        } else if (typeof value === 'string') {
-          modelFields.push({
-            key: key,
-            path: [...prefix, key],
-            value: value as string,
-            reasoningEffort: null,
-            variant: null,
-            temperature: null,
-          })
-        }
-      }
-    }
-
-    if (config.categories) {
-      extractModelFields(config.categories as Record<string, unknown>, ['categories'])
-    }
-    if (config.agents) {
-      extractModelFields(config.agents as Record<string, unknown>, ['agents'])
-    }
+    const config = parse(fileContent) as Record<string, unknown>
+    const modelFields = buildOhMyOpencodeModelFields(config)
 
     return OhMyOpencodeReadConfigResponseSchema.parse({
       config,
@@ -890,6 +905,15 @@ ipcHandlers.register(
   OhMyOpencodeSaveConfigInputSchema,
   async (_, input) => {
     const fileContent = await fs.readFile(input.path, 'utf-8')
+    const originalPath = path.join(path.dirname(input.path), ORIGINAL_PRESET_NAME)
+    const originalExists = await fs
+      .stat(originalPath)
+      .then(() => true)
+      .catch(() => false)
+
+    if (!originalExists) {
+      await fs.writeFile(originalPath, fileContent, 'utf-8')
+    }
     const parsedConfig = parse(fileContent) as unknown
 
     let outputConfig: unknown = input.config
@@ -901,6 +925,53 @@ ipcHandlers.register(
 
     await fs.writeFile(input.path, JSON.stringify(outputConfig, null, 2), 'utf-8')
     return OhMyOpencodeSaveConfigResponseSchema.parse({ ok: true })
+  }
+)
+
+ipcHandlers.register(
+  'ohMyOpencode:listPresets',
+  OhMyOpencodeListPresetsInputSchema,
+  async (_, input) => {
+    const presetDir = path.dirname(input.path)
+    const baseConfigName = path.basename(input.path)
+    const entries = await fs.readdir(presetDir)
+    const presets = entries
+      .filter(
+        (entry) =>
+          entry.endsWith(PRESET_SUFFIX) &&
+          entry !== ORIGINAL_PRESET_NAME &&
+          entry !== baseConfigName
+      )
+      .map((entry) => entry.replace(PRESET_SUFFIX, ''))
+      .sort((a, b) => a.localeCompare(b))
+
+    return OhMyOpencodeListPresetsResponseSchema.parse({ presets })
+  }
+)
+
+ipcHandlers.register(
+  'ohMyOpencode:loadPreset',
+  OhMyOpencodeLoadPresetInputSchema,
+  async (_, input) => {
+    const presetPath = path.join(path.dirname(input.path), `${input.presetName}${PRESET_SUFFIX}`)
+    const fileContent = await fs.readFile(presetPath, 'utf-8')
+    const config = parse(fileContent) as Record<string, unknown>
+    const modelFields = buildOhMyOpencodeModelFields(config)
+
+    return OhMyOpencodeLoadPresetResponseSchema.parse({
+      config,
+      modelFields,
+    })
+  }
+)
+
+ipcHandlers.register(
+  'ohMyOpencode:savePreset',
+  OhMyOpencodeSavePresetInputSchema,
+  async (_, input) => {
+    const presetPath = path.join(path.dirname(input.path), `${input.presetName}${PRESET_SUFFIX}`)
+    await fs.writeFile(presetPath, JSON.stringify(input.config, null, 2), 'utf-8')
+    return OhMyOpencodeSavePresetResponseSchema.parse({ ok: true, presetPath })
   }
 )
 

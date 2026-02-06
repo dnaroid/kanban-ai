@@ -452,6 +452,9 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
   const [activeTab, setActiveTab] = useState<'agents' | 'categories'>('agents')
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [presets, setPresets] = useState<string[]>([])
+  const [selectedPreset, setSelectedPreset] = useState('')
+  const [newPresetName, setNewPresetName] = useState('')
 
   // Load initial data
   useEffect(() => {
@@ -478,11 +481,24 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
       setConfig(response.config as OhMyOpencodeConfig)
       setUnsavedChanges(false)
       checkBackupExists(path)
+      loadPresets(path)
     } catch (error) {
       console.error('Failed to load config:', error)
       onStatusChange({ message: 'Failed to load config', type: 'error' })
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const loadPresets = async (path: string) => {
+    try {
+      const response = await window.api.ohMyOpencode.listPresets({ path })
+      setPresets(response.presets)
+      if (selectedPreset && !response.presets.includes(selectedPreset)) {
+        setSelectedPreset('')
+      }
+    } catch (error) {
+      console.error('Failed to load presets:', error)
     }
   }
 
@@ -534,6 +550,39 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
       onStatusChange({ message: 'Config saved successfully', type: 'success' })
     } catch (error) {
       onStatusChange({ message: 'Failed to save config', type: 'error' })
+    }
+  }
+
+  const handleSavePreset = async () => {
+    if (!config || !configPath || !newPresetName.trim()) return
+    const presetName = newPresetName.trim().replace(/\.oh-my-opencode\.json$/i, '')
+    try {
+      await window.api.ohMyOpencode.savePreset({ path: configPath, presetName, config })
+      setNewPresetName('')
+      setSelectedPreset(presetName)
+      loadPresets(configPath)
+      onStatusChange({ message: `Preset saved as ${presetName}`, type: 'success' })
+    } catch (error) {
+      onStatusChange({ message: 'Failed to save preset', type: 'error' })
+    }
+  }
+
+  const handleLoadPreset = async () => {
+    if (!configPath || !selectedPreset) return
+    try {
+      setIsLoading(true)
+      const response = await window.api.ohMyOpencode.loadPreset({
+        path: configPath,
+        presetName: selectedPreset,
+      })
+      setConfig(response.config as OhMyOpencodeConfig)
+      setUnsavedChanges(true)
+      setSelectedItem(null)
+      onStatusChange({ message: `Preset loaded: ${selectedPreset}`, type: 'success' })
+    } catch (error) {
+      onStatusChange({ message: 'Failed to load preset', type: 'error' })
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -899,6 +948,62 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
             title="Restore"
           >
             <ShieldAlert className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-none px-0 pb-4 flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            Presets
+          </span>
+          <div className="relative">
+            <select
+              value={selectedPreset}
+              onChange={(e) => setSelectedPreset(e.target.value)}
+              className="bg-[#161B26] border border-slate-700 text-[10px] text-slate-200 rounded-lg px-2 py-1.5 pr-6 hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none"
+            >
+              <option value="">Select preset...</option>
+              {presets.map((preset) => (
+                <option key={preset} value={preset}>
+                  {preset}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-2 top-2 w-3 h-3 text-slate-500 pointer-events-none" />
+          </div>
+          <button
+            onClick={handleLoadPreset}
+            disabled={!selectedPreset}
+            className={cn(
+              'px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all',
+              selectedPreset
+                ? 'bg-slate-800/70 text-slate-200 hover:bg-slate-700/70'
+                : 'bg-slate-800/40 text-slate-500 cursor-not-allowed'
+            )}
+          >
+            Load
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            value={newPresetName}
+            onChange={(e) => setNewPresetName(e.target.value)}
+            placeholder="Preset name"
+            className="bg-[#161B26] border border-slate-700 text-[10px] text-slate-200 rounded-lg px-2 py-1.5 w-40 hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          />
+          <button
+            onClick={handleSavePreset}
+            disabled={!newPresetName.trim() || !config}
+            className={cn(
+              'px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all',
+              newPresetName.trim() && config
+                ? 'bg-blue-600 text-white hover:bg-blue-500'
+                : 'bg-slate-800/40 text-slate-500 cursor-not-allowed'
+            )}
+          >
+            Save Preset
           </button>
         </div>
       </div>

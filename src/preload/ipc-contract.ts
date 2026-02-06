@@ -62,12 +62,18 @@ import type {
   OpenCodeSessionTodosResponse,
   OhMyOpencodeBackupConfigInput,
   OhMyOpencodeBackupConfigResponse,
+  OhMyOpencodeListPresetsInput,
+  OhMyOpencodeListPresetsResponse,
+  OhMyOpencodeLoadPresetInput,
+  OhMyOpencodeLoadPresetResponse,
   OhMyOpencodeReadConfigInput,
   OhMyOpencodeReadConfigResponse,
   OhMyOpencodeRestoreConfigInput,
   OhMyOpencodeRestoreConfigResponse,
   OhMyOpencodeSaveConfigInput,
   OhMyOpencodeSaveConfigResponse,
+  OhMyOpencodeSavePresetInput,
+  OhMyOpencodeSavePresetResponse,
   PluginsEnableInput,
   PluginsEnableResponse,
   PluginsInstallInput,
@@ -130,6 +136,9 @@ export interface MainToRenderer {
   ohMyOpencode: {
     readConfig(input: OhMyOpencodeReadConfigInput): Promise<OhMyOpencodeReadConfigResponse>
     saveConfig(input: OhMyOpencodeSaveConfigInput): Promise<OhMyOpencodeSaveConfigResponse>
+    listPresets(input: OhMyOpencodeListPresetsInput): Promise<OhMyOpencodeListPresetsResponse>
+    loadPreset(input: OhMyOpencodeLoadPresetInput): Promise<OhMyOpencodeLoadPresetResponse>
+    savePreset(input: OhMyOpencodeSavePresetInput): Promise<OhMyOpencodeSavePresetResponse>
     backupConfig(input: OhMyOpencodeBackupConfigInput): Promise<OhMyOpencodeBackupConfigResponse>
     restoreConfig(input: OhMyOpencodeRestoreConfigInput): Promise<OhMyOpencodeRestoreConfigResponse>
   }

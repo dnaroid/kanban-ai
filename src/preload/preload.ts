@@ -140,6 +140,9 @@ const api: MainToRenderer = {
   ohMyOpencode: {
     readConfig: (input) => ipcRenderer.invoke('ohMyOpencode:readConfig', input),
     saveConfig: (input) => ipcRenderer.invoke('ohMyOpencode:saveConfig', input),
+    listPresets: (input) => ipcRenderer.invoke('ohMyOpencode:listPresets', input),
+    loadPreset: (input) => ipcRenderer.invoke('ohMyOpencode:loadPreset', input),
+    savePreset: (input) => ipcRenderer.invoke('ohMyOpencode:savePreset', input),
     backupConfig: (input) => ipcRenderer.invoke('ohMyOpencode:backupConfig', input),
     restoreConfig: (input) => ipcRenderer.invoke('ohMyOpencode:restoreConfig', input),
   },

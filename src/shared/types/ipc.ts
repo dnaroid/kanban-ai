@@ -1361,7 +1361,7 @@ export type OhMyOpencodeReadConfigResponse = z.infer<typeof OhMyOpencodeReadConf
 
 export const OhMyOpencodeSaveConfigInputSchema = z.object({
   path: z.string().min(1),
-  config: OhMyOpencodeConfigSchema.partial(),
+  config: z.any(),
 })
 
 export type OhMyOpencodeSaveConfigInput = z.infer<typeof OhMyOpencodeSaveConfigInputSchema>
@@ -1400,3 +1400,41 @@ export const OhMyOpencodeRestoreConfigResponseSchema = z.object({
 export type OhMyOpencodeRestoreConfigResponse = z.infer<
   typeof OhMyOpencodeRestoreConfigResponseSchema
 >
+
+export const OhMyOpencodeListPresetsInputSchema = z.object({
+  path: z.string().min(1),
+})
+
+export type OhMyOpencodeListPresetsInput = z.infer<typeof OhMyOpencodeListPresetsInputSchema>
+
+export const OhMyOpencodeListPresetsResponseSchema = z.object({
+  presets: z.array(z.string()),
+})
+
+export type OhMyOpencodeListPresetsResponse = z.infer<typeof OhMyOpencodeListPresetsResponseSchema>
+
+export const OhMyOpencodeLoadPresetInputSchema = z.object({
+  path: z.string().min(1),
+  presetName: z.string().min(1),
+})
+
+export type OhMyOpencodeLoadPresetInput = z.infer<typeof OhMyOpencodeLoadPresetInputSchema>
+
+export const OhMyOpencodeLoadPresetResponseSchema = OhMyOpencodeReadConfigResponseSchema
+
+export type OhMyOpencodeLoadPresetResponse = z.infer<typeof OhMyOpencodeLoadPresetResponseSchema>
+
+export const OhMyOpencodeSavePresetInputSchema = z.object({
+  path: z.string().min(1),
+  presetName: z.string().min(1),
+  config: z.any(),
+})
+
+export type OhMyOpencodeSavePresetInput = z.infer<typeof OhMyOpencodeSavePresetInputSchema>
+
+export const OhMyOpencodeSavePresetResponseSchema = z.object({
+  ok: z.literal(true),
+  presetPath: z.string(),
+})
+
+export type OhMyOpencodeSavePresetResponse = z.infer<typeof OhMyOpencodeSavePresetResponseSchema>

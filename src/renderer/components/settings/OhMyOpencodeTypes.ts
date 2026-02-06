@@ -15,6 +15,7 @@ export interface ThinkingConfig {
 }
 
 export interface AgentConfig {
+  [key: string]: unknown
   model?: string
   variant?: string
   category?: string
@@ -37,6 +38,7 @@ export interface AgentConfig {
 }
 
 export interface CategoryConfig {
+  [key: string]: unknown
   description?: string
   model?: string
   variant?: string
