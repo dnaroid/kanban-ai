@@ -73,21 +73,22 @@ export function TaskDetailsModel({ task, onUpdate }: TaskDetailsModelProps) {
   }
 
   const currentModel = getModelInfo(task.modelName || null)
-  const taskStyles = DIFFICULTY_STYLES[task.difficulty]
+  const displayDifficulty = currentModel?.difficulty || task.difficulty
+  const modelStyles = DIFFICULTY_STYLES[displayDifficulty]
 
   return (
     <div className="relative">
       <button
         onClick={() => setIsPickerOpen(!isPickerOpen)}
         className={cn(
-          'w-max flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-all border whitespace-nowrap',
+          'w-max flex items-center justify-between px-3 h-8 rounded-lg text-[11px] transition-all border whitespace-nowrap',
           isPickerOpen
-            ? cn(taskStyles.bg, taskStyles.text, taskStyles.border, taskStyles.glow)
+            ? cn(modelStyles.bg, modelStyles.text, modelStyles.border, modelStyles.glow)
             : cn(
                 'bg-slate-800/50 border-slate-700',
-                taskStyles.text,
-                taskStyles.border,
-                taskStyles.hover
+                modelStyles.text,
+                modelStyles.border,
+                modelStyles.hover
               )
         )}
       >
@@ -118,7 +119,7 @@ export function TaskDetailsModel({ task, onUpdate }: TaskDetailsModelProps) {
                   className={cn(
                     'w-full flex items-center px-3 py-2 rounded-lg text-xs transition-all',
                     !task.modelName
-                      ? cn(taskStyles.bg, taskStyles.text)
+                      ? cn(modelStyles.bg, modelStyles.text)
                       : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
                   )}
                 >

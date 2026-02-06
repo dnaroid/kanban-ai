@@ -242,10 +242,10 @@ export function TaskDetailsDescription({
           {task.description && task.description.trim().length > 0 && (
             <button
               onClick={onStartRun}
-              className="p-1.5 bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-lg transition-all border border-blue-500/20 hover:border-blue-500 shadow-lg shadow-blue-500/5 animate-pulse-subtle mr-1"
+              className="w-8 h-8 flex items-center justify-center bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-lg transition-all border border-blue-500/20 hover:border-blue-500 shadow-lg shadow-blue-500/5 animate-pulse-subtle mr-1"
               title="Run task"
             >
-              <Play className="w-3 h-3 fill-current" />
+              <Play className="w-3.5 h-3.5 fill-current" />
             </button>
           )}
 
@@ -257,25 +257,25 @@ export function TaskDetailsDescription({
 
           <button
             onClick={handlePickFiles}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-500/10 rounded-lg transition-colors flex items-center"
+            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-500/10 rounded-lg transition-colors"
             title="Attach files"
           >
-            <Paperclip className="w-3.5 h-3.5" />
+            <Paperclip className="w-4 h-4" />
           </button>
 
           <button
             onClick={handleImproveDescription}
             disabled={isGeneratingStory}
             className={cn(
-              'p-1.5 text-violet-400 hover:text-white hover:bg-violet-500/10 rounded-lg transition-colors flex items-center',
+              'w-8 h-8 flex items-center justify-center text-violet-400 hover:text-white hover:bg-violet-500/10 rounded-lg transition-colors',
               isGeneratingStory && 'opacity-50 cursor-not-allowed'
             )}
             title="Improve with AI"
           >
             {isGeneratingStory ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <Wand2 className="w-3.5 h-3.5" />
+              <Wand2 className="w-4 h-4" />
             )}
           </button>
         </div>

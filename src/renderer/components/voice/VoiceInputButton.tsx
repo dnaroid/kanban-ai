@@ -169,12 +169,12 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
   }
 
   return (
-    <div className={cn('flex items-center gap-3', className)}>
-      <div className="flex bg-[#161B22] rounded-lg p-1 border border-slate-800">
+    <div className={cn('flex items-center gap-2', className)}>
+      <div className="flex bg-[#161B22] rounded-lg p-1 border border-slate-800 h-8 items-center">
         <button
           onClick={() => handleLanguageChange('ru')}
           className={cn(
-            'px-2 py-1 text-[10px] font-bold rounded transition-all',
+            'px-2 h-6 flex items-center justify-center text-[10px] font-bold rounded transition-all',
             language === 'ru' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300'
           )}
         >
@@ -183,7 +183,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
         <button
           onClick={() => handleLanguageChange('en')}
           className={cn(
-            'px-2 py-1 text-[10px] font-bold rounded transition-all',
+            'px-2 h-6 flex items-center justify-center text-[10px] font-bold rounded transition-all',
             language === 'en' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300'
           )}
         >
@@ -198,7 +198,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
         <button
           onClick={handleToggleRecording}
           className={cn(
-            'relative p-2 rounded-full transition-all duration-300 flex items-center justify-center border',
+            'relative w-8 h-8 rounded-full transition-all duration-300 flex items-center justify-center border',
             isRecording
               ? 'bg-red-500/10 border-red-500/50 text-red-500 hover:bg-red-500/20'
               : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
