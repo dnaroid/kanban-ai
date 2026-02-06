@@ -641,31 +641,22 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
     const showVariant = !isOpenAIModel && hasVariants
 
     return (
-      <div className="space-y-8 p-6 animate-in fade-in duration-200">
-        <div className="flex items-center justify-between border-b border-slate-800/60 pb-6">
-          <div className="flex items-baseline gap-2 overflow-hidden">
-            <h3 className="text-base font-bold text-white tracking-tight shrink-0">
-              Configuration
-            </h3>
-            <p className="text-[10px] text-slate-500 font-medium truncate max-w-[400px]">
-              {configPath}
-            </p>
-          </div>
-          <button
-            onClick={() => {
-              if (confirm(`Delete ${selectedItem}?`)) {
-                updateConfigItem(activeTab, selectedItem, undefined)
-                setSelectedItem(null)
-              }
-            }}
-            className="p-2 hover:bg-red-500/10 text-slate-500 hover:text-red-400 rounded-lg transition-colors"
-          >
-            <Trash2 className="w-5 h-5" />
-          </button>
-        </div>
-
+      <div className="flex-1 overflow-y-auto custom-scrollbar bg-[#0B0E14] p-6 space-y-8 animate-in fade-in duration-200">
         <section>
-          <SectionHeader title="Core Configuration" icon={Cpu} />
+          <SectionHeader title="Core Configuration" icon={Cpu}>
+            <button
+              onClick={() => {
+                if (confirm(`Delete ${selectedItem}?`)) {
+                  updateConfigItem(activeTab, selectedItem, undefined)
+                  setSelectedItem(null)
+                }
+              }}
+              className="p-1.5 hover:bg-red-500/10 text-slate-500 hover:text-red-400 rounded-lg transition-colors"
+              title={`Delete ${selectedItem}`}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </SectionHeader>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 bg-slate-900/40 p-5 rounded-2xl border border-slate-800/50">
             {isAgent && (
               <div className="col-span-2 md:col-span-1">
@@ -974,7 +965,9 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
                     <div
                       className={cn('w-1.5 h-1.5 rounded-full shrink-0', getColorFromName(name))}
                     />
-                    <span className="font-bold text-[13px] truncate leading-tight">{name}</span>
+                    <span className="font-bold text-[13px] truncate leading-tight capitalize">
+                      {name}
+                    </span>
                   </div>
                   {(data as any).model && (
                     <span
@@ -1002,7 +995,7 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
         </div>
 
         {/* Main Editor */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar bg-[#0B0E14]">{renderEditor()}</div>
+        <div className="flex-1 overflow-hidden">{renderEditor()}</div>
       </div>
     </div>
   )
