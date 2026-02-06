@@ -18,6 +18,7 @@ import { cn } from '../../lib/utils'
 import type { OpencodeModel } from '../../../shared/types/ipc'
 
 import { ModelPicker } from '../common/ModelPicker'
+import { OhMyOpencodeSettings } from './OhMyOpencodeSettings'
 
 type ModelsManagementProps = {
   onStatusChange: (status: { message: string; type: 'info' | 'error' | 'success' }) => void
@@ -29,7 +30,7 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
   const [showFreeOnly, setShowFreeOnly] = useState(false)
-  const [activeSubTab, setActiveSubTab] = useState<'all' | 'my'>('all')
+  const [activeSubTab, setActiveSubTab] = useState<'all' | 'my' | 'oh-my-opencode'>('all')
   const [defaultModels, setDefaultModels] = useState<Record<string, string>>({})
 
   const loadModels = async () => {
@@ -290,6 +291,17 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
           )}
         >
           My Models ({enabledModels.length})
+        </button>
+        <button
+          onClick={() => setActiveSubTab('oh-my-opencode')}
+          className={cn(
+            'px-4 py-2 text-xs font-bold uppercase tracking-widest transition-all border-b-2',
+            activeSubTab === 'oh-my-opencode'
+              ? 'border-purple-500 text-purple-400'
+              : 'border-transparent text-slate-500 hover:text-slate-300'
+          )}
+        >
+          Oh-My-OpenCode
         </button>
       </div>
 
@@ -793,6 +805,9 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
             </div>
           )}
         </div>
+      )}
+      {activeSubTab === 'oh-my-opencode' && (
+        <OhMyOpencodeSettings onStatusChange={onStatusChange} />
       )}
     </div>
   )

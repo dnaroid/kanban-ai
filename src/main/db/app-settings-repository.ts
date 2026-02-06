@@ -13,6 +13,7 @@ export class AppSettingsRepository {
   private static readonly DEFAULT_MODEL_MEDIUM_KEY = 'default_model_medium'
   private static readonly DEFAULT_MODEL_HARD_KEY = 'default_model_hard'
   private static readonly DEFAULT_MODEL_EPIC_KEY = 'default_model_epic'
+  private static readonly OHMYOPENCODE_CONFIG_PATH_KEY = 'ohmyopencode_config_path'
 
   set(key: string, value: string): void {
     const db = dbManager.connect()
@@ -90,6 +91,14 @@ export class AppSettingsRepository {
         this.set(AppSettingsRepository.DEFAULT_MODEL_EPIC_KEY, modelName)
         break
     }
+  }
+
+  getOhMyOpencodeConfigPath(): string | null {
+    return this.get(AppSettingsRepository.OHMYOPENCODE_CONFIG_PATH_KEY)
+  }
+
+  setOhMyOpencodeConfigPath(path: string): void {
+    this.set(AppSettingsRepository.OHMYOPENCODE_CONFIG_PATH_KEY, path)
   }
 }
 

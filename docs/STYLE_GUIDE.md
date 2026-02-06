@@ -18,6 +18,7 @@
 - **Вторичный фон**: `bg-[#11151C]`
 - **Фон инпутов**: `bg-[#161B26]`
 - **Контейнеры**: `bg-slate-900/40` (с прозрачностью)
+- **Карточки тасков**: `bg-slate-900/40` + `backdrop-blur-md`
 - **Границы (пассивные)**: `border-slate-800/60`
 - **Границы (интерактивные)**: `border-slate-700`
 
@@ -25,13 +26,23 @@
 
 - **Основной акцент**: `blue-600`
 - **Успех**: `emerald-600`
+- **Очередь (Queued)**: `amber-400` / `amber-500`
 - **Предупреждение**: `amber-500`
-// Ошибка: `red-500`
+- **Ошибка**: `red-500`
+- **Генерация (AI)**: `purple-400` / `purple-500`
 
-### Акцентные цвета (Secondaries)
+### Статусы и состояния (Unified Palette)
 
-- **Индиго** (Taxonomy/Tags): `indigo-500` / `indigo-600`
-- **Фиолетовый** (Runs/AI): `violet-500` / `violet-600`
+Для обеспечения консистентности используйте конфигурации из `src/renderer/components/kanban/drawer/TaskPropertyConfigs.ts`.
+
+- **Queued**: `amber-400` (иконка `Clock`)
+- **Running**: `blue-400` (иконка `Play` / `RefreshCw`)
+- **Done / Success**: `emerald-400` (иконка `Check`)
+- **Failed / Error**: `red-400` (иконка `XCircle`)
+- **Generating**: `purple-400` (иконка `Sparkles`)
+- **Paused**: `yellow-400` (иконка `Pause`)
+- **Question**: `orange-400` (иконка `HelpCircle`)
+- **Canceled**: `slate-400` (иконка `Square`)
 
 ### Текст
 
@@ -81,7 +92,26 @@ tracking - wider
 uppercase
 ```
 
-## Компоненты и их паттерны
+### Карточки тасков
+
+Паттерн для карточек на канбан-доске с эффектом стекла и цветовым кодированием статуса.
+
+```tsx
+<div className={cn(
+  // Эффект стекла
+  "bg-slate-900/40 backdrop-blur-md border border-slate-700 rounded-xl relative overflow-hidden",
+  // Акцент границы для активных состояний
+  status === 'running' && 'border-blue-500/50 animate-card-pulse-blue'
+)}>
+  {/* Цветовой оверлей статуса (абсолютное позиционирование) */}
+  <div className="absolute inset-0 pointer-events-none bg-amber-400/5" />
+  
+  <div className="relative p-4">
+    {/* Контент карточки */}
+    <h4 className="text-sm font-semibold text-slate-200">Task Title</h4>
+  </div>
+</div>
+```
 
 ### Кнопки
 

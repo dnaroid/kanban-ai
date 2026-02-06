@@ -1294,3 +1294,101 @@ export const AppSettingSetDefaultModelResponseSchema = z.object({
 export type AppSettingSetDefaultModelResponse = z.infer<
   typeof AppSettingSetDefaultModelResponseSchema
 >
+
+// OhMyOpencode config schemas
+export const OhMyOpencodeModelFieldSchema = z.object({
+  key: z.string(),
+  path: z.array(z.string()),
+  value: z.string(),
+  variant: z.string().nullable().optional(),
+})
+
+export type OhMyOpencodeModelField = z.infer<typeof OhMyOpencodeModelFieldSchema>
+
+export const OhMyOpencodeConfigSchema = z.object({
+  categories: z.record(z.object({ model: z.string().optional() }).optional()),
+  agents: z.record(z.object({ model: z.string().optional() }).optional()),
+  systemDefaultModel: z.string().optional(),
+  $schema: z.string().optional(),
+})
+
+export type OhMyOpencodeConfig = z.infer<typeof OhMyOpencodeConfigSchema>
+
+export const AppSettingGetOhMyOpencodePathResponseSchema = z.object({
+  path: z.string().nullable(),
+})
+
+export type AppSettingGetOhMyOpencodePathResponse = z.infer<
+  typeof AppSettingGetOhMyOpencodePathResponseSchema
+>
+
+export const AppSettingSetOhMyOpencodePathInputSchema = z.object({
+  path: z.string().min(1),
+})
+
+export type AppSettingSetOhMyOpencodePathInput = z.infer<
+  typeof AppSettingSetOhMyOpencodePathInputSchema
+>
+
+export const AppSettingSetOhMyOpencodePathResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type AppSettingSetOhMyOpencodePathResponse = z.infer<
+  typeof AppSettingSetOhMyOpencodePathResponseSchema
+>
+
+export const OhMyOpencodeReadConfigInputSchema = z.object({
+  path: z.string().min(1),
+})
+
+export type OhMyOpencodeReadConfigInput = z.infer<typeof OhMyOpencodeReadConfigInputSchema>
+
+export const OhMyOpencodeReadConfigResponseSchema = z.object({
+  config: OhMyOpencodeConfigSchema,
+  modelFields: z.array(OhMyOpencodeModelFieldSchema),
+})
+
+export type OhMyOpencodeReadConfigResponse = z.infer<typeof OhMyOpencodeReadConfigResponseSchema>
+
+export const OhMyOpencodeSaveConfigInputSchema = z.object({
+  path: z.string().min(1),
+  config: OhMyOpencodeConfigSchema.partial(),
+})
+
+export type OhMyOpencodeSaveConfigInput = z.infer<typeof OhMyOpencodeSaveConfigInputSchema>
+
+export const OhMyOpencodeSaveConfigResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type OhMyOpencodeSaveConfigResponse = z.infer<typeof OhMyOpencodeSaveConfigResponseSchema>
+
+export const OhMyOpencodeBackupConfigInputSchema = z.object({
+  path: z.string().min(1),
+})
+
+export type OhMyOpencodeBackupConfigInput = z.infer<typeof OhMyOpencodeBackupConfigInputSchema>
+
+export const OhMyOpencodeBackupConfigResponseSchema = z.object({
+  ok: z.literal(true),
+  backupPath: z.string(),
+})
+
+export type OhMyOpencodeBackupConfigResponse = z.infer<
+  typeof OhMyOpencodeBackupConfigResponseSchema
+>
+
+export const OhMyOpencodeRestoreConfigInputSchema = z.object({
+  path: z.string().min(1),
+})
+
+export type OhMyOpencodeRestoreConfigInput = z.infer<typeof OhMyOpencodeRestoreConfigInputSchema>
+
+export const OhMyOpencodeRestoreConfigResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type OhMyOpencodeRestoreConfigResponse = z.infer<
+  typeof OhMyOpencodeRestoreConfigResponseSchema
+>

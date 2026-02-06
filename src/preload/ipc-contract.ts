@@ -5,11 +5,14 @@ import type {
   AnalyticsGetRunStatsResponse,
   AppInfo,
   AppSettingGetLastProjectIdResponse,
+  AppSettingGetOhMyOpencodePathResponse,
   AppSettingGetSidebarCollapsedResponse,
   AppSettingGetDefaultModelInput,
   AppSettingGetDefaultModelResponse,
   AppSettingSetLastProjectIdInput,
   AppSettingSetLastProjectIdResponse,
+  AppSettingSetOhMyOpencodePathInput,
+  AppSettingSetOhMyOpencodePathResponse,
   AppSettingSetSidebarCollapsedInput,
   AppSettingSetSidebarCollapsedResponse,
   AppSettingSetDefaultModelInput,
@@ -57,6 +60,14 @@ import type {
   OpenCodeSessionStatusResponse,
   OpenCodeSessionTodosInput,
   OpenCodeSessionTodosResponse,
+  OhMyOpencodeBackupConfigInput,
+  OhMyOpencodeBackupConfigResponse,
+  OhMyOpencodeReadConfigInput,
+  OhMyOpencodeReadConfigResponse,
+  OhMyOpencodeRestoreConfigInput,
+  OhMyOpencodeRestoreConfigResponse,
+  OhMyOpencodeSaveConfigInput,
+  OhMyOpencodeSaveConfigResponse,
   PluginsEnableInput,
   PluginsEnableResponse,
   PluginsInstallInput,
@@ -115,6 +126,18 @@ export interface MainToRenderer {
   app: {
     getInfo(): Promise<AppInfo>
     openPath(path: string): Promise<void>
+  }
+  ohMyOpencode: {
+    readConfig(input: OhMyOpencodeReadConfigInput): Promise<OhMyOpencodeReadConfigResponse>
+    saveConfig(input: OhMyOpencodeSaveConfigInput): Promise<OhMyOpencodeSaveConfigResponse>
+    backupConfig(input: OhMyOpencodeBackupConfigInput): Promise<OhMyOpencodeBackupConfigResponse>
+    restoreConfig(input: OhMyOpencodeRestoreConfigInput): Promise<OhMyOpencodeRestoreConfigResponse>
+  }
+  dialog: {
+    showOpenDialog(input: any): Promise<{ canceled: boolean; filePaths: string[] }>
+  }
+  fileSystem: {
+    exists(input: { path: string }): Promise<{ exists: boolean }>
   }
   opencode: {
     onEvent(sessionId: string | null, callback: (event: OpenCodeSessionEvent) => void): () => void
@@ -231,6 +254,10 @@ export interface MainToRenderer {
     setDefaultModel(
       input: AppSettingSetDefaultModelInput
     ): Promise<AppSettingSetDefaultModelResponse>
+    getOhMyOpencodePath(): Promise<AppSettingGetOhMyOpencodePathResponse>
+    setOhMyOpencodePath(
+      input: AppSettingSetOhMyOpencodePathInput
+    ): Promise<AppSettingSetOhMyOpencodePathResponse>
   }
   vosk: {
     downloadModel(input: VoskModelDownloadInput): Promise<VoskModelDownloadResponse>

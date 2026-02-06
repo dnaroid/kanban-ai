@@ -133,6 +133,21 @@ const api: MainToRenderer = {
       ipcRenderer.invoke('appSetting:setSidebarCollapsed', input),
     getDefaultModel: (input: any) => ipcRenderer.invoke('appSetting:getDefaultModel', input),
     setDefaultModel: (input: any) => ipcRenderer.invoke('appSetting:setDefaultModel', input),
+    getOhMyOpencodePath: () => ipcRenderer.invoke('appSetting:getOhMyOpencodePath'),
+    setOhMyOpencodePath: (input: { path: string }) =>
+      ipcRenderer.invoke('appSetting:setOhMyOpencodePath', input),
+  },
+  ohMyOpencode: {
+    readConfig: (input) => ipcRenderer.invoke('ohMyOpencode:readConfig', input),
+    saveConfig: (input) => ipcRenderer.invoke('ohMyOpencode:saveConfig', input),
+    backupConfig: (input) => ipcRenderer.invoke('ohMyOpencode:backupConfig', input),
+    restoreConfig: (input) => ipcRenderer.invoke('ohMyOpencode:restoreConfig', input),
+  },
+  dialog: {
+    showOpenDialog: (input) => ipcRenderer.invoke('dialog:showOpenDialog', input),
+  },
+  fileSystem: {
+    exists: (input) => ipcRenderer.invoke('fileSystem:exists', input),
   },
   vosk: {
     downloadModel: (input) => ipcRenderer.invoke('vosk:downloadModel', input),
