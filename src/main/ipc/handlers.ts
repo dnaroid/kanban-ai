@@ -7,9 +7,10 @@ import { z } from 'zod'
 import { registerDiagnosticsHandlers } from './diagnostics-handlers'
 import type { SessionEvent } from '../run/opencode-session-manager'
 import { sessionManager } from '../run/opencode-session-manager'
-import { emitTaskEvent, onTaskEvent } from './task-event-bus'
+import { emitTaskEvent, onTaskEvent } from './event-bus-ipc'
 import { opencodeSessionWorker } from '../run/opencode-session-worker.js'
-import type { OhMyOpencodeModelField } from '../../shared/types/ipc.js'
+import type { OhMyOpencodeModelField, TaskUpdateInput } from '../../shared/types/ipc.js'
+import { unwrap } from '../../shared/ipc'
 import {
   AnalyticsGetOverviewInputSchema,
   AnalyticsGetOverviewResponseSchema,
@@ -125,7 +126,6 @@ import {
   VoskModelDownloadInputSchema,
   VoskModelDownloadResponseSchema,
 } from '../../shared/types/ipc.js'
-import { projectRepo } from '../db/project-repository'
 import { appSettingsRepo } from '../db/app-settings-repository.js'
 import { boardRepo } from '../db/board-repository'
 import { taskRepo } from '../db/task-repository'
@@ -134,15 +134,13 @@ import { dbManager } from '../db'
 import { dependencyService } from '../deps/dependency-service'
 import { taskScheduleRepo } from '../db/task-schedule-repository'
 import { searchService } from '../search/search-service'
-import { OpenCodeExecutorSDK } from '../run/opencode-executor-sdk'
+import { opencodeExecutor, runService } from '../run/run-service'
 import { analyticsService } from '../analytics/analytics-service'
 import { pluginService } from '../plugins/plugin-service'
 import { agentRoleRepo } from '../db/agent-role-repository'
 import { backupService } from '../backup/backup-service'
-import { runRepo } from '../db/run-repository'
 import { runEventRepo } from '../db/run-event-repository'
 import { artifactRepo } from '../db/artifact-repository'
-import { runService } from '../run/run-service'
 import { buildContextSnapshot } from '../run/context-snapshot-builder'
 import { downloadModelIfNeeded } from '../vosk-model-loader'
 
@@ -219,27 +217,55 @@ const buildOhMyOpencodeModelFields = (config: Record<string, unknown>) => {
 }
 import { opencodeModelRepo } from '../db/opencode-model-repository'
 import { createOpencodeClient } from '@opencode-ai/sdk/v2/client'
+import {
+  CreateProjectUseCase,
+  DeleteProjectUseCase,
+  UpdateProjectUseCase,
+} from '../app/project/commands'
+import {
+  CreateTaskUseCase,
+  DeleteTaskUseCase,
+  MoveTaskUseCase,
+  UpdateTaskUseCase,
+} from '../app/task/commands'
+import { CancelRunUseCase } from '../app/run/commands/cancel-run.use-case'
+import { DeleteRunUseCase } from '../app/run/commands/delete-run.use-case'
+import { StartRunUseCase } from '../app/run/commands/start-run.use-case'
+import { GetProjectByIdUseCase, GetProjectsUseCase } from '../app/project/queries'
+import { GetRunUseCase, ListRunsByTaskUseCase } from '../app/run/queries'
+import { ListTasksByBoardUseCase } from '../app/task/queries'
+import { ProjectRepoAdapter } from '../infra/project/project-repo.adapter'
+import { RunRepoAdapter } from '../infra/run/run-repo.adapter'
+import { TaskRepoAdapter } from '../infra/task/task-repo.adapter'
+import { TaskMovePolicy } from '../domain/task/task-move.policy'
 
-const opencodeExecutor = new OpenCodeExecutorSDK()
+const projectRepoAdapter = new ProjectRepoAdapter()
+const createProjectUseCase = new CreateProjectUseCase(projectRepoAdapter)
+const getProjectsUseCase = new GetProjectsUseCase(projectRepoAdapter)
+const getProjectByIdUseCase = new GetProjectByIdUseCase(projectRepoAdapter)
+const updateProjectUseCase = new UpdateProjectUseCase(projectRepoAdapter)
+const deleteProjectUseCase = new DeleteProjectUseCase(projectRepoAdapter)
+const taskRepoAdapter = new TaskRepoAdapter()
+const createTaskUseCase = new CreateTaskUseCase(taskRepoAdapter)
+const listTasksByBoardUseCase = new ListTasksByBoardUseCase(taskRepoAdapter)
 
-const emitTaskUpdated = (taskId: string) => {
+function emitTaskUpdated(taskId: string) {
   const task = taskRepo.getById(taskId)
   if (!task) return
   emitTaskEvent({ type: 'task.updated', task })
 }
 
-const updateTaskAndEmit = (taskId: string, patch: Parameters<typeof taskRepo.update>[1]) => {
-  const finalPatch = { ...patch }
+const updateTaskUseCase = new UpdateTaskUseCase(
+  taskRepoAdapter,
+  (difficulty) => opencodeModelRepo.getModelForDifficulty(difficulty),
+  emitTaskUpdated
+)
+const moveTaskUseCase = new MoveTaskUseCase(taskRepoAdapter, new TaskMovePolicy())
+const deleteTaskUseCase = new DeleteTaskUseCase(taskRepoAdapter)
+const runRepoAdapter = new RunRepoAdapter()
 
-  if ('difficulty' in finalPatch && typeof finalPatch.difficulty === 'string') {
-    const model = opencodeModelRepo.getModelForDifficulty(finalPatch.difficulty)
-    if (model) {
-      finalPatch.modelName = model
-    }
-  }
-
-  taskRepo.update(taskId, finalPatch)
-  emitTaskUpdated(taskId)
+const updateTaskAndEmit = (taskId: string, patch: TaskUpdateInput['patch']) => {
+  unwrap(updateTaskUseCase.execute({ taskId, patch }))
 }
 
 const resolveInProgressColumnId = (taskId: string): string | null => {
@@ -262,6 +288,19 @@ const resolveInProgressColumnId = (taskId: string): string | null => {
   const fallback = columns.find((entry) => entry.orderIndex === 1)
   return fallback?.id ?? null
 }
+
+const startRunUseCase = new StartRunUseCase(
+  runRepoAdapter,
+  taskRepoAdapter,
+  ({ taskId, roleId, mode }) => buildContextSnapshot({ taskId, roleId, mode }),
+  (runId) => runService.enqueue(runId),
+  resolveInProgressColumnId,
+  updateTaskAndEmit
+)
+const cancelRunUseCase = new CancelRunUseCase((runId) => runService.cancel(runId))
+const deleteRunUseCase = new DeleteRunUseCase(runRepoAdapter)
+const listRunsByTaskUseCase = new ListRunsByTaskUseCase(runRepoAdapter)
+const getRunUseCase = new GetRunUseCase(runRepoAdapter)
 
 ipcHandlers.register('project:selectFolder', z.unknown(), async () => {
   const result = await dialog.showOpenDialog({
@@ -315,26 +354,25 @@ ipcHandlers.register('app:openPath', z.string(), async (_, path) => {
 
 ipcHandlers.register('project:create', CreateProjectInputSchema, async (_, input) => {
   console.log('[IPC] Creating project:', input)
-  const project = projectRepo.create(input)
+  const project = unwrap(createProjectUseCase.execute(input))
   console.log('[IPC] Project created:', project)
   return project
 })
 
 ipcHandlers.register('project:getAll', z.unknown(), async () => {
-  return projectRepo.getAll()
+  return unwrap(getProjectsUseCase.execute())
 })
 
 ipcHandlers.register('project:getById', z.string(), async (_, id) => {
-  return projectRepo.getById(id)
+  return unwrap(getProjectByIdUseCase.execute(id))
 })
 
 ipcHandlers.register('project:update', UpdateProjectInputSchema, async (_, input) => {
-  const { id, ...updates } = input
-  return projectRepo.update(id, updates)
+  return unwrap(updateProjectUseCase.execute(input))
 })
 
 ipcHandlers.register('project:delete', DeleteProjectInputSchema, async (_, input) => {
-  return projectRepo.delete(input.id)
+  return unwrap(deleteProjectUseCase.execute(input.id))
 })
 
 ipcHandlers.register('board:getDefault', BoardGetDefaultInputSchema, async (_, { projectId }) => {
@@ -353,39 +391,29 @@ ipcHandlers.register(
 )
 
 ipcHandlers.register('task:create', CreateTaskInputSchema, async (_, input) => {
-  const task = taskRepo.create(input)
-  return TaskCreateResponseSchema.parse({ task })
+  return TaskCreateResponseSchema.parse(unwrap(createTaskUseCase.execute(input)))
 })
 
 ipcHandlers.register('task:listByBoard', TaskListByBoardInputSchema, async (_, { boardId }) => {
-  if (!boardId) {
-    throw new Error('Board ID is required')
-  }
-  const tasks = taskRepo.listByBoard(boardId)
-  return TaskListByBoardResponseSchema.parse({ tasks })
+  return TaskListByBoardResponseSchema.parse(unwrap(listTasksByBoardUseCase.execute(boardId)))
 })
 
 ipcHandlers.register('task:update', TaskUpdateInputSchema, async (_, { taskId, patch }) => {
-  updateTaskAndEmit(taskId, patch)
-  const task = taskRepo.getById(taskId)
-  if (!task) {
-    throw new Error('Task not found')
-  }
-  return TaskUpdateResponseSchema.parse({ task })
+  return TaskUpdateResponseSchema.parse(unwrap(updateTaskUseCase.execute({ taskId, patch })))
 })
 
 ipcHandlers.register(
   'task:move',
   TaskMoveInputSchema,
   async (_, { taskId, toColumnId, toIndex }) => {
-    taskRepo.move(taskId, toColumnId, toIndex)
-    return TaskMoveResponseSchema.parse({ ok: true })
+    return TaskMoveResponseSchema.parse(
+      unwrap(moveTaskUseCase.execute({ taskId, toColumnId, toIndex }))
+    )
   }
 )
 
 ipcHandlers.register('task:delete', TaskDeleteInputSchema, async (_, { taskId }) => {
-  taskRepo.delete(taskId)
-  return TaskDeleteResponseSchema.parse({ ok: true })
+  return TaskDeleteResponseSchema.parse(unwrap(deleteTaskUseCase.execute({ taskId })))
 })
 
 ipcHandlers.register('tag:create', TagCreateInputSchema, async (_, input) => {
@@ -509,48 +537,23 @@ ipcHandlers.register('backup:importProject', BackupImportInputSchema, async (_, 
 })
 
 ipcHandlers.register('run:start', RunStartInputSchema, async (_, input) => {
-  const snapshot = buildContextSnapshot({
-    taskId: input.taskId,
-    roleId: input.roleId,
-    mode: input.mode,
-  })
-  const run = runRepo.create({
-    taskId: input.taskId,
-    roleId: input.roleId,
-    mode: input.mode,
-    contextSnapshotId: snapshot.id,
-  })
-  runService.enqueue(run.id)
-  const task = taskRepo.getById(input.taskId)
-  const inProgressColumnId = resolveInProgressColumnId(input.taskId)
-  if (task && inProgressColumnId && task.columnId !== inProgressColumnId) {
-    taskRepo.move(input.taskId, inProgressColumnId, Number.MAX_SAFE_INTEGER)
-  }
-  updateTaskAndEmit(input.taskId, { status: 'running' })
-  return RunStartResponseSchema.parse({ runId: run.id })
+  return RunStartResponseSchema.parse(unwrap(startRunUseCase.execute(input)))
 })
 
 ipcHandlers.register('run:cancel', RunCancelInputSchema, async (_, { runId }) => {
-  await runService.cancel(runId)
-  return RunCancelResponseSchema.parse({ ok: true })
+  return RunCancelResponseSchema.parse(unwrap(await cancelRunUseCase.execute(runId)))
 })
 
 ipcHandlers.register('run:delete', RunDeleteInputSchema, async (_, { runId }) => {
-  runRepo.delete(runId)
-  return RunDeleteResponseSchema.parse({ ok: true })
+  return RunDeleteResponseSchema.parse(unwrap(deleteRunUseCase.execute(runId)))
 })
 
 ipcHandlers.register('run:listByTask', RunListByTaskInputSchema, async (_, { taskId }) => {
-  const runs = runRepo.listByTask(taskId)
-  return RunListByTaskResponseSchema.parse({ runs })
+  return RunListByTaskResponseSchema.parse(unwrap(listRunsByTaskUseCase.execute(taskId)))
 })
 
 ipcHandlers.register('run:get', RunGetInputSchema, async (_, { runId }) => {
-  const run = runRepo.getById(runId)
-  if (!run) {
-    throw new Error('Run not found')
-  }
-  return RunGetResponseSchema.parse({ run })
+  return RunGetResponseSchema.parse(unwrap(getRunUseCase.execute(runId)))
 })
 
 ipcHandlers.register('run:events:tail', RunEventsTailInputSchema, async (_, input) => {

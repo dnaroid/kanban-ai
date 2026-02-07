@@ -10,8 +10,9 @@ import { opencodeSessionWorker } from './opencode-session-worker.js'
 import { buildContextSnapshot } from './context-snapshot-builder.js'
 import { buildTaskPrompt } from './prompts/task.js'
 import { buildUserStoryPrompt } from './prompts/user-story.js'
+import type { OpenCodePort } from '../ports'
 
-export class OpenCodeExecutorSDK implements RunExecutor {
+export class OpenCodeExecutorSDK implements RunExecutor, OpenCodePort {
   async generateUserStory(taskId: string): Promise<string> {
     console.log('[OpenCodeExecutorSDK] generateUserStory:start', { taskId })
     const task = taskRepo.getById(taskId)
@@ -106,7 +107,7 @@ export class OpenCodeExecutorSDK implements RunExecutor {
       throw new Error('Project not found for task')
     }
 
-    const contextSnapshot = await buildContextSnapshot({
+    const contextSnapshot = buildContextSnapshot({
       taskId: input.taskId,
       roleId: input.roleId,
       mode: 'execute',

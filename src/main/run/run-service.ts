@@ -3,8 +3,9 @@ import { runRepo } from '../db/run-repository.js'
 import type { RunRecord } from '../db/run-types'
 import { JobRunner } from './job-runner.js'
 import { OpenCodeExecutorSDK } from './opencode-executor-sdk.js'
+import type { OpenCodePort } from '../ports'
 
-const executor = new OpenCodeExecutorSDK()
+export const opencodeExecutor: OpenCodePort = new OpenCodeExecutorSDK()
 const defaultConcurrency = Math.max(1, Number(process.env.RUN_CONCURRENCY ?? 1))
 const providerConcurrency = new Map<string, number>()
 const providerRunners = new Map<string, JobRunner>()
@@ -72,7 +73,7 @@ const getRunner = (providerKey: string) => {
   if (existing) return existing
 
   const concurrency = providerConcurrency.get(providerKey) ?? defaultConcurrency
-  const runner = new JobRunner(executor, { concurrency })
+  const runner = new JobRunner(opencodeExecutor, { concurrency })
   providerRunners.set(providerKey, runner)
   return runner
 }
