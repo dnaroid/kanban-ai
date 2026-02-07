@@ -43,20 +43,31 @@ export function TaskDetailsDescription({
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
+  const prevTaskRef = useRef<KanbanTask | undefined>(task)
+  const hasEditedLocallyRef = useRef(false)
 
   useEffect(() => {
-    setEditedDescription(task.description || '')
-  }, [task.description])
+    if (!isActive) return
 
-  useEffect(() => {
-    setIsGeneratingStory(task.status === 'generating')
-  }, [task.status])
+    const prevDesc = prevTaskRef.current?.description
+    const currDesc = task.description
+    const prevStatus = prevTaskRef.current?.status
+    const currStatus = task.status
 
-  useEffect(() => {
-    if (isActive && !isGeneratingStory && !task.description?.trim() && !isEditing) {
+    const shouldUpdateDesc = prevDesc !== currDesc && !hasEditedLocallyRef.current
+    const shouldUpdateStatus = prevStatus !== currStatus && !hasEditedLocallyRef.current
+
+    if (shouldUpdateDesc) {
+      setEditedDescription(currDesc || '')
+    }
+    if (shouldUpdateStatus) {
+      setIsGeneratingStory(currStatus === 'generating')
+    }
+    if (isActive && !isGeneratingStory && !currDesc?.trim() && !isEditing) {
       setIsEditing(true)
     }
-  }, [isActive, task.description, isGeneratingStory, isEditing])
+    prevTaskRef.current = task
+  }, [task, isActive, isGeneratingStory, isEditing])
 
   const handleScroll = () => {
     if (textareaRef.current && overlayRef.current) {

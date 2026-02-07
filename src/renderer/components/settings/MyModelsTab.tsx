@@ -39,7 +39,7 @@ const difficulties = [
 export function MyModelsTab({
   models,
   defaultModels,
-  onStatusChange,
+  onStatusChange: _onStatusChange,
   handleToggleModel,
   handleUpdateDifficulty,
   handleSetDefaultModel,

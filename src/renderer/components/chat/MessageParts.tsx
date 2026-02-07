@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   Bot,
   Brain,
@@ -227,20 +227,21 @@ export function ToolPart({
 }
 
 export function ReasoningPart({ part, expanded }: { part: { text: string }; expanded?: boolean }) {
-  const [isExpanded, setIsExpanded] = useState(expanded ?? false)
+  const [localExpanded, setLocalExpanded] = useState(expanded ?? false)
 
-  useEffect(() => {
-    if (expanded !== undefined) {
-      setIsExpanded(expanded)
+  const isExpanded = expanded !== undefined ? expanded : localExpanded
+  const toggleExpanded = () => {
+    if (expanded === undefined) {
+      setLocalExpanded(!localExpanded)
     }
-  }, [expanded])
+  }
 
   return (
     <div className="relative group">
       <div className="absolute inset-y-0 -left-2 w-[2px] bg-gradient-to-b from-violet-500/50 via-violet-500/20 to-transparent rounded-full" />
       <div className="space-y-2">
         <button
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={toggleExpanded}
           className="flex items-center gap-2 text-violet-400/80 hover:text-violet-400 transition-colors px-1"
         >
           <Brain className="w-3.5 h-3.5" />

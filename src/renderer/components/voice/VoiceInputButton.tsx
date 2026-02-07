@@ -24,6 +24,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
   const [isRecording, setIsRecording] = useState(false)
   const [liveText, setLiveText] = useState('')
   const isRecordingRef = useRef(false)
+  const liveTextRef = useRef('')
   const onDeltaRef = useRef<((text: string) => void) | undefined>(onDelta)
   const onTranscriptRef = useRef<((text: string) => void) | undefined>(onTranscript)
 
@@ -33,7 +34,8 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
   useEffect(() => {
     onDeltaRef.current = onDelta
     onTranscriptRef.current = onTranscript
-  }, [onDelta, onTranscript])
+    liveTextRef.current = liveText
+  }, [onDelta, onTranscript, liveText])
 
   useEffect(() => {
     const controller = getSTTController(modelPaths)
@@ -102,7 +104,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
     if (!sttControllerRef.current) return
 
     if (isRecording) {
-      const pendingText = liveText.trim()
+      const pendingText = liveTextRef.current.trim()
       if (pendingText) {
         onTranscriptRef.current?.(pendingText)
         setLiveText('')

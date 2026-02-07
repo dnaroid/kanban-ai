@@ -35,7 +35,6 @@ export function RunDetailsView({
   const [view, setView] = useState<'log' | 'artifacts' | 'todo'>('log')
   const [showReasoning, setShowReasoning] = useState(false)
   const [hasTodos, setHasTodos] = useState(false)
-
   const sessionId = run?.sessionId
 
   useEffect(() => {
@@ -43,7 +42,6 @@ export function RunDetailsView({
       setHasTodos(false)
       return
     }
-
     const checkTodos = async () => {
       try {
         const response = await window.api.opencode.getSessionTodos({ sessionId })
@@ -52,17 +50,7 @@ export function RunDetailsView({
         console.error('Failed to check todos:', error)
       }
     }
-
-    checkTodos()
-
-    const cleanup = window.api.opencode.onEvent(sessionId, (event) => {
-      if (event.sessionId !== sessionId) return
-      if (event.type === 'todo.updated') {
-        setHasTodos(event.todos.length > 0)
-      }
-    })
-
-    return cleanup
+    void checkTodos()
   }, [sessionId])
 
   return (

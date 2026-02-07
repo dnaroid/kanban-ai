@@ -14,17 +14,16 @@ export function TaskDetailsTags({ task, onUpdate }: TaskDetailsTagsProps) {
   const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
+    const loadGlobalTags = async () => {
+      try {
+        const response = await window.api.tag.list({})
+        setGlobalTags(response.tags)
+      } catch (error) {
+        console.error('Failed to load global tags:', error)
+      }
+    }
     loadGlobalTags()
   }, [])
-
-  const loadGlobalTags = async () => {
-    try {
-      const response = await window.api.tag.list({})
-      setGlobalTags(response.tags)
-    } catch (error) {
-      console.error('Failed to load global tags:', error)
-    }
-  }
 
   const toggleTag = (tagName: string) => {
     const currentTags = task.tags || []
@@ -58,7 +57,15 @@ export function TaskDetailsTags({ task, onUpdate }: TaskDetailsTagsProps) {
         name: searchQuery.trim(),
         color: getRandomColor(),
       })
-      await loadGlobalTags()
+
+      // Reload tags after create
+      try {
+        const response = await window.api.tag.list({})
+        setGlobalTags(response.tags)
+      } catch (error) {
+        console.error('Failed to reload global tags:', error)
+      }
+
       toggleTag(newTag.name)
       setSearchQuery('')
     } catch (error) {

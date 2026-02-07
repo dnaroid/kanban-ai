@@ -16,6 +16,7 @@ import { cn } from '../../../lib/utils'
 import type { OpenCodeMessage, Part, RunEvent } from '@/shared/types/ipc.ts'
 import { extractOpencodeStatus } from '@/shared/opencode-status'
 import { LightMarkdown } from '../../LightMarkdown'
+import { unwrapIpcResult } from '../../../lib/ipc-result'
 
 export function ExecutionLog({
   runId,
@@ -139,7 +140,7 @@ export function ExecutionLog({
     let isActive = true
     const pollSessionId = async () => {
       try {
-        const response = await window.api.run.get({ runId })
+        const response = unwrapIpcResult(await window.api.run.get({ runId }))
         if (!isActive) return
         if (response.run?.sessionId) {
           setEffectiveSessionId(response.run.sessionId)

@@ -6,6 +6,7 @@ import type {
   KanbanTask,
   Tag,
 } from '@/shared/types/ipc.ts'
+import { unwrapIpcResult } from '../../../lib/ipc-result'
 
 export interface BoardData {
   board: Board
@@ -22,7 +23,7 @@ export async function fetchGlobalTags(): Promise<Tag[]> {
 }
 
 export async function fetchTasksByBoard(boardId: string): Promise<KanbanTask[]> {
-  const response = await window.api.task.listByBoard({ boardId })
+  const response = unwrapIpcResult(await window.api.task.listByBoard({ boardId }))
   return response.tasks
 }
 
@@ -31,19 +32,19 @@ export async function saveBoardColumns(boardId: string, columns: BoardColumnInpu
 }
 
 export async function createTask(input: CreateTaskInput) {
-  return window.api.task.create(input)
+  return unwrapIpcResult(await window.api.task.create(input))
 }
 
 export async function deleteTask(taskId: string) {
-  return window.api.task.delete({ taskId })
+  return unwrapIpcResult(await window.api.task.delete({ taskId }))
 }
 
 export async function moveTask(taskId: string, toColumnId: string, toIndex: number) {
-  return window.api.task.move({ taskId, toColumnId, toIndex })
+  return unwrapIpcResult(await window.api.task.move({ taskId, toColumnId, toIndex }))
 }
 
 export async function updateTask(taskId: string, patch: Partial<KanbanTask>) {
-  return window.api.task.update({ taskId, patch })
+  return unwrapIpcResult(await window.api.task.update({ taskId, patch }))
 }
 
 export function subscribeTaskUpdated(handler: (task: KanbanTask) => void): () => void {

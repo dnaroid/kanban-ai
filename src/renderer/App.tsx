@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronRight, Search } from 'lucide-react'
 import { ProjectsScreen } from './screens/ProjectsScreen'
 import { DiagnosticsScreen } from './screens/DiagnosticsScreen'
@@ -16,57 +16,11 @@ export default function App() {
   const [activeProject, setActiveProject] = useState<{ id: string; name: string } | null>(null)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
-  const [sidebarInitialized, setSidebarInitialized] = useState(false)
+  const isFirstRender = useRef(true)
 
   useEffect(() => {
-    const handleKey = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault()
-        setIsSearchOpen(true)
-      }
-      if (event.key === 'Escape') {
-        setIsSearchOpen(false)
-      }
-    }
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
-  }, [])
-
-  useEffect(() => {
-    const loadLastProject = async () => {
-      try {
-        const { projectId } = await window.api.appSetting.getLastProjectId()
-        if (projectId) {
-          const project = await window.api.project.getById(projectId)
-          if (project) {
-            setActiveProject({ id: project.id, name: project.name })
-            setScreen({ id: 'board', projectId: project.id, projectName: project.name })
-          }
-        }
-      } catch (error) {
-        console.error('Failed to load last project:', error)
-      }
-    }
-
-    loadLastProject()
-  }, [])
-
-  useEffect(() => {
-    const loadSidebarState = async () => {
-      try {
-        const { collapsed } = await window.api.appSetting.getSidebarCollapsed()
-        setIsSidebarCollapsed(collapsed)
-      } catch (error) {
-        console.error('Failed to load sidebar state:', error)
-      }
-    }
-
-    loadSidebarState()
-  }, [])
-
-  useEffect(() => {
-    if (!sidebarInitialized) {
-      setSidebarInitialized(true)
+    if (isFirstRender.current) {
+      isFirstRender.current = false
       return
     }
 
@@ -78,8 +32,8 @@ export default function App() {
       }
     }
 
-    saveSidebarState()
-  }, [isSidebarCollapsed, sidebarInitialized])
+    void saveSidebarState()
+  }, [isSidebarCollapsed])
 
   const openProjectBoard = (projectId: string) => {
     const name = activeProject?.id === projectId ? activeProject.name : projectId

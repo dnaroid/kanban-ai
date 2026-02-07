@@ -63,11 +63,17 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
   }, [])
 
   const normalizeColumns = (
-    columns: Array<{ id?: BoardColumn['id']; name: BoardColumn['name']; color?: string }>
+    columns: Array<{
+      id?: BoardColumn['id']
+      name: BoardColumn['name']
+      systemKey?: BoardColumn['systemKey']
+      color?: string
+    }>
   ): BoardColumnInput[] =>
     columns.map((column, index) => ({
       id: column.id,
       name: column.name,
+      systemKey: column.systemKey || '',
       orderIndex: index,
       color: column.color || '',
     }))
@@ -233,7 +239,13 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
       const currentColumns = (board.columns || []).map((column) =>
         column.id === editingColumnId
           ? { ...column, name: name.trim(), color }
-          : { id: column.id, name: column.name, color: column.color, orderIndex: column.orderIndex }
+          : {
+              id: column.id,
+              name: column.name,
+              systemKey: column.systemKey,
+              color: column.color,
+              orderIndex: column.orderIndex,
+            }
       )
       setBoard({
         ...board,
@@ -245,9 +257,10 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
       setBoard({ ...board, columns: response.columns })
     } else {
       const currentColumns = (board.columns || []).map(
-        ({ id, name: columnName, color: columnColor }) => ({
+        ({ id, name: columnName, systemKey, color: columnColor }) => ({
           id,
           name: columnName,
+          systemKey,
           color: columnColor,
         })
       )
@@ -260,6 +273,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
             id: 'temp-' + Date.now(),
             boardId: board.id,
             name: name.trim(),
+            systemKey: '',
             color,
             orderIndex: (board.columns || []).length,
           },
@@ -287,7 +301,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 
     const newColumns = (board.columns || [])
       .filter((column) => column.id !== columnId)
-      .map(({ id, name, color }) => ({ id, name, color }))
+      .map(({ id, name, systemKey, color }) => ({ id, name, systemKey, color }))
     try {
       const response = await saveBoardColumns(board.id, normalizeColumns(newColumns))
       setBoard({ ...board, columns: response.columns })

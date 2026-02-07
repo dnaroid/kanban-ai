@@ -5,20 +5,18 @@ import type { Artifact } from '@/shared/types/ipc.ts'
 
 function ArtifactViewer({ artifact }: { artifact: Artifact }) {
   if (artifact.kind === 'json') {
+    let formatted = artifact.content
     try {
-      const formatted = JSON.stringify(JSON.parse(artifact.content), null, 2)
-      return (
-        <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap p-4 bg-slate-900/50 rounded-lg border border-slate-800/50 overflow-auto max-h-full custom-scrollbar selection:bg-blue-500/30">
-          {formatted}
-        </pre>
-      )
-    } catch (e) {
-      return (
-        <pre className="text-xs font-mono text-slate-300 whitespace-pre-wrap p-4 bg-slate-900/50 rounded-lg border border-slate-800/50 overflow-auto max-h-full custom-scrollbar">
-          {artifact.content}
-        </pre>
-      )
+      formatted = JSON.stringify(JSON.parse(artifact.content), null, 2)
+    } catch {
+      // ignore
     }
+
+    return (
+      <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap p-4 bg-slate-900/50 rounded-lg border border-slate-800/50 overflow-auto max-h-full custom-scrollbar selection:bg-blue-500/30">
+        {formatted}
+      </pre>
+    )
   }
 
   if (artifact.kind === 'patch') {

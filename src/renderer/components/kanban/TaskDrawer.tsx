@@ -5,6 +5,7 @@ import type { KanbanTask } from '@/shared/types/ipc.ts'
 import { TaskDrawerDetails } from './drawer/TaskDrawerDetails'
 import { TaskDrawerProperties } from './drawer/TaskDrawerProperties'
 import { TaskDrawerRuns } from './drawer/TaskDrawerRuns'
+import { unwrapIpcResult } from '../../lib/ipc-result'
 
 interface TaskDrawerProps {
   task: KanbanTask | null
@@ -24,35 +25,74 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
   const [isExpanded, setIsExpanded] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const hasCheckedRunsRef = useRef(false)
+  const prevIsOpenRef = useRef(isOpen)
 
   useEffect(() => {
     if (!isOpen) {
       hasCheckedRunsRef.current = false
-      setActiveTab('details')
       return
     }
 
-    if (task && !hasCheckedRunsRef.current) {
-      hasCheckedRunsRef.current = true
-      window.api.run.listByTask({ taskId: task.id }).then((response) => {
-        if (response.runs.length > 0) {
-          setActiveTab('runs')
+    const fetchRuns = async () => {
+      if (task && !hasCheckedRunsRef.current) {
+        hasCheckedRunsRef.current = true
+        try {
+          const result = await window.api.run.listByTask({ taskId: task.id })
+          const response = unwrapIpcResult(result)
+          if (response.runs.length > 0) {
+            setActiveTab('runs')
+          }
+        } catch (error) {
+          console.error('Failed to fetch runs:', error)
         }
-      })
+      }
     }
+    void fetchRuns()
   }, [isOpen, task?.id])
 
+  const prevTaskRef = useRef<KanbanTask | undefined>(undefined)
+  const shouldUpdateTitleRef = useRef(false)
+
   useEffect(() => {
+    if (
+      task &&
+      prevTaskRef.current &&
+      prevTaskRef.current.title !== task.title &&
+      !shouldUpdateTitleRef.current
+    ) {
+      setEditedTitle(task.title || '')
+      shouldUpdateTitleRef.current = true
+    }
     if (task) {
-      setEditedTitle(task.title)
+      prevTaskRef.current = task
     }
   }, [task])
+
+  useEffect(() => {
+    if (!isOpen) {
+      hasCheckedRunsRef.current = false
+      return
+    }
+  }, [isOpen])
 
   useEffect(() => {
     if (isEditingTitle && titleInputRef.current) {
       titleInputRef.current.focus()
     }
   }, [isEditingTitle])
+
+  const shouldResetTabRef = useRef(false)
+
+  useEffect(() => {
+    if (prevIsOpenRef.current && !isOpen && !shouldResetTabRef.current) {
+      setActiveTab('details')
+      shouldResetTabRef.current = true
+    }
+    if (isOpen) {
+      shouldResetTabRef.current = false
+    }
+    prevIsOpenRef.current = isOpen
+  }, [isOpen])
 
   const handleSaveTitle = () => {
     if (task && editedTitle !== task.title) {
@@ -67,7 +107,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
       const response = await window.api.roles.list()
       const roles = response.roles
       const roleId = roles.length > 0 ? roles[0].id : 'default'
-      await window.api.run.start({ taskId: task.id, roleId })
+      unwrapIpcResult(await window.api.run.start({ taskId: task.id, roleId }))
       setActiveTab('runs')
     } catch (error) {
       console.error('Failed to start run from details:', error)

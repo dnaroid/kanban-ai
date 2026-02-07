@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   Search,
   Cpu,
@@ -16,18 +16,22 @@ import type { OpencodeModel } from '../../../shared/types/ipc'
 
 type AllModelsTabProps = {
   models: OpencodeModel[]
-  onStatusChange: (status: { message: string; type: 'info' | 'error' | 'success' }) => void
   handleToggleModel: (name: string, enabled: boolean) => Promise<void>
   handleToggleAll: (targetModels: OpencodeModel[], enabled: boolean) => Promise<void>
   handleRefreshModels: () => Promise<void>
+  onStatusChange?: (status: {
+    message: string
+    type: 'success' | 'error' | 'info'
+    timestamp: number
+  }) => void
 }
 
 export function AllModelsTab({
   models,
-  onStatusChange,
   handleToggleModel,
   handleToggleAll,
   handleRefreshModels,
+  onStatusChange: _onStatusChange,
 }: AllModelsTabProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
@@ -77,6 +81,7 @@ export function AllModelsTab({
       newExpanded[provider] = expanded
     })
     setExpandedGroups(newExpanded)
+    shouldUpdateExpandedRef.current = false
   }
 
   const getProviderColor = (name: string) => {
@@ -92,15 +97,22 @@ export function AllModelsTab({
     }
   }
 
+  const hasSearchOrFilter = searchQuery.trim().length > 0 || showFreeOnly
+  const shouldUpdateExpandedRef = useRef(false)
+
   useEffect(() => {
-    if (searchQuery.trim().length > 0 || showFreeOnly) {
+    if (hasSearchOrFilter && !shouldUpdateExpandedRef.current) {
       const newExpanded: Record<string, boolean> = {}
       allProviders.forEach((provider) => {
         newExpanded[provider] = true
       })
       setExpandedGroups(newExpanded)
+      shouldUpdateExpandedRef.current = true
     }
-  }, [searchQuery, allProviders, showFreeOnly])
+    if (!hasSearchOrFilter) {
+      shouldUpdateExpandedRef.current = false
+    }
+  }, [hasSearchOrFilter, allProviders])
 
   return (
     <div className="flex flex-col h-full overflow-hidden">

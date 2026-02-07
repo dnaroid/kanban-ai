@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 
@@ -29,12 +29,10 @@ export function ColumnModal({ isOpen, onClose, onSubmit, initialData, title }: C
   const [name, setName] = useState('')
   const [selectedColor, setSelectedColor] = useState(COLUMN_COLORS[0].value)
 
-  useEffect(() => {
-    if (isOpen) {
-      setName(initialData?.name || '')
-      setSelectedColor(initialData?.color || COLUMN_COLORS[0].value)
-    }
-  }, [isOpen, initialData])
+  if (isOpen && !name && !initialData?.name) {
+    setName(initialData?.name || '')
+    setSelectedColor(initialData?.color || COLUMN_COLORS[0].value)
+  }
 
   if (!isOpen) return null
 

@@ -549,6 +549,7 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
       setUnsavedChanges(false)
       onStatusChange({ message: 'Config saved successfully', type: 'success' })
     } catch (error) {
+      console.error('Failed to save config:', error)
       onStatusChange({ message: 'Failed to save config', type: 'error' })
     }
   }
@@ -563,6 +564,7 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
       loadPresets(configPath)
       onStatusChange({ message: `Preset saved as ${presetName}`, type: 'success' })
     } catch (error) {
+      console.error('Failed to save preset:', error)
       onStatusChange({ message: 'Failed to save preset', type: 'error' })
     }
   }
@@ -580,6 +582,7 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
       setSelectedItem(null)
       onStatusChange({ message: `Preset loaded: ${selectedPreset}`, type: 'success' })
     } catch (error) {
+      console.error('Failed to load preset:', error)
       onStatusChange({ message: 'Failed to load preset', type: 'error' })
     } finally {
       setIsLoading(false)
@@ -593,6 +596,7 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
       checkBackupExists(configPath)
       onStatusChange({ message: `Backup created at ${response.backupPath}`, type: 'success' })
     } catch (error) {
+      console.error('Failed to create backup:', error)
       onStatusChange({ message: 'Failed to create backup', type: 'error' })
     }
   }
@@ -604,6 +608,7 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
       loadConfig(configPath)
       onStatusChange({ message: 'Config restored from backup', type: 'success' })
     } catch (error) {
+      console.error('Failed to restore backup:', error)
       onStatusChange({ message: 'Failed to restore backup', type: 'error' })
     }
   }

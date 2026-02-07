@@ -11,21 +11,20 @@ export function TaskDetailsModel({ task, onUpdate }: TaskDetailsModelProps) {
   const [models, setModels] = useState<OpencodeModel[]>([])
 
   useEffect(() => {
+    const loadEnabledModels = async () => {
+      try {
+        const response = await window.api.opencode.listEnabledModels()
+        const difficultyOrder = { easy: 0, medium: 1, hard: 2, epic: 3 }
+        const sortedModels = [...response.models].sort((a, b) => {
+          return difficultyOrder[a.difficulty] - difficultyOrder[b.difficulty]
+        })
+        setModels(sortedModels)
+      } catch (error) {
+        console.error('Failed to load models:', error)
+      }
+    }
     loadEnabledModels()
   }, [])
-
-  const loadEnabledModels = async () => {
-    try {
-      const response = await window.api.opencode.listEnabledModels()
-      const difficultyOrder = { easy: 0, medium: 1, hard: 2, epic: 3 }
-      const sortedModels = [...response.models].sort((a, b) => {
-        return difficultyOrder[a.difficulty] - difficultyOrder[b.difficulty]
-      })
-      setModels(sortedModels)
-    } catch (error) {
-      console.error('Failed to load models:', error)
-    }
-  }
 
   const selectModel = (fullId: string | null) => {
     onUpdate?.(task.id, { modelName: fullId })
