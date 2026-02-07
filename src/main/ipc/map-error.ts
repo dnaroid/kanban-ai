@@ -1,21 +1,27 @@
 import { ErrorCode, fail, type Result } from '../../shared/ipc'
+import { appError, type AppError } from '../../shared/errors'
 import { isIpcDomainError } from './ipc-domain-error'
 
-export const toResultError = <T = never>(error: unknown): Result<T> => {
+export const toAppError = (error: unknown): AppError => {
   if (isIpcDomainError(error)) {
-    return fail(error.code, error.message, error.details)
+    return appError(error.code, error.message, error.details)
   }
 
   if (error instanceof Error) {
     const code = mapErrorToCode(error)
-    return fail(code, error.message)
+    return appError(code, error.message, undefined, error)
   }
 
   if (typeof error === 'string') {
-    return fail(ErrorCode.UNKNOWN, error)
+    return appError(ErrorCode.UNKNOWN, error)
   }
 
-  return fail(ErrorCode.UNKNOWN, 'An unknown error occurred')
+  return appError(ErrorCode.UNKNOWN, 'An unknown error occurred')
+}
+
+export const toResultError = <T = never>(error: unknown): Result<T> => {
+  const normalized = toAppError(error)
+  return fail(normalized.code, normalized.message, normalized.details)
 }
 
 const mapErrorToCode = (error: Error): ErrorCode => {
@@ -29,12 +35,27 @@ const mapErrorToCode = (error: Error): ErrorCode => {
     return ErrorCode.ALREADY_EXISTS
   }
 
+  if (message.includes('unique constraint') || message.includes('sqlite_constraint_unique')) {
+    return ErrorCode.ALREADY_EXISTS
+  }
+
+  if (
+    message.includes('foreign key constraint') ||
+    message.includes('sqlite_constraint_foreignkey')
+  ) {
+    return ErrorCode.VALIDATION_ERROR
+  }
+
   if (message.includes('validation') || message.includes('invalid')) {
     return ErrorCode.VALIDATION_ERROR
   }
 
   if (message.includes('permission') || message.includes('access denied')) {
     return ErrorCode.FS_PERMISSION_DENIED
+  }
+
+  if (message.includes('sqlite_busy') || message.includes('database is locked')) {
+    return ErrorCode.DB_TRANSACTION_FAILED
   }
 
   if (message.includes('database') || message.includes('sqlite')) {

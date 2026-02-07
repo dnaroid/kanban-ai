@@ -64,6 +64,7 @@ export const IPC_CHANNELS = {
     GET_LOG_TAIL: 'diagnostics:getLogTail',
     GET_SYSTEM_INFO: 'diagnostics:getSystemInfo',
     GET_DB_INFO: 'diagnostics:getDbInfo',
+    GET_METRICS: 'diagnostics:getMetrics',
   },
   DATABASE: {
     DELETE: 'database:delete',
@@ -91,6 +92,9 @@ export const IPC_CHANNELS = {
     SET_DEFAULT_MODEL: 'appSetting:setDefaultModel',
     GET_OH_MY_OPENCODE_PATH: 'appSetting:getOhMyOpencodePath',
     SET_OH_MY_OPENCODE_PATH: 'appSetting:setOhMyOpencodePath',
+    GET_RETENTION_POLICY: 'appSetting:getRetentionPolicy',
+    SET_RETENTION_POLICY: 'appSetting:setRetentionPolicy',
+    RUN_RETENTION_CLEANUP: 'appSetting:runRetentionCleanup',
   },
   OPENCODE: {
     ON_EVENT: 'opencode:onEvent',

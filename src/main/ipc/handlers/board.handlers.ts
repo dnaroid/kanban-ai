@@ -5,11 +5,13 @@ import {
   BoardUpdateColumnsInputSchema,
   BoardUpdateColumnsResponseSchema,
 } from '../../../shared/types/ipc.js'
-import { boardRepo } from '../../db/board-repository'
+import type { AppContext } from '../composition/create-app-context'
 
-export function registerBoardHandlers(): void {
+export function registerBoardHandlers(context: AppContext): void {
+  const { getDefaultBoard, updateBoardColumns, getBoardColumns } = context
+
   ipcHandlers.register('board:getDefault', BoardGetDefaultInputSchema, async (_, { projectId }) => {
-    const { columns = [], ...board } = boardRepo.getDefault(projectId)
+    const { columns = [], ...board } = getDefaultBoard(projectId)
     return BoardGetDefaultResponseSchema.parse({ board, columns })
   })
 
@@ -17,8 +19,8 @@ export function registerBoardHandlers(): void {
     'board:updateColumns',
     BoardUpdateColumnsInputSchema,
     async (_, { boardId, columns }) => {
-      boardRepo.updateColumns(boardId, columns)
-      const updatedColumns = boardRepo.getColumns(boardId)
+      updateBoardColumns(boardId, columns)
+      const updatedColumns = getBoardColumns(boardId)
       return BoardUpdateColumnsResponseSchema.parse({ columns: updatedColumns })
     }
   )

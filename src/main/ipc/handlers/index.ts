@@ -17,18 +17,18 @@ import { registerOpenCodeHandlers } from './opencode.handlers'
 import { registerTaskEventsHandlers } from './task-events.handlers'
 
 export function registerAllHandlers(context: AppContext): void {
-  registerAppHandlers()
+  registerAppHandlers(context)
   registerProjectHandlers(context)
-  registerBoardHandlers()
+  registerBoardHandlers(context)
   registerTaskHandlers(context)
-  registerTagsHandlers()
+  registerTagsHandlers(context)
   registerDepsHandlers()
-  registerScheduleHandlers()
+  registerScheduleHandlers(context)
   registerSearchHandlers()
   registerVoskHandlers()
   registerOhMyOpencodeHandlers()
   registerRunHandlers(context)
-  registerPluginHandlers()
+  registerPluginHandlers(context)
   registerBackupHandlers()
   registerOpenCodeHandlers(context)
   registerTaskEventsHandlers()

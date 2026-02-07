@@ -4,6 +4,7 @@ import type {
   AnalyticsGetRunStatsInput,
   AnalyticsGetRunStatsResponse,
   AppInfo,
+  AppSettingGetRetentionPolicyResponse,
   AppSettingGetLastProjectIdResponse,
   AppSettingGetOhMyOpencodePathResponse,
   AppSettingGetSidebarCollapsedResponse,
@@ -11,6 +12,10 @@ import type {
   AppSettingGetDefaultModelResponse,
   AppSettingSetLastProjectIdInput,
   AppSettingSetLastProjectIdResponse,
+  AppSettingSetRetentionPolicyInput,
+  AppSettingSetRetentionPolicyResponse,
+  AppSettingRunRetentionCleanupInput,
+  AppSettingRunRetentionCleanupResponse,
   AppSettingSetOhMyOpencodePathInput,
   AppSettingSetOhMyOpencodePathResponse,
   AppSettingSetSidebarCollapsedInput,
@@ -33,6 +38,8 @@ import type {
   CreateTaskInput,
   DatabaseDeleteInput,
   DatabaseDeleteResponse,
+  DiagnosticsGetMetricsInput,
+  DiagnosticsGetMetricsResponse,
   DeleteProjectInput,
   DepsAddInput,
   DepsAddResponse,
@@ -124,6 +131,7 @@ import type {
   VoskModelDownloadInput,
   VoskModelDownloadResponse,
 } from '../shared/types/ipc'
+import type { Result } from '../shared/ipc'
 
 export type { OpenCodeSessionEvent } from '../shared/types/ipc'
 export type { TaskEvent } from '../shared/types/ipc'
@@ -184,11 +192,11 @@ export interface MainToRenderer {
   }
   task: {
     onEvent(callback: (event: TaskEvent) => void): () => void
-    create(input: CreateTaskInput): Promise<TaskCreateResponse>
-    listByBoard(input: TaskListByBoardInput): Promise<TaskListByBoardResponse>
-    update(input: TaskUpdateInput): Promise<TaskUpdateResponse>
-    move(input: TaskMoveInput): Promise<TaskMoveResponse>
-    delete(input: TaskDeleteInput): Promise<TaskDeleteResponse>
+    create(input: CreateTaskInput): Promise<Result<TaskCreateResponse>>
+    listByBoard(input: TaskListByBoardInput): Promise<Result<TaskListByBoardResponse>>
+    update(input: TaskUpdateInput): Promise<Result<TaskUpdateResponse>>
+    move(input: TaskMoveInput): Promise<Result<TaskMoveResponse>>
+    delete(input: TaskDeleteInput): Promise<Result<TaskDeleteResponse>>
   }
   tag: {
     create(input: TagCreateInput): Promise<Tag>
@@ -230,16 +238,17 @@ export interface MainToRenderer {
     getLogTail(lines?: number): Promise<string[]>
     getSystemInfo(): Promise<object>
     getDbInfo(): Promise<object>
+    getMetrics(input?: DiagnosticsGetMetricsInput): Promise<DiagnosticsGetMetricsResponse>
   }
   database: {
     delete(input: DatabaseDeleteInput): Promise<DatabaseDeleteResponse>
   }
   run: {
-    start(input: RunStartInput): Promise<RunStartResponse>
-    cancel(input: RunCancelInput): Promise<RunCancelResponse>
-    delete(input: RunDeleteInput): Promise<RunDeleteResponse>
-    listByTask(input: RunListByTaskInput): Promise<RunListByTaskResponse>
-    get(input: RunGetInput): Promise<RunGetResponse>
+    start(input: RunStartInput): Promise<Result<RunStartResponse>>
+    cancel(input: RunCancelInput): Promise<Result<RunCancelResponse>>
+    delete(input: RunDeleteInput): Promise<Result<RunDeleteResponse>>
+    listByTask(input: RunListByTaskInput): Promise<Result<RunListByTaskResponse>>
+    get(input: RunGetInput): Promise<Result<RunGetResponse>>
   }
   events: {
     tail(input: RunEventsTailInput): Promise<RunEventsTailResponse>
@@ -267,6 +276,13 @@ export interface MainToRenderer {
     setOhMyOpencodePath(
       input: AppSettingSetOhMyOpencodePathInput
     ): Promise<AppSettingSetOhMyOpencodePathResponse>
+    getRetentionPolicy(): Promise<AppSettingGetRetentionPolicyResponse>
+    setRetentionPolicy(
+      input: AppSettingSetRetentionPolicyInput
+    ): Promise<AppSettingSetRetentionPolicyResponse>
+    runRetentionCleanup(
+      input: AppSettingRunRetentionCleanupInput
+    ): Promise<AppSettingRunRetentionCleanupResponse>
   }
   vosk: {
     downloadModel(input: VoskModelDownloadInput): Promise<VoskModelDownloadResponse>
@@ -310,11 +326,11 @@ export interface RendererToMain {
     updateColumns(input: BoardUpdateColumnsInput): Promise<BoardUpdateColumnsResponse>
   }
   task: {
-    create(input: CreateTaskInput): Promise<TaskCreateResponse>
-    listByBoard(input: TaskListByBoardInput): Promise<TaskListByBoardResponse>
-    update(input: TaskUpdateInput): Promise<TaskUpdateResponse>
-    move(input: TaskMoveInput): Promise<TaskMoveResponse>
-    delete(input: TaskDeleteInput): Promise<TaskDeleteResponse>
+    create(input: CreateTaskInput): Promise<Result<TaskCreateResponse>>
+    listByBoard(input: TaskListByBoardInput): Promise<Result<TaskListByBoardResponse>>
+    update(input: TaskUpdateInput): Promise<Result<TaskUpdateResponse>>
+    move(input: TaskMoveInput): Promise<Result<TaskMoveResponse>>
+    delete(input: TaskDeleteInput): Promise<Result<TaskDeleteResponse>>
   }
   tag: {
     create(input: TagCreateInput): Promise<Tag>
@@ -361,11 +377,11 @@ export interface RendererToMain {
     delete(input: DatabaseDeleteInput): Promise<DatabaseDeleteResponse>
   }
   run: {
-    start(input: RunStartInput): Promise<RunStartResponse>
-    cancel(input: RunCancelInput): Promise<RunCancelResponse>
-    delete(input: RunDeleteInput): Promise<RunDeleteResponse>
-    listByTask(input: RunListByTaskInput): Promise<RunListByTaskResponse>
-    get(input: RunGetInput): Promise<RunGetResponse>
+    start(input: RunStartInput): Promise<Result<RunStartResponse>>
+    cancel(input: RunCancelInput): Promise<Result<RunCancelResponse>>
+    delete(input: RunDeleteInput): Promise<Result<RunDeleteResponse>>
+    listByTask(input: RunListByTaskInput): Promise<Result<RunListByTaskResponse>>
+    get(input: RunGetInput): Promise<Result<RunGetResponse>>
   }
   events: {
     tail(input: RunEventsTailInput): Promise<RunEventsTailResponse>
@@ -389,6 +405,17 @@ export interface RendererToMain {
     setDefaultModel(
       input: AppSettingSetDefaultModelInput
     ): Promise<AppSettingSetDefaultModelResponse>
+    getOhMyOpencodePath(): Promise<AppSettingGetOhMyOpencodePathResponse>
+    setOhMyOpencodePath(
+      input: AppSettingSetOhMyOpencodePathInput
+    ): Promise<AppSettingSetOhMyOpencodePathResponse>
+    getRetentionPolicy(): Promise<AppSettingGetRetentionPolicyResponse>
+    setRetentionPolicy(
+      input: AppSettingSetRetentionPolicyInput
+    ): Promise<AppSettingSetRetentionPolicyResponse>
+    runRetentionCleanup(
+      input: AppSettingRunRetentionCleanupInput
+    ): Promise<AppSettingRunRetentionCleanupResponse>
   }
   stt: {
     start(input: STTStartInput): Promise<void>

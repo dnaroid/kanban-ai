@@ -3,14 +3,68 @@ import { runEventRepo } from '../db/run-event-repository.js'
 import { runRepo } from '../db/run-repository.js'
 import { tagRepo } from '../db/tag-repository.js'
 import { taskRepo } from '../db/task-repository.js'
+import { dbManager } from '../db/index.js'
+import { ProjectRepoAdapter } from '../infra/project/project-repo.adapter.js'
+import { TaskRepoAdapter } from '../infra/task/task-repo.adapter.js'
+import { BoardRepoAdapter } from '../infra/board/board-repo.adapter.js'
+import { ContextSnapshotRepoAdapter } from '../infra/context-snapshot/context-snapshot-repo.adapter.js'
 import type { RunRecord } from '../db/run-types'
 import type { RunExecutor, RunStartResult } from './job-runner'
 import { sessionManager } from './opencode-session-manager.js'
 import { opencodeSessionWorker } from './opencode-session-worker.js'
-import { buildContextSnapshot } from './context-snapshot-builder.js'
+import { ContextSnapshotBuilder } from './context-snapshot-builder.js'
 import { buildTaskPrompt } from './prompts/task.js'
 import { buildUserStoryPrompt } from './prompts/user-story.js'
-import type { OpenCodePort } from '../ports'
+import type { OpenCodePort, RolePresetProvider } from '../ports'
+
+const rolePresetProvider: RolePresetProvider = {
+  getById(roleId) {
+    const db = dbManager.connect()
+    const row = db
+      .prepare(
+        `
+        SELECT id, name, description, preset_json as presetJson
+        FROM agent_roles
+        WHERE id = ?
+        LIMIT 1
+        `
+      )
+      .get(roleId) as
+      | { id: string; name: string; description: string; presetJson: string }
+      | undefined
+
+    if (!row) {
+      return {
+        id: roleId,
+        name: roleId.toUpperCase(),
+        description: '',
+        preset: {},
+      }
+    }
+
+    let preset: Record<string, unknown> = {}
+    try {
+      preset = JSON.parse(row.presetJson) as Record<string, unknown>
+    } catch (error) {
+      console.warn('[ContextSnapshot] Failed to parse role preset JSON:', error)
+    }
+
+    return {
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      preset,
+    }
+  },
+}
+
+const contextSnapshotBuilder = new ContextSnapshotBuilder({
+  taskRepo: new TaskRepoAdapter(),
+  projectRepo: new ProjectRepoAdapter(),
+  boardRepo: new BoardRepoAdapter(),
+  contextSnapshotRepo: new ContextSnapshotRepoAdapter(),
+  rolePresetProvider,
+})
 
 export class OpenCodeExecutorSDK implements RunExecutor, OpenCodePort {
   async generateUserStory(taskId: string): Promise<string> {
@@ -107,11 +161,15 @@ export class OpenCodeExecutorSDK implements RunExecutor, OpenCodePort {
       throw new Error('Project not found for task')
     }
 
-    const contextSnapshot = buildContextSnapshot({
+    const contextSnapshotResult = contextSnapshotBuilder.build({
       taskId: input.taskId,
       roleId: input.roleId,
       mode: 'execute',
     })
+
+    if (!contextSnapshotResult.ok) {
+      throw new Error(contextSnapshotResult.error.message)
+    }
 
     const run = runRepo.create({
       taskId: input.taskId,
@@ -119,7 +177,7 @@ export class OpenCodeExecutorSDK implements RunExecutor, OpenCodePort {
       mode: 'execute',
       kind: input.kind,
       status: 'running',
-      contextSnapshotId: contextSnapshot.id,
+      contextSnapshotId: contextSnapshotResult.data.id,
       budget: { previousTaskStatus: task.status },
     })
     console.log('[OpenCodeExecutorSDK] startTaskPrompt:runCreated', {

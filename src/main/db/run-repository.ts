@@ -350,7 +350,7 @@ export class RunRepository {
   }
 }
 
-export interface RunRepository {
+export interface IRunRepository {
   listByStatus(status: RunRecord['status'], limit?: number): RunRecord[]
 }
 

@@ -172,7 +172,7 @@ export class OpencodeModelRepository {
     const db = dbManager.connect()
     const hasDifficulty = this.hasDifficultyColumn()
     const hasVariants = this.hasVariantsColumn()
-    const stmt = this.hasDifficultyColumn()
+    const stmt = hasDifficulty
       ? db.prepare(`
       SELECT name, enabled, difficulty${hasVariants ? ', variants' : ''}
       FROM opencode_models
@@ -220,8 +220,9 @@ export class OpencodeModelRepository {
   }
   getAll(): OpencodeModel[] {
     const db = dbManager.connect()
+    const hasDifficulty = this.hasDifficultyColumn()
     const hasVariants = this.hasVariantsColumn()
-    const stmt = this.hasDifficultyColumn()
+    const stmt = hasDifficulty
       ? db.prepare(`
       SELECT name, enabled, difficulty${hasVariants ? ', variants' : ''}
       FROM opencode_models

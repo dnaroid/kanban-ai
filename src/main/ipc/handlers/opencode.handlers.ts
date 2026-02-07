@@ -4,7 +4,6 @@ import { ErrorCode } from '../../../shared/ipc'
 import type { SessionEvent } from '../../run/opencode-session-manager'
 import { sessionManager } from '../../run/opencode-session-manager'
 import { opencodeSessionWorker } from '../../run/opencode-session-worker.js'
-import { opencodeModelRepo } from '../../db/opencode-model-repository'
 import type { AppContext } from '../composition/create-app-context'
 import {
   OpenCodeActiveSessionsResponseSchema,
@@ -26,7 +25,6 @@ import {
 } from '../../../shared/types/ipc.js'
 import { unwrap } from '../../../shared/ipc'
 import { opencodeExecutor } from '../../run/run-service.js'
-import { taskRepo } from '../../db/task-repository'
 import { ipcError } from '../ipc-domain-error'
 
 const rendererSubscriptions = new Map<number, Set<string>>()
@@ -66,7 +64,16 @@ const unsubscribeRendererFromSession = async (
 }
 
 export function registerOpenCodeHandlers(context: AppContext): void {
-  const { createOpencodeClientInstance, updateTaskAndEmit } = context
+  const {
+    createOpencodeClientInstance,
+    updateTaskAndEmit,
+    getTaskByIdRaw,
+    listAllModels,
+    listEnabledModels,
+    syncSdkModels,
+    updateModelEnabled,
+    updateModelDifficulty,
+  } = context
 
   ipcHandlers.register(
     'opencode:getSessionStatus',
@@ -101,7 +108,7 @@ export function registerOpenCodeHandlers(context: AppContext): void {
     'opencode:generateUserStory',
     OpenCodeGenerateUserStoryInputSchema,
     async (_, input) => {
-      const previousStatus = taskRepo.getById(input.taskId)?.status ?? null
+      const previousStatus = getTaskByIdRaw(input.taskId)?.status ?? null
       unwrap(updateTaskAndEmit(input.taskId, { status: 'generating' }))
 
       try {
@@ -219,7 +226,7 @@ export function registerOpenCodeHandlers(context: AppContext): void {
   )
 
   ipcHandlers.register('opencode:listModels', z.unknown(), async () => {
-    return OpencodeModelsListResponseSchema.parse({ models: opencodeModelRepo.getAll() })
+    return OpencodeModelsListResponseSchema.parse({ models: listAllModels() })
   })
 
   ipcHandlers.register('opencode:logProviders', z.object({}), async () => {
@@ -228,7 +235,7 @@ export function registerOpenCodeHandlers(context: AppContext): void {
   })
 
   ipcHandlers.register('opencode:listEnabledModels', z.unknown(), async () => {
-    return OpencodeModelsListResponseSchema.parse({ models: opencodeModelRepo.getEnabled() })
+    return OpencodeModelsListResponseSchema.parse({ models: listEnabledModels() })
   })
 
   ipcHandlers.register('opencode:refreshModels', z.unknown(), async () => {
@@ -272,12 +279,12 @@ export function registerOpenCodeHandlers(context: AppContext): void {
       variants: Array.from(variants).sort(),
     }))
 
-    opencodeModelRepo.syncFromSdkModels(models)
-    return OpencodeModelsListResponseSchema.parse({ models: opencodeModelRepo.getAll() })
+    syncSdkModels(models)
+    return OpencodeModelsListResponseSchema.parse({ models: listAllModels() })
   })
 
   ipcHandlers.register('opencode:toggleModel', OpencodeModelToggleInputSchema, async (_, input) => {
-    const updatedModel = opencodeModelRepo.updateEnabled(input.name, input.enabled)
+    const updatedModel = updateModelEnabled(input.name, input.enabled)
     if (!updatedModel) {
       throw ipcError(ErrorCode.OPENCODE_MODEL_NOT_FOUND, `Model "${input.name}" not found`, {
         modelName: input.name,
@@ -291,7 +298,7 @@ export function registerOpenCodeHandlers(context: AppContext): void {
     'opencode:updateModelDifficulty',
     OpencodeModelUpdateDifficultyInputSchema,
     async (_, input) => {
-      const updatedModel = opencodeModelRepo.updateDifficulty(input.name, input.difficulty)
+      const updatedModel = updateModelDifficulty(input.name, input.difficulty)
       if (!updatedModel) {
         throw ipcError(ErrorCode.OPENCODE_MODEL_NOT_FOUND, `Model "${input.name}" not found`, {
           modelName: input.name,

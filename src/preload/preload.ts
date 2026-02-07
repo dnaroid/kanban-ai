@@ -106,6 +106,7 @@ const api: MainToRenderer = {
     getLogTail: (lines) => ipcRenderer.invoke('diagnostics:getLogTail', lines),
     getSystemInfo: () => ipcRenderer.invoke('diagnostics:getSystemInfo'),
     getDbInfo: () => ipcRenderer.invoke('diagnostics:getDbInfo'),
+    getMetrics: (input) => ipcRenderer.invoke('diagnostics:getMetrics', input),
   },
   database: {
     delete: (input) => ipcRenderer.invoke('database:delete', input),
@@ -136,6 +137,11 @@ const api: MainToRenderer = {
     getOhMyOpencodePath: () => ipcRenderer.invoke('appSetting:getOhMyOpencodePath'),
     setOhMyOpencodePath: (input: { path: string }) =>
       ipcRenderer.invoke('appSetting:setOhMyOpencodePath', input),
+    getRetentionPolicy: () => ipcRenderer.invoke('appSetting:getRetentionPolicy'),
+    setRetentionPolicy: (input: { enabled: boolean; days: number }) =>
+      ipcRenderer.invoke('appSetting:setRetentionPolicy', input),
+    runRetentionCleanup: (input: { dryRun?: boolean; maxDeletes?: number }) =>
+      ipcRenderer.invoke('appSetting:runRetentionCleanup', input),
   },
   ohMyOpencode: {
     readConfig: (input) => ipcRenderer.invoke('ohMyOpencode:readConfig', input),

@@ -55,7 +55,7 @@ export class OpencodeService {
     })
 
     const logStream = this.config.logFile
-      ? require('fs').createWriteStream(this.config.logFile)
+      ? (await import('node:fs')).createWriteStream(this.config.logFile)
       : process.stdout
 
     let allOutput = ''

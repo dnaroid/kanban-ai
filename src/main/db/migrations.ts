@@ -1,3 +1,6 @@
+import { v017SystemKeySql } from './migrations/v017_system_key.js'
+import { v018AppMetricsSql } from './migrations/v018_app_metrics.js'
+
 export const INIT_DB_SQL = `
 PRAGMA foreign_keys = ON;
 
@@ -35,6 +38,7 @@ CREATE TABLE IF NOT EXISTS board_columns (
   id TEXT PRIMARY KEY,
   board_id TEXT NOT NULL,
   name TEXT NOT NULL,
+  system_key TEXT NOT NULL DEFAULT '',
   order_index INTEGER NOT NULL,
   wip_limit INTEGER,
   color TEXT NOT NULL DEFAULT '',
@@ -438,6 +442,14 @@ export const migrations = [
   {
     version: 16,
     sql: INIT_DB_SQL,
+  },
+  {
+    version: 17,
+    sql: v017SystemKeySql,
+  },
+  {
+    version: 18,
+    sql: v018AppMetricsSql,
   },
 ] as const
 

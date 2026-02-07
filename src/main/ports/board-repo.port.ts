@@ -1,4 +1,4 @@
-import type { Board, BoardColumn, BoardColumnInput } from '../../shared/types/ipc'
+import type { Board, BoardColumn, BoardColumnInput } from '../../shared/types/ipc.js'
 import type { Result } from '../../shared/ipc'
 
 export interface BoardRepoPort {

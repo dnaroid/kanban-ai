@@ -6,23 +6,25 @@ import {
   TagListResponseSchema,
   TagUpdateInputSchema,
 } from '../../../shared/types/ipc.js'
-import { tagRepo } from '../../db/tag-repository'
+import type { AppContext } from '../composition/create-app-context'
 
-export function registerTagsHandlers(): void {
+export function registerTagsHandlers(context: AppContext): void {
+  const { createTag, updateTag, deleteTag, listTags } = context
+
   ipcHandlers.register('tag:create', TagCreateInputSchema, async (_, input) => {
-    return tagRepo.create(input)
+    return createTag(input)
   })
 
   ipcHandlers.register('tag:update', TagUpdateInputSchema, async (_, input) => {
-    return tagRepo.update(input.id, input)
+    return updateTag(input.id, input)
   })
 
   ipcHandlers.register('tag:delete', TagDeleteInputSchema, async (_, { id }) => {
-    return { ok: tagRepo.delete(id) }
+    return { ok: deleteTag(id) }
   })
 
   ipcHandlers.register('tag:list', TagListInputSchema, async () => {
-    const tags = tagRepo.listAll()
+    const tags = listTags()
     return TagListResponseSchema.parse({ tags })
   })
 }

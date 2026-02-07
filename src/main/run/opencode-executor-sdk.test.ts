@@ -108,7 +108,7 @@ describe('OpenCodeExecutorSDK', () => {
   it('passes task modelName when launching run prompt', async () => {
     const { OpenCodeExecutorSDK } = await import('./opencode-executor-sdk.js')
 
-    const executor = new OpenCodeExecutorSDK()
+    const executor = new OpenCodeExecutorSDK() as any
     await executor.startTaskPrompt({
       taskId: testState.taskId,
       prompt: 'PROMPT',

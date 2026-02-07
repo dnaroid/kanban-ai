@@ -20,6 +20,31 @@ export const LogEntrySchema = z.object({
 export type LogLevel = z.infer<typeof LogLevelSchema>
 export type LogEntry = z.infer<typeof LogEntrySchema>
 
+export const AppMetricSchema = z.object({
+  id: z.string().uuid(),
+  metricName: z.string(),
+  metricValue: z.number(),
+  tags: z.record(z.string(), z.unknown()),
+  createdAt: z.string().datetime(),
+})
+
+export type AppMetric = z.infer<typeof AppMetricSchema>
+
+export const DiagnosticsGetMetricsInputSchema = z
+  .object({
+    limit: z.number().int().min(1).max(1000).optional(),
+    metricName: z.string().min(1).optional(),
+  })
+  .optional()
+
+export type DiagnosticsGetMetricsInput = z.infer<typeof DiagnosticsGetMetricsInputSchema>
+
+export const DiagnosticsGetMetricsResponseSchema = z.object({
+  metrics: z.array(AppMetricSchema),
+})
+
+export type DiagnosticsGetMetricsResponse = z.infer<typeof DiagnosticsGetMetricsResponseSchema>
+
 export const AppInfoSchema = z.object({
   name: z.string(),
   version: z.string(),
@@ -72,6 +97,7 @@ export const BoardColumnSchema = z.object({
   id: z.string().uuid(),
   boardId: z.string().uuid(),
   name: z.string().min(1),
+  systemKey: z.string().default(''),
   orderIndex: z.number(),
   color: z.string().default(''),
 })
@@ -81,6 +107,7 @@ export type BoardColumn = z.infer<typeof BoardColumnSchema>
 export const BoardColumnInputSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1),
+  systemKey: z.string().default(''),
   orderIndex: z.number(),
   color: z.string().default(''),
 })
@@ -143,6 +170,8 @@ export const KanbanTaskSchema = z.object({
   estimateHours: z.number().optional(),
   assignee: z.string().optional(),
   modelName: z.string().nullable().optional(),
+  createdAt: z.string().datetime().optional(),
+  updatedAt: z.string().datetime().optional(),
 })
 
 export type KanbanTask = z.infer<typeof KanbanTaskSchema>
@@ -267,10 +296,12 @@ export type TaskLinkType = z.infer<typeof TaskLinkTypeSchema>
 
 export const TaskLinkSchema = z.object({
   id: z.string().uuid(),
+  projectId: z.string().uuid(),
   fromTaskId: z.string().uuid(),
   toTaskId: z.string().uuid(),
   linkType: TaskLinkTypeSchema,
   createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
 })
 
 export type TaskLink = z.infer<typeof TaskLinkSchema>
@@ -314,7 +345,15 @@ export const DepsListResponseSchema = z.object({
 export type DepsListResponse = z.infer<typeof DepsListResponseSchema>
 
 export const TimelineTaskSchema = KanbanTaskSchema
-export const TaskScheduleSchema = KanbanTaskSchema
+export const TaskScheduleSchema = z.object({
+  taskId: z.string().uuid(),
+  startDate: z.string().nullable(),
+  dueDate: z.string().nullable(),
+  estimatePoints: z.number(),
+  estimateHours: z.number(),
+  assignee: z.string(),
+  updatedAt: z.string(),
+})
 
 export type TimelineTask = z.infer<typeof TimelineTaskSchema>
 export type TaskSchedule = z.infer<typeof TaskScheduleSchema>
@@ -368,6 +407,8 @@ export type SearchFilters = z.infer<typeof SearchFiltersSchema>
 export const SearchQueryInputSchema = z.object({
   q: z.string().trim().min(1),
   filters: SearchFiltersSchema.optional(),
+  limit: z.number().int().positive().max(200).optional(),
+  offset: z.number().int().min(0).optional(),
 })
 
 export type SearchQueryInput = z.infer<typeof SearchQueryInputSchema>
@@ -856,6 +897,53 @@ export const AppSettingSetSidebarCollapsedResponseSchema = z.object({
 
 export type AppSettingSetSidebarCollapsedResponse = z.infer<
   typeof AppSettingSetSidebarCollapsedResponseSchema
+>
+
+export const AppSettingRetentionPolicySchema = z.object({
+  enabled: z.boolean(),
+  days: z.number().int().min(1).max(3650),
+})
+
+export type AppSettingRetentionPolicy = z.infer<typeof AppSettingRetentionPolicySchema>
+
+export const AppSettingGetRetentionPolicyResponseSchema = AppSettingRetentionPolicySchema
+
+export type AppSettingGetRetentionPolicyResponse = z.infer<
+  typeof AppSettingGetRetentionPolicyResponseSchema
+>
+
+export const AppSettingSetRetentionPolicyInputSchema = AppSettingRetentionPolicySchema
+
+export type AppSettingSetRetentionPolicyInput = z.infer<
+  typeof AppSettingSetRetentionPolicyInputSchema
+>
+
+export const AppSettingSetRetentionPolicyResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+export type AppSettingSetRetentionPolicyResponse = z.infer<
+  typeof AppSettingSetRetentionPolicyResponseSchema
+>
+
+export const AppSettingRunRetentionCleanupInputSchema = z.object({
+  dryRun: z.boolean().optional(),
+  maxDeletes: z.number().int().min(1).max(10000).optional(),
+})
+
+export type AppSettingRunRetentionCleanupInput = z.infer<
+  typeof AppSettingRunRetentionCleanupInputSchema
+>
+
+export const AppSettingRunRetentionCleanupResponseSchema = z.object({
+  cutoffIso: z.string().datetime(),
+  deletedRunEvents: z.number().int().min(0),
+  deletedArtifacts: z.number().int().min(0),
+  dryRun: z.boolean(),
+})
+
+export type AppSettingRunRetentionCleanupResponse = z.infer<
+  typeof AppSettingRunRetentionCleanupResponseSchema
 >
 
 export const OpenCodeGenerateUserStoryInputSchema = z.object({

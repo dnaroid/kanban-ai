@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { logger } from '../log'
+import { appMetricsRepo } from '../db/app-metrics-repository'
 import { dbManager } from '../db'
 
 export function registerDiagnosticsHandlers(): void {
@@ -84,4 +85,12 @@ export function registerDiagnosticsHandlers(): void {
       return []
     }
   })
+
+  ipcMain.handle(
+    'diagnostics:getMetrics',
+    async (_, input?: { limit?: number; metricName?: string }) => {
+      const metrics = appMetricsRepo.list(input?.limit ?? 200, input?.metricName)
+      return { metrics }
+    }
+  )
 }

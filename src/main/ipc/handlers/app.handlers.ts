@@ -18,15 +18,36 @@ import {
   AppSettingSetLastProjectIdResponseSchema,
   AppSettingSetOhMyOpencodePathInputSchema,
   AppSettingSetOhMyOpencodePathResponseSchema,
+  AppSettingGetRetentionPolicyResponseSchema,
+  AppSettingSetRetentionPolicyInputSchema,
+  AppSettingSetRetentionPolicyResponseSchema,
+  AppSettingRunRetentionCleanupInputSchema,
+  AppSettingRunRetentionCleanupResponseSchema,
   AppSettingSetSidebarCollapsedInputSchema,
   AppSettingSetSidebarCollapsedResponseSchema,
   DatabaseDeleteInputSchema,
   DatabaseDeleteResponseSchema,
 } from '../../../shared/types/ipc.js'
-import { appSettingsRepo } from '../../db/app-settings-repository.js'
 import { dbManager } from '../../db'
+import { retentionMaintenanceService } from '../../maintenance/retention-maintenance.service.js'
+import type { AppContext } from '../composition/create-app-context'
 
-export function registerAppHandlers(): void {
+export function registerAppHandlers(context: AppContext): void {
+  const {
+    getLastProjectId,
+    setLastProjectId,
+    getSidebarCollapsed,
+    setSidebarCollapsed,
+    getDefaultModel,
+    setDefaultModel,
+    getOhMyOpencodePath,
+    setOhMyOpencodePath,
+    getRetentionEnabled,
+    setRetentionEnabled,
+    getRetentionDays,
+    setRetentionDays,
+  } = context
+
   ipcHandlers.register('project:selectFolder', z.unknown(), async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'createDirectory'],
@@ -93,7 +114,7 @@ export function registerAppHandlers(): void {
   })
 
   ipcHandlers.register('appSetting:getLastProjectId', z.unknown(), async () => {
-    const projectId = appSettingsRepo.getLastProjectId()
+    const projectId = getLastProjectId()
     return AppSettingGetLastProjectIdResponseSchema.parse({ projectId })
   })
 
@@ -101,13 +122,13 @@ export function registerAppHandlers(): void {
     'appSetting:setLastProjectId',
     AppSettingSetLastProjectIdInputSchema,
     async (_, input) => {
-      appSettingsRepo.setLastProjectId(input.projectId)
+      setLastProjectId(input.projectId)
       return AppSettingSetLastProjectIdResponseSchema.parse({ ok: true })
     }
   )
 
   ipcHandlers.register('appSetting:getSidebarCollapsed', z.unknown(), async () => {
-    const collapsed = appSettingsRepo.getSidebarCollapsed()
+    const collapsed = getSidebarCollapsed()
     return AppSettingGetSidebarCollapsedResponseSchema.parse({ collapsed })
   })
 
@@ -115,7 +136,7 @@ export function registerAppHandlers(): void {
     'appSetting:setSidebarCollapsed',
     AppSettingSetSidebarCollapsedInputSchema,
     async (_, input) => {
-      appSettingsRepo.setSidebarCollapsed(input.collapsed)
+      setSidebarCollapsed(input.collapsed)
       return AppSettingSetSidebarCollapsedResponseSchema.parse({ ok: true })
     }
   )
@@ -124,7 +145,7 @@ export function registerAppHandlers(): void {
     'appSetting:getDefaultModel',
     AppSettingGetDefaultModelInputSchema,
     async (_, input) => {
-      const modelName = appSettingsRepo.getDefaultModel(input.difficulty)
+      const modelName = getDefaultModel(input.difficulty)
       return AppSettingGetDefaultModelResponseSchema.parse({ modelName })
     }
   )
@@ -133,13 +154,13 @@ export function registerAppHandlers(): void {
     'appSetting:setDefaultModel',
     AppSettingSetDefaultModelInputSchema,
     async (_, input) => {
-      appSettingsRepo.setDefaultModel(input.difficulty, input.modelName)
+      setDefaultModel(input.difficulty, input.modelName)
       return AppSettingSetDefaultModelResponseSchema.parse({ ok: true })
     }
   )
 
   ipcHandlers.register('appSetting:getOhMyOpencodePath', z.unknown(), async () => {
-    const configPath = appSettingsRepo.getOhMyOpencodeConfigPath()
+    const configPath = getOhMyOpencodePath()
     return AppSettingGetOhMyOpencodePathResponseSchema.parse({ path: configPath })
   })
 
@@ -147,8 +168,38 @@ export function registerAppHandlers(): void {
     'appSetting:setOhMyOpencodePath',
     AppSettingSetOhMyOpencodePathInputSchema,
     async (_, input) => {
-      appSettingsRepo.setOhMyOpencodeConfigPath(input.path)
+      setOhMyOpencodePath(input.path)
       return AppSettingSetOhMyOpencodePathResponseSchema.parse({ ok: true })
+    }
+  )
+
+  ipcHandlers.register('appSetting:getRetentionPolicy', z.unknown(), async () => {
+    const enabled = getRetentionEnabled()
+    const days = getRetentionDays()
+    return AppSettingGetRetentionPolicyResponseSchema.parse({ enabled, days })
+  })
+
+  ipcHandlers.register(
+    'appSetting:setRetentionPolicy',
+    AppSettingSetRetentionPolicyInputSchema,
+    async (_, input) => {
+      setRetentionEnabled(input.enabled)
+      setRetentionDays(input.days)
+      return AppSettingSetRetentionPolicyResponseSchema.parse({ ok: true })
+    }
+  )
+
+  ipcHandlers.register(
+    'appSetting:runRetentionCleanup',
+    AppSettingRunRetentionCleanupInputSchema,
+    async (_, input) => {
+      const days = getRetentionDays()
+      const result = retentionMaintenanceService.runCleanup({
+        days,
+        dryRun: input.dryRun,
+        maxDeletes: input.maxDeletes,
+      })
+      return AppSettingRunRetentionCleanupResponseSchema.parse(result)
     }
   )
 

@@ -2,9 +2,22 @@ import Database from 'better-sqlite3'
 import { app } from 'electron'
 import path from 'path'
 import fs from 'node:fs'
+import os from 'node:os'
 import { INIT_DB_SQL, migrations } from './migrations'
 
-const DB_PATH = process.env.DB_PATH || path.join(app.getPath('userData'), 'kanban.db')
+const getDefaultDbPath = (): string => {
+  if (process.env.DB_PATH) {
+    return process.env.DB_PATH
+  }
+
+  if (app && app.getPath) {
+    return path.join(app.getPath('userData'), 'kanban.db')
+  }
+
+  return path.join(os.tmpdir(), 'kanban-test.db')
+}
+
+const DB_PATH = getDefaultDbPath()
 
 class DatabaseManager {
   private db: Database.Database | null = null

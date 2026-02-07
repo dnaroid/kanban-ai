@@ -5,16 +5,18 @@ import {
   ScheduleUpdateInputSchema,
   ScheduleUpdateResponseSchema,
 } from '../../../shared/types/ipc.js'
-import { taskScheduleRepo } from '../../db/task-schedule-repository'
+import type { AppContext } from '../composition/create-app-context'
 
-export function registerScheduleHandlers(): void {
+export function registerScheduleHandlers(context: AppContext): void {
+  const { listScheduleByProject, updateSchedule } = context
+
   ipcHandlers.register('schedule:get', ScheduleGetInputSchema, async (_, { projectId }) => {
-    const tasks = taskScheduleRepo.listByProject(projectId)
+    const tasks = listScheduleByProject(projectId)
     return ScheduleGetResponseSchema.parse({ tasks })
   })
 
   ipcHandlers.register('schedule:update', ScheduleUpdateInputSchema, async (_, input) => {
-    const schedule = taskScheduleRepo.update(input)
+    const schedule = updateSchedule(input)
     return ScheduleUpdateResponseSchema.parse({ schedule })
   })
 }

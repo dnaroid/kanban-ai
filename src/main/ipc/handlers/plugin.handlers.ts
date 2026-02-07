@@ -9,9 +9,11 @@ import {
   RolesListResponseSchema,
 } from '../../../shared/types/ipc.js'
 import { pluginService } from '../../plugins/plugin-service'
-import { agentRoleRepo } from '../../db/agent-role-repository'
+import type { AppContext } from '../composition/create-app-context'
 
-export function registerPluginHandlers(): void {
+export function registerPluginHandlers(context: AppContext): void {
+  const { listAgentRoles } = context
+
   ipcHandlers.register('plugins:list', null, async () => {
     const plugins = pluginService.list()
     return PluginsListResponseSchema.parse({ plugins })
@@ -33,7 +35,7 @@ export function registerPluginHandlers(): void {
   })
 
   ipcHandlers.register('roles:list', null, async () => {
-    const roles = agentRoleRepo.list()
+    const roles = listAgentRoles()
     return RolesListResponseSchema.parse({ roles })
   })
 }

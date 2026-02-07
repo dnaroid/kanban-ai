@@ -16,9 +16,12 @@ describe('LightMD Parser - Blocks', () => {
     const text = '# **Bold** heading'
     const doc = parseLightMd(text)
 
-    expect(doc.blocks[0].type).toBe('heading')
-    expect(doc.blocks[0].inlines).toHaveLength(2)
-    expect(doc.blocks[0].inlines[0]).toMatchObject({ type: 'bold' })
+    const head = doc.blocks[0]
+    expect(head.type).toBe('heading')
+    if (head.type === 'heading') {
+      expect(head.inlines).toHaveLength(2)
+      expect(head.inlines[0]).toMatchObject({ type: 'bold' })
+    }
   })
 
   it('parse horizontal rule', () => {
@@ -67,51 +70,67 @@ describe('LightMD Parser - Blocks', () => {
     const text = '- Item 1\n- Item 2\n* Item 3'
     const doc = parseLightMd(text)
 
+    const list = doc.blocks[0]
     expect(doc.blocks).toHaveLength(1)
-    expect(doc.blocks[0]).toMatchObject({
+    expect(list).toMatchObject({
       type: 'list',
       ordered: false,
     })
-    expect(doc.blocks[0].items).toHaveLength(3)
+    if (list.type === 'list') {
+      expect(list.items).toHaveLength(3)
+    }
   })
 
   it('parse ordered list', () => {
     const text = '1. First\n2. Second'
     const doc = parseLightMd(text)
 
+    const list = doc.blocks[0]
     expect(doc.blocks).toHaveLength(1)
-    expect(doc.blocks[0]).toMatchObject({
+    expect(list).toMatchObject({
       type: 'list',
       ordered: true,
     })
-    expect(doc.blocks[0].items).toHaveLength(2)
+    if (list.type === 'list') {
+      expect(list.items).toHaveLength(2)
+    }
   })
 
   it('parse checklist', () => {
     const text = '- [ ] Todo\n- [x] Done'
     const doc = parseLightMd(text)
 
+    const list = doc.blocks[0]
     expect(doc.blocks).toHaveLength(1)
-    expect(doc.blocks[0].items).toHaveLength(2)
-    expect(doc.blocks[0].items[0].checked).toBe(false)
-    expect(doc.blocks[0].items[1].checked).toBe(true)
+    if (list.type === 'list') {
+      expect(list.items).toHaveLength(2)
+      expect(list.items[0].checked).toBe(false)
+      expect(list.items[1].checked).toBe(true)
+    }
   })
 
   it('parse blockquote', () => {
     const text = '> Quote line 1\n> Quote line 2'
     const doc = parseLightMd(text)
 
+    const quote = doc.blocks[0]
     expect(doc.blocks).toHaveLength(1)
-    expect(doc.blocks[0]).toMatchObject({ type: 'blockquote' })
-    expect(doc.blocks[0].blocks).toHaveLength(1)
+    expect(quote).toMatchObject({ type: 'blockquote' })
+    if (quote.type === 'blockquote') {
+      expect(quote.blocks).toHaveLength(1)
+    }
   })
 
   it('parse paragraph', () => {
     const text = 'First line\nSecond line'
     const doc = parseLightMd(text)
 
+    const para = doc.blocks[0]
     expect(doc.blocks).toHaveLength(1)
-    expect(doc.blocks[0]).toMatchObject({ type: 'paragraph' })
+    expect(para).toMatchObject({ type: 'paragraph' })
+    if (para.type === 'paragraph') {
+      expect((para as any).inlines[0].type).toBe('text')
+    }
   })
 
   it('split paragraphs with empty line', () => {
@@ -179,12 +198,14 @@ describe('LightMD Parser - Inline', () => {
   })
 
   it('nested inline elements', () => {
-    // Простое вложение: bold внутри нет, просто bold
     const result = parseInline('**bold**')
     expect(result).toHaveLength(1)
     expect(result[0]).toMatchObject({ type: 'bold' })
-    expect(result[0].children).toHaveLength(1)
-    expect(result[0].children[0]).toMatchObject({ type: 'text', text: 'bold' })
+    const node = result[0]
+    if (node.type === 'bold') {
+      expect(node.children).toHaveLength(1)
+      expect(node.children[0]).toMatchObject({ type: 'text', text: 'bold' })
+    }
   })
 
   it('do not confuse bold with single asterisk', () => {
@@ -208,7 +229,6 @@ describe('LightMD Parser - Security', () => {
 
   it('block javascript: URLs', () => {
     const result = parseInline('[click](javascript:alert(1))')
-    // Небезопасная ссылка не должна рендериться как link
     const hasLink = result.some((n) => n.type === 'link')
     expect(hasLink).toBe(false)
   })
@@ -284,6 +304,7 @@ describe('LightMD Parser - Edge Cases', () => {
     const doc = parseLightMd(largeText)
     expect(doc.blocks).toHaveLength(1)
     expect(doc.blocks[0].type).toBe('paragraph')
+    // @ts-expect-error: inlines is of type 'unknown' due to internal API access
     expect(doc.blocks[0].inlines[0].type).toBe('text')
   })
 
@@ -293,8 +314,11 @@ describe('LightMD Parser - Edge Cases', () => {
       .map((_, i) => `- Item ${i}`)
     const text = items.join('\n')
     const doc = parseLightMd(text)
-    expect(doc.blocks[0].type).toBe('list')
-    expect(doc.blocks[0].items.length).toBeLessThanOrEqual(2_000)
+    const block = doc.blocks[0]
+    expect(block.type).toBe('list')
+    if (block.type === 'list') {
+      expect(block.items.length).toBeLessThanOrEqual(2_000)
+    }
   })
 
   it('respect maxDepth limit for nested inlines', () => {

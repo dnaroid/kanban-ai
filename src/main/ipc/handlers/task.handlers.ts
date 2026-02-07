@@ -12,7 +12,7 @@ import {
   TaskUpdateInputSchema,
   TaskUpdateResponseSchema,
 } from '../../../shared/types/ipc.js'
-import { unwrap } from '../../../shared/ipc'
+import { ok } from '../../../shared/ipc'
 
 export function registerTaskHandlers(context: AppContext): void {
   const {
@@ -24,28 +24,46 @@ export function registerTaskHandlers(context: AppContext): void {
   } = context
 
   ipcHandlers.register('task:create', CreateTaskInputSchema, async (_, input) => {
-    return TaskCreateResponseSchema.parse(unwrap(createTaskUseCase.execute(input)))
+    const result = createTaskUseCase.execute(input)
+    if (!result.ok) {
+      return result
+    }
+    return ok(TaskCreateResponseSchema.parse(result.data))
   })
 
   ipcHandlers.register('task:listByBoard', TaskListByBoardInputSchema, async (_, { boardId }) => {
-    return TaskListByBoardResponseSchema.parse(unwrap(listTasksByBoardUseCase.execute(boardId)))
+    const result = listTasksByBoardUseCase.execute(boardId)
+    if (!result.ok) {
+      return result
+    }
+    return ok(TaskListByBoardResponseSchema.parse(result.data))
   })
 
   ipcHandlers.register('task:update', TaskUpdateInputSchema, async (_, { taskId, patch }) => {
-    return TaskUpdateResponseSchema.parse(unwrap(updateTaskUseCase.execute({ taskId, patch })))
+    const result = updateTaskUseCase.execute({ taskId, patch })
+    if (!result.ok) {
+      return result
+    }
+    return ok(TaskUpdateResponseSchema.parse(result.data))
   })
 
   ipcHandlers.register(
     'task:move',
     TaskMoveInputSchema,
     async (_, { taskId, toColumnId, toIndex }) => {
-      return TaskMoveResponseSchema.parse(
-        unwrap(moveTaskUseCase.execute({ taskId, toColumnId, toIndex }))
-      )
+      const result = moveTaskUseCase.execute({ taskId, toColumnId, toIndex })
+      if (!result.ok) {
+        return result
+      }
+      return ok(TaskMoveResponseSchema.parse(result.data))
     }
   )
 
   ipcHandlers.register('task:delete', TaskDeleteInputSchema, async (_, { taskId }) => {
-    return TaskDeleteResponseSchema.parse(unwrap(deleteTaskUseCase.execute({ taskId })))
+    const result = deleteTaskUseCase.execute({ taskId })
+    if (!result.ok) {
+      return result
+    }
+    return ok(TaskDeleteResponseSchema.parse(result.data))
   })
 }

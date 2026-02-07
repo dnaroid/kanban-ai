@@ -88,4 +88,44 @@ describe('searchService.queryTasks', () => {
       cleanup()
     }
   })
+
+  it('supports pagination with limit and offset', async () => {
+    const { boardRepo, taskRepo, searchService, projectId, cleanup } = await setupDb()
+
+    try {
+      const board = boardRepo.getOrCreateDefaultBoard(projectId)
+      const columnId = board.columns?.[0].id
+      if (!columnId) throw new Error('Missing column')
+
+      taskRepo.create({
+        projectId,
+        boardId: board.id,
+        columnId,
+        title: 'Paginated A',
+        priority: 'normal',
+        difficulty: 'medium',
+        type: 'task',
+        tags: ['pagination'],
+      })
+      taskRepo.create({
+        projectId,
+        boardId: board.id,
+        columnId,
+        title: 'Paginated B',
+        priority: 'normal',
+        difficulty: 'medium',
+        type: 'task',
+        tags: ['pagination'],
+      })
+
+      const firstPage = searchService.queryTasks('Paginated', { projectId }, 1, 0)
+      const secondPage = searchService.queryTasks('Paginated', { projectId }, 1, 1)
+
+      expect(firstPage).toHaveLength(1)
+      expect(secondPage).toHaveLength(1)
+      expect(firstPage[0].id).not.toBe(secondPage[0].id)
+    } finally {
+      cleanup()
+    }
+  })
 })

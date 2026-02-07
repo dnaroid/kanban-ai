@@ -14,6 +14,8 @@ export class AppSettingsRepository {
   private static readonly DEFAULT_MODEL_HARD_KEY = 'default_model_hard'
   private static readonly DEFAULT_MODEL_EPIC_KEY = 'default_model_epic'
   private static readonly OHMYOPENCODE_CONFIG_PATH_KEY = 'ohmyopencode_config_path'
+  private static readonly RETENTION_ENABLED_KEY = 'retention_enabled'
+  private static readonly RETENTION_DAYS_KEY = 'retention_days'
 
   set(key: string, value: string): void {
     const db = dbManager.connect()
@@ -99,6 +101,32 @@ export class AppSettingsRepository {
 
   setOhMyOpencodeConfigPath(path: string): void {
     this.set(AppSettingsRepository.OHMYOPENCODE_CONFIG_PATH_KEY, path)
+  }
+
+  getRetentionEnabled(): boolean {
+    const value = this.get(AppSettingsRepository.RETENTION_ENABLED_KEY)
+    if (value === null) {
+      return false
+    }
+    return value === 'true'
+  }
+
+  setRetentionEnabled(enabled: boolean): void {
+    this.set(AppSettingsRepository.RETENTION_ENABLED_KEY, String(enabled))
+  }
+
+  getRetentionDays(): number {
+    const value = this.get(AppSettingsRepository.RETENTION_DAYS_KEY)
+    const parsed = value ? Number(value) : Number.NaN
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      return 30
+    }
+    return Math.floor(parsed)
+  }
+
+  setRetentionDays(days: number): void {
+    const safeDays = Math.max(1, Math.floor(days))
+    this.set(AppSettingsRepository.RETENTION_DAYS_KEY, String(safeDays))
   }
 }
 

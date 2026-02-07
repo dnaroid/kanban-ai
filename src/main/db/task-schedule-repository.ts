@@ -31,18 +31,24 @@ export class TaskScheduleRepository {
           SELECT
             tasks.id as id,
             tasks.project_id as projectId,
+            tasks.board_id as boardId,
+            tasks.column_id as columnId,
             tasks.title as title,
             tasks.status as status,
             tasks.priority as priority,
+            tasks.difficulty as difficulty,
+            tasks.type as type,
+            tasks.model_name as modelName,
             tasks.tags_json as tagsJson,
-            task_schedule.start_date as startDate,
-            task_schedule.due_date as dueDate,
-            task_schedule.estimate_points as estimatePoints,
-            task_schedule.estimate_hours as estimateHours,
-            task_schedule.assignee as assignee,
-            task_schedule.updated_at as scheduleUpdatedAt,
-            tasks.updated_at as taskUpdatedAt
-          FROM tasks
+              task_schedule.start_date as startDate,
+              task_schedule.due_date as dueDate,
+              task_schedule.estimate_points as estimatePoints,
+              task_schedule.estimate_hours as estimateHours,
+              task_schedule.assignee as assignee,
+              task_schedule.updated_at as scheduleUpdatedAt,
+              tasks.updated_at as taskUpdatedAt
+            FROM tasks
+
           LEFT JOIN task_schedule ON task_schedule.task_id = tasks.id
           WHERE tasks.project_id = ?
           ORDER BY tasks.created_at ASC
@@ -51,9 +57,14 @@ export class TaskScheduleRepository {
       .all(projectId) as Array<{
       id: string
       projectId: string
+      boardId: string
+      columnId: string
       title: string
       status: TimelineTask['status']
       priority: TimelineTask['priority']
+      difficulty: TimelineTask['difficulty']
+      type: string
+      modelName: string | null
       tagsJson: string | null
       startDate: string | null
       dueDate: string | null
@@ -74,11 +85,17 @@ export class TaskScheduleRepository {
       return {
         id: row.id,
         projectId: row.projectId,
+        boardId: row.boardId,
+        columnId: row.columnId,
         title: row.title,
         status: row.status,
         priority: row.priority,
+        difficulty: row.difficulty,
+        type: row.type,
+        modelName: row.modelName,
         tags,
         startDate: row.startDate ?? null,
+
         dueDate: row.dueDate ?? null,
         estimatePoints: row.estimatePoints ?? 0,
         estimateHours: row.estimateHours ?? 0,

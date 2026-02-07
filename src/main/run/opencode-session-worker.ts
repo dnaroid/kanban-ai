@@ -190,6 +190,7 @@ export class OpenCodeSessionWorker {
             tags: string[]
             type: AllowedTaskType
             difficulty: AllowedDifficulty
+            modelName: string
           }> = {
             description: parsed.description,
             status: 'queued',
