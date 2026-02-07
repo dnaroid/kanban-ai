@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS board_columns (
 );
 
 -- ---------------------------------------------------------------------------
--- tasks (final form; NO git columns)
+-- tasks (includes all migrations 1-16)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS tasks (
   id TEXT PRIMARY KEY,
@@ -53,9 +53,9 @@ CREATE TABLE IF NOT EXISTS tasks (
   -- core
   title TEXT NOT NULL,
   description TEXT,
-  status TEXT NOT NULL,           -- e.g. 'open' | 'done' | 'archived' (или как у тебя принято)
-  priority TEXT NOT NULL,         -- e.g. 'p0'|'p1'|'p2'|'p3'
-  difficulty TEXT NOT NULL DEFAULT 'medium',
+  status TEXT NOT NULL,           -- 'queued' | 'running' | 'done' | 'archived' (migration 2)
+  priority TEXT NOT NULL,         -- 'low' | 'normal' | 'urgent' (migration 4)
+  difficulty TEXT NOT NULL DEFAULT 'medium',  -- migration 1
   assigned_agent TEXT,            -- optional (manual), не обязателен при queue
 
   -- board placement
@@ -68,12 +68,15 @@ CREATE TABLE IF NOT EXISTS tasks (
   tags_json TEXT NOT NULL DEFAULT '[]',
   description_md TEXT,
 
-  -- scheduling
+  -- scheduling (migration 3)
   start_date TEXT,
   due_date TEXT,
   estimate_points REAL,
   estimate_hours REAL,
   assignee TEXT,
+
+  -- model assignment (migration 15)
+  model_name TEXT,
 
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -129,9 +132,9 @@ CREATE TABLE IF NOT EXISTS runs (
   task_id TEXT NOT NULL,
   role_id TEXT NOT NULL,
   mode TEXT NOT NULL DEFAULT 'execute',
-  kind TEXT NOT NULL DEFAULT 'task-run',
+  kind TEXT NOT NULL DEFAULT 'task-run',  -- migration 6
   status TEXT NOT NULL,
-  session_id TEXT,
+  session_id TEXT,                        -- migration 7
   started_at TEXT,
   finished_at TEXT,
   error_text TEXT NOT NULL DEFAULT '',
@@ -157,7 +160,7 @@ CREATE TABLE IF NOT EXISTS run_events (
   ts TEXT NOT NULL,
   event_type TEXT NOT NULL,
   payload_json TEXT NOT NULL,
-  message_id TEXT,
+  message_id TEXT,                        -- migration 5
   FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
 
@@ -416,7 +419,9 @@ CREATE TABLE IF NOT EXISTS plugins (
 
 CREATE TABLE IF NOT EXISTS opencode_models (
   name TEXT PRIMARY KEY,
-  enabled INTEGER NOT NULL DEFAULT 0
+  enabled INTEGER NOT NULL DEFAULT 0,
+  difficulty TEXT NOT NULL DEFAULT 'medium',  -- migration 14
+  variants TEXT NOT NULL DEFAULT ''           -- migration 16
 );
 
 CREATE TABLE IF NOT EXISTS app_settings (
@@ -431,228 +436,8 @@ CREATE INDEX IF NOT EXISTS idx_app_settings_key ON app_settings(key);
 
 export const migrations = [
   {
-    version: 0,
-    sql: INIT_DB_SQL,
-  },
-  {
-    version: 1,
-    sql: `ALTER TABLE tasks
-        ADD COLUMN difficulty TEXT;`,
-  },
-  {
-    version: 2,
-    sql: `
-        UPDATE tasks
-        SET status = 'queued'
-        WHERE status = 'todo';
-        UPDATE tasks
-        SET status = 'running'
-        WHERE status = 'in-progress';
-        -- done remains done, others are new
-    `,
-  },
-  {
-    version: 3,
-    sql: `
-        ALTER TABLE tasks
-            ADD COLUMN start_date TEXT;
-        ALTER TABLE tasks
-            ADD COLUMN due_date TEXT;
-        ALTER TABLE tasks
-            ADD COLUMN estimate_points REAL;
-        ALTER TABLE tasks
-            ADD COLUMN estimate_hours REAL;
-        ALTER TABLE tasks
-            ADD COLUMN assignee TEXT;
-    `,
-  },
-  {
-    version: 4,
-    sql: `
-        UPDATE tasks
-        SET priority = 'normal'
-        WHERE priority = 'medium';
-        UPDATE tasks
-        SET priority = 'urgent'
-        WHERE priority = 'high';
-        -- low and urgent remain
-    `,
-  },
-  {
-    version: 5,
-    sql: `
-        ALTER TABLE run_events
-            ADD COLUMN message_id TEXT;
-        CREATE INDEX IF NOT EXISTS idx_run_events_message ON run_events(message_id);
-    `,
-  },
-  {
-    version: 6,
-    sql: `
-        ALTER TABLE runs
-            ADD COLUMN kind TEXT NOT NULL DEFAULT 'task-run';
-    `,
-  },
-  {
-    version: 7,
-    sql: `
-        ALTER TABLE runs
-            ADD COLUMN session_id TEXT;
-    `,
-  },
-  {
-    version: 8,
-    sql: `
-        DROP TABLE IF EXISTS opencode_sessions;
-    `,
-  },
-  {
-    version: 9,
-    sql: `
-        CREATE TABLE IF NOT EXISTS tags
-        (
-            id
-            TEXT
-            PRIMARY
-            KEY,
-            project_id
-            TEXT
-            NOT
-            NULL,
-            name
-            TEXT
-            NOT
-            NULL,
-            color
-            TEXT
-            NOT
-            NULL,
-            created_at
-            TEXT
-            NOT
-            NULL,
-            updated_at
-            TEXT
-            NOT
-            NULL,
-            FOREIGN
-            KEY
-        (
-            project_id
-        ) REFERENCES projects
-        (
-            id
-        ) ON DELETE CASCADE,
-            UNIQUE
-        (
-            project_id,
-            name
-        )
-            );
-    `,
-  },
-  {
-    version: 10,
-    sql: `
-        CREATE TABLE IF NOT EXISTS tags_new
-        (
-            id
-            TEXT
-            PRIMARY
-            KEY,
-            name
-            TEXT
-            NOT
-            NULL,
-            color
-            TEXT
-            NOT
-            NULL,
-            created_at
-            TEXT
-            NOT
-            NULL,
-            updated_at
-            TEXT
-            NOT
-            NULL,
-            UNIQUE
-        (
-            name
-        )
-            );
-
-        INSERT INTO tags_new (id, name, color, created_at, updated_at)
-        SELECT t.id, t.name, t.color, t.created_at, t.updated_at
-        FROM tags t
-                 JOIN (SELECT name, MAX(updated_at) AS updated_at
-                       FROM tags
-                       GROUP BY name) latest ON latest.name = t.name AND latest.updated_at = t.updated_at
-        GROUP BY t.name;
-
-        DROP TABLE tags;
-        ALTER TABLE tags_new RENAME TO tags;
-    `,
-  },
-  {
-    version: 11,
-    sql: `
-        ALTER TABLE projects
-            ADD COLUMN color TEXT NOT NULL DEFAULT '';
-    `,
-  },
-  {
-    version: 12,
-    sql: `
-        UPDATE board_columns
-        SET color = CASE
-                        WHEN lower(name) = 'backlog' THEN '#3B82F6'
-                        WHEN lower(name) = 'in progress' THEN '#F59E0B'
-                        WHEN lower(name) = 'done' THEN '#10B981'
-                        ELSE color
-            END
-        WHERE color IS NULL
-           OR color = '';
-    `,
-  },
-  {
-    version: 13,
-    sql: `
-        CREATE TABLE IF NOT EXISTS opencode_models
-        (
-            name
-            TEXT
-            PRIMARY
-            KEY,
-            enabled
-            INTEGER
-            NOT
-            NULL
-            DEFAULT
-            0
-        );
-    `,
-  },
-  {
-    version: 14,
-    sql: `
-        ALTER TABLE opencode_models
-            ADD COLUMN difficulty TEXT NOT NULL DEFAULT 'medium';
-    `,
-  },
-  {
-    version: 15,
-    sql: `
-        ALTER TABLE tasks
-            ADD COLUMN model_name TEXT;
-    `,
-  },
-  {
     version: 16,
-    sql: `
-        ALTER TABLE opencode_models
-            ADD COLUMN variants TEXT NOT NULL DEFAULT '';
-    `,
+    sql: INIT_DB_SQL,
   },
 ] as const
 

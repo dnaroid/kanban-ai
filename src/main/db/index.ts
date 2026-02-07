@@ -54,10 +54,14 @@ class DatabaseManager {
   private runMigrations(): void {
     if (!this.db) return
 
-    const migration0 = migrations.find((m) => m.version === 0)
-    if (migration0) {
-      this.db.exec(migration0.sql)
-    }
+    // Ensure schema_migrations table exists
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        version INTEGER NOT NULL UNIQUE,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `)
 
     const currentVersion = this.db
       .prepare('SELECT MAX(version) as version FROM schema_migrations')

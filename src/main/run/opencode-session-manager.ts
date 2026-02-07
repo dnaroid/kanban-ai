@@ -773,6 +773,9 @@ export class OpenCodeSessionManager {
                 )
                 break
               case 'message.part.updated':
+                if (event.properties.part.messageID) {
+                  this.messageSessionIndex.set(event.properties.part.messageID, sessionID)
+                }
                 sessionEvent = {
                   type: 'message.part.updated',
                   sessionId: sessionID,
@@ -1127,11 +1130,21 @@ export class OpenCodeSessionManager {
       case 'message.removed':
         return true
       case 'message.part.updated': {
+        const partSessionId = (event.properties.part as { sessionID?: string }).sessionID
+        if (typeof partSessionId === 'string' && partSessionId.length > 0) {
+          return partSessionId === sessionID
+        }
+
         const messageId = event.properties.part.messageID
         const knownSession = this.messageSessionIndex.get(messageId)
         return !knownSession || knownSession === sessionID
       }
       case 'message.part.removed': {
+        const eventSessionId = (event.properties as { sessionID?: string }).sessionID
+        if (typeof eventSessionId === 'string' && eventSessionId.length > 0) {
+          return eventSessionId === sessionID
+        }
+
         const messageId = event.properties.messageID
         const knownSession = this.messageSessionIndex.get(messageId)
         return !knownSession || knownSession === sessionID
