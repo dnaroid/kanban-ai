@@ -1108,7 +1108,7 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
         </div>
 
         {/* Main Editor */}
-        <div className="flex-1 overflow-hidden">{renderEditor()}</div>
+        <div className="flex-1 flex flex-col overflow-hidden">{renderEditor()}</div>
       </div>
     </div>
   )

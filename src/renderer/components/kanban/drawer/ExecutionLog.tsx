@@ -13,16 +13,18 @@ import {
 } from 'lucide-react'
 import { AgentPart, FilePart, ReasoningPart, TextPart, ToolPart } from '../../chat/MessageParts'
 import { cn } from '../../../lib/utils'
-import type { OpenCodeMessage, Part, RunEvent } from '@/shared/types/ipc.ts'
+import type { OpenCodeMessage, Part, Run, RunEvent } from '@/shared/types/ipc.ts'
 import { extractOpencodeStatus } from '@/shared/opencode-status'
 import { LightMarkdown } from '../../LightMarkdown'
 
 export function ExecutionLog({
   runId,
+  run,
   sessionId,
   showReasoning,
 }: {
   runId: string
+  run?: Run | null
   sessionId: string
   showReasoning?: boolean
 }) {
@@ -580,7 +582,7 @@ export function ExecutionLog({
                   isUser ? 'text-indigo-400/80' : 'text-blue-500/80'
                 )}
               >
-                {isUser ? 'User' : 'Assistant'}
+                {isUser ? 'User' : run?.roleId || 'Assistant'}
               </span>
               <span className="text-[10px] font-mono text-slate-600/60 select-none">{time}</span>
             </div>

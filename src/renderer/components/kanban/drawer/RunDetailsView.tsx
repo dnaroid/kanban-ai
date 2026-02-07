@@ -150,7 +150,9 @@ export function RunDetailsView({
                 hasTodos && view !== 'todo' && 'animate-todo-pulse text-amber-500/80'
               )}
             >
-              <ListTodo className={cn('w-3 h-3', hasTodos && view !== 'todo' && 'text-amber-500')} />
+              <ListTodo
+                className={cn('w-3 h-3', hasTodos && view !== 'todo' && 'text-amber-500')}
+              />
               Todo
             </button>
             <button
@@ -183,6 +185,7 @@ export function RunDetailsView({
         {view === 'log' ? (
           <ExecutionLog
             runId={runId}
+            run={run}
             sessionId={run?.sessionId || ''}
             showReasoning={showReasoning}
           />
