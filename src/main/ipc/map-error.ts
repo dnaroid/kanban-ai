@@ -1,6 +1,11 @@
 import { ErrorCode, fail, type Result } from '../../shared/ipc'
+import { isIpcDomainError } from './ipc-domain-error'
 
 export const toResultError = <T = never>(error: unknown): Result<T> => {
+  if (isIpcDomainError(error)) {
+    return fail(error.code, error.message, error.details)
+  }
+
   if (error instanceof Error) {
     const code = mapErrorToCode(error)
     return fail(code, error.message)

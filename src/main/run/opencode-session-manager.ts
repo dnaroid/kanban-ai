@@ -1,8 +1,8 @@
 import type { Event, Message, Part, Session, TextPartInput } from '@opencode-ai/sdk/v2/client'
 import { createOpencodeClient } from '@opencode-ai/sdk/v2/client'
 import fs from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
+import { OpenCodeStorageReader } from './opencode-storage-reader.js'
 
 export {
   OPENCODE_STATUS_REGEX,
@@ -135,6 +135,9 @@ export class OpenCodeSessionManager {
     >
   >()
   private messageSessionIndex = new Map<string, string>()
+  private readonly storageReader = new OpenCodeStorageReader((parts) =>
+    this.buildMessageContent(parts)
+  )
 
   private dispatchSessionEvent(sessionID: string, event: SessionEvent): void {
     const subscribers = this.eventSubscribers.get(sessionID)
@@ -304,7 +307,7 @@ export class OpenCodeSessionManager {
   async getMessages(sessionID: string, limit?: number): Promise<SessionMessage[]> {
     const sessionInfo = this.activeSessions.get(sessionID)
     if (!sessionInfo) {
-      const messages = await this.getMessagesFromFilesystem(sessionID, limit)
+      const messages = await this.storageReader.getMessagesFromFilesystem(sessionID, limit)
       if (messages.length > 0) {
         return messages.map((msg) => ({
           id: msg.id,
@@ -452,7 +455,7 @@ export class OpenCodeSessionManager {
         '[OpenCodeSessionManager] getMessagesRaw: session not in active sessions, loading from filesystem',
         { sessionID }
       )
-      return this.getMessagesFromFilesystem(sessionID, limit)
+      return this.storageReader.getMessagesFromFilesystem(sessionID, limit)
     }
 
     let response
@@ -474,7 +477,7 @@ export class OpenCodeSessionManager {
           '[OpenCodeSessionManager] getMessagesRaw: session not found via SDK, loading from filesystem',
           { sessionID }
         )
-        return this.getMessagesFromFilesystem(sessionID, limit)
+        return this.storageReader.getMessagesFromFilesystem(sessionID, limit)
       }
       throw error
     }
@@ -486,7 +489,7 @@ export class OpenCodeSessionManager {
         console.log('[OpenCodeSessionManager] getMessagesRaw: SDK error, loading from filesystem', {
           sessionID,
         })
-        return this.getMessagesFromFilesystem(sessionID, limit)
+        return this.storageReader.getMessagesFromFilesystem(sessionID, limit)
       }
       throw new Error(`Failed to get messages: ${response.error}`)
     }
@@ -883,95 +886,6 @@ export class OpenCodeSessionManager {
     return this.eventAbortControllers.has(sessionID)
   }
 
-  private async loadPartsForMessage(messageID: string): Promise<Part[]> {
-    try {
-      const partsDir = path.join(this.getOpenCodeStoragePath(), 'part', messageID)
-      const partFiles = await fs.readdir(partsDir)
-      const partsFiltered = partFiles.filter((f) => f.startsWith('prt_') && f.endsWith('.json'))
-
-      const parts = await Promise.all(
-        partsFiltered.map(async (filename) => {
-          const filePath = path.join(partsDir, filename)
-          try {
-            const partData = JSON.parse(await fs.readFile(filePath, 'utf-8'))
-            return partData as Part
-          } catch (e) {
-            console.error(`[OpenCodeSessionManager] Failed to read part file ${filePath}:`, e)
-            return null
-          }
-        })
-      )
-      return parts.filter((p): p is NonNullable<typeof p> => p !== null)
-    } catch {
-      return []
-    }
-  }
-
-  private async getMessagesFromFilesystem(
-    sessionId: string,
-    limit?: number
-  ): Promise<
-    Array<{
-      id: string
-      role: 'user' | 'assistant'
-      content: string
-      parts: Part[]
-      timestamp: number
-    }>
-  > {
-    try {
-      const storagePath = this.getOpenCodeStoragePath()
-      const messageDir = path.join(storagePath, 'message', sessionId)
-
-      const messageFiles = await fs.readdir(messageDir)
-      const messageFilesFiltered = messageFiles.filter(
-        (f) => f.startsWith('msg_') && f.endsWith('.json')
-      )
-
-      if (messageFilesFiltered.length === 0) {
-        return []
-      }
-
-      const messages = await Promise.all(
-        messageFilesFiltered.map(async (filename) => {
-          const filePath = path.join(messageDir, filename)
-          try {
-            const messageData = JSON.parse(await fs.readFile(filePath, 'utf-8'))
-            const time = messageData.time || { created: Date.now() }
-            const role = messageData.role === 'user' ? ('user' as const) : ('assistant' as const)
-            const parts = await this.loadPartsForMessage(messageData.id)
-
-            const content =
-              typeof messageData.content === 'string' && messageData.content
-                ? messageData.content
-                : parts.length > 0
-                  ? this.buildMessageContent(parts)
-                  : messageData.summary?.title || ''
-            return {
-              id: messageData.id,
-              role,
-              content,
-              parts,
-              timestamp: typeof time.created === 'number' ? time.created : Number(time.created),
-            }
-          } catch (e) {
-            console.error(`[OpenCodeSessionManager] Failed to read message file ${filePath}:`, e)
-            return null
-          }
-        })
-      )
-
-      const filtered = messages.filter((m): m is NonNullable<typeof m> => m !== null)
-      return limit ? filtered.slice(0, limit) : filtered
-    } catch (error) {
-      console.error(
-        `[OpenCodeSessionManager] Failed to load messages for session ${sessionId} from filesystem:`,
-        error
-      )
-      return []
-    }
-  }
-
   private async createClientForDirectory(directory: string) {
     const cached = this.directoryClients.get(directory)
     if (cached) {
@@ -1065,18 +979,6 @@ export class OpenCodeSessionManager {
   /**
    * Получить все сообщения из сессии
    */
-  private getOpenCodeStoragePath(): string {
-    if (process.platform === 'darwin') {
-      return path.join(os.homedir(), 'Library', 'Application Support', 'opencode', 'storage')
-    }
-    if (process.platform === 'win32') {
-      const base = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming')
-      return path.join(base, 'opencode', 'storage')
-    }
-    const userDataPath = path.join(os.homedir(), '.local', 'share')
-    return path.join(userDataPath, 'opencode', 'storage')
-  }
-
   private async resolveSessionDirectory(sessionID: string): Promise<string | null> {
     const active = this.activeSessions.get(sessionID)
     if (active?.directory) {
@@ -1101,7 +1003,7 @@ export class OpenCodeSessionManager {
   }
 
   private async getSessionDirectoryFromStorage(sessionID: string): Promise<string | null> {
-    const storagePath = this.getOpenCodeStoragePath()
+    const storagePath = this.storageReader.getOpenCodeStoragePath()
     const sessionFilePath = path.join(storagePath, 'session', `${sessionID}.json`)
 
     try {

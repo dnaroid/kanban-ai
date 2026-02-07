@@ -13,12 +13,12 @@ const api: MainToRenderer = {
       }
       ipcRenderer.on('opencode:event', listener)
       if (sessionId) {
-        void ipcRenderer.invoke('opencode:subscribeToEvents', { sessionID: sessionId })
+        void ipcRenderer.invoke('opencode:subscribeToEvents', { sessionId })
       }
       return () => {
         ipcRenderer.removeListener('opencode:event', listener)
         if (sessionId) {
-          void ipcRenderer.invoke('opencode:unsubscribeFromEvents', { sessionID: sessionId })
+          void ipcRenderer.invoke('opencode:unsubscribeFromEvents', { sessionId })
         }
       }
     },

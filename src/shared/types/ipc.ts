@@ -950,7 +950,7 @@ export type TaskEvent = z.infer<typeof TaskEventSchema>
 
 // OpenCode event subscription types
 export const OpenCodeSubscribeInputSchema = z.object({
-  sessionID: z.string(),
+  sessionId: z.string(),
 })
 
 export type OpenCodeSubscribeInput = z.infer<typeof OpenCodeSubscribeInputSchema>
@@ -963,7 +963,7 @@ export const OpenCodeSubscribeResponseSchema = z.object({
 export type OpenCodeSubscribeResponse = z.infer<typeof OpenCodeSubscribeResponseSchema>
 
 export const OpenCodeUnsubscribeInputSchema = z.object({
-  sessionID: z.string(),
+  sessionId: z.string(),
 })
 
 export type OpenCodeUnsubscribeInput = z.infer<typeof OpenCodeUnsubscribeInputSchema>
@@ -976,7 +976,7 @@ export const OpenCodeUnsubscribeResponseSchema = z.object({
 export type OpenCodeUnsubscribeResponse = z.infer<typeof OpenCodeUnsubscribeResponseSchema>
 
 export const OpenCodeIsSubscribedInputSchema = z.object({
-  sessionID: z.string(),
+  sessionId: z.string(),
 })
 
 export type OpenCodeIsSubscribedInput = z.infer<typeof OpenCodeIsSubscribedInputSchema>
