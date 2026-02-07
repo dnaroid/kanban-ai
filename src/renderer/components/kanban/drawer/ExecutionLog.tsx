@@ -13,18 +13,16 @@ import {
 } from 'lucide-react'
 import { AgentPart, FilePart, ReasoningPart, TextPart, ToolPart } from '../../chat/MessageParts'
 import { cn } from '../../../lib/utils'
-import type { OpenCodeMessage, Part, Run, RunEvent } from '@/shared/types/ipc.ts'
+import type { OpenCodeMessage, Part, RunEvent } from '@/shared/types/ipc.ts'
 import { extractOpencodeStatus } from '@/shared/opencode-status'
 import { LightMarkdown } from '../../LightMarkdown'
 
 export function ExecutionLog({
   runId,
-  run,
   sessionId,
   showReasoning,
 }: {
   runId: string
-  run?: Run | null
   sessionId: string
   showReasoning?: boolean
 }) {
@@ -117,7 +115,7 @@ export function ExecutionLog({
 
   const buildMessageEvent: (
     messageId: string,
-    message: { role?: string; content?: string; parts?: Part[] },
+    message: { role?: string; content?: string; parts?: Part[]; modelID?: string },
     ts?: string
   ) => RunEvent = (messageId, message, ts = new Date().toISOString()) => ({
     id: `msg-${messageId}`,
@@ -128,6 +126,7 @@ export function ExecutionLog({
       role: message.role,
       content: message.content ?? '',
       parts: message.parts ?? [],
+      modelID: message.modelID,
     },
   })
 
@@ -165,6 +164,7 @@ export function ExecutionLog({
       role?: string
       content?: string
       parts?: Part[]
+      modelID?: string
     }) => {
       const payloadId = payload?.id
       if (!payloadId) return
@@ -507,7 +507,7 @@ export function ExecutionLog({
 
     if (event.eventType === 'message') {
       const messagePayload = event.payload as
-        | { role?: string; content?: string; parts?: Part[] }
+        | { role?: string; content?: string; parts?: Part[]; modelID?: string }
         | string
 
       if (typeof messagePayload === 'string') {
@@ -529,7 +529,7 @@ export function ExecutionLog({
         )
       }
 
-      const { role = 'assistant', content, parts: messageParts } = messagePayload
+      const { role = 'assistant', content, parts: messageParts, modelID } = messagePayload
 
       const parts =
         messageParts && messageParts.length > 0
@@ -582,7 +582,7 @@ export function ExecutionLog({
                   isUser ? 'text-indigo-400/80' : 'text-blue-500/80'
                 )}
               >
-                {isUser ? 'User' : run?.roleId || 'Assistant'}
+                {isUser ? 'User' : modelID || 'Assistant'}
               </span>
               <span className="text-[10px] font-mono text-slate-600/60 select-none">{time}</span>
             </div>

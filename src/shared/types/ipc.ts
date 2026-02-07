@@ -749,6 +749,15 @@ export const RunEventSchema = z.object({
   payload: z.unknown(),
 })
 
+export const RunEventMessagePayloadSchema = z.object({
+  role: z.enum(['user', 'assistant']),
+  content: z.string(),
+  modelID: z.string().optional(),
+  parts: z.any().array(),
+})
+
+export type RunEventMessagePayload = z.infer<typeof RunEventMessagePayloadSchema>
+
 export type RunEvent = z.infer<typeof RunEventSchema>
 
 export const RunEventsTailInputSchema = z.object({
@@ -898,6 +907,7 @@ export const OpenCodeMessageSchema = z.object({
   content: z.string(),
   parts: z.array(z.any()),
   timestamp: z.number(),
+  modelID: z.string().optional(),
 })
 
 export type OpenCodeMessage = z.infer<typeof OpenCodeMessageSchema>

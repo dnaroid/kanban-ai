@@ -185,7 +185,6 @@ export function RunDetailsView({
         {view === 'log' ? (
           <ExecutionLog
             runId={runId}
-            run={run}
             sessionId={run?.sessionId || ''}
             showReasoning={showReasoning}
           />
