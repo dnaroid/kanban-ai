@@ -1,3 +1,4 @@
+import { agentRoleRepo } from '../../db/agent-role-repository'
 import { opencodeModelRepo } from '../../db/opencode-model-repository'
 import { BoardRepoAdapter } from '../../infra/board/board-repo.adapter'
 import { ContextSnapshotRepoAdapter } from '../../infra/context-snapshot/context-snapshot-repo.adapter'
@@ -20,6 +21,7 @@ export function createRepositoriesModule() {
     runRepoAdapter,
     boardRepoAdapter,
     contextSnapshotRepoAdapter,
+    agentRoleRepo,
     getModelForDifficulty: (difficulty: Difficulty) =>
       opencodeModelRepo.getModelForDifficulty(difficulty),
   }

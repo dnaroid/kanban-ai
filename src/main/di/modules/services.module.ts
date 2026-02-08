@@ -1,18 +1,41 @@
 import { app } from 'electron'
 import { createOpencodeClient } from '@opencode-ai/sdk/v2/client'
 import { analyticsService } from '../../analytics/analytics-service'
-import { agentRoleRepo } from '../../db/agent-role-repository'
-import { appSettingsRepo } from '../../db/app-settings-repository'
-import { artifactRepo } from '../../db/artifact-repository'
-import { boardRepo } from '../../db/board-repository'
-import { opencodeModelRepo } from '../../db/opencode-model-repository'
-import { runEventRepo } from '../../db/run-event-repository'
-import { tagRepo } from '../../db/tag-repository'
-import { taskRepo } from '../../db/task-repository'
-import { taskScheduleRepo } from '../../db/task-schedule-repository'
 import { runService } from '../../run/run-service'
+import type { AgentRoleRepository } from '../../db/agent-role-repository'
+import type { AppSettingsRepository } from '../../db/app-settings-repository'
+import type { ArtifactRepository } from '../../db/artifact-repository'
+import type { BoardRepository } from '../../db/board-repository'
+import type { OpencodeModelRepository } from '../../db/opencode-model-repository'
+import type { RunEventRepository } from '../../db/run-event-repository'
+import type { TagRepository } from '../../db/tag-repository'
+import type { TaskRepository } from '../../db/task-repository'
+import type { TaskScheduleRepository } from '../../db/task-schedule-repository'
 
-export function createServicesModule() {
+interface ServicesModuleDeps {
+  agentRoleRepo: AgentRoleRepository
+  appSettingsRepo: AppSettingsRepository
+  artifactRepo: ArtifactRepository
+  boardRepo: BoardRepository
+  opencodeModelRepo: OpencodeModelRepository
+  runEventRepo: RunEventRepository
+  tagRepo: TagRepository
+  taskRepo: TaskRepository
+  taskScheduleRepo: TaskScheduleRepository
+}
+
+export function createServicesModule(deps: ServicesModuleDeps) {
+  const {
+    agentRoleRepo,
+    appSettingsRepo,
+    artifactRepo,
+    boardRepo,
+    opencodeModelRepo,
+    runEventRepo,
+    tagRepo,
+    taskRepo,
+    taskScheduleRepo,
+  } = deps
   return {
     enqueueRun: (runId: string) => runService.enqueue(runId),
     cancelRun: (runId: string) => runService.cancel(runId),

@@ -18,7 +18,6 @@ import { GetProjectByIdUseCase, GetProjectsUseCase } from '../../app/project/que
 import { GetRunUseCase, ListRunsByTaskUseCase } from '../../app/run/queries'
 import { ListTasksByBoardUseCase } from '../../app/task/queries'
 import { TaskMovePolicy } from '../../domain/task/task-move.policy'
-import { dbManager } from '../../db'
 import { withTransaction } from '../../db/transaction'
 import { emitTaskEvent } from '../../ipc/event-bus-ipc'
 import { ContextSnapshotBuilder } from '../../run/context-snapshot-builder.js'
@@ -33,26 +32,15 @@ export function createUseCasesModule(repositories: RepositoriesModule, services:
     runRepoAdapter,
     boardRepoAdapter,
     contextSnapshotRepoAdapter,
+    agentRoleRepo,
     getModelForDifficulty,
   } = repositories
 
   const rolePresetProvider: RolePresetProvider = {
     getById(roleId) {
-      const db = dbManager.connect()
-      const row = db
-        .prepare(
-          `
-          SELECT id, name, description, preset_json as presetJson
-          FROM agent_roles
-          WHERE id = ?
-          LIMIT 1
-          `
-        )
-        .get(roleId) as
-        | { id: string; name: string; description: string; presetJson: string }
-        | undefined
+      const role = agentRoleRepo.getById(roleId)
 
-      if (!row) {
+      if (!role) {
         return {
           id: roleId,
           name: roleId.toUpperCase(),
@@ -61,19 +49,7 @@ export function createUseCasesModule(repositories: RepositoriesModule, services:
         }
       }
 
-      let preset: Record<string, unknown> = {}
-      try {
-        preset = JSON.parse(row.presetJson) as Record<string, unknown>
-      } catch (error) {
-        console.warn('[ContextSnapshot] Failed to parse role preset JSON:', error)
-      }
-
-      return {
-        id: row.id,
-        name: row.name,
-        description: row.description,
-        preset,
-      }
+      return role
     },
   }
 

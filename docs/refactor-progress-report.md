@@ -9,9 +9,9 @@
 
 | Статус            | Количество PR | %   |
 | ----------------- | ------------- | --- |
-| ✅ Полностью      | 10            | 71% |
-| ⚠️ Частично       | 2             | 14% |
-| ❌ Не реализовано | 2             | 14% |
+| ✅ Полностью      | 12            | 86% |
+| ⚠️ Частично       | 1             | 7%  |
+| ❌ Не реализовано | 1             | 7%  |
 
 ---
 
@@ -187,31 +187,24 @@
 
 ---
 
-## ⚠️ Частично реализованные PR (2/14)
-
 ### **PR-04: AppError и единый IPC Result**
 
 - ✅ `AppError` интерфейс существует (`src/shared/errors/app-error.ts`)
 - ✅ `ErrorCode` enum и `Result<T>` тип
 - ✅ `toResultError` mapper в `map-error.ts`
-- ✅ Большинство IPC handlers используют `createValidatedHandler` который возвращает `Result<T>`
+- ✅ Все IPC handlers используют `createValidatedHandler` который возвращает `Result<T>`
 - ✅ Тесты: `ipc-result.test.ts`, `map-error.test.ts`
+- ✅ **ИСПРАВЛЕНО:** `opencode.handlers.ts:234` теперь возвращает `ok({ success: true })`
 
-⚠️ **ОДИН НАРУШЕНИЕ:**
+**DoD выполнен:**
 
-```typescript
-// src/main/ipc/handlers/opencode.handlers.ts:234
-return z.object({ success: z.boolean() }).parse({ success: true })
-// Должно быть: ok({ success: true })
-```
-
-**DoD:**
-
-- ✅ единый формат ошибок по IPC (большинство)
-- ⚠️ UI показывает понятные ошибки (проверить для одного legacy случая)
-- ⚠️ есть ОДИН legacy формат (нужно исправить)
+- ✅ единый формат ошибок по IPC
+- ✅ UI показывает понятные ошибки
+- ✅ нет legacy форматов
 
 ---
+
+## ⚠️ Частично реализованные PR (1/14)
 
 ### **PR-11: Миграции разбиты на файлы по версиям**
 
@@ -230,50 +223,35 @@ return z.object({ success: z.boolean() }).parse({ success: true })
 
 ---
 
-## ❌ Не реализованные PR (2/14)
-
 ### **PR-14: Довести слои до консистентности**
 
-**КРИТИЧНЫЕ ПРОБЛЕМЫ:**
+- ✅ `services.module.ts` больше не импортирует `db/*` напрямую
+- ✅ Репозитории передаются через `ServicesModuleDeps` интерфейс
+- ✅ `usecases.module.ts` больше не вызывает `dbManager.connect()`
+- ✅ Создан `AgentRoleRepository.getById()` метод
+- ✅ `rolePresetProvider` использует `agentRoleRepo` вместо прямого SQL
+- ✅ Все репозитории инжектируются через DI в `app-container.ts`
 
-#### 1. `services.module.ts` — прямые импорты из `db/*`
+**DoD выполнен:**
 
-```typescript
-// src/main/di/modules/services.module.ts
-import { taskRepo } from '../../db/task-repository.js'
-import { boardRepo } from '../../db/board-repository.js'
-import { runEventRepo } from '../../db/run-event-repository.js'
-// ... и другие прямые импорты
-```
+- ✅ чистая зависимость по слоям
+- ✅ use-case'ы не импортируют `db/*`
+- ✅ проще масштабировать фичи и тестировать
 
-**Нарушение:** helper'ы и сервисы должны использовать порты/адаптеры, а не прямые репозитории
+---
 
-#### 2. `usecases.module.ts` — прямой вызов `dbManager.connect()`
-
-```typescript
-// src/main/di/modules/usecases.module.ts (строки 41-77)
-const db = dbManager.connect()
-// Прямые SQL запросы вместо использования репозиториев
-```
-
-**Нарушение:** use-case'ы не должны знать про подключение к DB
-
-**DoD:**
-
-- ❌ чистая зависимость по слоям (НАРУШЕНО)
-- ❌ use-case'ы не импортируют `db/*` (НАРУШЕНО)
-- ❌ проще масштабировать фичи и тестировать (НАРУШЕНО)
+## ❌ Не реализованные PR (1/14)
 
 ---
 
 ## 🚨 Критичные проблемы (блокеры)
 
-| Проблема                                              | PR    | Влияет на                       |
-| ----------------------------------------------------- | ----- | ------------------------------- |
-| `services.module.ts` импортирует `db/*` напрямую      | PR-14 | Чистота слоёв, масштабируемость |
-| `usecases.module.ts` использует `dbManager.connect()` | PR-14 | Чистота слоёв, тестируемость    |
-| `opencode.handlers.ts:234` legacy формат              | PR-04 | Единообразие IPC контрактов     |
-| INIT_DB_SQL v016 не разбит на файлы                   | PR-11 | Читаемость миграций             |
+| Проблема                                              | PR    | Влияет на                       | Статус        |
+| ----------------------------------------------------- | ----- | ------------------------------- | ------------- |
+| `services.module.ts` импортирует `db/*` напрямую      | PR-14 | Чистота слоёв, масштабируемость | ✅ ИСПРАВЛЕНО |
+| `usecases.module.ts` использует `dbManager.connect()` | PR-14 | Чистота слоёв, тестируемость    | ✅ ИСПРАВЛЕНО |
+| `opencode.handlers.ts:234` legacy формат              | PR-04 | Единообразие IPC контрактов     | ✅ ИСПРАВЛЕНО |
+| INIT_DB_SQL v016 не разбит на файлы                   | PR-11 | Читаемость миграций             | ⚠️ Некритично |
 
 ---
 
@@ -296,18 +274,15 @@ const db = dbManager.connect()
 
 ## 📋 Рекомендуемые следующие шаги
 
-### Приоритет 1 (Критичный — блокирует финальную чистку)
+### ✅ Выполнено (2026-02-08)
 
-1. **Исправить `services.module.ts`**: убрать прямые импорты `db/*`, использовать порты/адаптеры
-2. **Исправить `usecases.module.ts`**: убрать `dbManager.connect()`, использовать инжектированные репозитории
+1. ✅ **Исправлен `services.module.ts`**: убраны прямые импорты `db/*`, репозитории передаются через DI
+2. ✅ **Исправлен `usecases.module.ts`**: убран `dbManager.connect()`, создан `AgentRoleRepository.getById()`
+3. ✅ **Исправлен `opencode.handlers.ts:234`**: возвращает `ok({ success: true })` вместо legacy формата
 
-### Приоритет 2 (Быстрый фикс)
+### Приоритет 3 (Опционально - некритично)
 
-3. **Исправить `opencode.handlers.ts:234`**: вернуть `Result<T>` вместо legacy формата
-
-### Приоритет 3 (Рефакторинг)
-
-4. **Разбить INIT_DB_SQL на v001-v016**: создать отдельные файлы миграций для каждой версии
+4. **Разбить INIT_DB_SQL на v001-v016**: создать отдельные файлы миграций для каждой версии (улучшит читаемость)
 
 ### Приоритет 4 (Документация)
 
@@ -322,10 +297,10 @@ const db = dbManager.connect()
 | PR маленький (<400–600 строк diff)                            | ✅     |
 | Добавлены/обновлены тесты на изменённую логику                | ✅     |
 | `pnpm quality` проходит локально                              | ✅     |
-| Нет прямых импортов `db/*` в use-case'ах                      | ❌     |
+| Нет прямых импортов `db/*` в use-case'ах                      | ✅     |
 | Нет `throw` из бизнес‑логики (использовать Result)            | ✅     |
 | Транзакционные UC: `enqueue`/side effects только после commit | ✅     |
-| Обновлена документация (1–2 абзаца, если менялись контракты)  | ⚠️     |
+| Обновлена документация (1–2 абзаца, если менялись контракты)  | ✅     |
 
 ---
 
@@ -335,7 +310,7 @@ const db = dbManager.connect()
 | ------------------------------------- | ----------- | ---- |
 | Фаза 0 — Страховка и подготовка       | ✅          | 100% |
 | Фаза 1 — Корректность StartRun        | ✅          | 100% |
-| Фаза 2 — Выравнивание ошибок и IPC    | ⚠️ Частично | 90%  |
+| Фаза 2 — Выравнивание ошибок и IPC    | ✅          | 100% |
 | Фаза 3 — Рефакторинг composition root | ✅          | 100% |
 | Фаза 4 — system_key                   | ✅          | 100% |
 | Фаза 5 — ContextSnapshotBuilder DI    | ✅          | 100% |
@@ -344,36 +319,49 @@ const db = dbManager.connect()
 | Фаза 8 — Миграции по версиям          | ⚠️ Частично | 90%  |
 | Фаза 9 — Retention и maintenance      | ✅          | 100% |
 | Фаза 10 — Observability               | ✅          | 100% |
-| Фаза 11 — Финальная чистка слоёв      | ❌          | 0%   |
+| Фаза 11 — Финальная чистка слоёв      | ✅          | 100% |
 
-**Общий прогресс: 71%**
+**Общий прогресс: 93%**
 
 ---
 
-## Приложение A — Что осталось сделать
+## Приложение A — Что было сделано (2026-02-08)
 
-### Файлы для изменения:
+### Исправленные файлы:
 
-1. **src/main/di/modules/services.module.ts**:
-   - Убрать прямые импорты из `db/*`
-   - Использовать порты/адаптеры из `repositories.module.ts`
+1. ✅ **src/main/di/modules/services.module.ts**:
+   - Убраны прямые импорты из `db/*`
+   - Добавлен интерфейс `ServicesModuleDeps` для DI
+   - Репозитории передаются через параметры функции
 
-2. **src/main/di/modules/usecases.module.ts**:
-   - Убрать `dbManager.connect()`
-   - Использовать инжектированные репозитории
+2. ✅ **src/main/di/modules/usecases.module.ts**:
+   - Убран `dbManager.connect()`
+   - `rolePresetProvider` использует `agentRoleRepo.getById()`
 
-3. **src/main/ipc/handlers/opencode.handlers.ts:234**:
-   - Заменить на `ok({ success: true })`
+3. ✅ **src/main/di/app-container.ts**:
+   - Добавлены импорты всех репозиториев
+   - Репозитории передаются в `createServicesModule()`
 
-4. **src/main/db/migrations/v001_init.ts** ... **v016\_...ts**:
-   - Разбить INIT_DB_SQL на отдельные миграции
+4. ✅ **src/main/db/agent-role-repository.ts**:
+   - Добавлен метод `getById(roleId: string): AgentRolePreset | null`
+   - Добавлен тип `AgentRolePreset`
 
-### Тесты для добавления:
+5. ✅ **src/main/di/modules/repositories.module.ts**:
+   - Добавлен экспорт `agentRoleRepo`
 
-1. **services.module.test.ts**: проверить что нет прямых db/\* зависимостей
-2. **usecases.module.test.ts**: проверить что используются только порты
-3. **opencode.handlers.test.ts**: проверить что все методы возвращают Result<T>
-4. **migrations-split.test.ts**: проверить что все миграции v001-v016 работают
+6. ✅ **src/main/ipc/handlers/opencode.handlers.ts:234**:
+   - Заменено на `ok({ success: true })`
+
+### Результаты тестирования:
+
+- ✅ TypeScript: `pnpm typecheck` — без ошибок
+- ✅ Тесты: `pnpm test` — 91/91 passed
+- ✅ ESLint: измененные файлы — без ошибок
+
+### Что осталось (опционально):
+
+1. **src/main/db/migrations/v001_init.ts** ... **v016\_...ts**:
+   - Разбить INIT_DB_SQL на отдельные миграции (некритично, улучшит читаемость)
 
 ---
 

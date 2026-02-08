@@ -1,6 +1,6 @@
 import { ipcHandlers } from '../validation'
 import { z } from 'zod'
-import { ErrorCode } from '../../../shared/ipc'
+import { ErrorCode, ok } from '../../../shared/ipc'
 import type { SessionEvent } from '../../run/opencode-session-manager'
 import { sessionManager } from '../../run/opencode-session-manager'
 import { opencodeSessionWorker } from '../../run/opencode-session-worker.js'
@@ -231,7 +231,7 @@ export function registerOpenCodeHandlers(context: AppContext): void {
 
   ipcHandlers.register('opencode:logProviders', z.object({}), async () => {
     await sessionManager.logProviders()
-    return z.object({ success: z.boolean() }).parse({ success: true })
+    return ok({ success: true })
   })
 
   ipcHandlers.register('opencode:listEnabledModels', z.unknown(), async () => {
