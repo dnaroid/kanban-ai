@@ -61,18 +61,19 @@ export const runsSearchService = {
     return db
       .prepare(
         `
-          SELECT r.id,
-                 r.task_id    as taskId,
-                 t.project_id as projectId,
-                 r.role_id    as roleId,
-                 r.status,
-                 r.error_text as errorText,
-                 r.created_at as createdAt
+        SELECT
+            r.id,
+            r.task_id as taskId,
+            t.project_id as projectId,
+            r.role_id as roleId,
+            r.status,
+            r.error_text as errorText,
+            r.created_at as createdAt
           FROM runs r
-                   JOIN tasks t ON t.id = r.task_id
-          WHERE ${where.join(' AND ')}
-          ORDER BY r.created_at DESC
-          LIMIT ? OFFSET ?
+            JOIN tasks t ON t.id = r.task_id
+            WHERE ${where.join(' AND ')}
+            ORDER BY r.created_at DESC
+            LIMIT ? OFFSET ?
         `
       )
       .all(...params) as RunSearchRow[]

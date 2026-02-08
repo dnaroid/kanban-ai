@@ -94,8 +94,8 @@ describe('backupService', () => {
         'success',
         new Date().toISOString(),
         new Date().toISOString(),
-        '',
-        '{}',
+        '', // error_text
+        '{}', // budget_json
         snapshotId,
         0,
         0,
@@ -114,17 +114,58 @@ describe('backupService', () => {
       const exportPath = path.join(mockUserDataPath, 'export.zip')
       backupService.exportProject({ projectId, toPath: exportPath })
 
+      const projectPath = `/tmp/${randomUUID()}`
+      console.log('Generated project path:', projectPath)
+
+      // Check if this path already exists
+      const existingPath = db.prepare('SELECT id FROM projects WHERE path = ?').get(projectPath) as
+        | { id: string }
+        | undefined
+      if (existingPath) {
+        console.error(
+          'ERROR: Path already exists:',
+          projectPath,
+          'existing project ID:',
+          existingPath.id
+        )
+      }
+
       const result = backupService.importProject({
         zipPath: exportPath,
         mode: 'new',
-        projectPath: `/tmp/${randomUUID()}`,
+        projectPath,
       })
 
-      expect(result.projectId).toBeDefined()
-      const count = db
+      expect((await result).projectId).toBeDefined()
+
+      // Debug: Let's see what's in the database before and after import
+      const preImportCount = db
         .prepare('SELECT COUNT(*) as count FROM tasks WHERE project_id = ?')
-        .get(result.projectId) as { count: number }
-      expect(count.count).toBe(1)
+        .get(projectId) as { count: number }
+
+      const postImportResult = await result
+      const postImportCount = db
+        .prepare('SELECT COUNT(*) as count FROM tasks WHERE project_id = ?')
+        .get(postImportResult.projectId) as { count: number }
+
+      console.log('Pre-import count:', preImportCount.count)
+      console.log('Post-import projectId:', postImportResult.projectId)
+      console.log('Post-import count:', postImportCount.count)
+
+      // Let's also check all projects in the database
+      const allProjects = db.prepare('SELECT id, name FROM projects').all() as Array<{
+        id: string
+        name: string
+      }>
+      console.log('All projects in database:', allProjects)
+
+      // Let's check if the imported project actually exists by querying it directly
+      const importedProject = db
+        .prepare('SELECT id, name FROM projects WHERE id = ?')
+        .get(postImportResult.projectId) as { id: string; name: string } | undefined
+      console.log('Imported project by ID:', importedProject)
+
+      expect(postImportCount.count).toBe(1)
     } finally {
       cleanup()
     }

@@ -11,10 +11,10 @@ export class TagRepository {
     const existing = db
       .prepare(
         `
-            SELECT id, name, color, created_at as createdAt, updated_at as updatedAt
-            FROM tags
-            WHERE name = ?
-        `
+  SELECT id, name, color, created_at as createdAt, updated_at as updatedAt
+  FROM tags
+  WHERE name = ?
+`
       )
       .get(input.name) as Tag | undefined
 
@@ -23,9 +23,9 @@ export class TagRepository {
     }
 
     const stmt = db.prepare(`
-        INSERT INTO tags (id, name, color, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?)
-    `)
+  INSERT INTO tags (id, name, color, created_at, updated_at)
+  VALUES (?, ?, ?, ?, ?)
+`)
 
     stmt.run(id, input.name, input.color, now, now)
 
@@ -43,10 +43,10 @@ export class TagRepository {
     const rows = db
       .prepare(
         `
-            SELECT id, name, color, created_at as createdAt, updated_at as updatedAt
-            FROM tags
-            ORDER BY name ASC
-        `
+  SELECT id, name, color, created_at as createdAt, updated_at as updatedAt
+  FROM tags
+  ORDER BY name ASC
+`
       )
       .all() as Tag[]
 
@@ -76,11 +76,11 @@ export class TagRepository {
     values.push(now, id)
     db.prepare(
       `
-          UPDATE tags
-          SET ${sets.join(', ')},
-              updated_at = ?
-          WHERE id = ?
-      `
+UPDATE tags
+SET ${sets.join(', ')},
+updated_at = ?
+WHERE id = ?
+`
     ).run(...values)
 
     return this.getById(id)!
@@ -91,10 +91,10 @@ export class TagRepository {
     const row = db
       .prepare(
         `
-            SELECT id, name, color, created_at as createdAt, updated_at as updatedAt
-            FROM tags
-            WHERE id = ?
-        `
+  SELECT id, name, color, created_at as createdAt, updated_at as updatedAt
+  FROM tags
+  WHERE id = ?
+`
       )
       .get(id) as Tag | undefined
 

@@ -79,14 +79,19 @@ vi.mock('./opencode-session-worker.js', () => ({
 }))
 
 vi.mock('./context-snapshot-builder.js', () => ({
-  buildContextSnapshot: vi.fn(async () => ({
-    id: 'snapshot-1',
-    kind: 'run_input_v1',
-    taskId: testState.taskId,
-    payload: {},
-    hash: 'hash',
-    createdAt: new Date().toISOString(),
-  })),
+  ContextSnapshotBuilder: class {
+    build = vi.fn((params: { taskId: string; roleId: string; mode: string }) => ({
+      ok: true,
+      data: {
+        id: 'snapshot-1',
+        kind: 'run_input_v1',
+        taskId: params.taskId,
+        payload: {},
+        hash: 'hash',
+        createdAt: new Date().toISOString(),
+      },
+    }))
+  },
 }))
 
 vi.mock('./prompts/task.js', () => ({

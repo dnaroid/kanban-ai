@@ -167,8 +167,8 @@ export class OpenCodeExecutorSDK implements RunExecutor, OpenCodePort {
       mode: 'execute',
     })
 
-    if (!contextSnapshotResult.ok) {
-      throw new Error(contextSnapshotResult.error.message)
+    if (!contextSnapshotResult?.ok) {
+      throw new Error(contextSnapshotResult?.error?.message ?? 'Failed to build context snapshot')
     }
 
     const run = runRepo.create({

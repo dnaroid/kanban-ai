@@ -24,6 +24,9 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('electron', () => ({
+  app: {
+    getPath: vi.fn(() => '/tmp/test-user-data'),
+  },
   ipcMain: {
     handle: mocks.ipcMainHandle,
   },

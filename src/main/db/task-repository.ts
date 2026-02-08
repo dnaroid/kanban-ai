@@ -17,13 +17,14 @@ export class TaskRepository {
     const modelName =
       input.modelName ?? opencodeModelRepo.getModelForDifficulty(input.difficulty ?? 'medium')
 
-    const stmt = db.prepare(`
-        INSERT INTO tasks (id, project_id, board_id, column_id, title, description,
-                           status, priority, difficulty, type, order_in_column, tags_json, model_name, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `)
-
-    stmt.run(
+    db.prepare(
+      `
+      INSERT INTO tasks
+      (id, project_id, board_id, column_id, title, description,
+      status, priority, difficulty, type, order_in_column, tags_json, model_name, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `
+    ).run(
       id,
       input.projectId,
       input.boardId,
@@ -65,31 +66,32 @@ export class TaskRepository {
     const rows = db
       .prepare(
         `
-            SELECT t.id,
-                   t.project_id      as projectId,
-                   t.board_id        as boardId,
-                   t.column_id       as columnId,
-                   t.title,
-                   t.description,
-                   t.description_md  as descriptionMd,
-                   t.status,
-                   t.priority,
-                   t.difficulty,
-                   t.type,
-                   t.order_in_column as orderInColumn,
-                   t.tags_json       as tagsJson,
-                   t.assigned_agent  as assignedAgent,
-                   t.created_at      as createdAt,
-                   t.updated_at      as updatedAt,
-                   t.start_date      as startDate,
-                    t.due_date        as dueDate,
-                    t.estimate_points as estimatePoints,
-                    t.estimate_hours  as estimateHours,
-                    t.assignee        as assignee,
-                    t.model_name      as modelName
-             FROM tasks t
+SELECT
+              t.id,
+              t.project_id as projectId,
+              t.board_id as boardId,
+              t.column_id as columnId,
+              t.title,
+              t.description,
+              t.description_md as descriptionMd,
+              t.status,
+              t.priority,
+              t.difficulty,
+              t.type,
+              t.order_in_column as orderInColumn,
+              t.tags_json as tagsJson,
+              t.assigned_agent as assignedAgent,
+              t.created_at as createdAt,
+              t.updated_at as updatedAt,
+              t.start_date as startDate,
+              t.due_date as dueDate,
+              t.estimate_points as estimatePoints,
+              t.estimate_hours as estimateHours,
+              t.assignee as assignee,
+              t.model_name as modelName
+            FROM tasks t
 
-             WHERE board_id = ?
+            WHERE board_id = ?
             ORDER BY order_in_column ASC
         `
       )
@@ -117,31 +119,32 @@ export class TaskRepository {
     const row = db
       .prepare(
         `
-            SELECT t.id,
-                   t.project_id      as projectId,
-                   t.board_id        as boardId,
-                   t.column_id       as columnId,
-                   t.title,
-                   t.description,
-                   t.description_md  as descriptionMd,
-                   t.status,
-                   t.priority,
-                   t.difficulty,
-                   t.type,
-                   t.order_in_column as orderInColumn,
-                   t.tags_json       as tagsJson,
-                   t.assigned_agent  as assignedAgent,
-                   t.created_at      as createdAt,
-                   t.updated_at      as updatedAt,
-                   t.start_date      as startDate,
-                    t.due_date        as dueDate,
-                    t.estimate_points as estimatePoints,
-                    t.estimate_hours  as estimateHours,
-                    t.assignee        as assignee,
-                    t.model_name      as modelName
-             FROM tasks t
+            SELECT
+              t.id,
+              t.project_id as projectId,
+              t.board_id as boardId,
+              t.column_id as columnId,
+              t.title,
+              t.description,
+              t.description_md as descriptionMd,
+              t.status,
+              t.priority,
+              t.difficulty,
+              t.type,
+              t.order_in_column as orderInColumn,
+              t.tags_json as tagsJson,
+              t.assigned_agent as assignedAgent,
+              t.created_at as createdAt,
+              t.updated_at as updatedAt,
+              t.start_date as startDate,
+              t.due_date as dueDate,
+              t.estimate_points as estimatePoints,
+              t.estimate_hours as estimateHours,
+              t.assignee as assignee,
+              t.model_name as modelName
+            FROM tasks t
 
-             WHERE id = ? LIMIT 1
+            WHERE id = ? LIMIT 1
         `
       )
       .get(taskId) as any | undefined
@@ -231,10 +234,10 @@ export class TaskRepository {
     values.push(now, id)
     db.prepare(
       `
-          UPDATE tasks
-          SET ${sets.join(', ')},
-              updated_at = ?
-          WHERE id = ?
+UPDATE tasks
+        SET ${sets.join(', ')},
+            updated_at = ?
+        WHERE id = ?
       `
     ).run(...values)
   }

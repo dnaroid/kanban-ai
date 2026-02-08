@@ -69,7 +69,8 @@ class DatabaseManager {
 
     // Ensure schema_migrations table exists
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS schema_migrations (
+      CREATE TABLE IF NOT EXISTS schema_migrations
+      (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         version INTEGER NOT NULL UNIQUE,
         applied_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -123,8 +124,9 @@ class DatabaseManager {
 
     const now = new Date().toISOString()
     const insert = this.db.prepare(
-      `INSERT INTO agent_roles (id, name, description, preset_json, created_at, updated_at)
-       VALUES (@id, @name, @description, @preset_json, @created_at, @updated_at)`
+      `INSERT INTO agent_roles
+        (id, name, description, preset_json, created_at, updated_at)
+        VALUES (@id, @name, @description, @preset_json, @created_at, @updated_at)`
     )
 
     const roles = [

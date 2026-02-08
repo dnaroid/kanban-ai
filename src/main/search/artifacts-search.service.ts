@@ -41,17 +41,18 @@ export const artifactsSearchService = {
     return db
       .prepare(
         `
-          SELECT a.id,
-                 a.run_id     as runId,
-                 r.task_id    as taskId,
-                 t.project_id as projectId,
-                 a.title,
-                 a.kind,
-                 a.created_at as createdAt
+        SELECT
+            a.id,
+            a.run_id as runId,
+            r.task_id as taskId,
+            t.project_id as projectId,
+            a.title,
+            a.kind,
+            a.created_at as createdAt
           FROM artifacts_fts
-                   JOIN artifacts a ON a.id = artifacts_fts.artifact_id
-                   JOIN runs r ON r.id = a.run_id
-                   JOIN tasks t ON t.id = r.task_id
+            JOIN artifacts a ON a.id = artifacts_fts.artifact_id
+            JOIN runs r ON r.id = a.run_id
+            JOIN tasks t ON t.id = r.task_id
           WHERE ${where.join(' AND ')}
           ORDER BY a.created_at DESC
           LIMIT ? OFFSET ?

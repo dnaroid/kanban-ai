@@ -1,5 +1,5 @@
-import path from 'node:path'
 import fs from 'node:fs'
+import path from 'node:path'
 import os from 'node:os'
 import { randomUUID } from 'node:crypto'
 import { app } from 'electron'
@@ -19,7 +19,7 @@ type ImportInput = {
   projectPath?: string
 }
 
-const getDbPath = () => path.join(app.getPath('userData'), 'bk-kanban.db')
+const getDbPath = () => path.join(app.getPath('userData'), 'kanban.db')
 
 const writeJson = (filePath: string, data: unknown) => {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
@@ -35,11 +35,7 @@ const prepareExportDir = () => {
   return dir
 }
 
-const copyIfExists = (fromPath: string, toPath: string) => {
-  if (fs.existsSync(fromPath)) {
-    fs.copyFileSync(fromPath, toPath)
-  }
-}
+const toSqliteStringLiteral = (value: string) => `'${value.replace(/'/g, "''")}'`
 
 const makePlaceholders = (count: number) => Array(count).fill('?').join(',')
 
@@ -55,21 +51,25 @@ export const backupService = {
 
     const tempDir = prepareExportDir()
     const exportDbPath = path.join(tempDir, 'app.db')
-    copyIfExists(getDbPath(), exportDbPath)
+    if (!fs.existsSync(getDbPath())) {
+      throw new Error('Database file not found')
+    }
+    db.exec(`VACUUM INTO ${toSqliteStringLiteral(exportDbPath)};`)
     const artifacts = db
       .prepare(
         `
-            SELECT a.id,
-                   a.run_id        as runId,
-                   a.kind,
-                   a.title,
-                   a.content,
-                   a.metadata_json as metadataJson,
-                   a.created_at    as createdAt
-            FROM artifacts a
-                     JOIN runs r ON r.id = a.run_id
-                     JOIN tasks t ON t.id = r.task_id
-            WHERE t.project_id = ?
+        SELECT
+          a.id,
+          a.run_id as runId,
+          a.kind,
+          a.title,
+          a.content,
+          a.metadata_json as metadataJson,
+          a.created_at as createdAt
+        FROM artifacts a
+          JOIN runs r ON r.id = a.run_id
+          JOIN tasks t ON t.id = r.task_id
+        WHERE t.project_id = ?
         `
       )
       .all(projectId)
@@ -89,7 +89,7 @@ export const backupService = {
 
     return { ok: true, path: toPath }
   },
-  importProject({ zipPath, mode, projectPath }: ImportInput) {
+  async importProject({ zipPath, mode, projectPath }: ImportInput) {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kanban-import-'))
     extractZip(zipPath, tempDir)
 
@@ -119,6 +119,7 @@ export const backupService = {
     const newProjectId = randomUUID()
     const name = `${projectPayload.project.name} (imported)`
 
+
     db.exec(`ATTACH "${exportDbPath}" AS importdb;`)
 
     const sourceProjectId = projectPayload.project.id
@@ -137,9 +138,13 @@ export const backupService = {
       updatedAt: string
     }>(
       `
-          SELECT id, name, created_at as createdAt, updated_at as updatedAt
-          FROM importdb.boards
-          WHERE project_id = ?
+      SELECT
+        id,
+        name,
+        created_at as createdAt,
+        updated_at as updatedAt
+      FROM importdb.boards
+      WHERE project_id = ?
       `,
       [sourceProjectId]
     )
@@ -156,15 +161,16 @@ export const backupService = {
           updatedAt: string
         }>(
           `
-            SELECT id,
-                   board_id    as boardId,
-                   name,
-                   order_index as orderIndex,
-                   created_at  as createdAt,
-                   updated_at  as updatedAt
+SELECT
+              id,
+              board_id as boardId,
+              name,
+              order_index as orderIndex,
+              created_at as createdAt,
+              updated_at as updatedAt
             FROM importdb.board_columns
             WHERE board_id IN (${makePlaceholders(boardIds.length)})
-        `,
+          `,
           boardIds
         )
       : []
@@ -187,20 +193,21 @@ export const backupService = {
       updatedAt: string
     }>(
       `
-          SELECT id,
-                 board_id        as boardId,
-                 column_id       as columnId,
-                 title,
-                 description,
-                 description_md  as descriptionMd,
-                 status,
-                 priority,
-                 type,
-                 order_in_column as orderInColumn,
-                 tags_json       as tagsJson,
-                 assigned_agent  as assignedAgent,
-                 created_at      as createdAt,
-                 updated_at      as updatedAt
+SELECT
+            id,
+            board_id as boardId,
+            column_id as columnId,
+            title,
+            description,
+            description_md as descriptionMd,
+            status,
+            priority,
+            type,
+            order_in_column as orderInColumn,
+            tags_json as tagsJson,
+            assigned_agent as assignedAgent,
+            created_at as createdAt,
+            updated_at as updatedAt
           FROM importdb.tasks
           WHERE project_id = ?
       `,
@@ -220,16 +227,17 @@ export const backupService = {
           createdAt: string
         }>(
           `
-            SELECT id,
-                   task_id      as taskId,
-                   kind,
-                   summary,
-                   payload_json as payloadJson,
-                   hash,
-                   created_at   as createdAt
+SELECT
+              id,
+              task_id as taskId,
+              kind,
+              summary,
+              payload_json as payloadJson,
+              hash,
+              created_at as createdAt
             FROM importdb.context_snapshots
             WHERE task_id IN (${makePlaceholders(taskIds.length)})
-        `,
+          `,
           taskIds
         )
       : []
@@ -254,24 +262,25 @@ export const backupService = {
           updatedAt: string
         }>(
           `
-            SELECT id,
-                   task_id             as taskId,
-                   role_id             as roleId,
-                   mode,
-                   status,
-                   started_at          as startedAt,
-                   finished_at         as finishedAt,
-                   error_text          as errorText,
-                   budget_json         as budgetJson,
-                   context_snapshot_id as contextSnapshotId,
-                   ai_tokens_in        as aiTokensIn,
-                   ai_tokens_out       as aiTokensOut,
-                   ai_cost_usd         as aiCostUsd,
-                   created_at          as createdAt,
-                   updated_at          as updatedAt
+SELECT
+              id,
+              task_id as taskId,
+              role_id as roleId,
+              mode,
+              status,
+              started_at as startedAt,
+              finished_at as finishedAt,
+              error_text as errorText,
+              budget_json as budgetJson,
+              context_snapshot_id as contextSnapshotId,
+              ai_tokens_in as aiTokensIn,
+              ai_tokens_out as aiTokensOut,
+              ai_cost_usd as aiCostUsd,
+              created_at as createdAt,
+              updated_at as updatedAt
             FROM importdb.runs
             WHERE task_id IN (${makePlaceholders(taskIds.length)})
-        `,
+          `,
           taskIds
         )
       : []
@@ -289,16 +298,17 @@ export const backupService = {
           createdAt: string
         }>(
           `
-            SELECT id,
-                   run_id        as runId,
-                   kind,
-                   title,
-                   content,
-                   metadata_json as metadataJson,
-                   created_at    as createdAt
+SELECT
+              id,
+              run_id as runId,
+              kind,
+              title,
+              content,
+              metadata_json as metadataJson,
+              created_at as createdAt
             FROM importdb.artifacts
             WHERE run_id IN (${makePlaceholders(runIds.length)})
-        `,
+          `,
           runIds
         )
       : []
@@ -312,10 +322,15 @@ export const backupService = {
           payloadJson: string
         }>(
           `
-            SELECT id, task_id as taskId, ts, event_type as eventType, payload_json as payloadJson
+SELECT
+              id,
+              task_id as taskId,
+              ts,
+              event_type as eventType,
+              payload_json as payloadJson
             FROM importdb.task_events
             WHERE task_id IN (${makePlaceholders(taskIds.length)})
-        `,
+          `,
           taskIds
         )
       : []
@@ -329,12 +344,13 @@ export const backupService = {
       updatedAt: string
     }>(
       `
-          SELECT id,
-                 from_task_id as fromTaskId,
-                 to_task_id   as toTaskId,
-                 link_type    as linkType,
-                 created_at   as createdAt,
-                 updated_at   as updatedAt
+SELECT
+            id,
+            from_task_id as fromTaskId,
+            to_task_id as toTaskId,
+            link_type as linkType,
+            created_at as createdAt,
+            updated_at as updatedAt
           FROM importdb.task_links
           WHERE project_id = ?
       `,
@@ -352,16 +368,17 @@ export const backupService = {
           updatedAt: string
         }>(
           `
-            SELECT task_id         as taskId,
-                   start_date      as startDate,
-                   due_date        as dueDate,
-                   estimate_points as estimatePoints,
-                   estimate_hours  as estimateHours,
-                   assignee,
-                   updated_at      as updatedAt
+SELECT
+              task_id as taskId,
+              start_date as startDate,
+              due_date as dueDate,
+              estimate_points as estimatePoints,
+              estimate_hours as estimateHours,
+              assignee,
+              updated_at as updatedAt
             FROM importdb.task_schedule
             WHERE task_id IN (${makePlaceholders(taskIds.length)})
-        `,
+          `,
           taskIds
         )
       : []
@@ -369,16 +386,18 @@ export const backupService = {
     db.transaction(() => {
       db.prepare(
         `
-            INSERT INTO projects (id, name, path, created_at, updated_at)
+            INSERT INTO projects
+            (id, name, path, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?)
-        `
+            `
       ).run(newProjectId, name, projectPath, now, now)
 
       const insertBoard = db.prepare(
         `
-            INSERT INTO boards (id, project_id, name, created_at, updated_at)
+            INSERT INTO boards
+            (id, project_id, name, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?)
-        `
+            `
       )
       boardRows.forEach((row) => {
         const newId = boardIdMap.get(row.id) ?? randomUUID()
@@ -387,9 +406,10 @@ export const backupService = {
 
       const insertColumn = db.prepare(
         `
-            INSERT INTO board_columns (id, board_id, name, order_index, created_at, updated_at)
+            INSERT INTO board_columns
+            (id, board_id, name, order_index, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?)
-        `
+            `
       )
       columnRows.forEach((row) => {
         const newId = columnIdMap.get(row.id) ?? randomUUID()
@@ -399,11 +419,12 @@ export const backupService = {
 
       const insertTask = db.prepare(
         `
-            INSERT INTO tasks (id, project_id, board_id, column_id, title, description, description_md,
-                               status, priority, type, order_in_column, tags_json, assigned_agent,
-                               created_at, updated_at)
+            INSERT INTO tasks
+            (id, project_id, board_id, column_id, title, description, description_md,
+            status, priority, type, order_in_column, tags_json, assigned_agent,
+            created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `
+            `
       )
       taskRows.forEach((row) => {
         const newId = taskIdMap.get(row.id) ?? randomUUID()
@@ -415,8 +436,8 @@ export const backupService = {
           newBoardId,
           newColumnId,
           row.title,
-          row.description ?? null,
-          row.descriptionMd ?? null,
+          row.description,
+          row.descriptionMd,
           row.status,
           row.priority,
           row.type,
@@ -430,9 +451,10 @@ export const backupService = {
 
       const insertTaskEvent = db.prepare(
         `
-            INSERT INTO task_events (id, task_id, ts, event_type, payload_json)
+            INSERT INTO task_events
+            (id, task_id, ts, event_type, payload_json)
             VALUES (?, ?, ?, ?, ?)
-        `
+            `
       )
       taskEventRows.forEach((row) => {
         const newTaskId = taskIdMap.get(row.taskId) ?? row.taskId
@@ -441,9 +463,10 @@ export const backupService = {
 
       const insertTaskLink = db.prepare(
         `
-            INSERT INTO task_links (id, project_id, from_task_id, to_task_id, link_type, created_at, updated_at)
+            INSERT INTO task_links
+            (id, project_id, from_task_id, to_task_id, link_type, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        `
+            `
       )
       taskLinkRows.forEach((row) => {
         const fromTaskId = taskIdMap.get(row.fromTaskId) ?? row.fromTaskId
@@ -461,10 +484,11 @@ export const backupService = {
 
       const insertSchedule = db.prepare(
         `
-            INSERT INTO task_schedule (task_id, start_date, due_date, estimate_points, estimate_hours, assignee,
-                                       updated_at)
+            INSERT INTO task_schedule
+            (task_id, start_date, due_date, estimate_points, estimate_hours, assignee,
+            updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        `
+            `
       )
       scheduleRows.forEach((row) => {
         const newTaskId = taskIdMap.get(row.taskId) ?? row.taskId
@@ -481,9 +505,10 @@ export const backupService = {
 
       const insertContext = db.prepare(
         `
-            INSERT INTO context_snapshots (id, task_id, kind, summary, payload_json, hash, created_at)
+            INSERT INTO context_snapshots
+            (id, task_id, kind, summary, payload_json, hash, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        `
+            `
       )
       contextRows.forEach((row) => {
         const newTaskId = taskIdMap.get(row.taskId) ?? row.taskId
@@ -501,11 +526,12 @@ export const backupService = {
 
       const insertRun = db.prepare(
         `
-            INSERT INTO runs (id, task_id, role_id, mode, status, started_at, finished_at, error_text,
-                              budget_json, context_snapshot_id, ai_tokens_in, ai_tokens_out, ai_cost_usd,
-                              created_at, updated_at)
+            INSERT INTO runs
+            (id, task_id, role_id, mode, status, started_at, finished_at, error_text,
+            budget_json, context_snapshot_id, ai_tokens_in, ai_tokens_out, ai_cost_usd,
+            created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `
+            `
       )
       runRows.forEach((row) => {
         const newRunId = runIdMap.get(row.id) ?? randomUUID()
@@ -519,7 +545,7 @@ export const backupService = {
           row.status,
           row.startedAt,
           row.finishedAt,
-          row.errorText || null,
+          row.errorText ?? '',
           row.budgetJson,
           newContextId,
           row.aiTokensIn ?? 0,
@@ -532,9 +558,10 @@ export const backupService = {
 
       const insertArtifact = db.prepare(
         `
-            INSERT INTO artifacts (id, run_id, kind, title, content, metadata_json, created_at)
+            INSERT INTO artifacts
+            (id, run_id, kind, title, content, metadata_json, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        `
+            `
       )
       artifactRows.forEach((row) => {
         const newRunId = runIdMap.get(row.runId) ?? row.runId

@@ -10,9 +10,9 @@ export class ProjectRepository {
     const color = input.color ?? ''
 
     const stmt = db.prepare(`
-      INSERT INTO projects (id, name, path, color, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `)
+  INSERT INTO projects (id, name, path, color, created_at, updated_at)
+  VALUES (?, ?, ?, ?, ?, ?)
+`)
 
     try {
       const result = stmt.run(id, input.name, input.path, color, now, now)
@@ -35,10 +35,10 @@ export class ProjectRepository {
   getAll(): Project[] {
     const db = dbManager.connect()
     const stmt = db.prepare(`
-      SELECT id, name, path, color, created_at as createdAt, updated_at as updatedAt
-      FROM projects
-      ORDER BY updated_at DESC
-    `)
+  SELECT id, name, path, color, created_at as createdAt, updated_at as updatedAt
+  FROM projects
+  ORDER BY updated_at DESC
+`)
 
     return stmt.all() as Project[]
   }
@@ -46,10 +46,10 @@ export class ProjectRepository {
   getById(id: string): Project | null {
     const db = dbManager.connect()
     const stmt = db.prepare(`
-      SELECT id, name, path, color, created_at as createdAt, updated_at as updatedAt
-      FROM projects
-      WHERE id = ?
-    `)
+  SELECT id, name, path, color, created_at as createdAt, updated_at as updatedAt
+  FROM projects
+  WHERE id = ?
+`)
 
     return stmt.get(id) as Project | null
   }
@@ -79,10 +79,10 @@ export class ProjectRepository {
     values.push(now, id)
 
     const stmt = db.prepare(`
-      UPDATE projects
-      SET ${sets.join(', ')}, updated_at = ?
-      WHERE id = ?
-    `)
+  UPDATE projects
+  SET ${sets.join(', ')}, updated_at = ?
+  WHERE id = ?
+`)
 
     stmt.run(...values)
 

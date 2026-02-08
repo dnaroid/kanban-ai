@@ -43,7 +43,7 @@ const checkIndentation = (content: string) => {
       errors.push({ line: i + 1, message: 'Use spaces instead of tabs' })
     }
 
-    const leadingWhitespace = line.match(/^[\s]*/)?.[0] ?? ''
+    const leadingWhitespace = line.match(/^\s*/)?.[0] ?? ''
     const spaceCount = leadingWhitespace.length
     if (spaceCount > 0 && spaceCount % 2 !== 0) {
       errors.push({

@@ -14,8 +14,9 @@ export const appMetricsRepo = {
     const db = dbManager.connect()
     db.prepare(
       `
-      INSERT INTO app_metrics (id, metric_name, metric_value, tags_json, created_at)
-      VALUES (?, ?, ?, ?, ?)
+INSERT INTO app_metrics
+        (id, metric_name, metric_value, tags_json, created_at)
+        VALUES (?, ?, ?, ?, ?)
       `
     ).run(randomUUID(), metricName, metricValue, JSON.stringify(tags), new Date().toISOString())
   },
@@ -28,11 +29,12 @@ export const appMetricsRepo = {
       ? db
           .prepare(
             `
-            SELECT id,
-                   metric_name  as metricName,
-                   metric_value as metricValue,
-                   tags_json    as tagsJson,
-                   created_at   as createdAt
+SELECT
+              id,
+              metric_name as metricName,
+              metric_value as metricValue,
+              tags_json as tagsJson,
+              created_at as createdAt
             FROM app_metrics
             WHERE metric_name = ?
             ORDER BY created_at DESC
@@ -43,11 +45,12 @@ export const appMetricsRepo = {
       : db
           .prepare(
             `
-            SELECT id,
-                   metric_name  as metricName,
-                   metric_value as metricValue,
-                   tags_json    as tagsJson,
-                   created_at   as createdAt
+SELECT
+              id,
+              metric_name as metricName,
+              metric_value as metricValue,
+              tags_json as tagsJson,
+              created_at as createdAt
             FROM app_metrics
             ORDER BY created_at DESC
             LIMIT ?

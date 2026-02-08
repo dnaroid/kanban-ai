@@ -37,9 +37,9 @@ export class RunEventRepository {
 
     db.prepare(
       `
-      INSERT INTO run_events (id, run_id, ts, event_type, payload_json)
-      VALUES (?, ?, ?, ?, ?)
-    `
+INSERT INTO run_events (id, run_id, ts, event_type, payload_json)
+VALUES (?, ?, ?, ?, ?)
+`
     ).run(id, input.runId, ts, input.eventType, payloadJson)
 
     return {
@@ -62,17 +62,17 @@ export class RunEventRepository {
     }
 
     let sql = `
-      SELECT
-        id,
-        run_id as runId,
-        ts,
-        event_type as eventType,
-        payload_json as payloadJson,
-        message_id as messageId
-      FROM run_events
-      WHERE ${filters.join(' AND ')}
-      ORDER BY ts ASC
-    `
+SELECT
+  id,
+  run_id as runId,
+  ts,
+  event_type as eventType,
+  payload_json as payloadJson,
+  message_id as messageId
+FROM run_events
+WHERE ${filters.join(' AND ')}
+ORDER BY ts ASC
+`
 
     if (options.limit) {
       sql += ' LIMIT ?'
@@ -99,21 +99,21 @@ export class RunEventRepository {
     const existingRow = db
       .prepare(
         `
-        SELECT id
-        FROM run_events
-        WHERE run_id = ? AND message_id = ? AND event_type = 'message'
-        LIMIT 1
-      `
+SELECT id
+FROM run_events
+WHERE run_id = ? AND message_id = ? AND event_type = 'message'
+LIMIT 1
+`
       )
       .get(input.runId, input.messageId) as { id: string } | undefined
 
     if (existingRow) {
       db.prepare(
         `
-        UPDATE run_events
-        SET ts = ?, payload_json = ?
-        WHERE id = ?
-      `
+UPDATE run_events
+SET ts = ?, payload_json = ?
+WHERE id = ?
+`
       ).run(ts, payloadJson, existingRow.id)
 
       return {
@@ -128,9 +128,9 @@ export class RunEventRepository {
       const id = randomUUID()
       db.prepare(
         `
-        INSERT INTO run_events (id, run_id, ts, event_type, payload_json, message_id)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `
+INSERT INTO run_events (id, run_id, ts, event_type, payload_json, message_id)
+VALUES (?, ?, ?, ?, ?, ?)
+`
       ).run(id, input.runId, ts, input.eventType, payloadJson, input.messageId)
 
       return {

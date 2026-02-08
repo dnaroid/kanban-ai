@@ -1,4 +1,4 @@
-import type {STTWorkerController} from "./STTWorkerController"
+import type { STTWorkerController } from './STTWorkerController'
 
 const WORKLET_CODE = `
 class PCM16Processor extends AudioWorkletProcessor {
@@ -77,26 +77,26 @@ export class VoiceCapture {
   async start(): Promise<void> {
     try {
       if (!this.context) {
-        this.context = new AudioContext({sampleRate: 16000})
+        this.context = new AudioContext({ sampleRate: 16000 })
         this.workletModuleLoaded = false
       }
 
-      if (this.context.state === "suspended") {
+      if (this.context.state === 'suspended') {
         await this.context.resume()
       }
 
       if (!this.workletModuleLoaded) {
-        const blob = new Blob([WORKLET_CODE], {type: "application/javascript"})
+        const blob = new Blob([WORKLET_CODE], { type: 'application/javascript' })
         const workletUrl = URL.createObjectURL(blob)
         await this.context.audioWorklet.addModule(workletUrl)
         URL.revokeObjectURL(workletUrl)
         this.workletModuleLoaded = true
       }
 
-      this.stream = await navigator.mediaDevices.getUserMedia({audio: true})
+      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       this.source = this.context.createMediaStreamSource(this.stream)
 
-      this.worklet = new AudioWorkletNode(this.context, "pcm16-processor")
+      this.worklet = new AudioWorkletNode(this.context, 'pcm16-processor')
       this.silentOutput = this.context.createGain()
       this.silentOutput.gain.value = 0
 
@@ -109,7 +109,7 @@ export class VoiceCapture {
       this.worklet.connect(this.silentOutput)
       this.silentOutput.connect(this.context.destination)
     } catch (error) {
-      console.error("Failed to start VoiceCapture:", error)
+      console.error('Failed to start VoiceCapture:', error)
       throw error
     }
   }

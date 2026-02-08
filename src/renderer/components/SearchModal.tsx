@@ -13,7 +13,7 @@ export function SearchModal({ isOpen, onClose, activeProject, onNavigate }: Sear
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [isSearchLoading, setIsSearchLoading] = useState(false)
-  
+
   // Filter states
   const [searchEntity, setSearchEntity] = useState<'all' | 'task' | 'run' | 'artifact'>('all')
   const [searchStatus, setSearchStatus] = useState<
@@ -112,10 +112,7 @@ export function SearchModal({ isOpen, onClose, activeProject, onNavigate }: Sear
             autoFocus
             className="flex-1 bg-transparent text-sm text-slate-100 focus:outline-none"
           />
-          <button
-            onClick={onClose}
-            className="text-xs text-slate-500 hover:text-slate-300"
-          >
+          <button onClick={onClose} className="text-xs text-slate-500 hover:text-slate-300">
             Esc
           </button>
         </div>

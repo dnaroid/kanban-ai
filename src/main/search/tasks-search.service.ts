@@ -43,27 +43,28 @@ export const tasksSearchService = {
     const rows = db
       .prepare(
         `
-          SELECT t.id,
-                 t.project_id      as projectId,
-                 t.board_id        as boardId,
-                 t.column_id       as columnId,
-                 t.title,
-                 t.description,
-                 t.description_md  as descriptionMd,
-                 t.status,
-                 t.priority,
-                 t.type,
-                 t.order_in_column as orderInColumn,
-                 t.tags_json       as tagsJson,
-                 t.assigned_agent  as assignedAgent,
-                 t.created_at      as createdAt,
-                 t.updated_at      as updatedAt,
-                 bm25(tasks_fts)   as rank
-          FROM tasks_fts
-                   JOIN tasks t ON t.id = tasks_fts.task_id
-          WHERE ${where.join(' AND ')}
-          ORDER BY rank
-          LIMIT ? OFFSET ?
+        SELECT
+          t.id,
+          t.project_id as projectId,
+          t.board_id as boardId,
+          t.column_id as columnId,
+          t.title,
+          t.description,
+          t.description_md as descriptionMd,
+          t.status,
+          t.priority,
+          t.type,
+          t.order_in_column as orderInColumn,
+          t.tags_json as tagsJson,
+          t.assigned_agent as assignedAgent,
+          t.created_at as createdAt,
+          t.updated_at as updatedAt,
+          bm25(tasks_fts) as rank
+        FROM tasks_fts
+          JOIN tasks t ON t.id = tasks_fts.task_id
+        WHERE ${where.join(' AND ')}
+        ORDER BY rank
+        LIMIT ? OFFSET ?
         `
       )
       .all(...params) as any[]

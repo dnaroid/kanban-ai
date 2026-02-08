@@ -1,16 +1,16 @@
-export type RunMode = "plan-only" | "execute" | "critique"
-export type RunKind = "task-run" | "task-description-improve"
-export type RunStatus = "queued" | "running" | "succeeded" | "failed" | "canceled"
+export type RunMode = 'plan-only' | 'execute' | 'critique'
+export type RunKind = 'task-run' | 'task-description-improve'
+export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled'
 export type RunEventType =
-  | "stdout"
-  | "stderr"
-  | "message"
-  | "tool"
-  | "artifact"
-  | "status"
-  | "debug"
-  | "usage"
-export type ArtifactKind = "markdown" | "json" | "patch" | "file_ref" | "link"
+  | 'stdout'
+  | 'stderr'
+  | 'message'
+  | 'tool'
+  | 'artifact'
+  | 'status'
+  | 'debug'
+  | 'usage'
+export type ArtifactKind = 'markdown' | 'json' | 'patch' | 'file_ref' | 'link'
 
 export type RunRecord = {
   id: string

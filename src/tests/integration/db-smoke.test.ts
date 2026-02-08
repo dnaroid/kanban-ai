@@ -20,7 +20,7 @@ describe('Database Smoke Tests', () => {
       version: number
     }
 
-    expect(result.version).toBe(16)
+    expect(result.version).toBe(18)
   })
 
   it('should create and retrieve a project', () => {

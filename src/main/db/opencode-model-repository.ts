@@ -174,17 +174,17 @@ export class OpencodeModelRepository {
     const hasVariants = this.hasVariantsColumn()
     const stmt = hasDifficulty
       ? db.prepare(`
-      SELECT name, enabled, difficulty${hasVariants ? ', variants' : ''}
-      FROM opencode_models
-      WHERE enabled = 1
-      ORDER BY difficulty, name
-    `)
+  SELECT name, enabled, difficulty${hasVariants ? ', variants' : ''}
+  FROM opencode_models
+  WHERE enabled = 1
+  ORDER BY difficulty, name
+`)
       : db.prepare(`
-      SELECT name, enabled${hasVariants ? ', variants' : ''}
-      FROM opencode_models
-      WHERE enabled = 1
-      ORDER BY name
-    `)
+  SELECT name, enabled${hasVariants ? ', variants' : ''}
+  FROM opencode_models
+  WHERE enabled = 1
+  ORDER BY name
+`)
 
     const models = stmt.all() as Array<{
       name: string
@@ -209,12 +209,12 @@ export class OpencodeModelRepository {
 
     const db = dbManager.connect()
     const stmt = db.prepare(`
-      SELECT name
-      FROM opencode_models
-      WHERE enabled = 1 AND difficulty = ?
-      ORDER BY name
-      LIMIT 1
-    `)
+  SELECT name
+  FROM opencode_models
+  WHERE enabled = 1 AND difficulty = ?
+  ORDER BY name
+  LIMIT 1
+`)
     const result = stmt.get(difficulty) as { name: string } | undefined
     return result?.name ?? null
   }
@@ -224,15 +224,15 @@ export class OpencodeModelRepository {
     const hasVariants = this.hasVariantsColumn()
     const stmt = hasDifficulty
       ? db.prepare(`
-      SELECT name, enabled, difficulty${hasVariants ? ', variants' : ''}
-      FROM opencode_models
-      ORDER BY name
-    `)
+  SELECT name, enabled, difficulty${hasVariants ? ', variants' : ''}
+  FROM opencode_models
+  ORDER BY name
+`)
       : db.prepare(`
-      SELECT name, enabled${hasVariants ? ', variants' : ''}
-      FROM opencode_models
-      ORDER BY name
-    `)
+  SELECT name, enabled${hasVariants ? ', variants' : ''}
+  FROM opencode_models
+  ORDER BY name
+`)
 
     const models = stmt.all() as Array<{
       name: string
@@ -253,10 +253,10 @@ export class OpencodeModelRepository {
     const db = dbManager.connect()
 
     const stmt = db.prepare(`
-      UPDATE opencode_models
-      SET enabled = ?
-      WHERE name = ?
-    `)
+  UPDATE opencode_models
+  SET enabled = ?
+  WHERE name = ?
+`)
 
     const result = stmt.run(enabled ? 1 : 0, name)
 
@@ -296,10 +296,10 @@ export class OpencodeModelRepository {
     const db = dbManager.connect()
     const hasVariants = this.hasVariantsColumn()
     const stmt = db.prepare(`
-      SELECT name, enabled, difficulty${hasVariants ? ', variants' : ''}
-      FROM opencode_models
-      WHERE name = ?
-    `)
+  SELECT name, enabled, difficulty${hasVariants ? ', variants' : ''}
+  FROM opencode_models
+  WHERE name = ?
+`)
 
     const model = stmt.get(name) as
       | { name: string; enabled: number; difficulty: string; variants?: string }
