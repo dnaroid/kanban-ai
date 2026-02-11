@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Bot,
   CheckCircle2,
@@ -36,7 +36,6 @@ export function ExecutionLog({
   const [isSending, setIsSending] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const lastTsRef = useRef<string | null>(null)
   const seenMessageIdsRef = useRef<Set<string>>(new Set())
   const refreshMessagesRef = useRef<(() => Promise<void>) | null>(null)
   const streamingTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
@@ -60,6 +59,54 @@ export function ExecutionLog({
     if (typed.status) return typed.status
     return coerceText(payload)
   }
+
+  const extractStatusLineFromParts = useCallback((parts: Part[] | undefined): string | null => {
+    if (!parts || parts.length === 0) return null
+    for (let index = parts.length - 1; index >= 0; index -= 1) {
+      const part = parts[index]
+      if (part.type !== 'text') continue
+      const extracted = extractOpencodeStatus(part.text)
+      if (extracted) return extracted.statusLine
+    }
+    return null
+  }, [])
+
+  const extractStatusLineFromMessage = useCallback(
+    (message: { content?: string; parts?: Part[] }): string | null => {
+      const fromParts = extractStatusLineFromParts(message.parts)
+      if (fromParts) return fromParts
+      if (typeof message.content === 'string' && message.content.length > 0) {
+        const extracted = extractOpencodeStatus(message.content)
+        if (extracted) return extracted.statusLine
+      }
+      return null
+    },
+    [extractStatusLineFromParts]
+  )
+
+  const upsertStatusEvent = useCallback(
+    (statusLine: string, ts: string = new Date().toISOString()) => {
+      setEvents((prev) => {
+        const id = 'status-stream'
+        const existingIndex = prev.findIndex((item) => item.id === id)
+        const statusEvent: RunEvent = {
+          id,
+          runId,
+          ts,
+          eventType: 'status',
+          payload: { message: statusLine },
+        }
+        if (existingIndex === -1) {
+          return [...prev, statusEvent].slice(-500)
+        }
+
+        const next = [...prev]
+        next[existingIndex] = statusEvent
+        return next
+      })
+    },
+    [runId]
+  )
 
   const handleScroll = () => {
     if (scrollRef.current) {
@@ -114,22 +161,25 @@ export function ExecutionLog({
     return typeof maybeId === 'string' ? maybeId : undefined
   }
 
-  const buildMessageEvent: (
-    messageId: string,
-    message: { role?: string; content?: string; parts?: Part[]; modelID?: string },
-    ts?: string
-  ) => RunEvent = (messageId, message, ts = new Date().toISOString()) => ({
-    id: `msg-${messageId}`,
-    runId: sessionId,
-    ts,
-    eventType: 'message',
-    payload: {
-      role: message.role,
-      content: message.content ?? '',
-      parts: message.parts ?? [],
-      modelID: message.modelID,
-    },
-  })
+  const buildMessageEvent = useCallback(
+    (
+      messageId: string,
+      message: { role?: string; content?: string; parts?: Part[]; modelID?: string },
+      ts: string = new Date().toISOString()
+    ): RunEvent => ({
+      id: `msg-${messageId}`,
+      runId: sessionId,
+      ts,
+      eventType: 'message',
+      payload: {
+        role: message.role,
+        content: message.content ?? '',
+        parts: message.parts ?? [],
+        modelID: message.modelID,
+      },
+    }),
+    [sessionId]
+  )
 
   useEffect(() => {
     setEffectiveSessionId(sessionId)
@@ -169,6 +219,12 @@ export function ExecutionLog({
     }) => {
       const payloadId = payload?.id
       if (!payloadId) return
+
+      const statusLine = extractStatusLineFromMessage(payload)
+      if (statusLine) {
+        upsertStatusEvent(statusLine)
+      }
+
       if (hiddenUserMessageIdRef.current) {
         if (hiddenUserMessageIdRef.current === payloadId) {
           setEvents((prev) => prev.filter((item) => item.id !== `msg-${payloadId}`))
@@ -234,6 +290,13 @@ export function ExecutionLog({
         streamingTimeoutsRef.current.delete(messageId)
       }, 2000)
       streamingTimeoutsRef.current.set(messageId, timeout)
+
+      if (part.type === 'text') {
+        const extracted = extractOpencodeStatus(part.text)
+        if (extracted) {
+          upsertStatusEvent(extracted.statusLine)
+        }
+      }
 
       setEvents((prev) => {
         const existingIndex = prev.findIndex((item) => item.id === id)
@@ -339,34 +402,10 @@ export function ExecutionLog({
     })
 
     return cleanup
-  }, [effectiveSessionId])
+  }, [effectiveSessionId, buildMessageEvent, extractStatusLineFromMessage, upsertStatusEvent])
 
   useEffect(() => {
     let isActive = true
-
-    const fetchEvents = async () => {
-      try {
-        const response = await window.api.events.tail({
-          runId: runId,
-          afterTs: lastTsRef.current ? lastTsRef.current.toString() : undefined,
-          limit: 200,
-        })
-        if (!isActive) return
-        if (response.events.length > 0) {
-          setEvents((prev) => {
-            const next = [...prev, ...response.events]
-            return next.slice(-500)
-          })
-          lastTsRef.current = response.events[response.events.length - 1].ts
-        }
-      } catch (error) {
-        console.error('Failed to fetch events:', error)
-      } finally {
-        if (isActive) {
-          setIsLoading(false)
-        }
-      }
-    }
 
     const fetchSessionMessages = async () => {
       if (!effectiveSessionId || !isActive) return
@@ -377,6 +416,20 @@ export function ExecutionLog({
         })
         if (!isActive) return
         if (response.messages.length > 0) {
+          const latestStatusMessage = [...response.messages]
+            .reverse()
+            .find((msg: OpenCodeMessage) => {
+              if (msg.role !== 'assistant') return false
+              return Boolean(extractStatusLineFromMessage(msg))
+            })
+
+          if (latestStatusMessage) {
+            const statusLine = extractStatusLineFromMessage(latestStatusMessage)
+            if (statusLine) {
+              upsertStatusEvent(statusLine, new Date(latestStatusMessage.timestamp).toISOString())
+            }
+          }
+
           if (!hiddenUserMessageIdRef.current) {
             let firstUserMessage: OpenCodeMessage | null = null
             for (const message of response.messages) {
@@ -449,19 +502,19 @@ export function ExecutionLog({
     const loadInitial = async () => {
       if (effectiveSessionId) {
         await fetchSessionMessages()
+      } else if (isActive) {
+        setIsLoading(false)
       }
-      await fetchEvents()
     }
 
     refreshMessagesRef.current = fetchSessionMessages
-    loadInitial()
-    const interval = setInterval(fetchEvents, 1500)
+    setIsLoading(true)
+    void loadInitial()
     return () => {
       isActive = false
       refreshMessagesRef.current = null
-      clearInterval(interval)
     }
-  }, [runId, effectiveSessionId])
+  }, [effectiveSessionId, extractStatusLineFromMessage, upsertStatusEvent])
 
   useEffect(() => {
     if (autoScroll && scrollRef.current) {
