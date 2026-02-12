@@ -457,12 +457,25 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
   const [selectedPreset, setSelectedPreset] = useState('')
   const [newPresetName, setNewPresetName] = useState('')
   const [isFilePickerOpen, setIsFilePickerOpen] = useState(false)
+  const [pickerInitialPath, setPickerInitialPath] = useState<string | undefined>(undefined)
 
   // Load initial data
   useEffect(() => {
     loadConfigPath()
     loadModels()
+    loadPickerInitialPath()
   }, [])
+
+  const loadPickerInitialPath = async () => {
+    try {
+      const response = await (window as any).api.project.browseDirectory({})
+      if (response?.homePath) {
+        setPickerInitialPath(`${response.homePath}/.config/opencode`)
+      }
+    } catch (error) {
+      // Ignore - will default to no initial path
+    }
+  }
 
   const loadConfigPath = async () => {
     try {
@@ -530,12 +543,7 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
   }
 
   const handleSelectFile = () => {
-    console.log(
-      '[OhMyOpencodeSettings] handleSelectFile called, current isFilePickerOpen:',
-      isFilePickerOpen
-    )
     setIsFilePickerOpen(true)
-    console.log('[OhMyOpencodeSettings] setIsFilePickerOpen(true) called')
   }
 
   const handleFileSelect = async (paths: string[]) => {
@@ -880,26 +888,38 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
 
   if (!configPath) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 space-y-6 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-400">
-          <FileText className="w-8 h-8" />
+      <>
+        <div className="flex flex-col items-center justify-center h-96 space-y-6 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-400">
+            <FileText className="w-8 h-8" />
+          </div>
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-sm font-bold text-white tracking-tight leading-none">
+              Configuration
+            </h3>
+            <p className="text-[9px] text-slate-500 font-medium truncate max-w-[250px] leading-none">
+              {configPath}
+            </p>
+          </div>
+          <button
+            onClick={handleSelectFile}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg shadow-blue-600/20 transition-all flex items-center gap-2"
+          >
+            <FolderOpen className="w-5 h-5" />
+            Select File
+          </button>
         </div>
-        <div className="flex items-baseline gap-2">
-          <h3 className="text-sm font-bold text-white tracking-tight leading-none">
-            Configuration
-          </h3>
-          <p className="text-[9px] text-slate-500 font-medium truncate max-w-[250px] leading-none">
-            {configPath}
-          </p>
-        </div>
-        <button
-          onClick={handleSelectFile}
-          className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg shadow-blue-600/20 transition-all flex items-center gap-2"
-        >
-          <FolderOpen className="w-5 h-5" />
-          Select File
-        </button>
-      </div>
+        <FileSystemPicker
+          isOpen={isFilePickerOpen}
+          mode="file"
+          initialPath={pickerInitialPath}
+          title="Select oh-my-opencode.json"
+          selectLabel="Select Config File"
+          allowedExtensions={['json']}
+          onSelect={handleFileSelect}
+          onClose={() => setIsFilePickerOpen(false)}
+        />
+      </>
     )
   }
 
@@ -1127,6 +1147,7 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
         title="Select oh-my-opencode.json"
         selectLabel="Select Config File"
         allowedExtensions={['json']}
+        initialPath={pickerInitialPath}
         onSelect={handleFileSelect}
         onClose={() => setIsFilePickerOpen(false)}
       />
