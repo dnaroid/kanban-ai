@@ -530,8 +530,12 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
   }
 
   const handleSelectFile = () => {
-    console.log('[OhMyOpencodeSettings] handleSelectFile called, opening picker')
+    console.log(
+      '[OhMyOpencodeSettings] handleSelectFile called, current isFilePickerOpen:',
+      isFilePickerOpen
+    )
     setIsFilePickerOpen(true)
+    console.log('[OhMyOpencodeSettings] setIsFilePickerOpen(true) called')
   }
 
   const handleFileSelect = async (paths: string[]) => {
