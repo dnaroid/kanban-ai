@@ -1,6 +1,9 @@
+import type { DatabaseManager } from '../db'
+import { PathsService } from '../paths'
 import { createRepositoriesModule } from './modules/repositories.module'
 import { createServicesModule } from './modules/services.module'
 import { createUseCasesModule } from './modules/usecases.module'
+import { DialogService } from '../services/DialogService'
 import { agentRoleRepo } from '../db/agent-role-repository'
 import { appSettingsRepo } from '../db/app-settings-repository'
 import { artifactRepo } from '../db/artifact-repository'
@@ -11,8 +14,14 @@ import { tagRepo } from '../db/tag-repository'
 import { taskRepo } from '../db/task-repository'
 import { taskScheduleRepo } from '../db/task-schedule-repository'
 
-export function createAppContainer() {
+export function createServerContainer(
+  db: DatabaseManager,
+  paths: PathsService,
+  logger: Console,
+  events: import('events').EventEmitter
+) {
   const repositories = createRepositoriesModule()
+  const dialogService = new DialogService()
   const services = createServicesModule({
     agentRoleRepo,
     appSettingsRepo,
@@ -23,10 +32,16 @@ export function createAppContainer() {
     tagRepo,
     taskRepo,
     taskScheduleRepo,
+    paths,
+    dialogService,
   })
   const useCases = createUseCasesModule(repositories, services)
 
   return {
+    db,
+    paths,
+    logger,
+    events,
     projectRepoAdapter: repositories.projectRepoAdapter,
     taskRepoAdapter: repositories.taskRepoAdapter,
     runRepoAdapter: repositories.runRepoAdapter,
@@ -63,9 +78,13 @@ export function createAppContainer() {
     setRetentionEnabled: services.setRetentionEnabled,
     getRetentionDays: services.getRetentionDays,
     setRetentionDays: services.setRetentionDays,
+    selectFolder: services.selectFolder,
     ...useCases,
     createOpencodeClientInstance: services.createOpencodeClientInstance,
+    queryTasks: services.queryTasks,
+    queryRuns: services.queryRuns,
+    queryArtifacts: services.queryArtifacts,
   }
 }
 
-export type AppContainer = ReturnType<typeof createAppContainer>
+export type ServerContainer = ReturnType<typeof createServerContainer>

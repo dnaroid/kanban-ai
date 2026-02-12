@@ -4,12 +4,19 @@
   "description": "Kanban for Headless OpenCode + oh-my-opencode",
   "main": "out/main/main.js",
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "npm run rebuild:electron && electron-vite dev",
+    "_dev": "npm run rebuild:electron && electron-vite dev",
     "build": "electron-vite build",
     "preview": "vite preview",
     "electron:dev": "electron-vite dev",
     "electron:build": "electron-vite build && electron-builder",
+    "dev:server": "tsx watch packages/server/src/index.ts",
+    "dev:web": "vite --config packages/web/vite.config.ts",
+    "dev": "concurrently \"pnpm dev:server\" \"pnpm dev:web\"",
+    "start": "node packages/server/dist/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
     "lint:fix": "eslint src --ext .ts,.tsx --fix",

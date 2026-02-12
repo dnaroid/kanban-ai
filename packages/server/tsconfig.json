@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "Node",
+    "allowImportingTsExtensions": false,
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "paths": {
+      "@server/*": ["./src/*"],
+      "@shared/*": ["../shared/src/*"],
+      "@main/*": ["../src/main/*"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
