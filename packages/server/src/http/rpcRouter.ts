@@ -1,6 +1,7 @@
 import type { ServerContainer } from '../di/app-container'
 import { eventBus } from '../events/eventBus'
 import { sendSseEvent } from '../http/sseHandler'
+import { dependencyService } from '../deps/dependency-service'
 // Local unwrap to avoid module resolution issues with @shared
 type Result<T> = { ok: true; data: T } | { ok: false; error: { message: string } }
 const unwrap = <T>(result: Result<T>): T => {
@@ -212,9 +213,32 @@ export function createRpcRouter(
     return unwrap(await container.cancelRunUseCase.execute(params))
   })
 
+  router.set('run:listByTask', async (params) => {
+    return unwrap(container.listRunsByTaskUseCase.execute(params.taskId))
+  })
+
+  router.set('run:delete', async (params) => {
+    return unwrap(container.deleteRunUseCase.execute(params.runId))
+  })
+
+  // Deps
+  router.set('deps:list', async (params) => {
+    return { links: dependencyService.list(params.taskId) }
+  })
+
+  // Roles
+  router.set('roles:list', async () => {
+    return { roles: container.listAgentRoles() }
+  })
+
+  // Opencode
+  router.set('opencode:listEnabledModels', async () => {
+    return { models: container.listEnabledModels() }
+  })
+
   // Tag
   router.set('tag:list', async () => {
-    return container.listTags()
+    return { tags: container.listTags() }
   })
 
   // Analytics
