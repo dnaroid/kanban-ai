@@ -7,13 +7,13 @@ import { AllModelsTab } from './AllModelsTab'
 import { MyModelsTab } from './MyModelsTab'
 
 type ModelsManagementProps = {
+  activeSubTab: 'all' | 'my' | 'oh-my-opencode'
   onStatusChange: (status: { message: string; type: 'info' | 'error' | 'success' }) => void
 }
 
-export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
+export function ModelsManagement({ activeSubTab, onStatusChange }: ModelsManagementProps) {
   const [models, setModels] = useState<OpencodeModel[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [activeSubTab, setActiveSubTab] = useState<'all' | 'my' | 'oh-my-opencode'>('all')
   const [defaultModels, setDefaultModels] = useState<Record<string, string>>({})
 
   const loadModels = async () => {
@@ -113,8 +113,6 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
     }
   }
 
-  const enabledModelsCount = useMemo(() => models.filter((m) => m.enabled).length, [models])
-
   if (isLoading && models.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -125,42 +123,6 @@ export function ModelsManagement({ onStatusChange }: ModelsManagementProps) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="bg-slate-950 flex items-center p-1 bg-slate-900/50 rounded-xl border border-slate-800/40 mb-4 w-fit shrink-0">
-        <button
-          onClick={() => setActiveSubTab('all')}
-          className={cn(
-            'px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-all rounded-lg focus:outline-none',
-            activeSubTab === 'all'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-              : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40'
-          )}
-        >
-          All Models
-        </button>
-        <button
-          onClick={() => setActiveSubTab('my')}
-          className={cn(
-            'px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-all rounded-lg focus:outline-none',
-            activeSubTab === 'my'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-              : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40'
-          )}
-        >
-          My Models ({enabledModelsCount})
-        </button>
-        <button
-          onClick={() => setActiveSubTab('oh-my-opencode')}
-          className={cn(
-            'px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-all rounded-lg focus:outline-none',
-            activeSubTab === 'oh-my-opencode'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-              : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40'
-          )}
-        >
-          Oh-My-OpenCode
-        </button>
-      </div>
-
       <div className="flex-1 overflow-hidden">
         {activeSubTab === 'all' && (
           <AllModelsTab

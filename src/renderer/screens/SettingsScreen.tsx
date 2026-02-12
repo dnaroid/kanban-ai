@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Trash2, Tag as TagIcon, Cpu } from 'lucide-react'
+import { Trash2, Tag as TagIcon, Cpu, CheckCircle2, Settings2 } from 'lucide-react'
 import { TagManagement } from '../components/settings/TagManagement'
 import { DangerZoneSettings } from '../components/settings/DangerZoneSettings'
 import { ModelsManagement } from '../components/settings/ModelsManagement'
@@ -11,11 +11,11 @@ type SettingsScreenProps = {
   onProjectDeleted: () => void
 }
 
-type Tab = 'tags' | 'danger' | 'models'
+type Tab = 'all-models' | 'my-models' | 'oh-my-opencode' | 'tags' | 'danger'
 
 export function SettingsScreen({ projectId, projectName, onProjectDeleted }: SettingsScreenProps) {
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([])
-  const [activeTab, setActiveTab] = useState<Tab>('models')
+  const [activeTab, setActiveTab] = useState<Tab>('all-models')
   const [status, setStatus] = useState<{
     message: string
     type: 'info' | 'error' | 'success'
@@ -43,10 +43,15 @@ export function SettingsScreen({ projectId, projectName, onProjectDeleted }: Set
   }, [status])
 
   const tabs: { id: Tab; label: string; icon: any }[] = [
-    { id: 'models', label: 'Models', icon: Cpu },
+    { id: 'all-models', label: 'All Models', icon: Cpu },
+    { id: 'my-models', label: 'My Models', icon: CheckCircle2 },
+    { id: 'oh-my-opencode', label: 'Oh-My-OpenCode', icon: Settings2 },
     { id: 'tags', label: 'Taxonomy', icon: TagIcon },
     { id: 'danger', label: 'Danger Zone', icon: Trash2 },
   ]
+
+  const isModelTab =
+    activeTab === 'all-models' || activeTab === 'my-models' || activeTab === 'oh-my-opencode'
 
   return (
     <div className="flex flex-col h-full w-full">
@@ -102,11 +107,22 @@ export function SettingsScreen({ projectId, projectName, onProjectDeleted }: Set
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {activeTab === 'models' && <ModelsManagement onStatusChange={setStatus} />}
+        {isModelTab && (
+          <ModelsManagement
+            activeSubTab={
+              activeTab === 'all-models'
+                ? 'all'
+                : activeTab === 'my-models'
+                  ? 'my'
+                  : 'oh-my-opencode'
+            }
+            onStatusChange={setStatus}
+          />
+        )}
         <div
           className={cn(
             'flex-1 overflow-y-auto pb-20 custom-scrollbar',
-            activeTab === 'models' && 'hidden'
+            isModelTab && 'hidden'
           )}
         >
           {activeTab === 'tags' && <TagManagement />}
