@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events'
 import type { KanbanTask } from '../../../shared/dist/types/ipc'
+import { publishEvent } from '../events/eventBus'
 
 export type TaskEvent = {
   type: 'task.updated'
@@ -30,13 +31,7 @@ export const emitTaskEvent = (event: TaskEvent) => {
   eventBusIpc.emit('task:event', event)
 
   // Publish to EventBus for SSE (for local-web)
-  try {
-    const { publishEvent } = require('../events/eventBus')
-    publishEvent('task:onEvent', event)
-  } catch (error) {
-    // EventBus may not be initialized yet, ignore
-    console.warn('Failed to publish task event to EventBus:', error)
-  }
+  publishEvent('task:onEvent', event)
 }
 
 export const onTaskEvent = (handler: (event: TaskEvent) => void) => {

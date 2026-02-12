@@ -2,10 +2,16 @@ import type { ServerContainer } from '../di/app-container'
 import { eventBus } from '../events/eventBus'
 import { sendSseEvent } from '../http/sseHandler'
 import { dependencyService } from '../deps/dependency-service'
+import { sessionManager } from '../run/opencode-session-manager'
+import { pluginService } from '../plugins/plugin-service'
+import { dbManager } from '../db'
 // Local unwrap to avoid module resolution issues with @shared
 type Result<T> = { ok: true; data: T } | { ok: false; error: { message: string } }
 const unwrap = <T>(result: Result<T>): T => {
-  if (!result.ok) throw new Error(result.error.message)
+  if (!result.ok) {
+    const errorResult = result as { ok: false; error: { message: string } }
+    throw new Error(errorResult.error.message)
+  }
   return result.data
 }
 import path from 'node:path'
@@ -204,6 +210,263 @@ export function createRpcRouter(
     return unwrap(container.deleteTaskUseCase.execute(params))
   })
 
+  router.set('task:move', async (params) => {
+    return unwrap(container.moveTaskUseCase.execute(params))
+  })
+
+  // Tag
+  router.set('tag:create', async (params) => {
+    return container.createTag(params)
+  })
+
+  router.set('tag:update', async (params) => {
+    return container.updateTag(params.id, params)
+  })
+
+  router.set('tag:delete', async (params) => {
+    return { ok: container.deleteTag(params.id) }
+  })
+
+  // Run
+  router.set('run:get', async (params) => {
+    return container.getRunUseCase.execute(params.runId)
+  })
+
+  // Schedule
+  router.set('schedule:get', async (params) => {
+    return { tasks: container.listScheduleByProject(params.projectId) }
+  })
+
+  router.set('schedule:update', async (params) => {
+    return container.updateSchedule(params)
+  })
+
+  // Deps
+  router.set('deps:add', async (params) => {
+    const link = dependencyService.add({
+      fromTaskId: params.fromTaskId,
+      toTaskId: params.toTaskId,
+      type: params.type,
+    })
+    return { link }
+  })
+
+  router.set('deps:remove', async (params) => {
+    dependencyService.remove(params.linkId)
+    return { ok: true }
+  })
+
+  // Opencode
+  router.set('opencode:getSessionStatus', async (params) => {
+    const sessionInfo = await sessionManager.getSessionInfo(params.sessionId)
+    if (!sessionInfo) {
+      throw new Error(`Session not found: ${params.sessionId}`)
+    }
+    return {
+      sessionId: params.sessionId,
+      runId: params.sessionId,
+      status: 'running',
+      messageCount: 0,
+    }
+  })
+
+  router.set('opencode:getActiveSessions', async () => {
+    const sessions = sessionManager.getActiveSessions()
+    return { count: sessions.length }
+  })
+
+  router.set('opencode:refreshModels', async () => {
+    const client = container.createOpencodeClientInstance()
+    const providers = await client.provider.list()
+    const allProviders = providers.data?.all || []
+    const connected = new Set(providers.data?.connected || [])
+    const variantsByModel = new Map<string, Set<string>>()
+
+    for (const provider of allProviders) {
+      if (!provider || typeof provider !== 'object') continue
+      const providerInfo = provider as {
+        id?: string
+        models?: Record<string, unknown>
+      }
+
+      if (!providerInfo.id || !connected.has(providerInfo.id)) continue
+
+      const models = Object.values(providerInfo.models || [])
+      for (const model of models) {
+        if (!model || typeof model !== 'object') continue
+        const modelInfo = model as {
+          id?: string
+          variants?: Record<string, unknown>
+        }
+        if (!modelInfo.id) continue
+
+        const baseName = `${providerInfo.id}/${modelInfo.id}`
+        const set = variantsByModel.get(baseName) ?? new Set<string>()
+        if (modelInfo.variants) {
+          for (const variant of Object.keys(modelInfo.variants)) {
+            set.add(variant)
+          }
+        }
+        variantsByModel.set(baseName, set)
+      }
+    }
+
+    const models = Array.from(variantsByModel.entries()).map(([name, variants]) => ({
+      name,
+      variants: Array.from(variants).sort(),
+    }))
+
+    container.syncSdkModels(models)
+    return { models: container.listAllModels() }
+  })
+
+  router.set('opencode:toggleModel', async (params) => {
+    const updatedModel = container.updateModelEnabled(params.name, params.enabled)
+    if (!updatedModel) {
+      throw new Error(`Model "${params.name}" not found`)
+    }
+    return { model: updatedModel }
+  })
+
+  router.set('opencode:sendMessage', async (params) => {
+    await sessionManager.sendPrompt(params.sessionId, params.message)
+    return { ok: true }
+  })
+
+  // Plugins
+  router.set('plugins:list', async () => {
+    return { plugins: pluginService.list() }
+  })
+
+  router.set('plugins:enable', async (params) => {
+    return { plugin: pluginService.enable(params.pluginId, params.enabled) }
+  })
+
+  router.set('plugins:reload', async () => {
+    return { plugins: pluginService.reload() }
+  })
+
+  // Dialog (mock for web)
+  router.set('dialog:showOpenDialog', async () => {
+    return { canceled: true, filePaths: [] }
+  })
+
+  // App
+  router.set('app:openPath', async (params) => {
+    console.log('[MOCK] app:openPath:', params)
+    return { ok: true }
+  })
+
+  // FileSystem
+  router.set('fileSystem:exists', async (params) => {
+    try {
+      await fs.access(params.path)
+      return { exists: true }
+    } catch {
+      return { exists: false }
+    }
+  })
+
+  // Vosk
+  router.set('vosk:downloadModel', async (params) => {
+    const { downloadModelIfNeeded } = await import('../vosk/vosk-model-loader')
+    const buffer = await downloadModelIfNeeded(params.lang)
+    return { path: buffer.toString('base64') }
+  })
+
+  // OhMyOpencode
+  router.set('ohMyOpencode:readConfig', async (params) => {
+    const { parse } = await import('jsonc-parser')
+    const { buildOhMyOpencodeModelFields } = await import('../oh-my-opencode/config-utils')
+    const fileContent = await fs.readFile(params.path, 'utf-8')
+    const config = parse(fileContent) as Record<string, unknown>
+    const modelFields = buildOhMyOpencodeModelFields(config)
+    return { config, modelFields }
+  })
+
+  router.set('ohMyOpencode:saveConfig', async (params) => {
+    const { parse } = await import('jsonc-parser')
+    const { ORIGINAL_PRESET_NAME, isPlainObject, mergeInPlace } =
+      await import('../oh-my-opencode/config-utils')
+    const fileContent = await fs.readFile(params.path, 'utf-8')
+    const originalPath = path.join(path.dirname(params.path), ORIGINAL_PRESET_NAME)
+    const originalExists = await fs
+      .stat(originalPath)
+      .then(() => true)
+      .catch(() => false)
+    if (!originalExists) {
+      await fs.writeFile(originalPath, fileContent, 'utf-8')
+    }
+    const parsedConfig = parse(fileContent) as unknown
+    let outputConfig: unknown = params.config
+    if (isPlainObject(parsedConfig) && isPlainObject(params.config)) {
+      mergeInPlace(parsedConfig, params.config)
+      outputConfig = parsedConfig
+    }
+    await fs.writeFile(params.path, JSON.stringify(outputConfig, null, 2), 'utf-8')
+    return { ok: true }
+  })
+
+  router.set('ohMyOpencode:listPresets', async (params) => {
+    const { PRESET_SUFFIX, ORIGINAL_PRESET_NAME } = await import('../oh-my-opencode/config-utils')
+    const presetDir = path.dirname(params.path)
+    const baseConfigName = path.basename(params.path)
+    const entries = await fs.readdir(presetDir)
+    const presets = entries
+      .filter(
+        (entry) =>
+          entry.endsWith(PRESET_SUFFIX) &&
+          entry !== ORIGINAL_PRESET_NAME &&
+          entry !== baseConfigName
+      )
+      .map((entry) => entry.replace(PRESET_SUFFIX, ''))
+      .sort((a, b) => a.localeCompare(b))
+    return { presets }
+  })
+
+  router.set('ohMyOpencode:loadPreset', async (params) => {
+    const { parse } = await import('jsonc-parser')
+    const { PRESET_SUFFIX, buildOhMyOpencodeModelFields } =
+      await import('../oh-my-opencode/config-utils')
+    const presetPath = path.join(path.dirname(params.path), `${params.presetName}${PRESET_SUFFIX}`)
+    const fileContent = await fs.readFile(presetPath, 'utf-8')
+    const config = parse(fileContent) as Record<string, unknown>
+    const modelFields = buildOhMyOpencodeModelFields(config)
+    return { config, modelFields }
+  })
+
+  router.set('ohMyOpencode:savePreset', async (params) => {
+    const { PRESET_SUFFIX } = await import('../oh-my-opencode/config-utils')
+    const presetPath = path.join(path.dirname(params.path), `${params.presetName}${PRESET_SUFFIX}`)
+    await fs.writeFile(presetPath, JSON.stringify(params.config, null, 2), 'utf-8')
+    return { ok: true, presetPath }
+  })
+
+  router.set('ohMyOpencode:backupConfig', async (params) => {
+    const fileContent = await fs.readFile(params.path, 'utf-8')
+    const backupPath = `${params.path}.backup`
+    await fs.writeFile(backupPath, fileContent, 'utf-8')
+    return { ok: true, backupPath }
+  })
+
+  router.set('ohMyOpencode:restoreConfig', async (params) => {
+    const backupPath = `${params.path}.backup`
+    const backupContent = await fs.readFile(backupPath, 'utf-8')
+    await fs.writeFile(params.path, backupContent, 'utf-8')
+    return { ok: true }
+  })
+
+  // Plugins
+  router.set('plugins:install', async (params) => {
+    return { plugin: pluginService.install(params.path) }
+  })
+
+  // Database
+  router.set('database:delete', async () => {
+    dbManager.deleteDatabase()
+    return { ok: true }
+  })
+
   // Run
   router.set('run:start', async (params) => {
     return unwrap(container.startRunUseCase.execute(params))
@@ -232,6 +495,9 @@ export function createRpcRouter(
   })
 
   // Opencode
+  router.set('opencode:listModels', async () => {
+    return { models: container.listAllModels() }
+  })
   router.set('opencode:listEnabledModels', async () => {
     return { models: container.listEnabledModels() }
   })
