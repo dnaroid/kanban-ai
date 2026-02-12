@@ -4,7 +4,7 @@ import {
   BackupExportResponseSchema,
   BackupImportInputSchema,
   BackupImportResponseSchema,
-} from "../../shared/src/types/ipc.js'
+} from "@shared/types/ipc"
 import { backupService } from '../../backup/backup-service'
 
 export function registerBackupHandlers(): void {

@@ -11,9 +11,9 @@ import {
   TaskMoveResponseSchema,
   TaskUpdateInputSchema,
   TaskUpdateResponseSchema,
-} from "../../shared/src/types/ipc.js'
-import { ok } from "../../shared/src/ipc'
-
+} from "@shared/types/ipc"
+import * as ipcResult from '@shared/ipc/result'
+const { ok } = ipcResult
 export function registerTaskHandlers(context: AppContext): void {
   const {
     createTaskUseCase,

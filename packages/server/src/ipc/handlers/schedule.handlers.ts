@@ -4,7 +4,7 @@ import {
   ScheduleGetResponseSchema,
   ScheduleUpdateInputSchema,
   ScheduleUpdateResponseSchema,
-} from "../../shared/src/types/ipc.js'
+} from "@shared/types/ipc"
 import type { AppContext } from '../composition/create-app-context'
 
 export function registerScheduleHandlers(context: AppContext): void {

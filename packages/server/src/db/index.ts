@@ -16,8 +16,6 @@ export class DatabaseManager {
       return this.db
     }
 
-    const fs = require('node:fs')
-    const path = require('node:path')
     const isNewDb = !fs.existsSync(this.dbPath)
     const dbDir = path.dirname(this.dbPath)
 
@@ -48,7 +46,6 @@ export class DatabaseManager {
   deleteDatabase(): void {
     this.disconnect()
 
-    const fs = require('node:fs')
     const dbFiles = [this.dbPath, `${this.dbPath}-wal`, `${this.dbPath}-shm`]
     for (const filePath of dbFiles) {
       if (fs.existsSync(filePath)) {

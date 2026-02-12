@@ -17,7 +17,7 @@ import {
   OhMyOpencodeSaveConfigResponseSchema,
   OhMyOpencodeSavePresetInputSchema,
   OhMyOpencodeSavePresetResponseSchema,
-} from "../../shared/src/types/ipc.js'
+} from "@shared/types/ipc"
 import {
   buildOhMyOpencodeModelFields,
   isPlainObject,

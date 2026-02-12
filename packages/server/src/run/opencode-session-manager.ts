@@ -4,13 +4,12 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { OpenCodeStorageReader } from './opencode-storage-reader.js'
 import { publishEvent } from '../events/eventBus.js'
+import * as opencodeStatus from '@shared/opencode-status'
+import type { OpencodeStatus } from '@shared/opencode-status'
 
-export {
-  OPENCODE_STATUS_REGEX,
-  OPENCODE_STATUS_TOKEN,
-  buildOpencodeStatusLine,
-  type OpencodeStatus,
-} from "../../shared/src/opencode-status.js'
+export const { OPENCODE_STATUS_REGEX, OPENCODE_STATUS_TOKEN, buildOpencodeStatusLine } =
+  opencodeStatus
+export type { OpencodeStatus }
 
 type SessionTodo = {
   id: string

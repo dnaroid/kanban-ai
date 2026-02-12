@@ -1,4 +1,6 @@
-import { ok, type Result } from "@shared/ipc"
+import * as ipcResult from '@shared/ipc/result'
+import type { Result } from '@shared/ipc/result'
+const { ok } = ipcResult
 import type { TaskUpdateInput } from "@shared/types/ipc"
 import {
   CreateProjectUseCase,

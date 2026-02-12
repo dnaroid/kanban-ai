@@ -1,5 +1,8 @@
-import { ErrorCode, fail, ok, type Result } from "../../shared/src/ipc'
-
+import * as ipcErrors from '@shared/ipc/errors'
+const { ErrorCode } = ipcErrors
+import * as ipcResult from '@shared/ipc/result'
+import type { Result } from '@shared/ipc/result'
+const { fail, ok } = ipcResult
 export class TaskMovePolicy {
   validate(taskId: string, toColumnId: string, toIndex: number): Result<void> {
     if (!taskId || !toColumnId) {

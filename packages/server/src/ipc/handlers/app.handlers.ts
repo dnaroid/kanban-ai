@@ -27,7 +27,7 @@ import {
   AppSettingSetSidebarCollapsedResponseSchema,
   DatabaseDeleteInputSchema,
   DatabaseDeleteResponseSchema,
-} from "../../shared/src/types/ipc.js'
+} from "@shared/types/ipc"
 import { dbManager } from '../../db'
 import { retentionMaintenanceService } from '../../maintenance/retention-maintenance.service.js'
 import type { AppContext } from '../composition/create-app-context'

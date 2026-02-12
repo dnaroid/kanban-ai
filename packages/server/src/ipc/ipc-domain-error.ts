@@ -1,8 +1,9 @@
-import { ErrorCode } from "../../shared/src/ipc'
-
+import * as ipcErrors from '@shared/ipc/errors'
+import type { ErrorCode as ErrorCodeType } from '@shared/ipc/errors'
+const { ErrorCode } = ipcErrors
 export class IpcDomainError extends Error {
   constructor(
-    public readonly code: ErrorCode,
+    public readonly code: ErrorCodeType,
     message: string,
     public readonly details?: unknown
   ) {
@@ -11,7 +12,11 @@ export class IpcDomainError extends Error {
   }
 }
 
-export const ipcError = (code: ErrorCode, message: string, details?: unknown): IpcDomainError => {
+export const ipcError = (
+  code: ErrorCodeType,
+  message: string,
+  details?: unknown
+): IpcDomainError => {
   return new IpcDomainError(code, message, details)
 }
 

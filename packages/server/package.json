@@ -2,17 +2,17 @@
   "name": "@kanban-ai/server",
   "version": "0.1.0",
   "type": "module",
-  "main": "./dist/index.js",
+  "main": "./dist/packages/server/src/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "rebuild:sqlite": "cd node_modules/.pnpm/better-sqlite3@12.6.2/node_modules/better-sqlite3 && npm run build-release",
-    "start": "node dist/index.js"
+    "start": "node dist/packages/server/src/index.js"
   },
   "dependencies": {
     "@kanban-ai/shared": "workspace:*",
-    "better-sqlite3": "^12.6.2",
+    "better-sqlite3": "12.6.2",
     "ws": "^8.19.0",
     "zod": "^4.3.6"
   },

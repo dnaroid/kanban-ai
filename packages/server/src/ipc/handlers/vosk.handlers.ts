@@ -1,5 +1,5 @@
 import { ipcHandlers } from '../validation'
-import { VoskModelDownloadInputSchema, VoskModelDownloadResponseSchema } from "../../shared/src/types/ipc.js'
+import { VoskModelDownloadInputSchema, VoskModelDownloadResponseSchema } from "@shared/types/ipc"
 import { downloadModelIfNeeded } from '../../vosk/vosk-model-loader'
 
 export function registerVoskHandlers(): void {

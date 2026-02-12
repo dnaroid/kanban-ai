@@ -1,5 +1,7 @@
 import type { CreateProjectInput, Project } from "@shared/types/ipc"
-import { ok, type Result } from "@shared/ipc"
+import * as ipcResult from '@shared/ipc/result'
+import type { Result } from '@shared/ipc/result'
+const { ok } = ipcResult
 import type { ProjectRepoPort } from '../../ports'
 import { projectRepo } from '../../db/project-repository'
 import { toResultError } from '../../ipc/map-error'

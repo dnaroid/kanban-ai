@@ -1,6 +1,13 @@
-import { ErrorCode, fail, type Result } from "../../shared/src/ipc'
-import { appError, type AppError } from "../../shared/src/errors'
+import * as ipcErrors from '@shared/ipc/errors'
+import * as ipcResult from '@shared/ipc/result'
+import type { Result } from '@shared/ipc/result'
+import * as sharedErrors from '@shared/errors'
+import type { AppError } from '@shared/errors'
+const { appError } = sharedErrors
 import { isIpcDomainError } from './ipc-domain-error'
+
+const { ErrorCode } = ipcErrors
+const { fail } = ipcResult
 
 export const toAppError = (error: unknown): AppError => {
   if (isIpcDomainError(error)) {
@@ -24,7 +31,7 @@ export const toResultError = <T = never>(error: unknown): Result<T> => {
   return fail(normalized.code, normalized.message, normalized.details)
 }
 
-const mapErrorToCode = (error: Error): ErrorCode => {
+const mapErrorToCode = (error: Error): ipcErrors.ErrorCode => {
   const message = error.message.toLowerCase()
 
   if (message.includes('not found')) {

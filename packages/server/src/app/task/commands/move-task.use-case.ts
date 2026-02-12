@@ -1,4 +1,6 @@
-import { ok, type Result } from "../../shared/src/ipc'
+import * as ipcResult from '@shared/ipc/result'
+import type { Result } from '@shared/ipc/result'
+const { ok } = ipcResult
 import type { TaskMoveInput } from "@shared/types/ipc"
 import { TaskMovePolicy } from '../../../domain/task/task-move.policy'
 import type { TaskRepoPort } from '../../../ports'

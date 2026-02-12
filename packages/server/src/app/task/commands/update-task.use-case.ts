@@ -1,4 +1,8 @@
-import { ErrorCode, fail, ok, type Result } from "../../shared/src/ipc'
+import * as ipcErrors from '@shared/ipc/errors'
+const { ErrorCode } = ipcErrors
+import * as ipcResult from '@shared/ipc/result'
+import type { Result } from '@shared/ipc/result'
+const { fail, ok } = ipcResult
 import type { KanbanTask, TaskUpdateInput } from "@shared/types/ipc"
 import type { TaskRepoPort } from '../../../ports'
 

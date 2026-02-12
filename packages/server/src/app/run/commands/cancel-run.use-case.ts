@@ -1,5 +1,6 @@
-import { ok, type Result } from "../../shared/src/ipc'
-
+import * as ipcResult from '@shared/ipc/result'
+import type { Result } from '@shared/ipc/result'
+const { ok } = ipcResult
 export class CancelRunUseCase {
   constructor(private readonly cancelRun: (runId: string) => Promise<void>) {}
 
