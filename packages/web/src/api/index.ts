@@ -1,7 +1,6 @@
-import type { KanbanApi } from "../../../packages/web/src/api/types"
-import { ElectronTransport } from './transports/electron'
 import { HttpTransport } from './transports/http'
 import type { ApiTransport } from './transport'
+import {KanbanApi} from "@web/api/types"
 
 export function createApiProxy(transport: ApiTransport) {
   const buildProxy = (path: string[]): any => {
@@ -66,7 +65,7 @@ export function createApiTransport(): KanbanApi {
 
   if (typeof window !== 'undefined' && (window as any).electron) {
     console.log('[API] Using Electron transport')
-    baseTransport = new ElectronTransport()
+    baseTransport = new HttpTransport()
   } else {
     const token = (window as any).__LOCAL_WEB_TOKEN__
     console.log('[API] Using HTTP transport', token ? 'with token' : 'without token')
@@ -79,7 +78,6 @@ export function createApiTransport(): KanbanApi {
 }
 
 export { ApiTransport }
-export { ElectronTransport }
 export { HttpTransport }
 
 export const api = createApiTransport()

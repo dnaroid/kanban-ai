@@ -328,6 +328,14 @@ export function createRpcRouter(
     return { model: updatedModel }
   })
 
+  router.set('opencode:updateModelDifficulty', async (params) => {
+    const updatedModel = container.updateModelDifficulty(params.name, params.difficulty)
+    if (!updatedModel) {
+      throw new Error(`Model "${params.name}" not found`)
+    }
+    return { model: updatedModel }
+  })
+
   router.set('opencode:sendMessage', async (params) => {
     await sessionManager.sendPrompt(params.sessionId, params.message)
     return { ok: true }
