@@ -1,8 +1,4 @@
 import type {
-  AnalyticsGetOverviewInput,
-  AnalyticsGetOverviewResponse,
-  AnalyticsGetRunStatsInput,
-  AnalyticsGetRunStatsResponse,
   AppInfo,
   AppSettingGetRetentionPolicyResponse,
   AppSettingGetLastProjectIdResponse,
@@ -26,10 +22,6 @@ import type {
   ArtifactGetResponse,
   ArtifactListInput,
   ArtifactListResponse,
-  BackupExportInput,
-  BackupExportResponse,
-  BackupImportInput,
-  BackupImportResponse,
   BoardGetDefaultInput,
   BoardGetDefaultResponse,
   BoardUpdateColumnsInput,
@@ -233,10 +225,6 @@ export interface MainToRenderer {
   search: {
     query(input: SearchQueryInput): Promise<SearchQueryResponse>
   }
-  analytics: {
-    getOverview(input: AnalyticsGetOverviewInput): Promise<AnalyticsGetOverviewResponse>
-    getRunStats(input: AnalyticsGetRunStatsInput): Promise<AnalyticsGetRunStatsResponse>
-  }
   plugins: {
     list(): Promise<PluginsListResponse>
     install(input: PluginsInstallInput): Promise<PluginsInstallResponse>
@@ -245,10 +233,6 @@ export interface MainToRenderer {
   }
   roles: {
     list(): Promise<RolesListResponse>
-  }
-  backup: {
-    exportProject(input: BackupExportInput): Promise<BackupExportResponse>
-    importProject(input: BackupImportInput): Promise<BackupImportResponse>
   }
   diagnostics: {
     getLogs(level?: string, limit?: number): Promise<LogEntry[]>
@@ -371,10 +355,6 @@ export interface RendererToMain {
   search: {
     query(input: SearchQueryInput): Promise<SearchQueryResponse>
   }
-  analytics: {
-    getOverview(input: AnalyticsGetOverviewInput): Promise<AnalyticsGetOverviewResponse>
-    getRunStats(input: AnalyticsGetRunStatsInput): Promise<AnalyticsGetRunStatsResponse>
-  }
   plugins: {
     list(): Promise<PluginsListResponse>
     install(input: PluginsInstallInput): Promise<PluginsInstallResponse>
@@ -383,10 +363,6 @@ export interface RendererToMain {
   }
   roles: {
     list(): Promise<RolesListResponse>
-  }
-  backup: {
-    exportProject(input: BackupExportInput): Promise<BackupExportResponse>
-    importProject(input: BackupImportInput): Promise<BackupImportResponse>
   }
   diagnostics: {
     getLogs(level?: string, limit?: number): Promise<LogEntry[]>

@@ -3,5 +3,4 @@ export type Screen =
   | { id: 'diagnostics' }
   | { id: 'board'; projectId: string; projectName: string }
   | { id: 'timeline'; projectId: string; projectName: string }
-  | { id: 'analytics'; projectId: string; projectName: string }
   | { id: 'settings' }

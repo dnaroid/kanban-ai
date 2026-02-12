@@ -1,10 +1,6 @@
 import { ipcHandlers } from '../validation'
 import { ErrorCode, fail, ok } from '../../../shared/ipc'
 import {
-  AnalyticsGetOverviewInputSchema,
-  AnalyticsGetOverviewResponseSchema,
-  AnalyticsGetRunStatsInputSchema,
-  AnalyticsGetRunStatsResponseSchema,
   ArtifactGetInputSchema,
   ArtifactGetResponseSchema,
   ArtifactListInputSchema,
@@ -34,8 +30,6 @@ export function registerRunHandlers(context: AppContext): void {
     listRunEvents,
     listArtifactsByRun,
     getArtifactById,
-    getAnalyticsOverview,
-    getAnalyticsRunStats,
   } = context
 
   ipcHandlers.register('run:start', RunStartInputSchema, async (_, input) => {
@@ -95,22 +89,4 @@ export function registerRunHandlers(context: AppContext): void {
     }
     return ok(ArtifactGetResponseSchema.parse({ artifact }))
   })
-
-  ipcHandlers.register(
-    'analytics:getOverview',
-    AnalyticsGetOverviewInputSchema,
-    async (_, input) => {
-      const overview = getAnalyticsOverview(input.projectId, input.range)
-      return AnalyticsGetOverviewResponseSchema.parse({ overview })
-    }
-  )
-
-  ipcHandlers.register(
-    'analytics:getRunStats',
-    AnalyticsGetRunStatsInputSchema,
-    async (_, input) => {
-      const stats = getAnalyticsRunStats(input.projectId, input.range)
-      return AnalyticsGetRunStatsResponseSchema.parse({ stats })
-    }
-  )
 }

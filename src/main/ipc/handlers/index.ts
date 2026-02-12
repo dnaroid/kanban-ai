@@ -12,7 +12,6 @@ import { registerVoskHandlers } from './vosk.handlers'
 import { registerOhMyOpencodeHandlers } from './oh-my-opencode.handlers'
 import { registerRunHandlers } from './run.handlers'
 import { registerPluginHandlers } from './plugin.handlers'
-import { registerBackupHandlers } from './backup.handlers'
 import { registerOpenCodeHandlers } from './opencode.handlers'
 import { registerTaskEventsHandlers } from './task-events.handlers'
 
@@ -29,7 +28,6 @@ export function registerAllHandlers(context: AppContext): void {
   registerOhMyOpencodeHandlers()
   registerRunHandlers(context)
   registerPluginHandlers(context)
-  registerBackupHandlers()
   registerOpenCodeHandlers(context)
   registerTaskEventsHandlers()
   registerDiagnosticsHandlers()

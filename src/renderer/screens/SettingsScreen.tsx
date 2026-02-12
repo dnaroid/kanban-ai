@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Globe, Trash2, Tag as TagIcon, Cpu } from 'lucide-react'
+import { Trash2, Tag as TagIcon, Cpu } from 'lucide-react'
 import { TagManagement } from '../components/settings/TagManagement'
-import { BackupAndRestoreSettings } from '../components/settings/BackupAndRestoreSettings'
 import { DangerZoneSettings } from '../components/settings/DangerZoneSettings'
 import { ModelsManagement } from '../components/settings/ModelsManagement'
 import { cn } from '../lib/utils'
@@ -12,7 +11,7 @@ type SettingsScreenProps = {
   onProjectDeleted: () => void
 }
 
-type Tab = 'migration' | 'tags' | 'danger' | 'models'
+type Tab = 'tags' | 'danger' | 'models'
 
 export function SettingsScreen({ projectId, projectName, onProjectDeleted }: SettingsScreenProps) {
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([])
@@ -46,7 +45,6 @@ export function SettingsScreen({ projectId, projectName, onProjectDeleted }: Set
   const tabs: { id: Tab; label: string; icon: any }[] = [
     { id: 'models', label: 'Models', icon: Cpu },
     { id: 'tags', label: 'Taxonomy', icon: TagIcon },
-    { id: 'migration', label: 'Data Management', icon: Globe },
     { id: 'danger', label: 'Danger Zone', icon: Trash2 },
   ]
 
@@ -112,13 +110,6 @@ export function SettingsScreen({ projectId, projectName, onProjectDeleted }: Set
           )}
         >
           {activeTab === 'tags' && <TagManagement />}
-          {activeTab === 'migration' && (
-            <BackupAndRestoreSettings
-              projects={projects}
-              currentProjectId={projectId}
-              onStatusChange={setStatus}
-            />
-          )}
           {activeTab === 'danger' && (
             <DangerZoneSettings
               projects={projects}

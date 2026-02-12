@@ -762,4 +762,3 @@ Local-web версия считается успешной, если:
 - `packages/web` (transport, ui)
 
 ---
-ФАЗА A-F ЗАВЕРШЕНА ✅

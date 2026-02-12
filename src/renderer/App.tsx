@@ -4,7 +4,6 @@ import { ProjectsScreen } from './screens/ProjectsScreen'
 import { DiagnosticsScreen } from './screens/DiagnosticsScreen'
 import { BoardScreen } from './screens/BoardScreen'
 import { TimelineScreen } from './screens/TimelineScreen'
-import { AnalyticsScreen } from './screens/AnalyticsScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { cn } from './lib/utils'
 import { Sidebar } from './components/Sidebar'
@@ -91,14 +90,6 @@ export default function App() {
                     <span className="text-slate-300 font-medium">Timeline</span>
                   </>
                 )}
-                {screen.id === 'analytics' && (
-                  <>
-                    <ChevronRight className="w-4 h-4 text-slate-700" />
-                    <span className="text-slate-300 font-medium">{screen.projectName}</span>
-                    <ChevronRight className="w-4 h-4 text-slate-700" />
-                    <span className="text-slate-300 font-medium">Analytics</span>
-                  </>
-                )}
               </>
             )}
           </div>
@@ -140,9 +131,6 @@ export default function App() {
 
           {screen.id === 'timeline' && (
             <TimelineScreen projectId={screen.projectId} projectName={screen.projectName} />
-          )}
-          {screen.id === 'analytics' && (
-            <AnalyticsScreen projectId={screen.projectId} projectName={screen.projectName} />
           )}
           {screen.id === 'settings' && (
             <SettingsScreen

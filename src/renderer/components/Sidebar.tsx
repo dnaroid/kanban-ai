@@ -1,6 +1,5 @@
 import {
   Activity,
-  BarChart3,
   CalendarRange,
   ChevronLeft,
   ChevronRight,
@@ -29,7 +28,6 @@ export function Sidebar({
   const navItems = [
     { id: 'projects' as const, label: 'Projects', icon: FolderKanban },
     { id: 'diagnostics' as const, label: 'Diagnostics', icon: Activity },
-    { id: 'analytics' as const, label: 'Analytics', icon: BarChart3 },
     { id: 'timeline' as const, label: 'Timeline', icon: CalendarRange },
   ]
 
@@ -83,14 +81,12 @@ export function Sidebar({
         {navItems.map((item) => {
           const Icon = item.icon
           const isActive = screen.id === item.id
-          const isDisabled =
-            (item.id === 'timeline' && !activeProject) ||
-            (item.id === 'analytics' && !activeProject)
+          const isDisabled = item.id === 'timeline' && !activeProject
           return (
             <button
               key={item.id}
               onClick={() => {
-                if (item.id === 'timeline' || item.id === 'analytics') {
+                if (item.id === 'timeline') {
                   if (!activeProject) return
                   onScreenChange({
                     id: item.id,

@@ -84,10 +84,6 @@ const api: MainToRenderer = {
   search: {
     query: (input) => ipcRenderer.invoke('search:query', input),
   },
-  analytics: {
-    getOverview: (input) => ipcRenderer.invoke('analytics:getOverview', input),
-    getRunStats: (input) => ipcRenderer.invoke('analytics:getRunStats', input),
-  },
   plugins: {
     list: () => ipcRenderer.invoke('plugins:list'),
     install: (input) => ipcRenderer.invoke('plugins:install', input),
@@ -96,10 +92,6 @@ const api: MainToRenderer = {
   },
   roles: {
     list: () => ipcRenderer.invoke('roles:list'),
-  },
-  backup: {
-    exportProject: (input) => ipcRenderer.invoke('backup:exportProject', input),
-    importProject: (input) => ipcRenderer.invoke('backup:importProject', input),
   },
   diagnostics: {
     getLogs: (level, limit) => ipcRenderer.invoke('diagnostics:getLogs', level, limit),

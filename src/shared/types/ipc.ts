@@ -464,62 +464,6 @@ export const SearchQueryResponseSchema = z.object({
 
 export type SearchQueryResponse = z.infer<typeof SearchQueryResponseSchema>
 
-export const AnalyticsRangeSchema = z.object({
-  from: z.string().optional(),
-  to: z.string().optional(),
-})
-
-export type AnalyticsRange = z.infer<typeof AnalyticsRangeSchema>
-
-export const AnalyticsOverviewSchema = z.object({
-  wipCount: z.number(),
-  throughputPerDay: z.number(),
-  doneCount: z.number(),
-  createdCount: z.number(),
-  leadTimeHours: z.number(),
-  cycleTimeHours: z.number(),
-  aiTokensIn: z.number(),
-  aiTokensOut: z.number(),
-  aiCostUsd: z.number(),
-})
-
-export type AnalyticsOverview = z.infer<typeof AnalyticsOverviewSchema>
-
-export const AnalyticsRunStatsSchema = z.object({
-  totalRuns: z.number(),
-  successRuns: z.number(),
-  successRate: z.number(),
-  avgDurationSec: z.number(),
-})
-
-export type AnalyticsRunStats = z.infer<typeof AnalyticsRunStatsSchema>
-
-export const AnalyticsGetOverviewInputSchema = z.object({
-  projectId: z.string().uuid(),
-  range: AnalyticsRangeSchema.optional(),
-})
-
-export type AnalyticsGetOverviewInput = z.infer<typeof AnalyticsGetOverviewInputSchema>
-
-export const AnalyticsGetRunStatsInputSchema = z.object({
-  projectId: z.string().uuid(),
-  range: AnalyticsRangeSchema.optional(),
-})
-
-export type AnalyticsGetRunStatsInput = z.infer<typeof AnalyticsGetRunStatsInputSchema>
-
-export const AnalyticsGetOverviewResponseSchema = z.object({
-  overview: AnalyticsOverviewSchema,
-})
-
-export type AnalyticsGetOverviewResponse = z.infer<typeof AnalyticsGetOverviewResponseSchema>
-
-export const AnalyticsGetRunStatsResponseSchema = z.object({
-  stats: AnalyticsRunStatsSchema,
-})
-
-export type AnalyticsGetRunStatsResponse = z.infer<typeof AnalyticsGetRunStatsResponseSchema>
-
 export const PluginTypeSchema = z.enum(['role', 'executor', 'integration', 'ui'])
 
 export type PluginType = z.infer<typeof PluginTypeSchema>
@@ -604,35 +548,6 @@ export const RolesListResponseSchema = z.object({
 })
 
 export type RolesListResponse = z.infer<typeof RolesListResponseSchema>
-
-export const BackupExportInputSchema = z.object({
-  projectId: z.string().uuid(),
-  toPath: z.string().min(1),
-})
-
-export type BackupExportInput = z.infer<typeof BackupExportInputSchema>
-
-export const BackupExportResponseSchema = z.object({
-  ok: z.literal(true),
-  path: z.string().min(1),
-})
-
-export type BackupExportResponse = z.infer<typeof BackupExportResponseSchema>
-
-export const BackupImportInputSchema = z.object({
-  zipPath: z.string().min(1),
-  mode: z.enum(['new', 'overwrite']).default('new'),
-  projectPath: z.string().optional(),
-})
-
-export type BackupImportInput = z.infer<typeof BackupImportInputSchema>
-
-export const BackupImportResponseSchema = z.object({
-  ok: z.literal(true),
-  projectId: z.string().uuid().optional(),
-})
-
-export type BackupImportResponse = z.infer<typeof BackupImportResponseSchema>
 
 export const TagSchema = z.object({
   id: z.string().uuid(),
