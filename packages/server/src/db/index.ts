@@ -214,6 +214,8 @@ export function createDbManager(dbPath: string): DatabaseManager {
   return dbManagerInstance
 }
 
-// NOTE: dbManager needs to be initialized with actual path
-// This is a placeholder - should be initialized during app startup
-export const dbManager = createDbManager(':memory:')
+// Database path from environment or default (project root data folder)
+const DB_PATH = process.env.KANBAN_DB_PATH || path.resolve(process.cwd(), 'data', 'kanban.db')
+
+// Singleton initialized with file-based database (persists between restarts)
+export const dbManager = createDbManager(DB_PATH)

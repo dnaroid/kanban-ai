@@ -4,8 +4,8 @@ import * as path from 'path'
 
 const MODELS_CACHE_DIR = path.join(app.getPath('userData'), 'vosk-models')
 const MODEL_URLS = {
-  ru: 'https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip',
-  en: 'https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip',
+  ru: 'https:/alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip',
+  en: 'https:/alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip',
 }
 
 if (!fs.existsSync(MODELS_CACHE_DIR)) {

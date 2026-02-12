@@ -1,5 +1,7 @@
 import { homedir } from 'node:os'
 import path from 'node:path'
+import crypto from 'node:crypto'
+import fs from 'node:fs/promises'
 import envPaths from 'env-paths'
 
 export class PathsService {
@@ -37,14 +39,12 @@ export class PathsService {
   }
 
   ensureDataDir(): void {
-    const fs = require('node:fs/promises')
     fs.mkdir(this.dataDir, { recursive: true }).catch((error: Error) => {
       console.error(`Failed to create data directory: ${error}`)
     })
   }
 
   async loadToken(): Promise<string | null> {
-    const fs = require('node:fs/promises')
     try {
       const tokenContent = await fs.readFile(this.getTokenPath(), 'utf-8')
       return tokenContent.trim() || null
@@ -54,12 +54,10 @@ export class PathsService {
   }
 
   async saveToken(token: string): Promise<void> {
-    const fs = require('node:fs/promises')
     await fs.writeFile(this.getTokenPath(), token.trim(), 'utf-8')
   }
 
   async generateToken(): Promise<string> {
-    const crypto = require('node:crypto')
     return crypto.randomBytes(32).toString('hex')
   }
 }

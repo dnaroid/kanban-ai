@@ -5,7 +5,7 @@ import {
   TagListInputSchema,
   TagListResponseSchema,
   TagUpdateInputSchema,
-} from "@shared/types/ipc"
+} from '../../../../shared/dist/types/ipc'
 import type { AppContext } from '../composition/create-app-context'
 
 export function registerTagsHandlers(context: AppContext): void {

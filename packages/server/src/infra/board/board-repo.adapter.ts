@@ -1,6 +1,6 @@
-import type { Board, BoardColumn, BoardColumnInput } from "@shared/types/ipc"
-import * as ipcResult from '@shared/ipc/result'
-import type { Result } from '@shared/ipc/result'
+import type { Board, BoardColumn, BoardColumnInput } from '../../../../shared/dist/types/ipc'
+import { ok, fail, Result, unwrap } from '../../../../shared/dist/ipc/result'
+import type { Result } from '../../../../shared/dist/ipc/result'
 import { boardRepo } from '../../db/board-repository'
 import { toResultError } from '../../ipc/map-error'
 import type { BoardRepoPort } from '../../ports'

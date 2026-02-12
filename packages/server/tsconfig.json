@@ -14,10 +14,9 @@
     "baseUrl": ".",
     "paths": {
       "@server/*": ["./src/*"],
-      "@shared/ipc": ["../shared/src/ipc/index.ts"],
-      "@shared/ipc/errors": ["../shared/src/ipc/errors.ts"],
-      "@shared/ipc/result": ["../shared/src/ipc/result.ts"],
-      "@shared/ipc/*": ["../shared/src/ipc/*.ts"],
+      "@shared/ipc": ["../shared/src/ipc/index"],
+      "@shared/ipc/result": ["../shared/src/ipc/result"],
+      "@shared/ipc/*": ["../shared/src/ipc/*"],
       "@shared/types/ipc": ["../shared/src/types/ipc.ts"],
       "@shared/errors": ["../shared/src/errors/index.ts"],
       "@shared/opencode-status": ["../shared/src/opencode-status.ts"],

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { dbManager } from './index.js'
-import type { Project, CreateProjectInput } from "@shared/types/ipc"
+import type { Project, CreateProjectInput } from '../../../shared/dist/types/ipc'
 
 export class ProjectRepository {
   create(input: CreateProjectInput): Project {

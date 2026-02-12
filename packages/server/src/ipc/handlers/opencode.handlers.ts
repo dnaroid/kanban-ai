@@ -1,9 +1,8 @@
 import { ipcHandlers } from '../validation'
 import { z } from 'zod'
-import * as ipcErrors from '@shared/ipc/errors'
+import * as ipcErrors from '../../../../shared/dist/ipc/errors'
 const { ErrorCode } = ipcErrors
-import * as ipcResult from '@shared/ipc/result'
-const { ok, unwrap } = ipcResult
+import { ok, fail, Result, unwrap } from '../../../../shared/dist/ipc/result'
 import type { SessionEvent } from '../../run/opencode-session-manager'
 import { sessionManager } from '../../run/opencode-session-manager'
 import { opencodeSessionWorker } from '../../run/opencode-session-worker.js'
@@ -25,7 +24,7 @@ import {
   OpencodeModelUpdateDifficultyResponseSchema,
   OpencodeSendMessageInputSchema,
   OpencodeSendMessageResponseSchema,
-} from "@shared/types/ipc"
+} from '../../../../shared/dist/types/ipc'
 import { opencodeExecutor } from '../../run/run-service.js'
 import { ipcError } from '../ipc-domain-error'
 

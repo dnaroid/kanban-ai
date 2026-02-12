@@ -66,7 +66,7 @@ const REDACT_PATTERNS: Array<{ pattern: RegExp; replacement: string }> = [
   },
   {
     pattern: /\/\/[^/\s:@]+:[^@/\s]+@/g,
-    replacement: '//[REDACTED]:[REDACTED]@',
+    replacement: '/[REDACTED]:[REDACTED]@',
   },
   {
     pattern: /((?:api[_-]?key|apikey|token|secret|password|passwd|pwd)\s*[:=]\s*)['"]?([^'"\s]+)/gi,

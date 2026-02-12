@@ -1,6 +1,5 @@
-import * as ipcResult from '@shared/ipc/result'
-import type { Result } from '@shared/ipc/result'
-const { ok } = ipcResult
+import { ok, fail, Result, unwrap } from '../../../../../shared/dist/ipc/result'
+import type { Result } from '../../../../../shared/dist/ipc/result'
 import type { RunRepoPort } from '../../../ports'
 
 export class DeleteRunUseCase {

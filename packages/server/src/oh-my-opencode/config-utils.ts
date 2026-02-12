@@ -1,4 +1,4 @@
-import type { OhMyOpencodeModelField } from "@shared/types/ipc"
+import type { OhMyOpencodeModelField } from '../../../shared/dist/types/ipc'
 
 export const PRESET_SUFFIX = '.oh-my-opencode.json'
 export const ORIGINAL_PRESET_NAME = `_original${PRESET_SUFFIX}`

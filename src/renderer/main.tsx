@@ -2,9 +2,22 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
+import { ensureWindowApiBridge } from './services/web-api-bridge'
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-)
+function renderApp() {
+  ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  )
+}
+
+async function bootstrap() {
+  if (typeof window !== 'undefined') {
+    await ensureWindowApiBridge()
+  }
+
+  renderApp()
+}
+
+void bootstrap()

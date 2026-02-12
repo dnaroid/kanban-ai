@@ -1,7 +1,6 @@
-import * as ipcResult from '@shared/ipc/result'
-import type { Result } from '@shared/ipc/result'
-const { ok } = ipcResult
-import type { Run } from "@shared/types/ipc"
+import { ok, fail, Result, unwrap } from '../../../../../shared/dist/ipc/result'
+import type { Result } from '../../../../../shared/dist/ipc/result'
+import type { Run } from '../../../../../shared/dist/types/ipc'
 import type { RunRepoPort } from '../../../ports'
 
 export class ListRunsByTaskUseCase {

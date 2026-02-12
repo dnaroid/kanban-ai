@@ -4,8 +4,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { OpenCodeStorageReader } from './opencode-storage-reader.js'
 import { publishEvent } from '../events/eventBus.js'
-import * as opencodeStatus from '@shared/opencode-status'
-import type { OpencodeStatus } from '@shared/opencode-status'
+import * as opencodeStatus from '../../../shared/dist/opencode-status'
+import type { OpencodeStatus } from '../../../shared/dist/opencode-status'
 
 export const { OPENCODE_STATUS_REGEX, OPENCODE_STATUS_TOKEN, buildOpencodeStatusLine } =
   opencodeStatus
@@ -605,7 +605,7 @@ export class OpenCodeSessionManager {
     const client = directory
       ? await this.createClientForDirectory(directory)
       : createOpencodeClient({
-          baseUrl: process.env.OPENCODE_URL || 'http://127.0.0.1:4096',
+          baseUrl: process.env.OPENCODE_URL || 'http:/127.0.0.1:4096',
           throwOnError: true,
         })
 
@@ -903,7 +903,7 @@ export class OpenCodeSessionManager {
       return cached
     }
 
-    const baseUrl = process.env.OPENCODE_URL || 'http://127.0.0.1:4096'
+    const baseUrl = process.env.OPENCODE_URL || 'http:/127.0.0.1:4096'
     const client = createOpencodeClient({
       baseUrl,
       throwOnError: true,

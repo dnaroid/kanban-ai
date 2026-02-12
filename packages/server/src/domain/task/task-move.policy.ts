@@ -1,8 +1,7 @@
-import * as ipcErrors from '@shared/ipc/errors'
+import * as ipcErrors from '../../../../shared/dist/ipc/errors'
 const { ErrorCode } = ipcErrors
-import * as ipcResult from '@shared/ipc/result'
-import type { Result } from '@shared/ipc/result'
-const { fail, ok } = ipcResult
+import { ok, fail, Result, unwrap } from '../../../../shared/dist/ipc/result'
+import type { Result } from '../../../../shared/dist/ipc/result'
 export class TaskMovePolicy {
   validate(taskId: string, toColumnId: string, toIndex: number): Result<void> {
     if (!taskId || !toColumnId) {

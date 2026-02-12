@@ -1,5 +1,5 @@
-import type { Board, BoardColumn, BoardColumnInput } from "@shared/types/ipc"
-import type { Result } from "@shared/ipc"
+import type { Board, BoardColumn, BoardColumnInput } from '../../../shared/dist/types/ipc'
+import type { Result } from '../../../shared/dist/ipc'
 
 export interface BoardRepoPort {
   getDefault(projectId: string): Result<Board>

@@ -1,5 +1,5 @@
-import * as ipcErrors from '@shared/ipc/errors'
-import type { ErrorCode as ErrorCodeType } from '@shared/ipc/errors'
+import * as ipcErrors from '../../../shared/dist/ipc/errors'
+import type { ErrorCode as ErrorCodeType } from '../../../shared/dist/ipc/errors'
 const { ErrorCode } = ipcErrors
 export class IpcDomainError extends Error {
   constructor(

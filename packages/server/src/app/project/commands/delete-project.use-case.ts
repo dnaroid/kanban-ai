@@ -1,5 +1,5 @@
-import * as ipcResult from '@shared/ipc/result'
-import type { Result } from '@shared/ipc/result'
+import { ok, fail, Result, unwrap } from '../../../../../shared/dist/ipc/result'
+import type { Result } from '../../../../../shared/dist/ipc/result'
 import type { ProjectRepoPort } from '../../../ports'
 
 export class DeleteProjectUseCase {

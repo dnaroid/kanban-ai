@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events'
-import type { KanbanTask } from "@shared/types/ipc"
+import type { KanbanTask } from '../../../shared/dist/types/ipc'
 
 export type TaskEvent = {
   type: 'task.updated'

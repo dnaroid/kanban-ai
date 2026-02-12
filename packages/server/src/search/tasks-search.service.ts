@@ -1,5 +1,5 @@
 import { dbManager } from '../db/index.js'
-import type { KanbanTask, SearchFilters } from "@shared/types/ipc"
+import type { KanbanTask, SearchFilters } from '../../../shared/dist/types/ipc'
 
 const mapTaskRow = (row: any): KanbanTask => ({
   ...row,

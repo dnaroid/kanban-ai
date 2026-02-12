@@ -7,7 +7,7 @@ import {
   PluginsListResponseSchema,
   PluginsReloadResponseSchema,
   RolesListResponseSchema,
-} from "@shared/types/ipc"
+} from '../../../../shared/dist/types/ipc'
 import { pluginService } from '../../plugins/plugin-service'
 import type { AppContext } from '../composition/create-app-context'
 

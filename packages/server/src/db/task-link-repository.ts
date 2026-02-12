@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { dbManager } from './index.js'
-import type { TaskLink, TaskLinkType } from "@shared/types/ipc"
+import type { TaskLink, TaskLinkType } from '../../../shared/dist/types/ipc'
 
 type CreateTaskLinkInput = {
   projectId: string

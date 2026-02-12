@@ -1,6 +1,6 @@
 import { dbManager } from './index.js'
 import { appSettingsRepo } from './app-settings-repository.js'
-import type { OpencodeModel } from '@shared/types/ipc'
+import type { OpencodeModel } from '../../../shared/dist/types/ipc'
 
 export class OpencodeModelRepository {
   private hasDifficultyColumnCache: boolean | null = null

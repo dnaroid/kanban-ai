@@ -1,7 +1,6 @@
-import type { Run } from "@shared/types/ipc"
-import * as ipcResult from '@shared/ipc/result'
-import type { Result } from '@shared/ipc/result'
-const { ok } = ipcResult
+import type { Run } from '../../../../shared/dist/types/ipc'
+import { ok, fail, Result, unwrap } from '../../../../shared/dist/ipc/result'
+import type { Result } from '../../../../shared/dist/ipc/result'
 import type { CreateRunInput, RunRepoPort } from '../../ports'
 import { runRepo } from '../../db/run-repository'
 import type { RunRecord } from '../../db/run-types'

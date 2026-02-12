@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import vm from 'node:vm'
-import type { PluginManifest } from "@shared/types/ipc"
+import type { PluginManifest } from '../../../shared/dist/types/ipc'
 import { agentRoleRepo } from '../db/agent-role-repository'
 import { getPluginPath } from './plugin-loader'
 

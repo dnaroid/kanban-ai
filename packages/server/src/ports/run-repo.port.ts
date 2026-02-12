@@ -1,5 +1,5 @@
-import type { Run } from "@shared/types/ipc"
-import type { Result } from "@shared/ipc"
+import type { Run } from '../../../shared/dist/types/ipc'
+import type { Result } from '../../../shared/dist/ipc'
 
 export interface CreateRunInput {
   taskId: string

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { dbManager } from './index.js'
 import { opencodeModelRepo } from './opencode-model-repository.js'
-import type { CreateTaskInput, KanbanTask } from "@shared/types/ipc"
+import type { CreateTaskInput, KanbanTask } from '../../../shared/dist/types/ipc'
 
 export class TaskRepository {
   create(input: CreateTaskInput): KanbanTask {

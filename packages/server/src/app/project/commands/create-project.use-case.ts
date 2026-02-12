@@ -1,6 +1,6 @@
-import type { CreateProjectInput, Project } from "@shared/types/ipc"
-import * as ipcResult from '@shared/ipc/result'
-import type { Result } from '@shared/ipc/result'
+import type { CreateProjectInput, Project } from '../../../../../shared/dist/types/ipc'
+import { ok, fail, Result, unwrap } from '../../../../../shared/dist/ipc/result'
+import type { Result } from '../../../../../shared/dist/ipc/result'
 import type { ProjectRepoPort } from '../../../ports'
 
 export class CreateProjectUseCase {

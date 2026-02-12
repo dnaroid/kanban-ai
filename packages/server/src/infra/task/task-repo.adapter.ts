@@ -1,7 +1,6 @@
-import type { CreateTaskInput, KanbanTask, TaskPatch } from "@shared/types/ipc"
-import * as ipcResult from '@shared/ipc/result'
-import type { Result } from '@shared/ipc/result'
-const { ok } = ipcResult
+import type { CreateTaskInput, KanbanTask, TaskPatch } from '../../../../shared/dist/types/ipc'
+import { ok, fail, Result, unwrap } from '../../../../shared/dist/ipc/result'
+import type { Result } from '../../../../shared/dist/ipc/result'
 import type { TaskRepoPort } from '../../ports'
 import { taskRepo } from '../../db/task-repository'
 import { toResultError } from '../../ipc/map-error'

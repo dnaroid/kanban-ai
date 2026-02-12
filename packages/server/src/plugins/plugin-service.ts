@@ -3,7 +3,7 @@ import path from 'node:path'
 import { pluginRepo } from './plugin-repository'
 import { getPluginPath, installPlugin, loadManifestFromPath } from './plugin-loader'
 import { loadPluginRuntime, resetPluginRegistries } from './plugin-runtime'
-import type { PluginManifest, PluginRecord } from "@shared/types/ipc"
+import type { PluginManifest, PluginRecord } from '../../../shared/dist/types/ipc'
 
 const loadedPlugins = new Map<string, PluginManifest>()
 

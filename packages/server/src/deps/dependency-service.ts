@@ -1,4 +1,4 @@
-import type { TaskLink, TaskLinkType } from "@shared/types/ipc"
+import type { TaskLink, TaskLinkType } from '../../../shared/dist/types/ipc'
 import { taskRepo } from '../db/task-repository'
 import { taskLinkRepo } from '../db/task-link-repository'
 

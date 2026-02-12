@@ -131,6 +131,19 @@ import type {
   VoskModelDownloadInput,
   VoskModelDownloadResponse,
 } from '../shared/types/ipc'
+
+type BrowseDirectoryEntry = {
+  name: string
+  path: string
+  isDirectory: boolean
+}
+
+type BrowseDirectoryResponse = {
+  currentPath: string
+  parentPath: string | null
+  homePath: string
+  entries: BrowseDirectoryEntry[]
+}
 import type { Result } from '../shared/ipc'
 
 export type { OpenCodeSessionEvent } from '../shared/types/ipc'
@@ -180,6 +193,10 @@ export interface MainToRenderer {
   project: {
     selectFolder(): Promise<{ path: string; name: string } | null>
     selectFiles(): Promise<string[] | null>
+    browseDirectory?(input?: {
+      path?: string
+      lastSelectedPath?: string
+    }): Promise<BrowseDirectoryResponse>
     create(input: CreateProjectInput): Promise<Project>
     getAll(): Promise<Project[]>
     getById(id: string): Promise<Project | null>
@@ -315,6 +332,10 @@ export interface RendererToMain {
   project: {
     selectFolder(): Promise<{ path: string; name: string } | null>
     selectFiles(): Promise<string[] | null>
+    browseDirectory?(input?: {
+      path?: string
+      lastSelectedPath?: string
+    }): Promise<BrowseDirectoryResponse>
     create(input: CreateProjectInput): Promise<Project>
     getAll(): Promise<Project[]>
     getById(id: string): Promise<Project | null>

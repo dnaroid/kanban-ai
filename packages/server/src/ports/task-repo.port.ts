@@ -1,5 +1,5 @@
-import type { CreateTaskInput, KanbanTask, TaskPatch } from "@shared/types/ipc"
-import type { Result } from "@shared/ipc"
+import type { CreateTaskInput, KanbanTask, TaskPatch } from '../../../shared/dist/types/ipc'
+import type { Result } from '../../../shared/dist/ipc'
 
 export interface TaskRepoPort {
   create(input: CreateTaskInput): Result<KanbanTask>

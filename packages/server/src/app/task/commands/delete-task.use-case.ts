@@ -1,7 +1,6 @@
-import * as ipcResult from '@shared/ipc/result'
-import type { Result } from '@shared/ipc/result'
-const { ok } = ipcResult
-import type { TaskDeleteInput } from "@shared/types/ipc"
+import { ok, fail, Result, unwrap } from '../../../../../shared/dist/ipc/result'
+import type { Result } from '../../../../../shared/dist/ipc/result'
+import type { TaskDeleteInput } from '../../../../../shared/dist/types/ipc'
 import type { TaskRepoPort } from '../../../ports'
 
 export class DeleteTaskUseCase {

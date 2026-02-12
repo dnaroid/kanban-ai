@@ -26,13 +26,37 @@ export class HttpTransport implements ApiTransport {
       body: JSON.stringify(request),
     })
 
-    const data = (await response.json()) as RpcResponse<TRes>
+    const data = (await response.json()) as RpcResponse<unknown>
 
     if (!data.ok) {
-      throw new Error((data as any).error.message || 'RPC request failed')
+      throw new Error(data.error.message || 'RPC request failed')
     }
 
-    return (data as RpcResponseOk<TRes>).result
+    return this.normalizeResult<TRes>((data as RpcResponseOk<unknown>).result)
+  }
+
+  private normalizeResult<TRes>(result: unknown): TRes {
+    if (!this.isRecord(result) || typeof result.ok !== 'boolean') {
+      return result as TRes
+    }
+
+    if (!result.ok) {
+      const errorMessage =
+        this.isRecord(result.error) && typeof result.error.message === 'string'
+          ? result.error.message
+          : 'RPC request failed'
+      throw new Error(errorMessage)
+    }
+
+    if ('data' in result) {
+      return result.data as TRes
+    }
+
+    return result as TRes
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null
   }
 
   private eventSource: EventSource | null = null

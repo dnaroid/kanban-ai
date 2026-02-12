@@ -1,8 +1,19 @@
-import * as ipcErrors from '@shared/ipc/errors'
-const { ErrorCode } = ipcErrors
-import * as ipcResult from '@shared/ipc/result'
-import type { Result } from '@shared/ipc/result'
-const { fail } = ipcResult
+import * as ipcErrors from '../../../shared/dist/ipc/errors'
+import { ok, fail, Result, unwrap } from '../../../shared/dist/ipc/result'
+import type { Result } from '../../../shared/dist/ipc/result'
+import type { ErrorCode as IpcErrorCode } from '../../../shared/dist/ipc/errors'
+
+const ErrorCode = (() => {
+  const moduleShape = ipcErrors as unknown as {
+    ErrorCode?: { INTERNAL_ERROR?: string }
+    default?: { ErrorCode?: { INTERNAL_ERROR?: string } }
+  }
+
+  return (
+    moduleShape.ErrorCode ?? moduleShape.default?.ErrorCode ?? { INTERNAL_ERROR: 'INTERNAL_ERROR' }
+  )
+})()
+
 import { dbManager } from './index'
 
 class TransactionAbortError extends Error {
@@ -32,7 +43,7 @@ export function withTransaction<T>(fn: () => Result<T>): Result<T> {
       return error.result as Result<T>
     }
     return fail(
-      ErrorCode.INTERNAL_ERROR,
+      (ErrorCode.INTERNAL_ERROR ?? 'INTERNAL_ERROR') as IpcErrorCode,
       `Transaction failed: ${error instanceof Error ? error.message : String(error)}`
     )
   }

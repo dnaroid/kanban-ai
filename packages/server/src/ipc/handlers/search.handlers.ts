@@ -1,5 +1,5 @@
 import { ipcHandlers } from '../validation'
-import { SearchQueryInputSchema, SearchQueryResponseSchema } from "@shared/types/ipc"
+import { SearchQueryInputSchema, SearchQueryResponseSchema } from '../../../../shared/dist/types/ipc'
 import { searchService } from '../../search/search-service'
 
 export function registerSearchHandlers(): void {

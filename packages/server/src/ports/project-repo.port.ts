@@ -1,5 +1,5 @@
-import type { Project, CreateProjectInput } from "@shared/types/ipc"
-import type { Result } from "@shared/ipc"
+import type { Project, CreateProjectInput } from '../../../shared/dist/types/ipc'
+import type { Result } from '../../../shared/dist/ipc'
 
 export interface ProjectRepoPort {
   create(input: CreateProjectInput): Result<Project>

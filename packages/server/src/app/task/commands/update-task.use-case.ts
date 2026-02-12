@@ -1,9 +1,8 @@
-import * as ipcErrors from '@shared/ipc/errors'
+import * as ipcErrors from '../../../../../shared/dist/ipc/errors'
 const { ErrorCode } = ipcErrors
-import * as ipcResult from '@shared/ipc/result'
-import type { Result } from '@shared/ipc/result'
-const { fail, ok } = ipcResult
-import type { KanbanTask, TaskUpdateInput } from "@shared/types/ipc"
+import { ok, fail, Result, unwrap } from '../../../../../shared/dist/ipc/result'
+import type { Result } from '../../../../../shared/dist/ipc/result'
+import type { KanbanTask, TaskUpdateInput } from '../../../../../shared/dist/types/ipc'
 import type { TaskRepoPort } from '../../../ports'
 
 type Difficulty = 'easy' | 'medium' | 'hard' | 'epic'

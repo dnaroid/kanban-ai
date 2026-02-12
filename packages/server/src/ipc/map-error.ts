@@ -1,13 +1,71 @@
-import * as ipcErrors from '@shared/ipc/errors'
-import * as ipcResult from '@shared/ipc/result'
-import type { Result } from '@shared/ipc/result'
-import * as sharedErrors from '@shared/errors'
-import type { AppError } from '@shared/errors'
-const { appError } = sharedErrors
+import * as ipcErrors from '../../../shared/dist/ipc/errors'
+import { ok, fail, Result, unwrap } from '../../../shared/dist/ipc/result'
+import * as sharedErrors from '../../../shared/dist/errors'
+import type { AppError } from '../../../shared/dist/errors'
 import { isIpcDomainError } from './ipc-domain-error'
 
-const { ErrorCode } = ipcErrors
-const { fail } = ipcResult
+const resolveAppError = () => {
+  const moduleShape = sharedErrors as unknown as {
+    appError?: (
+      code: AppError['code'],
+      message: string,
+      details?: unknown,
+      cause?: unknown
+    ) => AppError
+    default?: {
+      appError?: (
+        code: AppError['code'],
+        message: string,
+        details?: unknown,
+        cause?: unknown
+      ) => AppError
+    }
+  }
+
+  return (
+    moduleShape.appError ??
+    moduleShape.default?.appError ??
+    ((code: AppError['code'], message: string, details?: unknown, cause?: unknown): AppError => ({
+      code,
+      message,
+      details,
+      cause,
+    }))
+  )
+}
+
+const appError = resolveAppError()
+
+// Используем импортированный fail напрямую
+const resolveFail = () => fail
+
+type ErrorCodeMap = Record<string, string>
+
+const resolveErrorCode = (): ErrorCodeMap => {
+  const moduleShape = ipcErrors as unknown as {
+    ErrorCode?: ErrorCodeMap
+    default?: { ErrorCode?: ErrorCodeMap }
+  }
+
+  return (
+    moduleShape.ErrorCode ??
+    moduleShape.default?.ErrorCode ?? {
+      UNKNOWN: 'UNKNOWN',
+      NOT_FOUND: 'NOT_FOUND',
+      ALREADY_EXISTS: 'ALREADY_EXISTS',
+      VALIDATION_ERROR: 'VALIDATION_ERROR',
+      FS_PERMISSION_DENIED: 'FS_PERMISSION_DENIED',
+      DB_TRANSACTION_FAILED: 'DB_TRANSACTION_FAILED',
+      DB_QUERY_FAILED: 'DB_QUERY_FAILED',
+      OPENCODE_TIMEOUT: 'OPENCODE_TIMEOUT',
+      OPENCODE_CONNECTION_FAILED: 'OPENCODE_CONNECTION_FAILED',
+      INTERNAL_ERROR: 'INTERNAL_ERROR',
+    }
+  )
+}
+
+const ErrorCode = resolveErrorCode()
+type IpcErrorCode = string
 
 export const toAppError = (error: unknown): AppError => {
   if (isIpcDomainError(error)) {
@@ -16,14 +74,14 @@ export const toAppError = (error: unknown): AppError => {
 
   if (error instanceof Error) {
     const code = mapErrorToCode(error)
-    return appError(code, error.message, undefined, error)
+    return appError(code as AppError['code'], error.message, undefined, error)
   }
 
   if (typeof error === 'string') {
-    return appError(ErrorCode.UNKNOWN, error)
+    return appError(ErrorCode.UNKNOWN as AppError['code'], error)
   }
 
-  return appError(ErrorCode.UNKNOWN, 'An unknown error occurred')
+  return appError(ErrorCode.UNKNOWN as AppError['code'], 'An unknown error occurred')
 }
 
 export const toResultError = <T = never>(error: unknown): Result<T> => {
@@ -31,7 +89,7 @@ export const toResultError = <T = never>(error: unknown): Result<T> => {
   return fail(normalized.code, normalized.message, normalized.details)
 }
 
-const mapErrorToCode = (error: Error): ipcErrors.ErrorCode => {
+const mapErrorToCode = (error: Error): IpcErrorCode => {
   const message = error.message.toLowerCase()
 
   if (message.includes('not found')) {

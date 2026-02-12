@@ -8,6 +8,7 @@ import { DatabaseManager } from './db/index.js'
 import EventEmitter from 'events'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { eventBus } from './events/eventBus'
+import { fileURLToPath } from 'node:url'
 
 export async function startServer(container?: ServerContainer): Promise<void> {
   const paths = new PathsService()
@@ -31,6 +32,16 @@ export async function startServer(container?: ServerContainer): Promise<void> {
   logger.info('Database connected and migrations applied')
 
   const server = createAppServer(PORT)
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Local-Token',
+  }
+
+  const sendJson = (res: ServerResponse, statusCode: number, payload: unknown): void => {
+    res.writeHead(statusCode, { ...corsHeaders, 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(payload))
+  }
 
   const rpcRouter = createRpcRouter(container)
 
@@ -49,28 +60,26 @@ export async function startServer(container?: ServerContainer): Promise<void> {
   })
 
   server.on('request', async (req, res) => {
-    const url = new URL(req.url || '', `http://${HOST}`)
+    if (res.headersSent || res.writableEnded) {
+      return
+    }
+
+    const url = new URL(req.url || '', `http:/${HOST}`)
     const pathname = url.pathname
 
     if (pathname === '/rpc') {
       if (req.method !== 'POST') {
-        res.writeHead(405, { 'Content-Type': 'application/json' })
-        res.end(
-          JSON.stringify({
-            ok: false,
-            error: { message: 'Method not allowed', code: 'METHOD_NOT_ALLOWED' },
-          })
-        )
+        sendJson(res, 405, {
+          ok: false,
+          error: { message: 'Method not allowed', code: 'METHOD_NOT_ALLOWED' },
+        })
         return
       }
 
       const authHeader = req.headers['x-local-token']
       const serverToken = await container.paths.loadToken()
       if (serverToken && authHeader !== serverToken) {
-        res.writeHead(401, { 'Content-Type': 'application/json' })
-        res.end(
-          JSON.stringify({ ok: false, error: { message: 'Unauthorized', code: 'UNAUTHORIZED' } })
-        )
+        sendJson(res, 401, { ok: false, error: { message: 'Unauthorized', code: 'UNAUTHORIZED' } })
         return
       }
 
@@ -87,34 +96,29 @@ export async function startServer(container?: ServerContainer): Promise<void> {
         const handler = rpcRouter.get(method)
 
         if (!handler) {
-          res.writeHead(404, { 'Content-Type': 'application/json' })
-          res.end(
-            JSON.stringify({
-              ok: false,
-              error: { message: `Unknown method: ${method}`, code: 'NOT_FOUND' },
-            })
-          )
+          sendJson(res, 404, {
+            ok: false,
+            error: { message: `Unknown method: ${method}`, code: 'NOT_FOUND' },
+          })
           return
         }
 
         const result = await handler(params)
 
-        res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: true, result }))
+        sendJson(res, 200, { ok: true, result })
       } catch (error) {
         logger.error('[RPC] Error:', error)
-        res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(
-          JSON.stringify({
-            ok: false,
-            error: {
-              message: 'Internal server error',
-              code: 'INTERNAL_ERROR',
-              details: String(error),
-            },
-          })
-        )
+        sendJson(res, 500, {
+          ok: false,
+          error: {
+            message: 'Internal server error',
+            code: 'INTERNAL_ERROR',
+            details: String(error),
+          },
+        })
       }
+
+      return
     }
 
     if (pathname === '/events') {
@@ -126,10 +130,7 @@ export async function startServer(container?: ServerContainer): Promise<void> {
       const isAuthorized = !serverToken || headerToken === serverToken || queryToken === serverToken
 
       if (!isAuthorized && serverToken) {
-        res.writeHead(401, { 'Content-Type': 'application/json' })
-        res.end(
-          JSON.stringify({ ok: false, error: { message: 'Unauthorized', code: 'UNAUTHORIZED' } })
-        )
+        sendJson(res, 401, { ok: false, error: { message: 'Unauthorized', code: 'UNAUTHORIZED' } })
         return
       }
 
@@ -141,12 +142,26 @@ export async function startServer(container?: ServerContainer): Promise<void> {
 
       return
     }
+
+    sendJson(res, 404, { ok: false, error: { message: 'Not found', code: 'NOT_FOUND' } })
   })
 
-  logger.info(`Server listening on http://${HOST}:${PORT}`)
+  logger.info(`Server listening on http:/${HOST}:${PORT}`)
 
   server.on('close', () => {
     logger.info('Server closed')
     db.disconnect()
+  })
+}
+
+const currentFile = fileURLToPath(import.meta.url)
+const isDirectRun = process.argv.some(
+  (arg) => arg === currentFile || arg.endsWith('/src/index.ts') || arg.endsWith('\\src\\index.ts')
+)
+
+if (isDirectRun) {
+  startServer().catch((error) => {
+    console.error('Failed to start server:', error)
+    process.exit(1)
   })
 }

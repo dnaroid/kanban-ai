@@ -6,7 +6,7 @@ import {
   DepsListResponseSchema,
   DepsRemoveInputSchema,
   DepsRemoveResponseSchema,
-} from "@shared/types/ipc"
+} from '../../../../shared/dist/types/ipc'
 import { dependencyService } from '../../deps/dependency-service'
 
 export function registerDepsHandlers(): void {

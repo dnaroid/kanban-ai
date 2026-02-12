@@ -4,7 +4,7 @@
   "type": "module",
   "main": "./dist/packages/server/src/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --tsconfig tsconfig.json src/index.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "rebuild:sqlite": "cd node_modules/.pnpm/better-sqlite3@12.6.2/node_modules/better-sqlite3 && npm run build-release",

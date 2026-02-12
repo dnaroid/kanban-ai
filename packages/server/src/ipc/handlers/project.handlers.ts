@@ -4,9 +4,8 @@ import {
   CreateProjectInputSchema,
   DeleteProjectInputSchema,
   UpdateProjectInputSchema,
-} from "@shared/types/ipc"
-import * as ipcResult from '@shared/ipc/result'
-const { unwrap } = ipcResult
+} from '../../../../shared/dist/types/ipc'
+import { ok, fail, Result, unwrap } from '../../../../shared/dist/ipc/result'
 import type { AppContext } from '../composition/create-app-context'
 
 export function registerProjectHandlers(context: AppContext): void {

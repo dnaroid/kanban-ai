@@ -8,13 +8,12 @@
     "packages/*"
   ],
   "scripts": {
-    "_dev": "npm run rebuild:electron && electron-vite dev",
     "build": "electron-vite build",
     "preview": "vite preview",
     "electron:dev": "electron-vite dev",
     "electron:build": "electron-vite build && electron-builder",
     "dev:server": "pnpm --dir packages/server dev",
-    "dev:web": "vite --config packages/web/vite.config.ts",
+    "dev:web": "vite src/renderer --config packages/web/vite.config.ts",
     "dev": "concurrently \"pnpm dev:server\" \"pnpm dev:web\"",
     "start": "node packages/server/dist/index.js",
     "typecheck": "tsc --noEmit",
@@ -27,7 +26,8 @@
     "test:coverage": "npm run rebuild:node && vitest run --coverage",
     "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
     "rebuild:node": "cd node_modules/.pnpm/better-sqlite3@12.6.2/node_modules/better-sqlite3 && npm run install",
-    "quality": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test:run"
+    "quality": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test:run",
+    "kill:dev": "lsof -ti:3000,5174 | xargs kill -9 2>/dev/null || true"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -80,6 +80,8 @@
     "postcss": "^8.5.6",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.1.18",
+    "tsc-alias": "^1.8.16",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.54.0",
     "vite": "^7.3.1",
