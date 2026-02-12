@@ -158,6 +158,9 @@ export function createServerContainer(
   - `@shared/ipc` → `@shared/ipc`
   - `@shared/types/ipc.js` → `@shared/types/ipc`
 - `packages/tsconfig.base.json` - удален дубликат `}`
+- `packages/server/tsconfig.json` - добавлен `skipLibCheck: true` для игнорирования внешних дубликатов
+- `packages/server/package.json` - добавлен скрипт `typecheck: "tsc --noEmit"`
+- `docs/migration/local-web/ipc-methods.csv` - создан документация методов IPC (фаза A)
 
 ---
 
