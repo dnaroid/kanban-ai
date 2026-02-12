@@ -1,18 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import {
-  Plus,
-  FolderKanban,
-  Github,
-  MoreVertical,
-  Edit2,
-  Palette,
-  Check,
-  X,
-  Folder,
-  File,
-  Home,
-  ArrowUp,
-} from 'lucide-react'
+import { Plus, FolderKanban, Github, MoreVertical, Edit2, Palette, Check, X } from 'lucide-react'
+import { FileSystemPicker } from '../components/common/FileSystemPicker'
 import type { Project } from '../../shared/types/ipc'
 import { cn } from '../lib/utils'
 
@@ -31,19 +19,6 @@ const PROJECT_COLORS = [
   { name: 'Slate', value: '#475569' },
 ]
 
-type BrowseDirectoryEntry = {
-  name: string
-  path: string
-  isDirectory: boolean
-}
-
-type BrowseDirectoryResponse = {
-  currentPath: string
-  parentPath: string | null
-  homePath: string
-  entries: BrowseDirectoryEntry[]
-}
-
 function CreateProjectModal({
   isOpen,
   onClose,
@@ -58,63 +33,15 @@ function CreateProjectModal({
   const [selectedColor, setSelectedColor] = useState(PROJECT_COLORS[0].value)
   const [loading, setLoading] = useState(false)
   const [isBrowserOpen, setIsBrowserOpen] = useState(false)
-  const [browserLoading, setBrowserLoading] = useState(false)
-  const [browserError, setBrowserError] = useState<string | null>(null)
-  const [browserCurrentPath, setBrowserCurrentPath] = useState('')
-  const [browserParentPath, setBrowserParentPath] = useState<string | null>(null)
-  const [browserHomePath, setBrowserHomePath] = useState('')
-  const [browserEntries, setBrowserEntries] = useState<BrowseDirectoryEntry[]>([])
 
-  const projectApi = window.api.project as typeof window.api.project & {
-    browseDirectory?: (input?: {
-      path?: string
-      lastSelectedPath?: string
-    }) => Promise<BrowseDirectoryResponse>
-  }
-
-  const supportsInAppBrowse = typeof projectApi.browseDirectory === 'function'
-
-  const loadDirectory = async (path?: string) => {
-    if (!projectApi.browseDirectory) {
-      return
+  const handleFolderSelect = (paths: string[]) => {
+    if (paths.length > 0) {
+      const path = paths[0]
+      const parts = path.split(/[\\/]/u).filter(Boolean)
+      const folderName = parts.at(-1) || path
+      setSelectedFolder({ path, name: folderName })
     }
-
-    try {
-      setBrowserLoading(true)
-      setBrowserError(null)
-
-      const response = await projectApi.browseDirectory({
-        path,
-        lastSelectedPath: selectedFolder?.path,
-      })
-
-      setBrowserCurrentPath(response.currentPath)
-      setBrowserParentPath(response.parentPath)
-      setBrowserHomePath(response.homePath)
-      setBrowserEntries(response.entries)
-    } catch (error) {
-      console.error('[ProjectsScreen] Failed to browse directory:', error)
-      setBrowserError('Failed to load directory. Check permissions and try again.')
-    } finally {
-      setBrowserLoading(false)
-    }
-  }
-
-  const openInAppBrowser = async () => {
-    setIsBrowserOpen(true)
-    await loadDirectory()
-  }
-
-  const handlePickCurrentFolder = () => {
-    if (!browserCurrentPath) {
-      return
-    }
-
-    const parts = browserCurrentPath.split(/[\\/]/u).filter(Boolean)
-    const folderName = parts.at(-1) || browserCurrentPath
-    setSelectedFolder({ path: browserCurrentPath, name: folderName })
     setIsBrowserOpen(false)
-    setBrowserError(null)
   }
 
   useEffect(() => {
@@ -125,24 +52,7 @@ function CreateProjectModal({
     }
   }, [selectedFolder])
 
-  const handleSelectFolder = async () => {
-    if (supportsInAppBrowse) {
-      await openInAppBrowser()
-      return
-    }
-
-    try {
-      setLoading(true)
-      const result = await window.api.project.selectFolder()
-      if (result) {
-        setSelectedFolder(result)
-      }
-    } catch (error) {
-      console.error('[ProjectsScreen] Failed to select folder:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const handleSelectFolder = () => setIsBrowserOpen(true)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -191,11 +101,7 @@ function CreateProjectModal({
                 {loading ? 'Loading...' : 'Browse...'}
               </button>
             </div>
-            {supportsInAppBrowse && (
-              <p className="text-[11px] text-slate-500 pl-1">
-                In-app browser: open folders, go up, or jump home before selecting.
-              </p>
-            )}
+            <p className="text-[11px] text-slate-500 pl-1">Browse and select the project folder.</p>
           </div>
 
           {selectedFolder && (
@@ -265,107 +171,20 @@ function CreateProjectModal({
         </form>
       </div>
 
-      {isBrowserOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[110] p-4 animate-in fade-in duration-200">
-          <div className="bg-[#0F141D] border border-slate-800/60 rounded-2xl max-w-2xl w-full shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-slate-800/60 flex items-center justify-between gap-4">
-              <div>
-                <h3 className="text-lg font-semibold text-white">Select Project Folder</h3>
-                <p className="text-xs text-slate-500 mt-1 truncate max-w-[34rem]">
-                  {browserCurrentPath}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsBrowserOpen(false)}
-                className="text-slate-500 hover:text-slate-300 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="px-6 py-4 border-b border-slate-800/60 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => browserParentPath && loadDirectory(browserParentPath)}
-                disabled={!browserParentPath || browserLoading}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                <ArrowUp className="w-4 h-4" /> Up
-              </button>
-              <button
-                type="button"
-                onClick={() => browserHomePath && loadDirectory(browserHomePath)}
-                disabled={!browserHomePath || browserLoading}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                <Home className="w-4 h-4" /> Home
-              </button>
-            </div>
-
-            <div className="px-6 py-4 max-h-[22rem] overflow-y-auto space-y-2">
-              {browserError && (
-                <div className="px-3 py-2 rounded-lg border border-rose-900/40 bg-rose-950/20 text-rose-300 text-sm">
-                  {browserError}
-                </div>
-              )}
-
-              {browserLoading ? (
-                <div className="text-slate-500 text-sm py-8 text-center">Loading directory...</div>
-              ) : browserEntries.length === 0 ? (
-                <div className="text-slate-500 text-sm py-8 text-center">
-                  This directory is empty.
-                </div>
-              ) : (
-                browserEntries.map((entry) => (
-                  <button
-                    key={entry.path}
-                    type="button"
-                    onClick={() => entry.isDirectory && loadDirectory(entry.path)}
-                    disabled={!entry.isDirectory || browserLoading}
-                    className={cn(
-                      'w-full text-left px-3 py-2 rounded-lg border transition-colors flex items-center justify-between gap-3',
-                      entry.isDirectory
-                        ? 'border-slate-800/80 bg-[#111823] hover:bg-[#162032] text-slate-200'
-                        : 'border-slate-900/80 bg-[#0D121A] text-slate-500 cursor-not-allowed'
-                    )}
-                  >
-                    <span className="flex items-center gap-2 min-w-0">
-                      {entry.isDirectory ? (
-                        <Folder className="w-4 h-4 text-blue-400 shrink-0" />
-                      ) : (
-                        <File className="w-4 h-4 text-slate-500 shrink-0" />
-                      )}
-                      <span className="truncate">{entry.name}</span>
-                    </span>
-                    <span className="text-[10px] uppercase tracking-wide font-semibold text-slate-500">
-                      {entry.isDirectory ? 'Open' : 'File'}
-                    </span>
-                  </button>
-                ))
-              )}
-            </div>
-
-            <div className="px-6 py-4 border-t border-slate-800/60 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setIsBrowserOpen(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-semibold text-xs border border-slate-700/50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handlePickCurrentFolder}
-                disabled={!browserCurrentPath || browserLoading}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Select Current Folder
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <FileSystemPicker
+        isOpen={isBrowserOpen}
+        mode="folder"
+        onSelect={(paths) => {
+          if (paths[0]) {
+            const folderName = paths[0].split('/').pop() || paths[0]
+            setSelectedFolder({ path: paths[0], name: folderName })
+            setIsBrowserOpen(false)
+          }
+        }}
+        onClose={() => setIsBrowserOpen(false)}
+        title="Select Project Folder"
+        selectLabel="Select Current Folder"
+      />
     </div>
   )
 }

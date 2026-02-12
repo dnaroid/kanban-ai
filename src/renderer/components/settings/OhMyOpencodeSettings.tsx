@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { ModelPicker } from '../common/ModelPicker'
+import { FileSystemPicker } from '../common/FileSystemPicker'
 import type { OpencodeModel } from '../../../shared/types/ipc'
 import type {
   AgentConfig,
@@ -455,6 +456,7 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
   const [presets, setPresets] = useState<string[]>([])
   const [selectedPreset, setSelectedPreset] = useState('')
   const [newPresetName, setNewPresetName] = useState('')
+  const [isFilePickerOpen, setIsFilePickerOpen] = useState(false)
 
   // Load initial data
   useEffect(() => {
@@ -527,19 +529,18 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
     }
   }
 
-  const handleSelectFile = async () => {
-    const response = await window.api.dialog.showOpenDialog({
-      title: 'Select oh-my-opencode.json',
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-      properties: ['openFile'],
-    })
+  const handleSelectFile = () => {
+    console.log('[OhMyOpencodeSettings] handleSelectFile called, opening picker')
+    setIsFilePickerOpen(true)
+  }
 
-    if (!response.canceled && response.filePaths.length > 0) {
-      const path = response.filePaths[0]
-      await window.api.appSetting.setOhMyOpencodePath({ path })
-      setConfigPath(path)
-      loadConfig(path)
-    }
+  const handleFileSelect = async (paths: string[]) => {
+    if (paths.length === 0) return
+    const path = paths[0]
+    await (window as any).api.appSetting.setOhMyOpencodePath({ path })
+    setConfigPath(path)
+    loadConfig(path)
+    setIsFilePickerOpen(false)
   }
 
   const handleSave = async () => {
@@ -1115,6 +1116,16 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
         {/* Main Editor */}
         <div className="flex-1 flex flex-col overflow-hidden">{renderEditor()}</div>
       </div>
+
+      <FileSystemPicker
+        isOpen={isFilePickerOpen}
+        mode="file"
+        title="Select oh-my-opencode.json"
+        selectLabel="Select Config File"
+        allowedExtensions={['json']}
+        onSelect={handleFileSelect}
+        onClose={() => setIsFilePickerOpen(false)}
+      />
     </div>
   )
 }

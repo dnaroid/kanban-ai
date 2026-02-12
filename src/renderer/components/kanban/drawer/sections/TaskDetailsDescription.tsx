@@ -4,6 +4,7 @@ import { cn } from '../../../../lib/utils'
 import type { KanbanTask } from '@/shared/types/ipc.ts'
 import { LightMarkdown } from '../../../LightMarkdown'
 import { VoiceInputButton } from '../../../voice/VoiceInputButton'
+import {FileSystemPicker} from "@/renderer/components/common/FileSystemPicker.tsx"
 
 const VOSK_MODEL_PATHS = {
   ru: 'https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip',
@@ -40,6 +41,7 @@ export function TaskDetailsDescription({
   const [isEditing, setIsEditing] = useState(false)
   const [liveTranscript, setLiveTranscript] = useState('')
   const [isDragging, setIsDragging] = useState(false)
+  const [isFilePickerOpen, setIsFilePickerOpen] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -212,11 +214,15 @@ export function TaskDetailsDescription({
     }
   }
 
-  const handlePickFiles = async () => {
-    const filePaths = await window.api.project.selectFiles()
-    if (!filePaths || filePaths.length === 0) return
+  const handlePickFiles = () => {
+    setIsFilePickerOpen(true)
+  }
 
-    const items: AttachmentItem[] = filePaths.map((filePath) => {
+  const handleFilesSelect = (paths: string[]) => {
+    if (!paths || paths.length === 0) return
+    setIsFilePickerOpen(false)
+
+    const items: AttachmentItem[] = paths.map((filePath) => {
       const normalized = filePath.replace(/\\/g, '/')
       const name = normalized.split('/').pop() || filePath
       return {
@@ -363,6 +369,15 @@ export function TaskDetailsDescription({
           </div>
         )}
       </div>
+
+      <FileSystemPicker
+        isOpen={isFilePickerOpen}
+        mode="files"
+        title="Select Files to Attach"
+        selectLabel="Attach Files"
+        onSelect={handleFilesSelect}
+        onClose={() => setIsFilePickerOpen(false)}
+      />
     </div>
   )
 }

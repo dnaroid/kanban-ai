@@ -1,5 +1,4 @@
 import { createOpencodeClient } from '@opencode-ai/sdk/v2/client'
-import { analyticsService } from '../../analytics/analytics-service'
 import { runService } from '../../run/run-service'
 import { searchService } from '../../search/search-service'
 import type { AgentRoleRepository } from '../../db/agent-role-repository'
@@ -95,10 +94,6 @@ export function createServicesModule(deps: ServicesModuleDeps) {
       runEventRepo.listByRun(runId, { afterTs, limit }),
     listArtifactsByRun: (runId: string) => artifactRepo.listByRun(runId),
     getArtifactById: (artifactId: string) => artifactRepo.getById(artifactId),
-    getAnalyticsOverview: (projectId?: string, range?: { from?: string; to?: string }) =>
-      analyticsService.getOverview(projectId ?? '', range),
-    getAnalyticsRunStats: (projectId?: string, range?: { from?: string; to?: string }) =>
-      analyticsService.getRunStats(projectId ?? '', range),
     createOpencodeClientInstance: (projectPath?: string) => {
       const baseUrl = process.env.OPENCODE_URL || 'http:/127.0.0.1:4096'
       return createOpencodeClient({
