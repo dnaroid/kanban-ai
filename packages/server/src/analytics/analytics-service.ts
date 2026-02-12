@@ -1,5 +1,5 @@
 import { dbManager } from '../db/index.js'
-import type { AnalyticsRange } from '@shared/types/ipc'
+import type { AnalyticsRange } from "@shared/types/ipc"
 
 const toRangeBounds = (range?: AnalyticsRange) => {
   if (!range) return { start: null, end: null }

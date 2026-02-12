@@ -1,4 +1,4 @@
-import { ErrorCode } from '@shared/ipc'
+import { ErrorCode } from "../../shared/src/ipc'
 
 export class IpcDomainError extends Error {
   constructor(

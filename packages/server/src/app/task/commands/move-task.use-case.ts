@@ -1,5 +1,5 @@
-import { ok, type Result } from '@shared/ipc'
-import type { TaskMoveInput } from '@shared/types/ipc'
+import { ok, type Result } from "../../shared/src/ipc'
+import type { TaskMoveInput } from "@shared/types/ipc"
 import { TaskMovePolicy } from '../../../domain/task/task-move.policy'
 import type { TaskRepoPort } from '../../../ports'
 

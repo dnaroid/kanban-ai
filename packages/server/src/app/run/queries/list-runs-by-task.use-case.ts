@@ -1,5 +1,5 @@
-import { ok, type Result } from '@shared/ipc'
-import type { Run } from '@shared/types/ipc'
+import { ok, type Result } from "../../shared/src/ipc'
+import type { Run } from "@shared/types/ipc"
 import type { RunRepoPort } from '../../../ports'
 
 export class ListRunsByTaskUseCase {

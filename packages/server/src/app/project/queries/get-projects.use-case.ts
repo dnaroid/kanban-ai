@@ -1,5 +1,5 @@
-import type { Project } from '@shared/types/ipc'
-import { type Result } from '@shared/ipc'
+import type { Project } from "@shared/types/ipc"
+import { type Result } from "../../shared/src/ipc'
 import type { ProjectRepoPort } from '../../../ports'
 
 export class GetProjectsUseCase {

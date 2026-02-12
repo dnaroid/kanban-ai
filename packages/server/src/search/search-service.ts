@@ -1,4 +1,4 @@
-import type { SearchFilters } from '@shared/types/ipc'
+import type { SearchFilters } from "@shared/types/ipc"
 import { artifactsSearchService } from './artifacts-search.service.js'
 import { runsSearchService } from './runs-search.service.js'
 import { tasksSearchService } from './tasks-search.service.js'

@@ -1,5 +1,5 @@
-import { ErrorCode, fail, type Result } from '@shared/ipc'
-import { appError, type AppError } from '@shared/errors'
+import { ErrorCode, fail, type Result } from "../../shared/src/ipc'
+import { appError, type AppError } from "../../shared/src/errors'
 import { isIpcDomainError } from './ipc-domain-error'
 
 export const toAppError = (error: unknown): AppError => {

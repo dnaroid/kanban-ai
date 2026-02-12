@@ -1,4 +1,4 @@
-import { ok, type Result } from '@shared/ipc'
+import { ok, type Result } from "../../shared/src/ipc'
 import type { RunRepoPort } from '../../../ports'
 
 export class DeleteRunUseCase {

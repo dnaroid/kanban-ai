@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { ErrorCode, fail, type Result } from '@shared/ipc'
+import { ErrorCode, fail, type Result } from "../../shared/src/ipc'
 import type {
   BoardRepoPort,
   ContextSnapshotRepoPort,

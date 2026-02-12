@@ -1,4 +1,4 @@
-import { type Result } from '@shared/ipc'
+import { type Result } from "../../shared/src/ipc'
 import type { ProjectRepoPort } from '../../../ports'
 
 export class DeleteProjectUseCase {

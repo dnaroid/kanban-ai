@@ -10,7 +10,7 @@ export {
   OPENCODE_STATUS_TOKEN,
   buildOpencodeStatusLine,
   type OpencodeStatus,
-} from '@shared/opencode-status.js'
+} from "../../shared/src/opencode-status.js'
 
 type SessionTodo = {
   id: string

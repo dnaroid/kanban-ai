@@ -4,8 +4,8 @@ import {
   CreateProjectInputSchema,
   DeleteProjectInputSchema,
   UpdateProjectInputSchema,
-} from '@shared/types/ipc.js'
-import { unwrap } from '@shared/ipc'
+} from "../../shared/src/types/ipc.js'
+import { unwrap } from "../../shared/src/ipc'
 import type { AppContext } from '../composition/create-app-context'
 
 export function registerProjectHandlers(context: AppContext): void {

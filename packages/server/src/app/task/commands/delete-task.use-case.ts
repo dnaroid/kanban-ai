@@ -1,5 +1,5 @@
-import { ok, type Result } from '@shared/ipc'
-import type { TaskDeleteInput } from '@shared/types/ipc'
+import { ok, type Result } from "../../shared/src/ipc'
+import type { TaskDeleteInput } from "@shared/types/ipc"
 import type { TaskRepoPort } from '../../../ports'
 
 export class DeleteTaskUseCase {

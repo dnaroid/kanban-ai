@@ -1,4 +1,4 @@
-import type { Result } from '@shared/ipc'
+import type { Result } from "../../shared/src/ipc'
 
 export interface CreateContextSnapshotInput {
   taskId: string

@@ -4,7 +4,7 @@ import {
   BoardGetDefaultResponseSchema,
   BoardUpdateColumnsInputSchema,
   BoardUpdateColumnsResponseSchema,
-} from '@shared/types/ipc.js'
+} from "../../shared/src/types/ipc.js'
 import type { AppContext } from '../composition/create-app-context'
 
 export function registerBoardHandlers(context: AppContext): void {

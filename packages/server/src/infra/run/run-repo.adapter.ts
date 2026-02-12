@@ -1,5 +1,5 @@
-import type { Run } from '@shared/types/ipc.ts'
-import { ok, type Result } from '@shared/ipc'
+import type { Run } from "../../shared/src/types/ipc.ts'
+import { ok, type Result } from "../../shared/src/ipc'
 import type { CreateRunInput, RunRepoPort } from '../../ports'
 import { runRepo } from '../../db/run-repository'
 import type { RunRecord } from '../../db/run-types'

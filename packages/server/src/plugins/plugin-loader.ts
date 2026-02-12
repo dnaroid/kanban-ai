@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
-import type { PluginManifest } from '@shared/types/ipc'
+import type { PluginManifest } from "@shared/types/ipc"
 
 const PLUGINS_DIR = path.join(app.getPath('userData'), 'plugins')
 

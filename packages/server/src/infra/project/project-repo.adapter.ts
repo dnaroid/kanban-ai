@@ -1,5 +1,5 @@
-import type { CreateProjectInput, Project } from '@shared/types/ipc'
-import { ok, type Result } from '@shared/ipc'
+import type { CreateProjectInput, Project } from "@shared/types/ipc"
+import { ok, type Result } from "@shared/ipc"
 import type { ProjectRepoPort } from '../../ports'
 import { projectRepo } from '../../db/project-repository'
 import { toResultError } from '../../ipc/map-error'

@@ -1,5 +1,5 @@
 import { ipcHandlers } from '../validation'
-import { ErrorCode, fail, ok } from '@shared/ipc'
+import { ErrorCode, fail, ok } from "../../shared/src/ipc'
 import {
   AnalyticsGetOverviewInputSchema,
   AnalyticsGetOverviewResponseSchema,
@@ -21,7 +21,7 @@ import {
   RunListByTaskResponseSchema,
   RunStartInputSchema,
   RunStartResponseSchema,
-} from '@shared/types/ipc.js'
+} from "../../shared/src/types/ipc.js'
 import type { AppContext } from '../composition/create-app-context'
 
 export function registerRunHandlers(context: AppContext): void {

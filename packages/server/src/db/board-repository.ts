@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { dbManager } from './index.js'
-import type { Board, BoardColumn } from '@shared/types/ipc'
+import type { Board, BoardColumn } from "@shared/types/ipc"
 
 export class BoardRepository {
   getDefault(projectId: string): Board {

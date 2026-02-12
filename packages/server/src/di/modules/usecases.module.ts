@@ -1,27 +1,27 @@
-import { ok, type Result } from '@shared/ipc'
-import type { TaskUpdateInput } from '@shared/types/ipc'
+import { ok, type Result } from "@shared/ipc"
+import type { TaskUpdateInput } from "@shared/types/ipc"
 import {
   CreateProjectUseCase,
   DeleteProjectUseCase,
   UpdateProjectUseCase,
-} from '@server/app/project/commands'
+} from '../../app/project/commands'
 import {
   CreateTaskUseCase,
   DeleteTaskUseCase,
   MoveTaskUseCase,
   UpdateTaskUseCase,
-} from '@server/app/task/commands'
-import { CancelRunUseCase } from '@server/app/run/commands/cancel-run.use-case'
-import { DeleteRunUseCase } from '@server/app/run/commands/delete-run.use-case'
-import { StartRunUseCase } from '@server/app/run/commands/start-run.use-case'
-import { GetProjectByIdUseCase, GetProjectsUseCase } from '@server/app/project/queries'
-import { GetRunUseCase, ListRunsByTaskUseCase } from '@server/app/run/queries'
-import { ListTasksByBoardUseCase } from '@server/app/task/queries'
-import { TaskMovePolicy } from '@server/domain/task/task-move.policy'
-import { withTransaction } from '@server/db/transaction'
-import { emitTaskEvent } from '@server/ipc/event-bus-ipc'
-import { ContextSnapshotBuilder } from '@server/run/context-snapshot-builder'
-import type { RolePresetProvider } from '@server/ports'
+} from '../../app/task/commands'
+import { CancelRunUseCase } from '../../app/run/commands/cancel-run.use-case'
+import { DeleteRunUseCase } from '../../app/run/commands/delete-run.use-case'
+import { StartRunUseCase } from '../../app/run/commands/start-run.use-case'
+import { GetProjectByIdUseCase, GetProjectsUseCase } from '../../app/project/queries'
+import { GetRunUseCase, ListRunsByTaskUseCase } from '../../app/run/queries'
+import { ListTasksByBoardUseCase } from '../../app/task/queries'
+import { TaskMovePolicy } from '../../domain/task/task-move.policy'
+import { withTransaction } from '../../db/transaction'
+import { emitTaskEvent } from '../../ipc/event-bus-ipc'
+import { ContextSnapshotBuilder } from '../../run/context-snapshot-builder'
+import type { RolePresetProvider } from '../../ports'
 import type { RepositoriesModule } from './repositories.module'
 import type { ServicesModule } from './services.module'
 

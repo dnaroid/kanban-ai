@@ -1,4 +1,4 @@
-import { ErrorCode, fail, type Result } from '@shared/ipc'
+import { ErrorCode, fail, type Result } from "../../shared/src/ipc'
 import { dbManager } from './index'
 
 class TransactionAbortError extends Error {

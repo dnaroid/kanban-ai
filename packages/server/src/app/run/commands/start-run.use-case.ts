@@ -1,5 +1,5 @@
-import { ErrorCode, fail, ok, type Result } from '@shared/ipc'
-import type { RunStartInput, TaskUpdateInput } from '@shared/types/ipc'
+import { ErrorCode, fail, ok, type Result } from "../../shared/src/ipc'
+import type { RunStartInput, TaskUpdateInput } from "@shared/types/ipc"
 import type { RunRepoPort, TaskRepoPort } from '../../../ports'
 
 interface ContextSnapshot {

@@ -1,5 +1,5 @@
 import { dbManager } from '../db/index.js'
-import type { SearchFilters } from '@shared/types/ipc'
+import type { SearchFilters } from "@shared/types/ipc"
 
 type ArtifactSearchRow = {
   id: string

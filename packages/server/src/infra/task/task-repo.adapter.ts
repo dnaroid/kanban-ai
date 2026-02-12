@@ -1,5 +1,5 @@
-import type { CreateTaskInput, KanbanTask, TaskPatch } from '@shared/types/ipc'
-import { ok, type Result } from '@shared/ipc'
+import type { CreateTaskInput, KanbanTask, TaskPatch } from "@shared/types/ipc"
+import { ok, type Result } from "../../shared/src/ipc'
 import type { TaskRepoPort } from '../../ports'
 import { taskRepo } from '../../db/task-repository'
 import { toResultError } from '../../ipc/map-error'

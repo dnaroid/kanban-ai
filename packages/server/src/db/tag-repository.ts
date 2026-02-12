@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { dbManager } from './index.js'
-import type { Tag, TagCreateInput, TagUpdateInput } from '@shared/types/ipc.ts'
+import type { Tag, TagCreateInput, TagUpdateInput } from "@shared/types/ipc"
 
 export class TagRepository {
   create(input: TagCreateInput): Tag {

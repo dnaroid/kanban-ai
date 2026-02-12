@@ -1,5 +1,5 @@
 import { dbManager } from '../db/index.js'
-import type { PluginManifest, PluginRecord, PluginType } from '@shared/types/ipc'
+import type { PluginManifest, PluginRecord, PluginType } from "@shared/types/ipc"
 
 type PluginRow = {
   id: string

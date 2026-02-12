@@ -1,5 +1,5 @@
-import { ErrorCode, fail, ok, type Result } from '@shared/ipc'
-import type { KanbanTask, TaskUpdateInput } from '@shared/types/ipc'
+import { ErrorCode, fail, ok, type Result } from "../../shared/src/ipc'
+import type { KanbanTask, TaskUpdateInput } from "@shared/types/ipc"
 import type { TaskRepoPort } from '../../../ports'
 
 type Difficulty = 'easy' | 'medium' | 'hard' | 'epic'

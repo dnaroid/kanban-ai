@@ -1,7 +1,7 @@
 import { dbManager } from './index.js'
 import { taskRepo } from './task-repository'
 import { taskLinkRepo } from './task-link-repository'
-import type { TimelineTask, TaskSchedule } from '@shared/types/ipc.ts'
+import type { TimelineTask, TaskSchedule } from "@shared/types/ipc"
 
 type ScheduleUpdateInput = {
   taskId: string

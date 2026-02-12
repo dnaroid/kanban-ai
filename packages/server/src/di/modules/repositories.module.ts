@@ -1,10 +1,10 @@
-import { agentRoleRepo } from '@server/db/agent-role-repository'
-import { opencodeModelRepo } from '@server/db/opencode-model-repository'
-import { BoardRepoAdapter } from '@server/infra/board/board-repo.adapter'
-import { ContextSnapshotRepoAdapter } from '@server/infra/context-snapshot/context-snapshot-repo.adapter'
-import { ProjectRepoAdapter } from '@server/infra/project/project-repo.adapter'
-import { RunRepoAdapter } from '@server/infra/run/run-repo.adapter'
-import { TaskRepoAdapter } from '@server/infra/task/task-repo.adapter'
+import { agentRoleRepo } from '../../db/agent-role-repository'
+import { opencodeModelRepo } from '../../db/opencode-model-repository'
+import { BoardRepoAdapter } from '../../infra/board/board-repo.adapter'
+import { ContextSnapshotRepoAdapter } from '../../infra/context-snapshot/context-snapshot-repo.adapter'
+import { ProjectRepoAdapter } from '../../infra/project/project-repo.adapter'
+import { RunRepoAdapter } from '../../infra/run/run-repo.adapter'
+import { TaskRepoAdapter } from '../../infra/task/task-repo.adapter'
 
 type Difficulty = 'easy' | 'medium' | 'hard' | 'epic'
 

@@ -1,4 +1,4 @@
-import { ErrorCode, fail, ok, type Result } from '@shared/ipc'
+import { ErrorCode, fail, ok, type Result } from "../../shared/src/ipc'
 
 export class TaskMovePolicy {
   validate(taskId: string, toColumnId: string, toIndex: number): Result<void> {
