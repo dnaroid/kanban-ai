@@ -150,9 +150,28 @@ export function FileSystemPicker({
   }, [isOpen, initialPath, loadDirectory])
 
   const filteredEntries = useMemo(() => {
-    if (!filterText) return entries
-    const search = filterText.toLowerCase()
-    return entries.filter((entry) => entry.name.toLowerCase().includes(search))
+    let result = [...entries]
+    if (filterText) {
+      const search = filterText.toLowerCase()
+      result = result.filter((entry) => entry.name.toLowerCase().includes(search))
+    }
+
+    return result.sort((a, b) => {
+      // 1. Folders first
+      if (a.isDirectory !== b.isDirectory) {
+        return a.isDirectory ? -1 : 1
+      }
+
+      // 2. Hidden files last
+      const aHidden = a.name.startsWith('.')
+      const bHidden = b.name.startsWith('.')
+      if (aHidden !== bHidden) {
+        return aHidden ? 1 : -1
+      }
+
+      // 3. Alphabetical
+      return a.name.localeCompare(b.name)
+    })
   }, [entries, filterText])
 
   const handleNavigateUp = () => {

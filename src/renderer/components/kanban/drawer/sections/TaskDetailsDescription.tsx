@@ -42,11 +42,29 @@ export function TaskDetailsDescription({
   const [liveTranscript, setLiveTranscript] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [isFilePickerOpen, setIsFilePickerOpen] = useState(false)
+  const [projectPath, setProjectPath] = useState<string | undefined>(undefined)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const prevTaskRef = useRef<KanbanTask | undefined>(task)
   const hasEditedLocallyRef = useRef(false)
+
+  useEffect(() => {
+    if (isFilePickerOpen && task.projectId) {
+      const fetchProjectPath = async () => {
+        try {
+          const projects = await window.api.project.getAll()
+          const project = projects.find((p) => p.id === task.projectId)
+          if (project) {
+            setProjectPath(project.path)
+          }
+        } catch (error) {
+          console.error('Failed to fetch project path:', error)
+        }
+      }
+      void fetchProjectPath()
+    }
+  }, [isFilePickerOpen, task.projectId])
 
   useEffect(() => {
     if (!isActive) return
@@ -373,6 +391,7 @@ export function TaskDetailsDescription({
       <FileSystemPicker
         isOpen={isFilePickerOpen}
         mode="files"
+        initialPath={projectPath}
         title="Select Files to Attach"
         selectLabel="Attach Files"
         onSelect={handleFilesSelect}
