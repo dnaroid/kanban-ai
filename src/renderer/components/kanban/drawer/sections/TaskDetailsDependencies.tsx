@@ -3,7 +3,6 @@ import { Link2, Plus, X, ArrowDownRight, ArrowUpRight, Link as LinkIcon } from '
 import { PillSelect } from '../../../common/PillSelect'
 import { cn } from '../../../../lib/utils'
 import type { KanbanTask, TaskLink, TaskLinkType } from '@/shared/types/ipc.ts'
-import { unwrapIpcResult } from '../../../../lib/ipc-result'
 
 const dependencyRelationshipConfig = {
   blocks: {
@@ -53,7 +52,7 @@ export function TaskDetailsDependencies({ task }: TaskDetailsDependenciesProps) 
         window.api.task.listByBoard({ boardId: task.boardId }),
         window.api.deps.list({ taskId: task.id }),
       ])
-      const tasksRes = unwrapIpcResult(tasksResult)
+      const tasksRes = tasksResult
       setBoardTasks(tasksRes.tasks)
       setDependencyLinks(depsRes.links)
     } catch (error) {

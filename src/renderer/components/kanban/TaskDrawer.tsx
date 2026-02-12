@@ -5,7 +5,6 @@ import type { KanbanTask } from '@/shared/types/ipc.ts'
 import { TaskDrawerDetails } from './drawer/TaskDrawerDetails'
 import { TaskDrawerProperties } from './drawer/TaskDrawerProperties'
 import { TaskDrawerRuns } from './drawer/TaskDrawerRuns'
-import { unwrapIpcResult } from '../../lib/ipc-result'
 
 interface TaskDrawerProps {
   task: KanbanTask | null
@@ -37,8 +36,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
       if (task && !hasCheckedRunsRef.current) {
         hasCheckedRunsRef.current = true
         try {
-          const result = await window.api.run.listByTask({ taskId: task.id })
-          const response = unwrapIpcResult(result)
+          const response = await window.api.run.listByTask({ taskId: task.id })
           if (response.runs.length > 0) {
             setActiveTab('runs')
           }
@@ -107,7 +105,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, columnName }: Task
       const response = await window.api.roles.list()
       const roles = response.roles
       const roleId = roles.length > 0 ? roles[0].id : 'default'
-      unwrapIpcResult(await window.api.run.start({ taskId: task.id, roleId }))
+      await window.api.run.start({ taskId: task.id, roleId })
       setActiveTab('runs')
     } catch (error) {
       console.error('Failed to start run from details:', error)

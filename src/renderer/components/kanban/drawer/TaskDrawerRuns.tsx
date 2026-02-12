@@ -4,7 +4,6 @@ import { cn } from '../../../lib/utils'
 import type { KanbanTask, Run } from '@/shared/types/ipc.ts'
 import { RunDetailsView } from './RunDetailsView'
 import { statusConfig, runStatusConfig } from './TaskPropertyConfigs'
-import { unwrapIpcResult } from '../../../lib/ipc-result'
 
 interface TaskDrawerRunsProps {
   task: KanbanTask
@@ -23,7 +22,7 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
   const fetchRuns = useCallback(async () => {
     setIsLoadingRuns(true)
     try {
-      const response = unwrapIpcResult(await window.api.run.listByTask({ taskId: task.id }))
+      const response = await window.api.run.listByTask({ taskId: task.id })
       setRuns(response.runs)
 
       if (!selectedRunId && response.runs.length === 1) {
@@ -46,9 +45,7 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
     if (isStartingRun) return
     setIsStartingRun(true)
     try {
-      const response = unwrapIpcResult(
-        await window.api.run.start({ taskId: task.id, roleId: selectedRoleId })
-      )
+      const response = await window.api.run.start({ taskId: task.id, roleId: selectedRoleId })
       await fetchRuns()
       setSelectedRunId(response.runId)
     } catch (error) {
@@ -61,7 +58,7 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
   const handleCancelRun = async (runId: string, e: React.MouseEvent) => {
     e.stopPropagation()
     try {
-      unwrapIpcResult(await window.api.run.cancel({ runId }))
+      await window.api.run.cancel({ runId })
       await fetchRuns()
     } catch (error) {
       console.error('Failed to cancel run:', error)
@@ -72,7 +69,7 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
     e.stopPropagation()
     if (!window.confirm('Are you sure you want to delete this run?')) return
     try {
-      unwrapIpcResult(await window.api.run.delete({ runId }))
+      await window.api.run.delete({ runId })
       await fetchRuns()
       if (selectedRunId === runId) {
         setSelectedRunId(null)
@@ -85,13 +82,11 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
   const handleRetryRun = async (run: Run, e: React.MouseEvent) => {
     e.stopPropagation()
     try {
-      const response = unwrapIpcResult(
-        await window.api.run.start({
-          taskId: task.id,
-          roleId: run.roleId || 'default',
-          mode: run.mode,
-        })
-      )
+      const response = await window.api.run.start({
+        taskId: task.id,
+        roleId: run.roleId || 'default',
+        mode: run.mode,
+      })
       await fetchRuns()
       setSelectedRunId(response.runId)
     } catch (error) {

@@ -1,3 +1,4 @@
+import type { KanbanApi } from "../../../packages/web/src/api/types"
 import { ElectronTransport } from './transports/electron'
 import { HttpTransport } from './transports/http'
 import type { ApiTransport } from './transport'
@@ -56,7 +57,7 @@ type ApiProxy = ReturnType<typeof createApiProxy>
 
 let transportInstance: ApiProxy | null = null
 
-export function createApiTransport(): ApiProxy {
+export function createApiTransport(): KanbanApi {
   if (transportInstance) {
     return transportInstance
   }

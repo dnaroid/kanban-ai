@@ -27,7 +27,7 @@
     "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
     "rebuild:node": "cd node_modules/.pnpm/better-sqlite3@12.6.2/node_modules/better-sqlite3 && npm run install",
     "quality": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test:run",
-    "kill:dev": "lsof -ti:3000,5174 | xargs kill -9 2>/dev/null || true"
+    "kill:dev": "lsof -ti:3000,5174,4173 | xargs kill -9 2>/dev/null || true"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

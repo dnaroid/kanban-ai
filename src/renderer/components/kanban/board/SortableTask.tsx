@@ -4,7 +4,6 @@ import { CSS } from '@dnd-kit/utilities'
 import { AlertCircle, Play, RefreshCw, Trash2 } from 'lucide-react'
 import type { KanbanTask, Tag } from '@/shared/types/ipc'
 import { cn } from '../../../lib/utils'
-import { unwrapIpcResult } from '../../../lib/ipc-result'
 import { priorityConfig, statusConfig, typeConfig } from '../drawer/TaskPropertyConfigs'
 
 export interface SortableTaskProps {
@@ -58,7 +57,7 @@ export function SortableTask({ task, globalTags, onDelete, onClick }: SortableTa
     try {
       const rolesResponse = await window.api.roles.list()
       const roleId = rolesResponse.roles[0]?.id || 'default'
-      unwrapIpcResult(await window.api.run.start({ taskId: task.id, roleId }))
+      await window.api.run.start({ taskId: task.id, roleId })
     } catch (error) {
       console.error('Failed to start run from card:', error)
     } finally {
