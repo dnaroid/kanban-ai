@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Folder,
   File,
@@ -157,20 +158,21 @@ export function FileSystemPicker({
     }
 
     return result.sort((a, b) => {
-      // 1. Folders first
-      if (a.isDirectory !== b.isDirectory) {
-        return a.isDirectory ? -1 : 1
-      }
-
-      // 2. Hidden files last
       const aHidden = a.name.startsWith('.')
       const bHidden = b.name.startsWith('.')
+
+      // 1. Hidden items always at the bottom
       if (aHidden !== bHidden) {
         return aHidden ? 1 : -1
       }
 
+      // 2. Folders before files
+      if (a.isDirectory !== b.isDirectory) {
+        return a.isDirectory ? -1 : 1
+      }
+
       // 3. Alphabetical
-      return a.name.localeCompare(b.name)
+      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
     })
   }, [entries, filterText])
 
@@ -267,7 +269,7 @@ export function FileSystemPicker({
     selectLabel ||
     (mode === 'folder' ? 'Select Folder' : mode === 'file' ? 'Select File' : 'Select Files')
 
-  return (
+  return createPortal(
     // Overlay
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
       
@@ -342,12 +344,6 @@ export function FileSystemPicker({
         <div className="flex-1 overflow-hidden px-6 pb-2 min-h-[300px]">
           <div className="h-full bg-[#0B0E14] border border-slate-800/60 rounded-xl overflow-hidden shadow-inner shadow-black/40 flex flex-col">
             
-            {/* Table Header */}
-            <div className="sticky top-0 z-10 bg-slate-900/80 backdrop-blur-md border-b border-slate-800/60 flex items-center px-4 py-3 text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">
-              <div className="flex-1">Name</div>
-              <div className="w-20 text-right">Type</div>
-            </div>
-
             <div className="flex-1 overflow-y-auto custom-scrollbar p-1">
               {loading ? (
                 <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-500">
@@ -426,9 +422,6 @@ export function FileSystemPicker({
                                  <Check className="w-3 h-3" />
                               </div>
                            )}
-                           <span className="text-[10px] uppercase tracking-wider text-slate-600 font-bold w-12 text-right">
-                              {isFolder ? 'DIR' : entry.name.split('.').pop()?.toUpperCase() || 'FILE'}
-                           </span>
                         </div>
                       </div>
                     )
@@ -468,6 +461,7 @@ export function FileSystemPicker({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
