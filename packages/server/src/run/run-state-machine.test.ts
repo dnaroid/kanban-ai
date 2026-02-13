@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { createTestDb } from '../../../../src/tests/helpers/test-db'
+import { createTestDb } from '../tests/helpers/test-db'
 import { contextSnapshotRepo } from '../db/context-snapshot-repository'
 import { boardRepo } from '../db/board-repository'
 import { projectRepo } from '../db/project-repository'

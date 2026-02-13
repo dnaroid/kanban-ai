@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createTestDb } from '../../../../src/tests/helpers/test-db'
+import { createTestDb } from '../tests/helpers/test-db'
 import { appMetricsRepo } from './app-metrics-repository'
 
 describe('appMetricsRepo', () => {

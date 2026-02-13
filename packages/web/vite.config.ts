@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => {
     },
     resolve: {
       alias: {
-        '@': path.resolve(repoRoot, 'src'),
+        '@': path.resolve(repoRoot, 'packages/web/src'),
         '@shared': path.resolve(repoRoot, 'packages/shared/src'),
       },
     },

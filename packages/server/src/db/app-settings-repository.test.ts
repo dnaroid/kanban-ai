@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { appSettingsRepo } from './app-settings-repository'
-import { createTestDb } from '../../../../src/tests/helpers/test-db'
+import { createTestDb } from '../tests/helpers/test-db'
 import { dbManager } from './index'
 
 describe('AppSettingsRepository retention policy', () => {
