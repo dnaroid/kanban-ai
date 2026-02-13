@@ -78,19 +78,5 @@
     "vite": "^7.3.1",
     "vitest": "^4.0.18",
     "wait-on": "^9.0.3"
-  },
-  "pnpm": {
-    "supportedArchitectures": {
-      "os": [
-        "darwin"
-      ],
-      "cpu": [
-        "arm64"
-      ]
-    },
-    "ignoredBuiltDependencies": [
-      "better-sqlite3",
-      "esbuild"
-    ]
   }
 }
