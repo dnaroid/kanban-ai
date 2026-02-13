@@ -9,7 +9,7 @@ import {
   Terminal,
   Trash2,
 } from 'lucide-react'
-import { cn } from '../../../../lib/utils'
+import { cn } from '../../../lib/utils'
 import type { Run } from '@shared/types/ipc.ts'
 import { ArtifactsPanel } from './ArtifactsPanel'
 import { ExecutionLog } from './ExecutionLog'
