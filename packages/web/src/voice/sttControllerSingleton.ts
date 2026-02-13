@@ -1,11 +1,18 @@
-import { STTWorkerController } from '@web/voice/STTWorkerController'
+import { WebSpeechController } from "@web/voice/WebSpeechController";
 
-let controller: STTWorkerController | null = null
+let controller: WebSpeechController | null = null;
 
-export function getSTTController(modelPaths: Record<'ru' | 'en', string>): STTWorkerController {
-  if (!controller) {
-    controller = new STTWorkerController(modelPaths)
-  }
+/**
+ * Возвращает синглтон Web Speech API контроллера.
+ * Web Speech API не требует моделей - работает через браузер.
+ */
+export function getSTTController(): WebSpeechController {
+	if (!controller) {
+		controller = new WebSpeechController();
+	}
 
-  return controller
+	return controller;
 }
+
+// Тип для обратной совместимости
+export type STTController = WebSpeechController;
