@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ErrorCode } from '../../shared/ipc'
 import type { Result } from '../../shared/ipc'
-import { unwrapIpcResult } from '../../renderer/lib/ipc-result'
+import { unwrapIpcResult } from '../../lib/ipc-result'
 
 describe('unwrapIpcResult', () => {
   it('returns data when result is ok', () => {

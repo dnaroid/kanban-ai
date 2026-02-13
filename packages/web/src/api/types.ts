@@ -1,2 +1,24 @@
 export interface KanbanApi {
-  run: {\n    listByTask(params: { taskId: string }): Promise<{ runs: any[] }>\n    start(params: { taskId: string; roleId: string; mode?: string }): Promise<{ runId: string }>\n  }\n  task: {\n    listByBoard(params: { boardId: string }): Promise<{ tasks: any[] }>\n    create(params: any): Promise<any>\n    update(params: any): Promise<any>\n    delete(params: any): Promise<any>\n  }\n  board: {\n    getDefault(params: any): Promise<{ board: any; columns: any[] }>\n  }\n  project: {\n    list(): Promise<{ projects: any[] }>\n    create(params: any): Promise<any>\n  }\n}\n\ndeclare global {\n  interface Window {\n    api: KanbanApi\n  }\n}\nEOF\necho "Created API types"
+  run: {
+    listByTask(params: { taskId: string }): Promise<{ runs: any[] }>
+    start(params: { taskId: string; roleId: string; mode?: string }): Promise<{ runId: string }>
+  }
+  task: {
+    listByBoard(params: { boardId: string }): Promise<{ tasks: any[] }>
+    create(params: any): Promise<any>
+    update(params: any): Promise<any>
+    delete(params: any): Promise<any>
+  }
+  board: {
+    getDefault(params: any): Promise<{ board: any; columns: any[] }>
+  }
+  project: {
+    list(): Promise<{ projects: any[] }>
+    create(params: any): Promise<any>
+  }
+}
+declare global {
+  interface Window {
+    api: KanbanApi
+  }
+}

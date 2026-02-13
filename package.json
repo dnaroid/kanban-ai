@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "dev:server": "pnpm --dir packages/server dev",
-    "dev:web": "vite packages/web/src/renderer --config packages/web/vite.config.ts",
+    "dev:web": "vite packages/web/src --config packages/web/vite.config.ts",
     "dev": "concurrently \"pnpm dev:server\" \"pnpm dev:web\"",
     "start": "node packages/server/dist/index.js",
     "typecheck": "tsc --noEmit",
