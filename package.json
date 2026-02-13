@@ -7,7 +7,6 @@
     "packages/*"
   ],
   "scripts": {
-    "preview": "vite preview",
     "dev:server": "pnpm --dir packages/server dev",
     "dev:web": "vite src/renderer --config packages/web/vite.config.ts",
     "dev": "concurrently \"pnpm dev:server\" \"pnpm dev:web\"",
