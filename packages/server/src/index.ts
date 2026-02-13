@@ -10,6 +10,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { eventBus } from './events/eventBus'
 import { fileURLToPath } from 'node:url'
 
+export { createServerContainer }
+export type { ServerContainer }
+
 export async function startServer(container?: ServerContainer): Promise<void> {
   const paths = new PathsService()
   await paths.ensureDataDir()

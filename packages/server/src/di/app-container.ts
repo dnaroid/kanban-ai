@@ -48,8 +48,6 @@ export function createServerContainer(
     listRunEvents: services.listRunEvents,
     listArtifactsByRun: services.listArtifactsByRun,
     getArtifactById: services.getArtifactById,
-    getAnalyticsOverview: services.getAnalyticsOverview,
-    getAnalyticsRunStats: services.getAnalyticsRunStats,
     getDefaultBoard: services.getDefaultBoard,
     updateBoardColumns: services.updateBoardColumns,
     getBoardColumns: services.getBoardColumns,

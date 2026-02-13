@@ -16,7 +16,7 @@ export function TaskDetailsModel({ task, onUpdate }: TaskDetailsModelProps) {
         const response = await window.api.opencode.listEnabledModels()
         const difficultyOrder = { easy: 0, medium: 1, hard: 2, epic: 3 }
         const sortedModels = [...response.models].sort((a, b) => {
-          return difficultyOrder[a.difficulty] - difficultyOrder[b.difficulty]
+          return difficultyOrder[a.difficulty as keyof typeof difficultyOrder] - difficultyOrder[b.difficulty as keyof typeof difficultyOrder]
         })
         setModels(sortedModels)
       } catch (error) {

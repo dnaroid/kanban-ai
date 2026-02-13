@@ -19,6 +19,6 @@ export interface KanbanApi {
 }
 declare global {
   interface Window {
-    api: KanbanApi
+    api: any
   }
 }

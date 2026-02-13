@@ -212,6 +212,9 @@ importers:
 
   packages/web:
     dependencies:
+      '@kanban-ai/server':
+        specifier: workspace:*
+        version: link:../server
       '@kanban-ai/shared':
         specifier: workspace:*
         version: link:../shared

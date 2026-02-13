@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@kanban-ai/shared": "workspace:*",
+    "@kanban-ai/server": "workspace:*",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },
