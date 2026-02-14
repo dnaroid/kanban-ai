@@ -1,11 +1,14 @@
 import { closestCorners, DndContext, DragOverlay } from '@dnd-kit/core'
 import { horizontalListSortingStrategy, SortableContext } from '@dnd-kit/sortable'
-import { AlertCircle, Clock, Plus } from 'lucide-react'
+import { AlertCircle, Clock, Plus, LayoutGrid, List } from 'lucide-react'
+import { useState } from 'react'
 import { TaskDrawer } from '@web/components/kanban/TaskDrawer'
 import { SortableColumn } from '@web/components/kanban/board/SortableColumn'
 import { SortableTask } from '@web/components/kanban/board/SortableTask'
 import { ColumnModal } from '@web/components/kanban/board/ColumnModal'
+import { ListView } from '@web/components/kanban/board/ListView'
 import { useBoardModel } from '@web/features/board/model/use-board-model'
+import { cn } from '@web/lib/utils'
 
 interface BoardScreenProps {
   projectId: string
@@ -13,6 +16,7 @@ interface BoardScreenProps {
 }
 
 export function BoardScreen({ projectId }: BoardScreenProps) {
+  const [viewMode, setViewMode] = useState<'board' | 'list'>('board')
   const {
     board,
     tasks,
@@ -56,46 +60,89 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <main className="flex-1 overflow-x-auto custom-scrollbar">
+      <div className="flex items-center justify-between px-8 py-2 border-b border-slate-800/50 bg-slate-900/20 backdrop-blur-md shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="bg-slate-800/50 p-1 rounded-xl flex gap-1">
+            <button
+              onClick={() => setViewMode('board')}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all",
+                viewMode === 'board' 
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" 
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
+              )}
+            >
+              <LayoutGrid className="w-4 h-4" />
+              Board
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all",
+                viewMode === 'list' 
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" 
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
+              )}
+            >
+              <List className="w-4 h-4" />
+              List
+            </button>
+          </div>
+        </div>
+
+        <button
+          onClick={openCreateColumnModal}
+          className="flex items-center gap-2 px-4 py-1.5 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 rounded-xl text-sm font-semibold text-slate-200 transition-all"
+        >
+          <Plus className="w-4 h-4" />
+          Add Column
+        </button>
+      </div>
+
+      <main className="flex-1 overflow-hidden relative">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCorners}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="inline-flex h-full items-stretch gap-6 pl-8 pt-8 pb-8">
-            <SortableContext
-              items={columns.map((c) => c.id)}
-              strategy={horizontalListSortingStrategy}
-            >
-              {columns.map((column) => (
-                <SortableColumn
-                  key={column.id}
-                  id={column.id}
-                  name={column.name}
-                  color={column.color || ''}
-                  globalTags={globalTags}
-                  tasks={tasks
-                    .filter((t) => t.columnId === column.id)
-                    .sort((a, b) => (a.orderInColumn || 0) - (b.orderInColumn || 0))}
-                  onTaskClick={handleTaskClick}
-                  onAddTask={() => handleAddTask(column.id)}
-                  onEdit={() => openEditColumnModal(column.id)}
-                  onDelete={() => handleDeleteColumn(column.id)}
-                  onDeleteTask={handleDeleteTask}
-                />
-              ))}
-              <div className="flex-shrink-0 w-80 h-full flex flex-col">
-                <button
-                  onClick={openCreateColumnModal}
-                  className="w-full h-14 bg-slate-900/40 border border-dashed border-slate-800/50 hover:border-slate-700 rounded-2xl flex items-center justify-center gap-2 text-slate-500 hover:text-slate-300 transition-all shrink-0"
+          {viewMode === 'board' ? (
+            <div className="h-full overflow-x-auto custom-scrollbar">
+              <div className="inline-flex h-full items-stretch gap-6 pl-8 pt-8 pb-8">
+                <SortableContext
+                  items={columns.map((c) => c.id)}
+                  strategy={horizontalListSortingStrategy}
                 >
-                  <Plus className="w-5 h-5" />{' '}
-                  <span className="font-semibold text-sm">Add Column</span>
-                </button>
+                  {columns.map((column) => (
+                    <SortableColumn
+                      key={column.id}
+                      id={column.id}
+                      name={column.name}
+                      color={column.color || ''}
+                      globalTags={globalTags}
+                      tasks={tasks
+                        .filter((t) => t.columnId === column.id)
+                        .sort((a, b) => (a.orderInColumn || 0) - (b.orderInColumn || 0))}
+                      onTaskClick={handleTaskClick}
+                      onAddTask={() => handleAddTask(column.id)}
+                      onEdit={() => openEditColumnModal(column.id)}
+                      onDelete={() => handleDeleteColumn(column.id)}
+                      onDeleteTask={handleDeleteTask}
+                    />
+                  ))}
+                </SortableContext>
               </div>
-            </SortableContext>
-          </div>
+            </div>
+          ) : (
+            <ListView
+              columns={columns}
+              tasks={tasks}
+              globalTags={globalTags}
+              onTaskClick={handleTaskClick}
+              onAddTask={handleAddTask}
+              onDeleteTask={handleDeleteTask}
+            />
+          )}
 
           <DragOverlay>
             {activeTask ? (
@@ -130,3 +177,4 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
     </div>
   )
 }
+
