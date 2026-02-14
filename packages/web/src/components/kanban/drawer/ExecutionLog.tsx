@@ -23,6 +23,93 @@ import type { OpenCodeMessage, Part, RunEvent } from "@shared/types/ipc.ts";
 import { extractOpencodeStatus } from "@shared/opencode-status";
 import { LightMarkdown } from "@web/components/LightMarkdown";
 
+const getPartId = (part: Part): string | undefined => {
+	const maybeId = (part as { id?: unknown }).id;
+	return typeof maybeId === "string" ? maybeId : undefined;
+};
+
+const isRenderablePart = (part: Part): boolean => {
+	switch (part.type) {
+		case "reasoning":
+		case "tool":
+		case "file":
+		case "agent":
+			return true;
+		case "text":
+			return !part.ignored && part.text.trim().length > 0;
+		default:
+			return false;
+	}
+};
+
+const getSessionIdFromValue = (value: unknown): string | undefined => {
+	if (!value || typeof value !== "object") return undefined;
+	const raw = (value as { sessionId?: unknown; sessionID?: unknown }).sessionId;
+	if (typeof raw === "string" && raw.length > 0) {
+		return raw;
+	}
+	const legacyRaw = (value as { sessionID?: unknown }).sessionID;
+	if (typeof legacyRaw === "string" && legacyRaw.length > 0) {
+		return legacyRaw;
+	}
+	return undefined;
+};
+
+const getEventSessionId = (event: unknown): string | undefined => {
+	if (!event || typeof event !== "object") return undefined;
+	const typedEvent = event as {
+		type?: unknown;
+		message?: unknown;
+		part?: unknown;
+	};
+
+	const directSessionId = getSessionIdFromValue(typedEvent);
+	if (directSessionId) {
+		return directSessionId;
+	}
+
+	const eventType = typeof typedEvent.type === "string" ? typedEvent.type : "";
+	if (eventType === "message.updated") {
+		return getSessionIdFromValue(typedEvent.message);
+	}
+	if (eventType === "message.part.updated") {
+		return getSessionIdFromValue(typedEvent.part);
+	}
+	return undefined;
+};
+
+const getEventMessageId = (event: unknown): string | undefined => {
+	if (!event || typeof event !== "object") return undefined;
+	const typedEvent = event as {
+		messageId?: unknown;
+		messageID?: unknown;
+		part?: unknown;
+	};
+
+	if (
+		typeof typedEvent.messageId === "string" &&
+		typedEvent.messageId.length > 0
+	) {
+		return typedEvent.messageId;
+	}
+	if (
+		typeof typedEvent.messageID === "string" &&
+		typedEvent.messageID.length > 0
+	) {
+		return typedEvent.messageID;
+	}
+
+	if (typedEvent.part && typeof typedEvent.part === "object") {
+		const partMessageId = (typedEvent.part as { messageID?: unknown })
+			.messageID;
+		if (typeof partMessageId === "string" && partMessageId.length > 0) {
+			return partMessageId;
+		}
+	}
+
+	return undefined;
+};
+
 export function ExecutionLog({
 	runId,
 	sessionId,
@@ -169,11 +256,6 @@ export function ExecutionLog({
 		}
 	};
 
-	const getPartId = (part: Part): string | undefined => {
-		const maybeId = (part as { id?: unknown }).id;
-		return typeof maybeId === "string" ? maybeId : undefined;
-	};
-
 	const buildMessageEvent = useCallback(
 		(
 			messageId: string,
@@ -202,6 +284,19 @@ export function ExecutionLog({
 	useEffect(() => {
 		setEffectiveSessionId(sessionId);
 	}, [sessionId]);
+
+	useEffect(() => {
+		setEvents([]);
+		setStreamingMessageIds(new Set());
+		setIsLoading(true);
+		setAutoScroll(true);
+		seenMessageIdsRef.current.clear();
+		hiddenUserMessageIdRef.current = null;
+		for (const timeout of streamingTimeoutsRef.current.values()) {
+			clearTimeout(timeout);
+		}
+		streamingTimeoutsRef.current.clear();
+	}, [runId]);
 
 	useEffect(() => {
 		if (effectiveSessionId) return;
@@ -404,58 +499,101 @@ export function ExecutionLog({
 		);
 
 		eventSource.addEventListener("opencode:event", (sseEvent) => {
-			const { sessionId: eventSessionId, event } = JSON.parse(sseEvent.data);
-			console.log("[ExecutionLog] Received event:", event.type, event);
-			if (eventSessionId !== effectiveSessionId) {
+			const payload = JSON.parse(sseEvent.data) as {
+				event?: unknown;
+				sessionId?: unknown;
+				sessionID?: unknown;
+			};
+			const event = payload.event;
+			if (!event || typeof event !== "object") {
+				return;
+			}
+			const typedEvent = event as {
+				type?: unknown;
+				part?: unknown;
+				message?: unknown;
+				error?: unknown;
+			};
+			const eventType =
+				typeof typedEvent.type === "string" ? typedEvent.type : "";
+			const eventSessionId =
+				getEventSessionId(typedEvent) ?? getSessionIdFromValue(payload);
+			console.log("[ExecutionLog] Received event:", eventType, typedEvent);
+			if (eventSessionId && eventSessionId !== effectiveSessionId) {
 				console.log("[ExecutionLog] Event sessionId mismatch, ignoring");
 				return;
 			}
 
-			if (event.type === "message.part.updated") {
-				const part = event.part as Part;
+			if (eventType === "message.part.updated") {
+				const part = typedEvent.part;
+				if (!part || typeof part !== "object") {
+					return;
+				}
+				const messageId = getEventMessageId(typedEvent);
+				if (!messageId) {
+					return;
+				}
 				console.log(
 					"[ExecutionLog] Processing message.part.updated:",
-					event.messageId,
+					messageId,
 					part,
 				);
-				updateMessagePart(event.messageId, part);
+				updateMessagePart(messageId, part as Part);
 				setIsLoading(false);
 				return;
 			}
 
-			if (event.type === "message.updated") {
+			if (eventType === "message.updated") {
 				console.log(
 					"[ExecutionLog] Processing message.updated:",
-					event.message,
+					typedEvent.message,
 				);
-				if (event.message && typeof event.message === "object") {
-					const message = event.message as {
+				if (typedEvent.message && typeof typedEvent.message === "object") {
+					const message = typedEvent.message as {
 						id?: string;
+						messageID?: string;
 						role?: string;
 						content?: string;
 						parts?: Part[];
+						modelId?: string;
+						modelID?: string;
 					};
-					upsertMessageEvent(message);
+					const messageId =
+						typeof message.id === "string" && message.id.length > 0
+							? message.id
+							: message.messageID;
+					if (!messageId) {
+						return;
+					}
+					upsertMessageEvent({
+						...message,
+						id: messageId,
+						modelID:
+							typeof message.modelID === "string" && message.modelID.length > 0
+								? message.modelID
+								: message.modelId,
+					});
 					setIsLoading(false);
 				}
 				return;
 			}
 
-			if (event.type === "message.removed") {
-				console.log(
-					"[ExecutionLog] Processing message.removed:",
-					event.messageId,
-				);
-				removeMessageEvent(event.messageId);
+			if (eventType === "message.removed") {
+				const messageId = getEventMessageId(typedEvent);
+				if (!messageId) {
+					return;
+				}
+				console.log("[ExecutionLog] Processing message.removed:", messageId);
+				removeMessageEvent(messageId);
 				return;
 			}
 
-			if (event.type === "error") {
-				console.log("[ExecutionLog] Processing error:", event.error);
+			if (eventType === "error") {
+				console.log("[ExecutionLog] Processing error:", typedEvent.error);
 				void refreshMessagesRef.current?.();
 				if (
-					typeof event.error === "string" &&
-					event.error.includes("Session not found")
+					typeof typedEvent.error === "string" &&
+					typedEvent.error.includes("Session not found")
 				) {
 					eventSource.close();
 				}
@@ -678,6 +816,7 @@ export function ExecutionLog({
 					: content
 						? [{ type: "text" as const, text: content }]
 						: [];
+			const renderableParts = parts.filter(isRenderablePart);
 
 			const isUser = role === "user";
 
@@ -730,30 +869,32 @@ export function ExecutionLog({
 							</span>
 						</div>
 						<div className="space-y-3 text-[13px] leading-relaxed text-slate-200">
-							{parts.map((part, idx) => {
-								if (part.type === "text" && part.ignored) return null;
-
-								switch (part.type) {
-									case "reasoning":
-										return (
-											<ReasoningPart
-												key={idx}
-												part={part}
-												expanded={showReasoning}
-											/>
-										);
-									case "tool":
-										return <ToolPart key={idx} part={part} />;
-									case "file":
-										return <FilePart key={idx} part={part} />;
-									case "agent":
-										return <AgentPart key={idx} part={part} />;
-									case "text":
-										return <TextPart key={idx} part={part} />;
-									default:
-										return null;
-								}
-							})}
+							{!isUser && renderableParts.length === 0 ? (
+								<div className="text-xs text-slate-500 italic">Thinking...</div>
+							) : (
+								renderableParts.map((part, idx) => {
+									switch (part.type) {
+										case "reasoning":
+											return (
+												<ReasoningPart
+													key={idx}
+													part={part}
+													expanded={showReasoning}
+												/>
+											);
+										case "tool":
+											return <ToolPart key={idx} part={part} />;
+										case "file":
+											return <FilePart key={idx} part={part} />;
+										case "agent":
+											return <AgentPart key={idx} part={part} />;
+										case "text":
+											return <TextPart key={idx} part={part} />;
+										default:
+											return null;
+									}
+								})
+							)}
 						</div>
 					</div>
 				</div>

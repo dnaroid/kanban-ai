@@ -16,10 +16,8 @@
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
-    "test": "npm run rebuild:node && vitest",
-    "test:run": "npm run rebuild:node && vitest run",
+    "test": "vitest",
     "test:coverage": "npm run rebuild:node && vitest run --coverage",
-    "rebuild:node": "cd node_modules/.pnpm/better-sqlite3@12.6.2/node_modules/better-sqlite3 && npm run install",
     "quality": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test:run",
     "kill:dev": "lsof -ti:3000,5174,4173 | xargs kill -9 2>/dev/null || true"
   },

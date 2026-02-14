@@ -20,6 +20,36 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import os from "node:os";
 
+const WEB_SSE_SUBSCRIBER_PREFIX = "web-sse-bridge";
+
+const createWebSseSubscriberId = (sessionId: string): string =>
+	`${WEB_SSE_SUBSCRIBER_PREFIX}:${sessionId}`;
+
+async function ensureWebSseSessionBridge(
+	sessionId: string,
+	options: { allowFailure?: boolean } = {},
+): Promise<void> {
+	if (sessionManager.isSubscribedToSessionEvents(sessionId)) {
+		return;
+	}
+
+	try {
+		await sessionManager.subscribeToSessionEvents(
+			sessionId,
+			createWebSseSubscriberId(sessionId),
+			() => {},
+		);
+	} catch (error) {
+		if (!options.allowFailure) {
+			throw error;
+		}
+		console.warn(
+			`[rpcRouter] Unable to enable session event bridge for ${sessionId}`,
+			error,
+		);
+	}
+}
+
 type BrowseDirectoryParams = {
 	path?: string;
 	lastSelectedPath?: string;
@@ -360,11 +390,13 @@ export function createRpcRouter(
 	});
 
 	router.set("opencode:sendMessage", async (params) => {
+		await ensureWebSseSessionBridge(params.sessionId);
 		await sessionManager.sendPrompt(params.sessionId, params.message);
 		return { ok: true };
 	});
 
 	router.set("opencode:getSessionMessages", async (params) => {
+		await ensureWebSseSessionBridge(params.sessionId, { allowFailure: true });
 		const { opencodeSessionWorker } = await import(
 			"../run/opencode-session-worker.js"
 		);

@@ -19,6 +19,32 @@ interface TaskDrawerRunsProps {
 	isActive: boolean;
 }
 
+export function selectRunId(
+	runs: Run[],
+	previousSelectedRunId: string | null,
+): string | null {
+	if (runs.length === 0) return null;
+
+	if (
+		previousSelectedRunId &&
+		runs.some((run) => run.id === previousSelectedRunId)
+	) {
+		return previousSelectedRunId;
+	}
+
+	const activeRun = runs.find(
+		(run) => run.status === "running" || run.status === "queued",
+	);
+	if (activeRun) {
+		return activeRun.id;
+	}
+
+	const sortedRuns = [...runs].sort((a, b) =>
+		b.createdAt.localeCompare(a.createdAt),
+	);
+	return sortedRuns[0].id;
+}
+
 export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 	const [runs, setRuns] = useState<Run[]>([]);
 	const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
@@ -34,15 +60,13 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 			const response = await window.api.run.listByTask({ taskId: task.id });
 			setRuns(response.runs);
 
-			if (!selectedRunId && response.runs.length === 1) {
-				setSelectedRunId(response.runs[0].id);
-			}
+			setSelectedRunId((prev) => selectRunId(response.runs, prev));
 		} catch (error) {
 			console.error("Failed to fetch runs:", error);
 		} finally {
 			setIsLoadingRuns(false);
 		}
-	}, [task.id, selectedRunId]);
+	}, [task.id]);
 
 	useEffect(() => {
 		if (isActive) {
@@ -60,18 +84,22 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 		);
 
 		eventSource.addEventListener("run:event", (event) => {
-			const update = JSON.parse(event.data);
-			if (update.taskId === task.id) {
-				setRuns((prev) => {
-					const idx = prev.findIndex((r) => r.id === update.sessionId);
-					if (idx >= 0) {
-						const updated = [...prev];
-						updated[idx] = { ...updated[idx], status: update.status };
-						return updated;
-					}
-					return prev;
-				});
-			}
+			const update = JSON.parse(event.data) as {
+				runId: string;
+				sessionId: string;
+				status: Run["status"];
+				messageCount?: number;
+				lastMessageAt?: number;
+			};
+			setRuns((prev) => {
+				const idx = prev.findIndex((r) => r.id === update.runId);
+				if (idx >= 0) {
+					const updated = [...prev];
+					updated[idx] = { ...updated[idx], ...update };
+					return updated;
+				}
+				return prev;
+			});
 		});
 
 		eventSource.onerror = (err) => {
@@ -144,7 +172,7 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 			setIsLoadingRoles(true);
 			try {
 				const response = await window.api.roles.list();
-				setRoles(response.roles.map((r) => r.id));
+				setRoles(response.roles.map((r: { id: string }) => r.id));
 				if (response.roles.length > 0) {
 					setSelectedRoleId(response.roles[0].id);
 				}
@@ -234,14 +262,14 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 			</div>
 
 			<div className="flex-1 overflow-y-auto custom-scrollbar">
-				{selectedRunId ? (
+				{selectedRun ? (
 					<RunDetailsView
-						runId={selectedRunId}
+						runId={selectedRun.id}
 						run={selectedRun}
 						onBack={() => setSelectedRunId(null)}
-						onDelete={(e) => handleDeleteRun(selectedRunId, e)}
+						onDelete={(e) => handleDeleteRun(selectedRun.id, e)}
 						onRestart={(e) => selectedRun && handleRetryRun(selectedRun, e)}
-						onCancel={(e) => handleCancelRun(selectedRunId, e)}
+						onCancel={(e) => handleCancelRun(selectedRun.id, e)}
 						showBack={runs.length > 1}
 					/>
 				) : (

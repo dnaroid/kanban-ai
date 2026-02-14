@@ -7,11 +7,11 @@ let controller: WebSpeechController | null = null;
  * Web Speech API не требует моделей - работает через браузер.
  */
 export function getSTTController(): WebSpeechController {
-	if (!controller) {
-		controller = new WebSpeechController();
-	}
+ if (!controller) {
+  controller = new WebSpeechController();
+ }
 
-	return controller;
+ return controller;
 }
 
 // Тип для обратной совместимости

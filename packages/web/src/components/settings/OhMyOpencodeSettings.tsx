@@ -530,7 +530,7 @@ export function OhMyOpencodeSettings({ onStatusChange }: OhMyOpencodeSettingsPro
     try {
       const response = await window.api.opencode.listModels()
       const difficultyOrder: Record<string, number> = { easy: 0, medium: 1, hard: 2, epic: 3 }
-      const enabledModels = response.models.filter((model) => model.enabled)
+      const enabledModels = response.models.filter((model: { enabled: boolean }) => model.enabled)
       const sortedModels = [...enabledModels].sort((a, b) => {
         const aOrder = difficultyOrder[a.difficulty] ?? Number.MAX_SAFE_INTEGER
         const bOrder = difficultyOrder[b.difficulty] ?? Number.MAX_SAFE_INTEGER

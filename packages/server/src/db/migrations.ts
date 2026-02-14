@@ -1,5 +1,5 @@
-import { v017SystemKeySql } from './migrations/v017_system_key.js'
-import { v018AppMetricsSql } from './migrations/v018_app_metrics.js'
+import { v017SystemKeySql } from "./migrations/v017_system_key.js";
+import { v018AppMetricsSql } from "./migrations/v018_app_metrics.js";
 
 export const INIT_DB_SQL = `
 PRAGMA foreign_keys = ON;
@@ -435,22 +435,32 @@ CREATE TABLE IF NOT EXISTS app_settings (
 );
 CREATE INDEX IF NOT EXISTS idx_app_settings_key ON app_settings(key);
 
+CREATE TABLE IF NOT EXISTS app_metrics (
+  id TEXT PRIMARY KEY,
+  metric_name TEXT NOT NULL,
+  metric_value REAL NOT NULL,
+  tags_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_app_metrics_name_created
+  ON app_metrics(metric_name, created_at DESC);
+
 ;
-`
+`;
 
 export const migrations = [
-  {
-    version: 16,
-    sql: INIT_DB_SQL,
-  },
-  {
-    version: 17,
-    sql: v017SystemKeySql,
-  },
-  {
-    version: 18,
-    sql: v018AppMetricsSql,
-  },
-] as const
+	{
+		version: 16,
+		sql: INIT_DB_SQL,
+	},
+	{
+		version: 17,
+		sql: v017SystemKeySql,
+	},
+	{
+		version: 18,
+		sql: v018AppMetricsSql,
+	},
+] as const;
 
-export type Migration = (typeof migrations)[number]
+export type Migration = (typeof migrations)[number];
