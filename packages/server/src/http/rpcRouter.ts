@@ -364,6 +364,22 @@ export function createRpcRouter(
 		return { ok: true };
 	});
 
+	router.set("opencode:getSessionMessages", async (params) => {
+		const { opencodeSessionWorker } = await import(
+			"../run/opencode-session-worker.js"
+		);
+		const messages = await opencodeSessionWorker.getSessionMessages(
+			params.sessionId,
+			params.limit,
+		);
+		return { sessionId: params.sessionId, messages };
+	});
+
+	router.set("opencode:getSessionTodos", async (params) => {
+		const todos = await sessionManager.getTodos(params.sessionId);
+		return { sessionId: params.sessionId, todos };
+	});
+
 	// Plugins
 	router.set("plugins:list", async () => {
 		return { plugins: pluginService.list() };

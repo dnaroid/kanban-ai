@@ -1,170 +1,212 @@
-import { createAppServer, HOST, PORT } from './http/createServer'
-import { createRpcRouter } from './http/rpcRouter'
-import { createSseHandler, sendSseEvent } from './http/sseHandler'
-import { PathsService } from './paths'
-import type { ServerContainer } from './di/app-container'
-import { createServerContainer } from './di/app-container'
-import { DatabaseManager } from './db/index.js'
-import EventEmitter from 'events'
-import type { IncomingMessage, ServerResponse } from 'node:http'
-import { eventBus } from './events/eventBus'
-import { fileURLToPath } from 'node:url'
+import { createAppServer, HOST, PORT } from "./http/createServer";
+import { createRpcRouter } from "./http/rpcRouter";
+import { createSseHandler, sendSseEvent } from "./http/sseHandler";
+import { PathsService } from "./paths";
+import type { ServerContainer } from "./di/app-container";
+import { createServerContainer } from "./di/app-container";
+import { DatabaseManager } from "./db/index.js";
+import EventEmitter from "events";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { eventBus } from "./events/eventBus";
+import { fileURLToPath } from "node:url";
+import { OpencodeService } from "./services/opencode-service.js";
 
-export { createServerContainer }
-export type { ServerContainer }
+export { createServerContainer };
+export type { ServerContainer };
+
+let opencodeService: OpencodeService | null = null;
 
 export async function startServer(container?: ServerContainer): Promise<void> {
-  const paths = new PathsService()
-  await paths.ensureDataDir()
+	const paths = new PathsService();
+	await paths.ensureDataDir();
 
-  const logger = {
-    info: console.log.bind(console),
-    error: console.error.bind(console),
-    warn: console.warn.bind(console),
-  } as Console
+	const logger = {
+		info: console.log.bind(console),
+		error: console.error.bind(console),
+		warn: console.warn.bind(console),
+	} as Console;
 
-  logger.info('Server starting...')
+	logger.info("Server starting...");
 
-  const events = new EventEmitter()
-  const db = new DatabaseManager(paths.getDbPath())
+	const opencodePort = parseInt(process.env.OPENCODE_PORT || "4096", 10);
+	opencodeService = new OpencodeService({ port: opencodePort });
+	try {
+		await opencodeService.start();
+	} catch (error) {
+		logger.error("[Server] Не удалось запустить OpenCode сервер:", error);
+	}
 
-  container = createServerContainer(db, paths, logger, events)
+	const events = new EventEmitter();
+	const db = new DatabaseManager(paths.getDbPath());
 
-  // Connect DB and run migrations
-  await db.connect()
-  logger.info('Database connected and migrations applied')
+	container = createServerContainer(db, paths, logger, events);
 
-  const server = createAppServer(PORT)
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Local-Token',
-  }
+	// Connect DB and run migrations
+	await db.connect();
+	logger.info("Database connected and migrations applied");
 
-  const sendJson = (res: ServerResponse, statusCode: number, payload: unknown): void => {
-    res.writeHead(statusCode, { ...corsHeaders, 'Content-Type': 'application/json' })
-    res.end(JSON.stringify(payload))
-  }
+	const server = createAppServer(PORT);
+	const corsHeaders = {
+		"Access-Control-Allow-Origin": "*",
+		"Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+		"Access-Control-Allow-Headers": "Content-Type, X-Local-Token",
+	};
 
-  const rpcRouter = createRpcRouter(container)
+	const sendJson = (
+		res: ServerResponse,
+		statusCode: number,
+		payload: unknown,
+	): void => {
+		res.writeHead(statusCode, {
+			...corsHeaders,
+			"Content-Type": "application/json",
+		});
+		res.end(JSON.stringify(payload));
+	};
 
-  const sseClients = new Set<any>()
+	const rpcRouter = createRpcRouter(container);
 
-  eventBus.on('task:onEvent', (data) => {
-    for (const client of sseClients) {
-      sendSseEvent(client, 'task:event', data)
-    }
-  })
+	const sseClients = new Set<any>();
 
-  eventBus.on('opencode:onEvent', (data) => {
-    for (const client of sseClients) {
-      sendSseEvent(client, 'opencode:event', data)
-    }
-  })
+	eventBus.on("task:onEvent", (data) => {
+		for (const client of sseClients) {
+			sendSseEvent(client, "task:event", data);
+		}
+	});
 
-  server.on('request', async (req, res) => {
-    if (res.headersSent || res.writableEnded) {
-      return
-    }
+	eventBus.on("opencode:onEvent", (data) => {
+		for (const client of sseClients) {
+			sendSseEvent(client, "opencode:event", data);
+		}
+	});
 
-    const url = new URL(req.url || '', `http:/${HOST}`)
-    const pathname = url.pathname
+	eventBus.on("run:onEvent", (data) => {
+		for (const client of sseClients) {
+			sendSseEvent(client, "run:event", data);
+		}
+	});
 
-    if (pathname === '/rpc') {
-      if (req.method !== 'POST') {
-        sendJson(res, 405, {
-          ok: false,
-          error: { message: 'Method not allowed', code: 'METHOD_NOT_ALLOWED' },
-        })
-        return
-      }
+	server.on("request", async (req, res) => {
+		if (res.headersSent || res.writableEnded) {
+			return;
+		}
 
-      const authHeader = req.headers['x-local-token']
-      const serverToken = await container.paths.loadToken()
-      if (serverToken && authHeader !== serverToken) {
-        sendJson(res, 401, { ok: false, error: { message: 'Unauthorized', code: 'UNAUTHORIZED' } })
-        return
-      }
+		const url = new URL(req.url || "", `http:/${HOST}`);
+		const pathname = url.pathname;
 
-      try {
-        const body = await new Promise<string>((resolve) => {
-          let data = ''
-          req.on('data', (chunk) => {
-            data += chunk
-          })
-          req.on('end', () => resolve(data))
-        })
+		if (pathname === "/rpc") {
+			if (req.method !== "POST") {
+				sendJson(res, 405, {
+					ok: false,
+					error: { message: "Method not allowed", code: "METHOD_NOT_ALLOWED" },
+				});
+				return;
+			}
 
-        const { method, params } = JSON.parse(body)
-        const handler = rpcRouter.get(method)
+			const authHeader = req.headers["x-local-token"];
+			const serverToken = await container.paths.loadToken();
+			if (serverToken && authHeader !== serverToken) {
+				sendJson(res, 401, {
+					ok: false,
+					error: { message: "Unauthorized", code: "UNAUTHORIZED" },
+				});
+				return;
+			}
 
-        if (!handler) {
-          sendJson(res, 404, {
-            ok: false,
-            error: { message: `Unknown method: ${method}`, code: 'NOT_FOUND' },
-          })
-          return
-        }
+			try {
+				const body = await new Promise<string>((resolve) => {
+					let data = "";
+					req.on("data", (chunk) => {
+						data += chunk;
+					});
+					req.on("end", () => resolve(data));
+				});
 
-        const result = await handler(params)
+				const { method, params } = JSON.parse(body);
+				const handler = rpcRouter.get(method);
 
-        sendJson(res, 200, { ok: true, result })
-      } catch (error) {
-        logger.error('[RPC] Error:', error)
-        sendJson(res, 500, {
-          ok: false,
-          error: {
-            message: 'Internal server error',
-            code: 'INTERNAL_ERROR',
-            details: String(error),
-          },
-        })
-      }
+				if (!handler) {
+					sendJson(res, 404, {
+						ok: false,
+						error: { message: `Unknown method: ${method}`, code: "NOT_FOUND" },
+					});
+					return;
+				}
 
-      return
-    }
+				const result = await handler(params);
 
-    if (pathname === '/events') {
-      const serverToken = await container.paths.loadToken()
-      const headerToken = Array.isArray(req.headers['x-local-token'])
-        ? req.headers['x-local-token'][0]
-        : req.headers['x-local-token']
-      const queryToken = url.searchParams.get('token')
-      const isAuthorized = !serverToken || headerToken === serverToken || queryToken === serverToken
+				sendJson(res, 200, { ok: true, result });
+			} catch (error) {
+				logger.error("[RPC] Error:", error);
+				sendJson(res, 500, {
+					ok: false,
+					error: {
+						message: "Internal server error",
+						code: "INTERNAL_ERROR",
+						details: String(error),
+					},
+				});
+			}
 
-      if (!isAuthorized && serverToken) {
-        sendJson(res, 401, { ok: false, error: { message: 'Unauthorized', code: 'UNAUTHORIZED' } })
-        return
-      }
+			return;
+		}
 
-      createSseHandler(req, res)
-      sseClients.add(res)
-      req.on('close', () => {
-        sseClients.delete(res)
-      })
+		if (pathname === "/events") {
+			const serverToken = await container.paths.loadToken();
+			const headerToken = Array.isArray(req.headers["x-local-token"])
+				? req.headers["x-local-token"][0]
+				: req.headers["x-local-token"];
+			const queryToken = url.searchParams.get("token");
+			const isAuthorized =
+				!serverToken ||
+				headerToken === serverToken ||
+				queryToken === serverToken;
 
-      return
-    }
+			if (!isAuthorized && serverToken) {
+				sendJson(res, 401, {
+					ok: false,
+					error: { message: "Unauthorized", code: "UNAUTHORIZED" },
+				});
+				return;
+			}
 
-    sendJson(res, 404, { ok: false, error: { message: 'Not found', code: 'NOT_FOUND' } })
-  })
+			createSseHandler(req, res);
+			sseClients.add(res);
+			req.on("close", () => {
+				sseClients.delete(res);
+			});
 
-  logger.info(`Server listening on http:/${HOST}:${PORT}`)
+			return;
+		}
 
-  server.on('close', () => {
-    logger.info('Server closed')
-    db.disconnect()
-  })
+		sendJson(res, 404, {
+			ok: false,
+			error: { message: "Not found", code: "NOT_FOUND" },
+		});
+	});
+
+	logger.info(`Server listening on http:/${HOST}:${PORT}`);
+
+	server.on("close", async () => {
+		logger.info("Server closed");
+		if (opencodeService) {
+			await opencodeService.shutdown();
+		}
+		db.disconnect();
+	});
 }
 
-const currentFile = fileURLToPath(import.meta.url)
+const currentFile = fileURLToPath(import.meta.url);
 const isDirectRun = process.argv.some(
-  (arg) => arg === currentFile || arg.endsWith('/src/index.ts') || arg.endsWith('\\src\\index.ts')
-)
+	(arg) =>
+		arg === currentFile ||
+		arg.endsWith("/src/index.ts") ||
+		arg.endsWith("\\src\\index.ts"),
+);
 
 if (isDirectRun) {
-  startServer().catch((error) => {
-    console.error('Failed to start server:', error)
-    process.exit(1)
-  })
+	startServer().catch((error) => {
+		console.error("Failed to start server:", error);
+		process.exit(1);
+	});
 }
