@@ -1,12 +1,12 @@
 import { closestCorners, DndContext, DragOverlay } from '@dnd-kit/core'
 import { horizontalListSortingStrategy, SortableContext } from '@dnd-kit/sortable'
-import { AlertCircle, Clock, Plus, LayoutGrid, List } from 'lucide-react'
-import { useState } from 'react'
+import { AlertCircle, Clock, Plus, LayoutGrid, List, ChevronDown, ChevronUp } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import { TaskDrawer } from '@web/components/kanban/TaskDrawer'
 import { SortableColumn } from '@web/components/kanban/board/SortableColumn'
 import { SortableTask } from '@web/components/kanban/board/SortableTask'
 import { ColumnModal } from '@web/components/kanban/board/ColumnModal'
-import { ListView } from '@web/components/kanban/board/ListView'
+import { ListView, ListItemView } from '@web/components/kanban/board/ListView'
 import { useBoardModel } from '@web/features/board/model/use-board-model'
 import { cn } from '@web/lib/utils'
 
@@ -44,6 +44,31 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
     openEditColumnModal,
     openCreateColumnModal,
   } = useBoardModel({ projectId })
+
+  const [expandedColumns, setExpandedColumns] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    if (columns.length > 0) {
+      const initial: Record<string, boolean> = {}
+      columns.forEach(col => {
+        const colTasks = tasks.filter(t => t.columnId === col.id)
+        initial[col.id] = colTasks.length > 0
+      })
+      setExpandedColumns(initial)
+    }
+  }, [columns.length, tasks.length === 0]) // Re-run when columns load or tasks are empty initially
+
+  const expandAll = () => {
+    const next: Record<string, boolean> = {}
+    columns.forEach(col => next[col.id] = true)
+    setExpandedColumns(next)
+  }
+
+  const collapseAll = () => {
+    const next: Record<string, boolean> = {}
+    columns.forEach(col => next[col.id] = false)
+    setExpandedColumns(next)
+  }
 
   if (loading)
     return (
@@ -88,6 +113,27 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
               List
             </button>
           </div>
+
+          {viewMode === 'list' && (
+            <div className="flex items-center gap-2 border-l border-slate-800 pl-4 ml-2">
+              <button
+                onClick={expandAll}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all"
+                title="Expand All"
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+                Expand All
+              </button>
+              <button
+                onClick={collapseAll}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all"
+                title="Collapse All"
+              >
+                <ChevronUp className="w-3.5 h-3.5" />
+                Collapse All
+              </button>
+            </div>
+          )}
         </div>
 
         <button
@@ -141,14 +187,22 @@ export function BoardScreen({ projectId }: BoardScreenProps) {
               onTaskClick={handleTaskClick}
               onAddTask={handleAddTask}
               onDeleteTask={handleDeleteTask}
+              expandedColumns={expandedColumns}
+              setExpandedColumns={setExpandedColumns}
             />
           )}
 
           <DragOverlay>
             {activeTask ? (
-              <div className="w-80 rotate-3 scale-105 pointer-events-none">
-                <SortableTask task={activeTask} globalTags={globalTags} />
-              </div>
+              viewMode === 'board' ? (
+                <div className="w-80 rotate-3 scale-105 pointer-events-none">
+                  <SortableTask task={activeTask} globalTags={globalTags} />
+                </div>
+              ) : (
+                <div className="w-[600px] pointer-events-none">
+                  <ListItemView task={activeTask} globalTags={globalTags} isOverlay />
+                </div>
+              )
             ) : activeColumn ? (
               <div className="bg-[#11151C]/40 border-2 border-blue-500 rounded-2xl w-80 shadow-2xl rotate-2 opacity-90 p-4 pointer-events-none backdrop-blur-md">
                 <h3 className="text-sm font-bold text-white">

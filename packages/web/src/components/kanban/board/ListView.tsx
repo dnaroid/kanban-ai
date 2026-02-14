@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { ChevronDown, ChevronRight, Plus, Trash2, Play, RefreshCw, AlertCircle, GripVertical } from 'lucide-react'
 import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { useDroppable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import type { KanbanTask, Tag, BoardColumn, TaskLink } from '@shared/types/ipc.ts'
 import { cn } from '@web/lib/utils'
@@ -13,6 +14,8 @@ interface ListViewProps {
   onTaskClick: (task: KanbanTask) => void
   onAddTask: (columnId: string) => void
   onDeleteTask: (taskId: string) => void
+  expandedColumns: Record<string, boolean>
+  setExpandedColumns: React.Dispatch<React.SetStateAction<Record<string, boolean>>>
 }
 
 export function ListView({
@@ -22,11 +25,9 @@ export function ListView({
   onTaskClick,
   onAddTask,
   onDeleteTask,
+  expandedColumns,
+  setExpandedColumns,
 }: ListViewProps) {
-  const [expandedColumns, setExpandedColumns] = useState<Record<string, boolean>>(
-    columns.reduce((acc, col) => ({ ...acc, [col.id]: true }), {})
-  )
-
   const toggleColumn = (columnId: string) => {
     setExpandedColumns((prev) => ({
       ...prev,
@@ -43,67 +44,114 @@ export function ListView({
         const isExpanded = expandedColumns[column.id]
 
         return (
-          <div
+          <ListColumn
             key={column.id}
-            className="bg-slate-900/40 border border-slate-800/50 rounded-2xl overflow-hidden backdrop-blur-md shadow-lg shadow-black/10 w-full"
-          >
-            <div
-              className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-800/30 transition-colors"
-              onClick={() => toggleColumn(column.id)}
-            >
-              <div className="flex items-center gap-3">
-                <div className="text-slate-500">
-                  {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-                </div>
-                <div
-                  className="w-3 h-3 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]"
-                  style={{ backgroundColor: column.color || '#475569' }}
-                />
-                <h3 className="font-bold text-slate-200 tracking-tight">{column.name}</h3>
-                <span className="bg-slate-800/80 text-slate-400 text-xs px-2 py-0.5 rounded-full font-bold border border-slate-700/50">
-                  {columnTasks.length}
-                </span>
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onAddTask(column.id)
-                }}
-                className="p-2 hover:bg-blue-500/10 rounded-xl text-slate-400 hover:text-blue-400 transition-all group/add"
-              >
-                <Plus className="w-5 h-5 group-hover/add:scale-110 transition-transform" />
-              </button>
-            </div>
-
-            {isExpanded && (
-              <div className="border-t border-slate-800/50 bg-slate-900/20">
-                <SortableContext
-                  items={columnTasks.map((t) => t.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  {columnTasks.length === 0 ? (
-                    <div className="p-10 text-center text-slate-500 text-sm italic">
-                      No tasks in this column
-                    </div>
-                  ) : (
-                    <div className="flex flex-col divide-y divide-slate-800/30">
-                      {columnTasks.map((task) => (
-                        <ListItem
-                          key={task.id}
-                          task={task}
-                          globalTags={globalTags}
-                          onTaskClick={onTaskClick}
-                          onDeleteTask={onDeleteTask}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </SortableContext>
-              </div>
-            )}
-          </div>
+            column={column}
+            columnTasks={columnTasks}
+            isExpanded={isExpanded}
+            onToggle={() => toggleColumn(column.id)}
+            onAddTask={onAddTask}
+            globalTags={globalTags}
+            onTaskClick={onTaskClick}
+            onDeleteTask={onDeleteTask}
+          />
         )
       })}
+    </div>
+  )
+}
+
+interface ListColumnProps {
+  column: BoardColumn
+  columnTasks: KanbanTask[]
+  isExpanded: boolean
+  onToggle: () => void
+  onAddTask: (columnId: string) => void
+  globalTags: Tag[]
+  onTaskClick: (task: KanbanTask) => void
+  onDeleteTask: (taskId: string) => void
+}
+
+function ListColumn({
+  column,
+  columnTasks,
+  isExpanded,
+  onToggle,
+  onAddTask,
+  globalTags,
+  onTaskClick,
+  onDeleteTask,
+}: ListColumnProps) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: column.id,
+    data: {
+      type: 'column',
+      column,
+    },
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "bg-slate-900/40 border border-slate-800/50 rounded-2xl overflow-hidden backdrop-blur-md shadow-lg shadow-black/10 w-full transition-all",
+        isOver && "border-blue-500/50 bg-blue-500/5 ring-1 ring-blue-500/20"
+      )}
+    >
+      <div
+        className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-800/30 transition-colors"
+        onClick={onToggle}
+      >
+        <div className="flex items-center gap-3">
+          <div className="text-slate-500">
+            {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+          </div>
+          <div
+            className="w-3 h-3 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]"
+            style={{ backgroundColor: column.color || '#475569' }}
+          />
+          <h3 className="font-bold text-slate-200 tracking-tight">{column.name}</h3>
+          <span className="bg-slate-800/80 text-slate-400 text-xs px-2 py-0.5 rounded-full font-bold border border-slate-700/50">
+            {columnTasks.length}
+          </span>
+        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onAddTask(column.id)
+          }}
+          className="p-2 hover:bg-blue-500/10 rounded-xl text-slate-400 hover:text-blue-400 transition-all group/add"
+        >
+          <Plus className="w-5 h-5 group-hover/add:scale-110 transition-transform" />
+        </button>
+      </div>
+
+      {isExpanded && (
+        <div className="border-t border-slate-800/50 bg-slate-900/20">
+          <SortableContext
+            items={columnTasks.map((t) => t.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {columnTasks.length === 0 ? (
+              <div className="p-10 text-center text-slate-500 text-sm italic">
+                No tasks in this column
+              </div>
+            ) : (
+              <div className="flex flex-col divide-y divide-slate-800/30">
+                {columnTasks.map((task) => (
+                  <ListItem
+                    key={task.id}
+                    task={task}
+                    globalTags={globalTags}
+                    onTaskClick={onTaskClick}
+                    onDeleteTask={onDeleteTask}
+                  />
+                ))}
+              </div>
+            )}
+          </SortableContext>
+        </div>
+      )}
     </div>
   )
 }
@@ -127,9 +175,41 @@ function ListItem({ task, globalTags, onTaskClick, onDeleteTask }: ListItemProps
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    zIndex: isDragging ? 50 : undefined,
   }
 
+  return (
+    <div ref={setNodeRef} style={style}>
+      <ListItemView
+        task={task}
+        globalTags={globalTags}
+        onTaskClick={onTaskClick}
+        onDeleteTask={onDeleteTask}
+        isDragging={isDragging}
+        dragHandleProps={{ ...attributes, ...listeners }}
+      />
+    </div>
+  )
+}
+
+export interface ListItemViewProps {
+  task: KanbanTask
+  globalTags: Tag[]
+  onTaskClick?: (task: KanbanTask) => void
+  onDeleteTask?: (taskId: string) => void
+  isDragging?: boolean
+  dragHandleProps?: any
+  isOverlay?: boolean
+}
+
+export function ListItemView({
+  task,
+  globalTags,
+  onTaskClick,
+  onDeleteTask,
+  isDragging,
+  dragHandleProps,
+  isOverlay,
+}: ListItemViewProps) {
   const [isBlocked, setIsBlocked] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
 
@@ -179,14 +259,13 @@ function ListItem({ task, globalTags, onTaskClick, onDeleteTask }: ListItemProps
 
   return (
     <div
-      ref={setNodeRef}
-      style={style}
-      onClick={() => onTaskClick(task)}
+      onClick={() => onTaskClick?.(task)}
       className={cn(
         "flex items-center gap-4 p-4 hover:bg-slate-800/40 transition-all cursor-pointer group relative overflow-hidden",
         task.status === 'running' && 'bg-blue-500/5',
         task.status === 'generating' && 'bg-purple-500/5',
-        isDragging && 'opacity-50 bg-slate-800/60 z-50 shadow-2xl'
+        isDragging && !isOverlay && 'opacity-50 bg-slate-800/60',
+        isOverlay && 'bg-slate-800 shadow-2xl rounded-xl border border-blue-500/50 scale-[1.02]'
       )}
     >
       {/* Status indicator bar */}
@@ -195,8 +274,7 @@ function ListItem({ task, globalTags, onTaskClick, onDeleteTask }: ListItemProps
       )}
       
       <div 
-        {...attributes} 
-        {...listeners}
+        {...dragHandleProps}
         className="text-slate-600 hover:text-slate-300 transition-colors p-1 cursor-grab active:cursor-grabbing"
       >
         <GripVertical className="w-4 h-4" />
@@ -265,32 +343,34 @@ function ListItem({ task, globalTags, onTaskClick, onDeleteTask }: ListItemProps
         )}
       </div>
 
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-        {['queued', 'paused', 'failed'].includes(task.status) && (
+      {!isOverlay && (
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+          {['queued', 'paused', 'failed'].includes(task.status) && (
+            <button
+              onClick={handleStart}
+              disabled={isStarting}
+              className="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-xl transition-all"
+              title="Start Run"
+            >
+              {isStarting ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Play className="w-4 h-4" />
+              )}
+            </button>
+          )}
           <button
-            onClick={handleStart}
-            disabled={isStarting}
-            className="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-xl transition-all"
-            title="Start Run"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDeleteTask?.(task.id)
+            }}
+            className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
+            title="Delete Task"
           >
-            {isStarting ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : (
-              <Play className="w-4 h-4" />
-            )}
+            <Trash2 className="w-4 h-4" />
           </button>
-        )}
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onDeleteTask(task.id)
-          }}
-          className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
-          title="Delete Task"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
-      </div>
+        </div>
+      )}
     </div>
   )
 }
