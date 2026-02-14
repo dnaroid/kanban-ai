@@ -21,24 +21,84 @@ import fs from "node:fs/promises";
 import os from "node:os";
 
 const WEB_SSE_SUBSCRIBER_PREFIX = "web-sse-bridge";
+const WEB_SSE_BRIDGE_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
+
+const webSseBridgeSessions = new Set<string>();
+const webSseBridgeTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const webSseBridgeInFlightSubscriptions = new Map<string, Promise<void>>();
 
 const createWebSseSubscriberId = (sessionId: string): string =>
 	`${WEB_SSE_SUBSCRIBER_PREFIX}:${sessionId}`;
+
+const clearWebSseBridgeCleanupTimer = (sessionId: string): void => {
+	const timer = webSseBridgeTimers.get(sessionId);
+	if (!timer) {
+		return;
+	}
+
+	clearTimeout(timer);
+	webSseBridgeTimers.delete(sessionId);
+};
+
+const scheduleWebSseBridgeCleanup = (sessionId: string): void => {
+	clearWebSseBridgeCleanupTimer(sessionId);
+
+	const subscriberId = createWebSseSubscriberId(sessionId);
+	const timer = setTimeout(() => {
+		webSseBridgeTimers.delete(sessionId);
+
+		if (!webSseBridgeSessions.has(sessionId)) {
+			return;
+		}
+
+		void sessionManager
+			.unsubscribeFromSessionEvents(sessionId, subscriberId)
+			.then(() => {
+				webSseBridgeSessions.delete(sessionId);
+			})
+			.catch((error) => {
+				console.warn(
+					`[rpcRouter] Failed to cleanup web SSE session bridge for ${sessionId}`,
+					error,
+				);
+			});
+	}, WEB_SSE_BRIDGE_IDLE_TIMEOUT_MS);
+
+	if (typeof timer.unref === "function") {
+		timer.unref();
+	}
+
+	webSseBridgeTimers.set(sessionId, timer);
+};
 
 async function ensureWebSseSessionBridge(
 	sessionId: string,
 	options: { allowFailure?: boolean } = {},
 ): Promise<void> {
-	if (sessionManager.isSubscribedToSessionEvents(sessionId)) {
-		return;
-	}
-
 	try {
-		await sessionManager.subscribeToSessionEvents(
-			sessionId,
-			createWebSseSubscriberId(sessionId),
-			() => {},
-		);
+		if (!webSseBridgeSessions.has(sessionId)) {
+			const inFlightSubscription =
+				webSseBridgeInFlightSubscriptions.get(sessionId);
+
+			if (inFlightSubscription) {
+				await inFlightSubscription;
+			} else {
+				const subscriberId = createWebSseSubscriberId(sessionId);
+				const subscriptionPromise = sessionManager
+					.subscribeToSessionEvents(sessionId, subscriberId, () => {})
+					.then(() => {
+						webSseBridgeSessions.add(sessionId);
+					})
+					.finally(() => {
+						webSseBridgeInFlightSubscriptions.delete(sessionId);
+					});
+
+				webSseBridgeInFlightSubscriptions.set(sessionId, subscriptionPromise);
+				await subscriptionPromise;
+			}
+		}
+
+		scheduleWebSseBridgeCleanup(sessionId);
 	} catch (error) {
 		if (!options.allowFailure) {
 			throw error;
