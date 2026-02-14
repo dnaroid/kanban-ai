@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { ChevronDown, ChevronRight, Plus, Trash2, Play, RefreshCw, AlertCircle, GripVertical } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Trash2, Play, RefreshCw, AlertCircle } from 'lucide-react'
 import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useDroppable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
@@ -178,14 +178,19 @@ function ListItem({ task, globalTags, onTaskClick, onDeleteTask }: ListItemProps
   }
 
   return (
-    <div ref={setNodeRef} style={style}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      onClick={() => onTaskClick(task)}
+    >
       <ListItemView
         task={task}
         globalTags={globalTags}
         onTaskClick={onTaskClick}
         onDeleteTask={onDeleteTask}
         isDragging={isDragging}
-        dragHandleProps={{ ...attributes, ...listeners }}
       />
     </div>
   )
@@ -197,7 +202,6 @@ export interface ListItemViewProps {
   onTaskClick?: (task: KanbanTask) => void
   onDeleteTask?: (taskId: string) => void
   isDragging?: boolean
-  dragHandleProps?: any
   isOverlay?: boolean
 }
 
@@ -207,7 +211,6 @@ export function ListItemView({
   onTaskClick,
   onDeleteTask,
   isDragging,
-  dragHandleProps,
   isOverlay,
 }: ListItemViewProps) {
   const [isBlocked, setIsBlocked] = useState(false)
@@ -259,13 +262,13 @@ export function ListItemView({
 
   return (
     <div
-      onClick={() => onTaskClick?.(task)}
       className={cn(
         "flex items-center gap-4 p-4 hover:bg-slate-800/40 transition-all cursor-pointer group relative overflow-hidden",
         task.status === 'running' && 'bg-blue-500/5',
         task.status === 'generating' && 'bg-purple-500/5',
         isDragging && !isOverlay && 'opacity-50 bg-slate-800/60',
-        isOverlay && 'bg-slate-800 shadow-2xl rounded-xl border border-blue-500/50 scale-[1.02]'
+        isOverlay && 'bg-slate-800 shadow-2xl rounded-xl border border-blue-500/50 scale-[1.02]',
+        !isOverlay && "cursor-grab active:cursor-grabbing"
       )}
     >
       {/* Status indicator bar */}
@@ -273,13 +276,6 @@ export function ListItemView({
         <div className={cn("absolute left-0 top-0 bottom-0 w-1", sConfig.bg)} />
       )}
       
-      <div 
-        {...dragHandleProps}
-        className="text-slate-600 hover:text-slate-300 transition-colors p-1 cursor-grab active:cursor-grabbing"
-      >
-        <GripVertical className="w-4 h-4" />
-      </div>
-
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-3 mb-1.5">
           <h4 className="text-sm font-semibold text-slate-200 truncate group-hover:text-white transition-colors">
