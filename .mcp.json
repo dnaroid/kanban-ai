@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "indexer": {
+      "type": "http",
+      "url": "http://127.0.0.1:7331?project_id=2c176eb6-b1bf-47b3-8b62-bf3692332048",
+      "headers": {
+        "Accept": "text/event-stream, application/json"
+      }
+    }
+  }
+}

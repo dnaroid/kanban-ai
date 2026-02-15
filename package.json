@@ -10,6 +10,7 @@
     "dev:server": "pnpm --dir packages/server dev",
     "dev:web": "vite packages/web/src --config packages/web/vite.config.ts",
     "dev": "concurrently \"pnpm dev:server\" \"pnpm dev:web\"",
+    "dev:next": "pnpm --filter @kanban-ai/next-js dev",
     "start": "node packages/server/dist/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
@@ -19,7 +20,7 @@
     "test": "vitest",
     "test:coverage": "npm run rebuild:node && vitest run --coverage",
     "quality": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test:run",
-    "kill:dev": "lsof -ti:3000,5174,4173 | xargs kill -9 2>/dev/null || true"
+    "kill:dev": "lsof -ti:3100 | xargs kill -9 2>/dev/null || true"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

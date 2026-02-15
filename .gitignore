@@ -41,3 +41,4 @@ packages/server/dist/
 *.tsbuildinfo
 /.opencode/
 /.gemini-clipboard/
+/.playwright-cli/
