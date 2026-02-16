@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { randomUUID } from "crypto";
-import { taskRepo } from "@/server/repositories";
+import { runService } from "@/server/run/run-service";
 import type { OpenCodeGenerateUserStoryResponse } from "@/types/ipc";
 
 export async function POST(request: Request) {
@@ -13,27 +12,8 @@ export async function POST(request: Request) {
 			);
 		}
 
-		const task = taskRepo.getById(body.taskId);
-		if (!task) {
-			return NextResponse.json(
-				{ success: false, error: "Task not found" },
-				{ status: 404 },
-			);
-		}
-
-		const userStory = [
-			"## User Story",
-			`As a user, I want **${task.title}** so that I can achieve the intended outcome.`,
-			"",
-			"## Acceptance Criteria",
-			"- [ ] Core behavior is implemented",
-			"- [ ] Edge cases are handled",
-			"- [ ] Result is validated in UI",
-		].join("\n");
-
-		taskRepo.update(task.id, { descriptionMd: userStory });
-
-		const data: OpenCodeGenerateUserStoryResponse = { runId: randomUUID() };
+		const { runId } = await runService.generateUserStory(body.taskId);
+		const data: OpenCodeGenerateUserStoryResponse = { runId };
 		return NextResponse.json({ success: true, data });
 	} catch (error) {
 		const message =

@@ -134,6 +134,19 @@ export interface Artifact {
 	createdAt: string;
 }
 
+export interface ProviderQueueStats {
+	providerKey: string;
+	queued: number;
+	running: number;
+	concurrency: number;
+}
+
+export interface QueueStatsResponse {
+	totalQueued: number;
+	totalRunning: number;
+	providers: ProviderQueueStats[];
+}
+
 export interface OpenCodeGenerateUserStoryResponse {
 	runId: string;
 }

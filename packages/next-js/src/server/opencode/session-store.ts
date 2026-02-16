@@ -1,5 +1,5 @@
 import type { OpenCodeMessage, OpenCodeTodo } from "@/types/ipc";
-import { getOpencodeService } from "@/server/opencode/opencode-service";
+import { bootstrapOpencodeService } from "@/server/opencode/opencode-bootstrap";
 import {
 	getOpencodeSessionManager,
 	type SessionEvent,
@@ -10,7 +10,6 @@ import {
 } from "@/server/opencode/session-tracker";
 import { publishSseEvent } from "@/server/events/sse-broker";
 
-const opencodeService = getOpencodeService();
 const sessionManager = getOpencodeSessionManager();
 const sessionTracker = getOpencodeSessionTracker();
 
@@ -23,10 +22,12 @@ function getSseSubscriberId(sessionId: string): string {
 
 async function ensureServiceStarted(): Promise<void> {
 	if (!ensureServicePromise) {
-		ensureServicePromise = opencodeService.start().catch((error: unknown) => {
-			ensureServicePromise = null;
-			throw error;
-		});
+		ensureServicePromise = bootstrapOpencodeService().catch(
+			(error: unknown) => {
+				ensureServicePromise = null;
+				throw error;
+			},
+		);
 	}
 
 	await ensureServicePromise;

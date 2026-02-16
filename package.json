@@ -7,18 +7,13 @@
     "packages/*"
   ],
   "scripts": {
-    "dev:server": "pnpm --dir packages/server dev",
-    "dev:web": "vite packages/web/src --config packages/web/vite.config.ts",
-    "dev": "concurrently \"pnpm dev:server\" \"pnpm dev:web\"",
-    "dev:next": "pnpm --filter @kanban-ai/next-js dev",
-    "start": "node packages/server/dist/index.js",
+    "dev": "pnpm --filter @kanban-ai/next-js dev",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "test": "vitest",
-    "test:coverage": "npm run rebuild:node && vitest run --coverage",
     "quality": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test:run",
     "kill:dev": "lsof -ti:3100 | xargs kill -9 2>/dev/null || true"
   },
@@ -40,7 +35,6 @@
     "react-dom": "^19.2.4",
     "simple-git": "^3.28.0",
     "tailwind-merge": "^3.4.0",
-    "vosk-browser": "^0.0.8",
     "ws": "^8.19.0",
     "zod": "^4.3.6"
   },

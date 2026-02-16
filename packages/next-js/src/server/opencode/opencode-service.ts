@@ -1,7 +1,4 @@
-import { exec as execCallback, spawn } from "child_process";
-import { promisify } from "util";
-
-const exec = promisify(execCallback);
+import type { ChildProcess } from "child_process";
 
 const DEFAULT_PORT = 4096;
 
@@ -9,11 +6,32 @@ export interface OpencodeServiceConfig {
 	port?: number;
 }
 
+type ProcessWithBuiltinModule = NodeJS.Process & {
+	getBuiltinModule?: (id: string) => unknown;
+};
+
+function getBuiltinModule<T>(id: string): T {
+	const getter = (process as ProcessWithBuiltinModule).getBuiltinModule;
+	if (!getter) {
+		throw new Error(
+			`Node runtime does not support process.getBuiltinModule (${id})`,
+		);
+	}
+
+	const mod = getter(id);
+	if (!mod) {
+		throw new Error(`Cannot load builtin module: ${id}`);
+	}
+
+	return mod as T;
+}
+
 export class OpencodeService {
-	private processRef: ReturnType<typeof spawn> | null = null;
+	private processRef: ChildProcess | null = null;
 	private port: number;
 	private externalProcess = false;
 	private isShuttingDown = false;
+	private startupPromise: Promise<void> | null = null;
 
 	constructor(config: OpencodeServiceConfig = {}) {
 		this.port = config.port ?? DEFAULT_PORT;
@@ -51,6 +69,7 @@ export class OpencodeService {
 	}
 
 	public async findRunningOpenCode(): Promise<number | null> {
+		const exec = this.getExec();
 		const knownPorts = [this.port, 4096, 3000, 8080, 4000];
 
 		for (const candidatePort of knownPorts) {
@@ -98,6 +117,23 @@ export class OpencodeService {
 	}
 
 	public async start(): Promise<void> {
+		if (this.startupPromise) {
+			await this.startupPromise;
+			return;
+		}
+
+		this.startupPromise = this.startInternal().catch((error: unknown) => {
+			this.startupPromise = null;
+			throw error;
+		});
+
+		await this.startupPromise;
+	}
+
+	private async startInternal(): Promise<void> {
+		const { spawn } =
+			getBuiltinModule<typeof import("child_process")>("child_process");
+
 		const runningPort = await this.findRunningOpenCode();
 		if (runningPort !== null && (await this.isRunning(runningPort))) {
 			this.port = runningPort;
@@ -163,7 +199,18 @@ export class OpencodeService {
 		}
 	}
 
+	private getExec(): (
+		command: string,
+	) => Promise<{ stdout: string; stderr: string }> {
+		const childProcess =
+			getBuiltinModule<typeof import("child_process")>("child_process");
+		const util = getBuiltinModule<typeof import("util")>("util");
+		return util.promisify(childProcess.exec);
+	}
+
 	public async stop(): Promise<void> {
+		this.startupPromise = null;
+
 		if (!this.processRef || this.externalProcess) {
 			return;
 		}

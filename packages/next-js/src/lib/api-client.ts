@@ -12,7 +12,13 @@ import type {
 	TaskLink,
 	TaskLinkType,
 } from "@/types/kanban";
-import type { Artifact, OpenCodeMessage, OpenCodeTodo, Run } from "@/types/ipc";
+import type {
+	Artifact,
+	OpenCodeMessage,
+	OpenCodeTodo,
+	Run,
+	QueueStatsResponse,
+} from "@/types/ipc";
 
 // REST API Client for Next.js standalone
 // Uses relative paths to avoid CORS issues
@@ -159,6 +165,18 @@ class ApiClient {
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ run?: Run | null }>(payload);
 			return { run: data.run ?? null };
+		},
+		queueStats: async (): Promise<QueueStatsResponse> => {
+			const response = await fetch(`${this.baseUrl}/api/run/queueStats`);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to get queue stats",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<QueueStatsResponse>(payload);
 		},
 	};
 
