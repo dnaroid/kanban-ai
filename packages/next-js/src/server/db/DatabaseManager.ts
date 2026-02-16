@@ -1,4 +1,6 @@
 import Database from "better-sqlite3";
+import fs from "node:fs";
+import path from "node:path";
 import { INIT_DB_SQL, migrations } from "./migrations";
 
 export class DatabaseManager {
@@ -14,8 +16,6 @@ export class DatabaseManager {
 			return this.db;
 		}
 
-		const fs = require("node:fs");
-		const path = require("node:path");
 		const isNewDb = !fs.existsSync(this.dbPath);
 		const dbDir = path.dirname(this.dbPath);
 
@@ -48,7 +48,6 @@ export class DatabaseManager {
 	deleteDatabase(): void {
 		this.disconnect();
 
-		const fs = require("node:fs");
 		const dbFiles = [this.dbPath, `${this.dbPath}-wal`, `${this.dbPath}-shm`];
 		for (const filePath of dbFiles) {
 			if (fs.existsSync(filePath)) {
@@ -207,11 +206,11 @@ export class DatabaseManager {
 	}
 
 	// Query helpers
-	query<T>(sql: string, params: any[] = []): T[] {
+	query<T>(sql: string, params: unknown[] = []): T[] {
 		return this.db?.prepare(sql).all(...params) as T[];
 	}
 
-	get<T>(sql: string, params: any[] = []): T | undefined {
+	get<T>(sql: string, params: unknown[] = []): T | undefined {
 		return this.db?.prepare(sql).get(...params) as T | undefined;
 	}
 

@@ -125,11 +125,12 @@ function ListColumn({
 				isOver && "border-blue-500/50 bg-blue-500/5 ring-1 ring-blue-500/20",
 			)}
 		>
-			<div
-				className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-800/30 transition-colors"
-				onClick={onToggle}
-			>
-				<div className="flex items-center gap-3">
+			<div className="flex items-center justify-between p-4 hover:bg-slate-800/30 transition-colors">
+				<button
+					type="button"
+					onClick={onToggle}
+					className="flex items-center gap-3 text-left"
+				>
 					<div className="text-slate-500">
 						{isExpanded ? (
 							<ChevronDown className="w-5 h-5" />
@@ -147,8 +148,9 @@ function ListColumn({
 					<span className="bg-slate-800/80 text-slate-400 text-xs px-2 py-0.5 rounded-full font-bold border border-slate-700/50">
 						{columnTasks.length}
 					</span>
-				</div>
+				</button>
 				<button
+					type="button"
 					onClick={(e) => {
 						e.stopPropagation();
 						onAddTask(column.id);
@@ -226,13 +228,7 @@ function ListItem({
 	};
 
 	return (
-		<div
-			ref={setNodeRef}
-			style={style}
-			{...attributes}
-			{...listeners}
-			onClick={() => onTaskClick(task)}
-		>
+		<div ref={setNodeRef} style={style} {...attributes} {...listeners}>
 			<ListItemView
 				task={task}
 				globalTags={globalTags}
@@ -299,9 +295,13 @@ export function ListItemView({
 
 			<div className="flex-1 min-w-0">
 				<div className="flex items-center gap-3 mb-1.5">
-					<h4 className="text-sm font-semibold text-slate-200 truncate group-hover:text-white transition-colors">
+					<button
+						type="button"
+						onClick={() => onTaskClick?.(task)}
+						className="text-sm font-semibold text-slate-200 truncate group-hover:text-white transition-colors text-left"
+					>
 						{task.title}
-					</h4>
+					</button>
 					<div className="flex items-center gap-1.5 flex-shrink-0">
 						<span
 							className={cn(
@@ -341,7 +341,7 @@ export function ListItemView({
 							const color = getTagColor(tag);
 							return (
 								<span
-									key={i}
+									key={`${task.id}-${tag}-${i}`}
 									className="px-2 py-0.5 rounded text-[10px] font-bold transition-all border border-transparent hover:border-white/10"
 									style={{
 										backgroundColor: `${color}15`,

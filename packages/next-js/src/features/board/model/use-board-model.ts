@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
 import {
@@ -35,10 +35,6 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		}),
 	);
 
-	useEffect(() => {
-		void loadBoard();
-	}, [projectId]);
-
 	const normalizeColumns = (
 		columns: Array<{
 			id?: BoardColumn["id"];
@@ -55,7 +51,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			color: column.color || "",
 		}));
 
-	const loadBoard = async () => {
+	const loadBoard = useCallback(async () => {
 		try {
 			setLoading(true);
 			setError(null);
@@ -84,7 +80,11 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		} finally {
 			setLoading(false);
 		}
-	};
+	}, [projectId]);
+
+	useEffect(() => {
+		void loadBoard();
+	}, [loadBoard]);
 
 	const handleDragStart = (event: DragStartEvent) => {
 		if (event.active.data.current?.type === "task") {

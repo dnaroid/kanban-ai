@@ -91,3 +91,24 @@ export interface BoardColumnInput {
 	orderIndex: number;
 	color?: string | null;
 }
+
+// Task link types for dependencies
+export type TaskLinkType = "blocks" | "relates";
+
+// Task link for dependencies
+export interface TaskLink {
+	id: string;
+	projectId: string;
+	fromTaskId: string;
+	toTaskId: string;
+	linkType: TaskLinkType;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface OpencodeModel {
+	name: string;
+	enabled: boolean;
+	difficulty: TaskDifficulty;
+	variants: string;
+}

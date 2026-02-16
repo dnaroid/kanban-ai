@@ -66,17 +66,6 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 	>({});
 
 	useEffect(() => {
-		if (columns.length > 0) {
-			const initial: Record<string, boolean> = {};
-			for (const col of columns) {
-				const colTasks = tasks.filter((t) => t.columnId === col.id);
-				initial[col.id] = colTasks.length > 0;
-			}
-			setExpandedColumns(initial);
-		}
-	}, [columns, tasks]);
-
-	useEffect(() => {
 		localStorage.setItem("boardViewMode", viewMode);
 	}, [viewMode]);
 
@@ -257,6 +246,7 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 			</main>
 
 			<ColumnModal
+				key={`${editingColumnId ?? "new"}-${isColumnModalOpen ? "open" : "closed"}`}
 				isOpen={isColumnModalOpen}
 				onClose={closeColumnModal}
 				onSubmit={handleColumnSubmit}

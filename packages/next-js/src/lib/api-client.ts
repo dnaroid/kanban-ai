@@ -5,7 +5,14 @@ import type {
 } from "@/server/types";
 import type { Task, CreateTaskInput, UpdateTaskInput } from "@/server/types";
 import type { Board, BoardColumn } from "@/server/types";
-import type { KanbanTask, KanbanTaskPatch, Tag } from "@/types/kanban";
+import type {
+	KanbanTask,
+	OpencodeModel,
+	Tag,
+	TaskLink,
+	TaskLinkType,
+} from "@/types/kanban";
+import type { OpenCodeMessage, OpenCodeTodo } from "@/types/ipc";
 
 // REST API Client for Next.js standalone
 // Uses relative paths to avoid CORS issues
@@ -39,6 +46,201 @@ function taskToKanban(task: Task): KanbanTask {
 
 class ApiClient {
 	private baseUrl: string;
+
+	readonly project = {
+		getAll: async (): Promise<Project[]> => this.getProjects(),
+	};
+
+	readonly task = {
+		listByBoard: async (boardId: string): Promise<{ tasks: KanbanTask[] }> => ({
+			tasks: await this.getTasks(boardId),
+		}),
+	};
+
+	readonly deps = {
+		list: async ({
+			taskId,
+		}: {
+			taskId: string;
+		}): Promise<{ links: TaskLink[] }> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/deps?taskId=${encodeURIComponent(taskId)}`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to fetch task dependencies",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{ links: TaskLink[] }>(payload);
+			return { links: data.links ?? [] };
+		},
+		add: async ({
+			fromTaskId,
+			toTaskId,
+			type,
+		}: {
+			fromTaskId: string;
+			toTaskId: string;
+			type: TaskLinkType;
+		}): Promise<{ link: TaskLink }> => {
+			const response = await fetch(`${this.baseUrl}/api/deps`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ fromTaskId, toTaskId, type }),
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to create task dependency",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ link: TaskLink }>(payload);
+		},
+		remove: async ({ linkId }: { linkId: string }): Promise<{ ok: true }> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/deps/${encodeURIComponent(linkId)}`,
+				{
+					method: "DELETE",
+				},
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to remove task dependency",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{ ok?: boolean }>(payload);
+			if (data.ok !== true) {
+				throw new Error("Failed to remove task dependency");
+			}
+			return { ok: true };
+		},
+	};
+
+	readonly tag = {
+		list: async (_: Record<string, never>): Promise<{ tags: Tag[] }> => ({
+			tags: await this.getGlobalTags(),
+		}),
+		create: async (input: { name: string; color: string }): Promise<Tag> =>
+			this.createTag(input),
+	};
+
+	readonly opencode = {
+		generateUserStory: async ({
+			taskId,
+		}: {
+			taskId: string;
+		}): Promise<{ runId: string }> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/generate-user-story`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ taskId }),
+				},
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to generate user story",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ runId: string }>(payload);
+		},
+		listEnabledModels: async (): Promise<{ models: OpencodeModel[] }> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/models/enabled`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to fetch enabled models",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ models: OpencodeModel[] }>(payload);
+		},
+		getSessionTodos: async ({
+			sessionId,
+		}: {
+			sessionId: string;
+		}): Promise<{ todos: OpenCodeTodo[] }> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/sessions/${sessionId}/todos`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to fetch session todos",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{ todos: OpenCodeTodo[] }>(payload);
+			return { todos: data.todos ?? [] };
+		},
+		sendMessage: async ({
+			sessionId,
+			message,
+		}: {
+			sessionId: string;
+			message: string;
+		}): Promise<{ success: boolean }> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/sessions/${sessionId}/messages`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ message }),
+				},
+			);
+			if (!response.ok) {
+				const errorMessage = await this.getErrorMessage(
+					response,
+					"Failed to send message",
+				);
+				throw new Error(errorMessage);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{ ok: boolean }>(payload);
+			return { success: data.ok === true };
+		},
+		getSessionMessages: async ({
+			sessionId,
+			limit,
+		}: {
+			sessionId: string;
+			limit?: number;
+		}): Promise<{ messages: OpenCodeMessage[] }> => {
+			const query =
+				typeof limit === "number" && limit > 0
+					? `?limit=${encodeURIComponent(String(limit))}`
+					: "";
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/sessions/${sessionId}/messages${query}`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to fetch session messages",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{ messages: OpenCodeMessage[] }>(payload);
+			return { messages: data.messages ?? [] };
+		},
+	};
 
 	constructor(baseUrl: string = "") {
 		this.baseUrl = baseUrl;
@@ -153,7 +355,10 @@ class ApiClient {
 		return taskToKanban(task);
 	}
 
-	async updateTask(id: string, updates: UpdateTaskInput): Promise<KanbanTask | null> {
+	async updateTask(
+		id: string,
+		updates: UpdateTaskInput,
+	): Promise<KanbanTask | null> {
 		const response = await fetch(`${this.baseUrl}/api/tasks/${id}`, {
 			method: "PUT",
 			headers: { "Content-Type": "application/json" },
@@ -172,7 +377,11 @@ class ApiClient {
 		return response.ok;
 	}
 
-	async moveTask(id: string, columnId: string, toIndex?: number): Promise<KanbanTask | null> {
+	async moveTask(
+		id: string,
+		columnId: string,
+		toIndex?: number,
+	): Promise<KanbanTask | null> {
 		const response = await fetch(`${this.baseUrl}/api/tasks/${id}/move`, {
 			method: "PUT",
 			headers: { "Content-Type": "application/json" },
@@ -223,6 +432,17 @@ class ApiClient {
 		if (!response.ok) throw new Error("Failed to fetch tags");
 		const payload = await response.json();
 		return this.unwrapApiData<Tag[]>(payload);
+	}
+
+	async createTag(input: { name: string; color: string }): Promise<Tag> {
+		const response = await fetch(`${this.baseUrl}/api/tags`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(input),
+		});
+		if (!response.ok) throw new Error("Failed to create tag");
+		const payload = await response.json();
+		return this.unwrapApiData<Tag>(payload);
 	}
 
 	// App Settings
@@ -281,5 +501,5 @@ class ApiClient {
 export const api = new ApiClient();
 
 if (typeof window !== "undefined") {
-	(window as any).api = api;
+	(window as Window & { api?: ApiClient }).api = api;
 }

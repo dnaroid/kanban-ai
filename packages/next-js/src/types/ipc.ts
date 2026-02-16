@@ -1,0 +1,157 @@
+export type ToolState = "pending" | "running" | "completed" | "error";
+
+export type PartType =
+	| "text"
+	| "file"
+	| "tool"
+	| "reasoning"
+	| "agent"
+	| "step-start"
+	| "snapshot"
+	| "other";
+
+export interface PartBase {
+	id?: string;
+	messageID?: string;
+	type: PartType;
+	ignored?: boolean;
+}
+
+export interface TextPart extends PartBase {
+	type: "text";
+	text: string;
+}
+
+export interface FilePart extends PartBase {
+	type: "file";
+	url: string;
+	mime: string;
+	filename?: string;
+}
+
+export interface ToolPart extends PartBase {
+	type: "tool";
+	tool: string;
+	state: ToolState;
+	input?: unknown;
+	output?: unknown;
+	error?: string;
+}
+
+export interface ReasoningPart extends PartBase {
+	type: "reasoning";
+	text: string;
+}
+
+export interface AgentPart extends PartBase {
+	type: "agent";
+	name: string;
+}
+
+export interface StepStartPart extends PartBase {
+	type: "step-start";
+}
+
+export interface SnapshotPart extends PartBase {
+	type: "snapshot";
+}
+
+export interface OtherPart extends PartBase {
+	type: "other";
+}
+
+export type Part =
+	| TextPart
+	| FilePart
+	| ToolPart
+	| ReasoningPart
+	| AgentPart
+	| StepStartPart
+	| SnapshotPart
+	| OtherPart;
+
+export interface OpenCodeMessage {
+	id: string;
+	role: "user" | "assistant";
+	content: string;
+	parts: Part[];
+	timestamp: number;
+	modelID?: string;
+}
+
+export interface OpenCodeTodo {
+	id: string;
+	content: string;
+	status: "pending" | "in_progress" | "completed" | "cancelled";
+	priority: "high" | "medium" | "low";
+}
+
+export interface OpencodeModel {
+	name: string;
+	enabled: boolean;
+	difficulty: "easy" | "medium" | "hard" | "epic";
+	variants: string;
+}
+
+export type RunStatus =
+	| "queued"
+	| "running"
+	| "completed"
+	| "failed"
+	| "cancelled"
+	| "timeout"
+	| "paused";
+
+export interface Run {
+	id: string;
+	taskId: string;
+	sessionId: string;
+	roleId?: string;
+	model?: string;
+	mode?: string;
+	status: RunStatus;
+	startedAt?: string | null;
+	endedAt?: string | null;
+	createdAt: string;
+	updatedAt: string;
+	metadata?: Record<string, unknown>;
+}
+
+export interface RunEvent {
+	id: string;
+	runId: string;
+	ts: string;
+	eventType: "stdout" | "stderr" | "message" | "status" | string;
+	payload: unknown;
+}
+
+export interface Artifact {
+	id: string;
+	runId: string;
+	kind: "json" | "patch" | "markdown" | string;
+	title: string;
+	content: string;
+	createdAt: string;
+}
+
+export interface OpenCodeGenerateUserStoryResponse {
+	runId: string;
+}
+
+export interface OpenCodeSessionMessagesResponse {
+	sessionId: string;
+	messages: OpenCodeMessage[];
+}
+
+export interface OpenCodeSessionTodosResponse {
+	sessionId: string;
+	todos: OpenCodeTodo[];
+}
+
+export interface OpencodeModelsListResponse {
+	models: OpencodeModel[];
+}
+
+export interface OpencodeSendMessageResponse {
+	ok: true;
+}
