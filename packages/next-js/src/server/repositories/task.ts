@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from "crypto";
 import { dbManager } from "../db";
 import type { Task, CreateTaskInput, UpdateTaskInput } from "../types";
 

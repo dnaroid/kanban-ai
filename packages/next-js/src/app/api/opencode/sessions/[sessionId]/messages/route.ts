@@ -22,7 +22,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 		const { sessionId } = await params;
 		const { searchParams } = new URL(request.url);
 		const limit = parseLimit(searchParams.get("limit"));
-		const messages = getSessionMessages(sessionId, limit);
+		const messages = await getSessionMessages(sessionId, limit);
 		const data: OpenCodeSessionMessagesResponse = { sessionId, messages };
 		return NextResponse.json({ success: true, data });
 	} catch (error) {
@@ -49,7 +49,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 			);
 		}
 
-		sendSessionMessage(sessionId, body.message.trim());
+		await sendSessionMessage(sessionId, body.message.trim());
 		const data: OpencodeSendMessageResponse = { ok: true };
 		return NextResponse.json({ success: true, data });
 	} catch (error) {

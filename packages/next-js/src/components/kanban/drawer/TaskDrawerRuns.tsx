@@ -91,8 +91,13 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 		if (!isActive) return;
 
 		const token = localStorage.getItem("token");
+		const params = new URLSearchParams();
+		if (token) {
+			params.set("token", token);
+		}
+		const query = params.toString();
 		const eventSource = new EventSource(
-			`http://localhost:3000/events?token=${token}`,
+			query.length > 0 ? `/events?${query}` : "/events",
 		);
 
 		eventSource.addEventListener("run:event", (event) => {

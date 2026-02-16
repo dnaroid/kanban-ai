@@ -12,7 +12,7 @@ import type {
 	TaskLink,
 	TaskLinkType,
 } from "@/types/kanban";
-import type { OpenCodeMessage, OpenCodeTodo } from "@/types/ipc";
+import type { Artifact, OpenCodeMessage, OpenCodeTodo, Run } from "@/types/ipc";
 
 // REST API Client for Next.js standalone
 // Uses relative paths to avoid CORS issues
@@ -55,6 +55,111 @@ class ApiClient {
 		listByBoard: async (boardId: string): Promise<{ tasks: KanbanTask[] }> => ({
 			tasks: await this.getTasks(boardId),
 		}),
+	};
+
+	readonly run = {
+		listByTask: async ({
+			taskId,
+		}: {
+			taskId: string;
+		}): Promise<{ runs: Run[] }> => {
+			const query = new URLSearchParams({ taskId });
+			const response = await fetch(
+				`${this.baseUrl}/api/run/listByTask?${query.toString()}`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to list runs",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{ runs?: Run[] }>(payload);
+			return { runs: data.runs ?? [] };
+		},
+		start: async ({
+			taskId,
+			roleId,
+			mode,
+		}: {
+			taskId: string;
+			roleId?: string;
+			mode?: string;
+		}): Promise<{ runId: string }> => {
+			const response = await fetch(`${this.baseUrl}/api/run/start`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ taskId, roleId, mode }),
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to start run",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{ runId?: string }>(payload);
+			if (!data.runId) {
+				throw new Error("Run start response did not contain runId");
+			}
+			return { runId: data.runId };
+		},
+		cancel: async ({
+			runId,
+		}: {
+			runId: string;
+		}): Promise<{ success: true }> => {
+			const response = await fetch(`${this.baseUrl}/api/run/cancel`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ runId }),
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to cancel run",
+				);
+				throw new Error(message);
+			}
+			return { success: true };
+		},
+		delete: async ({
+			runId,
+		}: {
+			runId: string;
+		}): Promise<{ success: true }> => {
+			const response = await fetch(`${this.baseUrl}/api/run/delete`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ runId }),
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to delete run",
+				);
+				throw new Error(message);
+			}
+			return { success: true };
+		},
+		get: async ({ runId }: { runId: string }): Promise<{ run: Run | null }> => {
+			const query = new URLSearchParams({ runId });
+			const response = await fetch(
+				`${this.baseUrl}/api/run/get?${query.toString()}`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to get run",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{ run?: Run | null }>(payload);
+			return { run: data.run ?? null };
+		},
 	};
 
 	readonly deps = {
@@ -130,6 +235,26 @@ class ApiClient {
 		}),
 		create: async (input: { name: string; color: string }): Promise<Tag> =>
 			this.createTag(input),
+	};
+
+	readonly roles = {
+		list: async (): Promise<{
+			roles: Array<{ id: string; name: string; description: string }>;
+		}> => {
+			const response = await fetch(`${this.baseUrl}/api/roles/list`);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to list roles",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{
+				roles?: Array<{ id: string; name: string; description: string }>;
+			}>(payload);
+			return { roles: data.roles ?? [] };
+		},
 	};
 
 	readonly opencode = {
@@ -239,6 +364,67 @@ class ApiClient {
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ messages: OpenCodeMessage[] }>(payload);
 			return { messages: data.messages ?? [] };
+		},
+	};
+
+	readonly artifact = {
+		list: async ({
+			runId,
+		}: {
+			runId: string;
+		}): Promise<{ artifacts: Artifact[] }> => {
+			const query = new URLSearchParams({ runId });
+			const response = await fetch(
+				`${this.baseUrl}/api/artifact/list?${query.toString()}`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to list artifacts",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{ artifacts?: Artifact[] }>(payload);
+			return { artifacts: data.artifacts ?? [] };
+		},
+		get: async ({
+			artifactId,
+		}: {
+			artifactId: string;
+		}): Promise<{ artifact: Artifact | null }> => {
+			const query = new URLSearchParams({ artifactId });
+			const response = await fetch(
+				`${this.baseUrl}/api/artifact/get?${query.toString()}`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to fetch artifact",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{ artifact?: Artifact | null }>(payload);
+			return { artifact: data.artifact ?? null };
+		},
+	};
+
+	readonly app = {
+		openPath: async (path: string): Promise<{ success: true }> => {
+			const response = await fetch(`${this.baseUrl}/api/app/open-path`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ path }),
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to open path",
+				);
+				throw new Error(message);
+			}
+			return { success: true };
 		},
 	};
 

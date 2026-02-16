@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { randomUUID } from "node:crypto";
+import { randomUUID } from "crypto";
 import { taskRepo } from "@/server/repositories";
 import type { OpenCodeGenerateUserStoryResponse } from "@/types/ipc";
 

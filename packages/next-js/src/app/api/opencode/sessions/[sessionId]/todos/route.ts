@@ -7,7 +7,7 @@ type RouteParams = { params: Promise<{ sessionId: string }> };
 export async function GET(_: Request, { params }: RouteParams) {
 	try {
 		const { sessionId } = await params;
-		const todos = getSessionTodos(sessionId);
+		const todos = await getSessionTodos(sessionId);
 		const data: OpenCodeSessionTodosResponse = { sessionId, todos };
 		return NextResponse.json({ success: true, data });
 	} catch (error) {

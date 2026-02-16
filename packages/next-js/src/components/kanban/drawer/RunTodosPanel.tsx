@@ -85,9 +85,12 @@ export function RunTodosPanel({ sessionId }: { sessionId: string }) {
 		const subscribe = () => {
 			unsubscribeRef.current?.();
 			const token = localStorage.getItem("token");
-			const eventSource = new EventSource(
-				`http://localhost:3000/events?token=${token}`,
-			);
+			const params = new URLSearchParams();
+			if (token) {
+				params.set("token", token);
+			}
+			params.set("sessionId", sessionId);
+			const eventSource = new EventSource(`/events?${params.toString()}`);
 
 			eventSource.addEventListener("opencode:event", (sseEvent) => {
 				const { sessionId: eventSessionId, event } = JSON.parse(sseEvent.data);

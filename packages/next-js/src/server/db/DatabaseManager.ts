@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
-import fs from "node:fs";
-import path from "node:path";
+import fs from "fs";
+import path from "path";
 import { INIT_DB_SQL, migrations } from "./migrations";
 
 export class DatabaseManager {
