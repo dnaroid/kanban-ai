@@ -368,7 +368,6 @@ function ObjectTreeNode({
 	dynamicKeys,
 	additionalSchema,
 	validationErrors = [],
-	entityModel,
 }: FieldProps & {
 	depth: number;
 	definedProps: [string, unknown][];
