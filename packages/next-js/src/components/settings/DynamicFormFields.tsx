@@ -38,6 +38,7 @@ interface FieldProps {
 	path: string;
 	models?: OpencodeModel[];
 	modelVariants?: string[];
+	entityModel?: string; // Currently selected model in this entity
 	depth?: number;
 	validationErrors?: ValidationError[];
 	labelAction?: React.ReactNode;
@@ -104,26 +105,34 @@ function DynamicSelectField({
 	onChange,
 	options,
 	placeholder,
+	disabled,
 }: {
-	label: string;
+	label?: string;
 	value: string | undefined;
 	onChange: (val: string) => void;
 	options: string[];
 	placeholder?: string;
+	disabled?: boolean;
 }) {
 	return (
 		<div className="relative space-y-1.5">
-			<div className="block text-xs font-bold text-slate-400 pl-1">{label}</div>
+			{label && (
+				<div className="block text-xs font-bold text-slate-400 pl-1">
+					{label}
+				</div>
+			)}
 			<div className="relative">
 				<select
 					value={value ?? ""}
 					onChange={(e) => onChange(e.target.value || "")}
+					disabled={disabled}
 					className={cn(
 						"w-full appearance-none bg-[#161B26] border border-slate-700",
 						"rounded-xl px-4 py-2.5 pr-10 text-sm text-slate-200",
 						"hover:border-slate-600 transition-all",
 						"focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 focus:shadow-[0_0_20px_rgba(59,130,246,0.1)]",
 						value === undefined && "text-slate-500",
+						disabled && "opacity-50 cursor-not-allowed hover:border-slate-700",
 					)}
 				>
 					<option value="">{placeholder ?? "Select..."}</option>
@@ -270,6 +279,7 @@ function DynamicObjectField({
 	models,
 	modelVariants,
 	depth = 0,
+	entityModel,
 }: FieldProps & { depth?: number }) {
 	const obj = (value as Record<string, unknown>) ?? {};
 
@@ -306,6 +316,7 @@ function DynamicObjectField({
 				definedProps={definedProps}
 				dynamicKeys={dynamicKeys}
 				additionalSchema={additionalSchema}
+				entityModel={entityModel}
 			/>
 		);
 	}
@@ -324,6 +335,7 @@ function DynamicObjectField({
 					models={models}
 					modelVariants={modelVariants}
 					depth={depth + 1}
+					entityModel={obj.model as string | undefined}
 				/>
 			))}
 			{dynamicKeys.map((key) => (
@@ -337,6 +349,7 @@ function DynamicObjectField({
 					models={models}
 					modelVariants={modelVariants}
 					depth={depth + 1}
+					entityModel={obj.model as string | undefined}
 				/>
 			))}
 		</div>
@@ -355,6 +368,7 @@ function ObjectTreeNode({
 	dynamicKeys,
 	additionalSchema,
 	validationErrors = [],
+	entityModel,
 }: FieldProps & {
 	depth: number;
 	definedProps: [string, unknown][];
@@ -459,6 +473,7 @@ function ObjectTreeNode({
 							modelVariants={modelVariants}
 							depth={depth + 1}
 							validationErrors={validationErrors}
+							entityModel={obj.model as string}
 						/>
 					))}
 					{dynamicKeys.map((key) => {
@@ -575,6 +590,7 @@ function DynamicField({
 	depth = 0,
 	validationErrors,
 	labelAction,
+	entityModel,
 }: FieldProps) {
 	if (!schema) return null;
 
@@ -587,6 +603,51 @@ function DynamicField({
 				value={value as boolean | undefined}
 				onChange={(v) => onChange(v)}
 			/>
+		);
+	}
+
+	// Handle variant field BEFORE enum check - schema may not have enum
+	if (path.endsWith(".variant") && models) {
+		const modelData = entityModel
+			? models.find((m) => m.name === entityModel)
+			: undefined;
+		// variants is a comma-separated string
+		const variantOptions = modelData?.variants
+			? modelData.variants
+					.split(",")
+					.map((v) => v.trim())
+					.filter(Boolean)
+			: [];
+		const hasVariants = variantOptions.length > 0;
+
+		return (
+			<div className="space-y-1.5">
+				<FieldLabel label={fieldLabel} action={labelAction} />
+				<div className="flex gap-2">
+					<DynamicSelectField
+						value={value as string | undefined}
+						onChange={(v) => onChange(v || undefined)}
+						options={hasVariants ? variantOptions : []}
+						placeholder={
+							hasVariants
+								? "Select variant"
+								: entityModel
+									? "No variants available"
+									: "Select model first"
+						}
+						disabled={!hasVariants}
+					/>
+					<button
+						type="button"
+						onClick={() => onChange(undefined)}
+						className="px-2 py-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+						title="Clear variant"
+						disabled={!hasVariants}
+					>
+						<X className="w-4 h-4" />
+					</button>
+				</div>
+			</div>
 		);
 	}
 
@@ -607,14 +668,24 @@ function DynamicField({
 			return (
 				<div className="space-y-1.5">
 					<FieldLabel label={fieldLabel} action={labelAction} />
-					<ModelPicker
-						value={typeof value === "string" ? value : null}
-						models={models}
-						onChange={(val) => onChange(val ?? undefined)}
-						placeholder={schema.description ?? "Select model"}
-						allowAuto={false}
-						showVariantSelector={false}
-					/>
+					<div className="flex gap-2">
+						<ModelPicker
+							value={typeof value === "string" ? value : null}
+							models={models}
+							onChange={(val) => onChange(val ?? undefined)}
+							placeholder={schema.description ?? "Select model"}
+							allowAuto={false}
+							showVariantSelector={false}
+						/>
+						<button
+							type="button"
+							onClick={() => onChange(undefined)}
+							className="px-2 py-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+							title="Clear model"
+						>
+							<X className="w-4 h-4" />
+						</button>
+					</div>
 				</div>
 			);
 		}

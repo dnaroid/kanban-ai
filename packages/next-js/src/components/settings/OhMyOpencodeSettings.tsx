@@ -713,6 +713,36 @@ export function OhMyOpencodeSettings({
 		void loadPickerInitialPath();
 	}, [loadConfigPath, loadModels, loadPickerInitialPath]);
 
+	// Warn on route change when there are unsaved changes
+	useEffect(() => {
+		if (!unsavedChanges) return;
+
+		const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+			e.preventDefault();
+			e.returnValue = "";
+			return "";
+		};
+
+		const handlePopState = (e: PopStateEvent) => {
+			e.preventDefault();
+			const confirmed = window.confirm(
+				"You have unsaved changes. Are you sure you want to leave?",
+			);
+			if (!confirmed) {
+				window.history.pushState(null, "", window.location.href);
+			}
+		};
+
+		window.addEventListener("beforeunload", handleBeforeUnload);
+		window.addEventListener("popstate", handlePopState);
+		window.history.pushState(null, "", window.location.href);
+
+		return () => {
+			window.removeEventListener("beforeunload", handleBeforeUnload);
+			window.removeEventListener("popstate", handlePopState);
+		};
+	}, [unsavedChanges]);
+
 	const handleSelectFile = () => {
 		setIsFilePickerOpen(true);
 	};
@@ -921,9 +951,15 @@ export function OhMyOpencodeSettings({
 									onChange={(e) => setSelectedPreset(e.target.value)}
 									className="bg-transparent text-[11px] font-bold text-slate-200 pr-6 py-1 focus:outline-none appearance-none cursor-pointer min-w-[120px] max-w-[180px] truncate"
 								>
-									<option value="" className="bg-[#161B26]">Select Preset...</option>
+									<option value="" className="bg-[#161B26]">
+										Select Preset...
+									</option>
 									{presets.map((preset) => (
-										<option key={preset} value={preset} className="bg-[#161B26]">
+										<option
+											key={preset}
+											value={preset}
+											className="bg-[#161B26]"
+										>
 											{preset}
 										</option>
 									))}
@@ -931,7 +967,7 @@ export function OhMyOpencodeSettings({
 								<ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500 pointer-events-none" />
 							</div>
 						</div>
-						
+
 						<button
 							type="button"
 							onClick={() => void handleLoadPreset()}
@@ -984,7 +1020,10 @@ export function OhMyOpencodeSettings({
 							Config
 						</button>
 						<div className="w-px h-4 bg-slate-700 mx-1" />
-						<div className="px-3 text-[10px] text-slate-500 font-mono truncate max-w-[100px]" title={configPath || ""}>
+						<div
+							className="px-3 text-[10px] text-slate-500 font-mono truncate max-w-[100px]"
+							title={configPath || ""}
+						>
 							{configPath?.split("/").pop()}
 						</div>
 					</div>
