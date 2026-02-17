@@ -112,77 +112,79 @@ export function AllModelsTab({
 		: expandedGroups;
 
 	return (
-		<div className="flex flex-col h-full overflow-hidden">
-			<div className="flex-none bg-slate-950/80 backdrop-blur-md pb-3 px-0 flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-800/60 mb-4">
-				<div className="flex items-center gap-2">
-					<div className="w-7 h-7 rounded-lg bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center text-blue-400">
-						<Cpu className="w-3.5 h-3.5" />
+		<div className="flex flex-col">
+			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 -mx-8 px-8 mb-6 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4">
+				<div className="flex items-center gap-3">
+					<div className="w-10 h-10 rounded-xl bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center text-blue-400 shadow-lg shadow-blue-500/10">
+						<Cpu className="w-5 h-5" />
 					</div>
 					<div>
 						<div className="flex items-center gap-2">
-							<h3 className="text-sm font-bold text-white tracking-tight leading-none">
-								AI Models
-							</h3>
-							<p className="text-[9px] font-bold text-blue-400 uppercase tracking-tighter">
-								{stats.enabled} / {stats.total}
-							</p>
+							<span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] leading-none">
+								Enabled Models
+							</span>
 						</div>
+						<p className="text-xl font-black text-white tracking-tight leading-none mt-1">
+							{stats.enabled} <span className="text-slate-600">/ {stats.total}</span>
+						</p>
 					</div>
 				</div>
 
-				<div className="flex items-center gap-1.5 flex-wrap">
+				<div className="flex items-center gap-3 flex-wrap">
 					<button
 						type="button"
 						onClick={() => void handleRefreshModelsAction()}
+						className="p-2.5 bg-[#161B26] border border-slate-700 hover:border-slate-600 text-slate-400 hover:text-white rounded-xl transition-all shadow-sm"
 						title="Refresh models"
-						className="p-1.5 bg-slate-800/40 border border-slate-800/60 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all"
 					>
-						<RefreshCw className="w-3.5 h-3.5" />
+						<RefreshCw className="w-4 h-4" />
 					</button>
-					<div className="flex items-center bg-slate-900/40 border border-slate-800/60 rounded-lg p-0.5">
+
+					<div className="w-px h-8 bg-slate-800/60 mx-1" />
+
+					<div className="flex items-center bg-[#161B26] border border-slate-700 rounded-xl p-1 shadow-sm">
 						<button
 							type="button"
 							onClick={() => setShowFreeOnly(!showFreeOnly)}
-							title="Show Free Only"
 							className={cn(
-								"p-1 rounded-md transition-all flex items-center gap-1 px-2",
+								"p-2 rounded-lg transition-all flex items-center gap-2 px-3",
 								showFreeOnly
 									? "bg-emerald-500/20 text-emerald-400"
 									: "hover:bg-slate-800 text-slate-400 hover:text-slate-200",
 							)}
 						>
-							<Gift className="w-3.5 h-3.5" />
-							<span className="text-[9px] font-bold uppercase tracking-widest">
-								Free
+							<Gift className="w-4 h-4" />
+							<span className="text-[10px] font-bold uppercase tracking-widest">
+								Free Only
 							</span>
 						</button>
-						<div className="w-px h-3 bg-slate-800 mx-0.5" />
+						<div className="w-px h-4 bg-slate-700 mx-1" />
 						<button
 							type="button"
 							onClick={() => setAllExpanded(true)}
+							className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-all"
 							title="Expand All"
-							className="p-1 hover:bg-slate-800 rounded-md text-slate-400 hover:text-slate-200 transition-all"
 						>
-							<Maximize2 className="w-3.5 h-3.5" />
+							<Maximize2 className="w-4 h-4" />
 						</button>
 						<button
 							type="button"
 							onClick={() => setAllExpanded(false)}
+							className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-all"
 							title="Collapse All"
-							className="p-1 hover:bg-slate-800 rounded-md text-slate-400 hover:text-slate-200 transition-all"
 						>
-							<Minimize2 className="w-3.5 h-3.5" />
+							<Minimize2 className="w-4 h-4" />
 						</button>
 					</div>
 
 					<div className="relative">
-						<Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500" />
+						<Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
 						<input
 							type="text"
-							placeholder="Search..."
+							placeholder="Search models..."
 							value={searchQuery}
 							onChange={(e) => setSearchQuery(e.target.value)}
-							className="pl-7 pr-2 py-1 bg-[#0B0E14] border border-slate-800/60 rounded-lg text-[10px] text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500/40 transition-all w-32 placeholder:text-slate-500"
+							className="pl-10 pr-4 py-2 bg-[#161B26] border border-slate-700 rounded-xl text-sm text-slate-200 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all w-48 placeholder:text-slate-500 shadow-sm"
 						/>
 					</div>
 
@@ -192,25 +194,24 @@ export function AllModelsTab({
 							void handleToggleAllAction(filteredModels, !isAllEnabled)
 						}
 						className={cn(
-							"px-2 py-1 text-[9px] font-bold uppercase tracking-wider rounded-lg transition-all flex items-center gap-1",
+							"px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 shadow-lg",
 							isAllEnabled
 								? "bg-slate-800 text-slate-400"
-								: "bg-blue-600 text-white shadow-lg shadow-blue-600/20",
+								: "bg-blue-600 text-white shadow-blue-600/20 hover:bg-blue-500",
 						)}
 					>
 						{isAllEnabled ? (
-							<ToggleLeft className="w-3 h-3" />
+							<ToggleLeft className="w-4 h-4" />
 						) : (
-							<ToggleRight className="w-3 h-3" />
+							<ToggleRight className="w-4 h-4" />
 						)}
 						<span>{isAllEnabled ? "Disable All" : "Enable All"}</span>
 					</button>
 				</div>
 			</div>
 
-			<div className="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-10">
-				<div className="space-y-4">
-					{allProviders.length === 0 ? (
+			<div className="space-y-4 pb-20">
+				{allProviders.length === 0 ? (
 						<div className="text-center py-12 bg-slate-900/40 rounded-2xl border border-dashed border-slate-800/60">
 							<p className="text-slate-500 text-sm">
 								No models found matching your search
@@ -384,6 +385,5 @@ export function AllModelsTab({
 					)}
 				</div>
 			</div>
-		</div>
 	);
 }

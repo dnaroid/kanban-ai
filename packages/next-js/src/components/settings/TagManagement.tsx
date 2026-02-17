@@ -88,18 +88,22 @@ export function TagManagement() {
 	};
 
 	return (
-		<section className="bg-[#11151C] border border-slate-800/50 rounded-2xl p-6 shadow-xl">
-			<div className="flex items-center gap-3 mb-6">
-				<div className="w-10 h-10 rounded-xl bg-indigo-500/10 ring-1 ring-indigo-500/20 flex items-center justify-center">
-					<TagIcon className="w-5 h-5 text-indigo-400" />
-				</div>
-				<div>
-					<h3 className="text-lg font-bold text-white tracking-tight">
-						Taxonomy
-					</h3>
-					<p className="text-xs text-slate-500 font-medium">
-						Organize tasks with global categories
-					</p>
+		<div className="flex flex-col">
+			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 -mx-8 px-8 mb-8 shrink-0 flex items-center justify-between">
+				<div className="flex items-center gap-3">
+					<div className="w-10 h-10 rounded-xl bg-indigo-500/10 ring-1 ring-indigo-500/20 flex items-center justify-center shadow-lg shadow-indigo-500/10">
+						<TagIcon className="w-5 h-5 text-indigo-400" />
+					</div>
+					<div>
+						<div className="flex items-center gap-2">
+							<span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] leading-none">
+								Global Taxonomy
+							</span>
+						</div>
+						<p className="text-xl font-black text-white tracking-tight leading-none mt-1">
+							{tags.length} <span className="text-slate-600">Active Tags</span>
+						</p>
+					</div>
 				</div>
 			</div>
 
@@ -232,6 +236,6 @@ export function TagManagement() {
 					</div>
 				</div>
 			</div>
-		</section>
+		</div>
 	);
 }

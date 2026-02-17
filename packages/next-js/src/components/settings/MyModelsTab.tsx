@@ -146,41 +146,47 @@ export function MyModelsTab({
 	};
 
 	return (
-		<div className="flex flex-col h-full overflow-hidden">
-			<div className="flex-none bg-slate-950/80 backdrop-blur-md pb-3 px-0 flex items-center justify-between border-b border-slate-800/60 mb-4">
-				<div className="flex items-center gap-2">
-					<div className="w-7 h-7 rounded-lg bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center text-blue-400">
-						<Cpu className="w-3.5 h-3.5" />
+		<div className="flex flex-col">
+			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 -mx-8 px-8 mb-6 shrink-0 flex items-center justify-between">
+				<div className="flex items-center gap-3">
+					<div className="w-10 h-10 rounded-xl bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center text-blue-400 shadow-lg shadow-blue-500/10">
+						<Star className="w-5 h-5 fill-current" />
 					</div>
 					<div>
-						<h3 className="text-sm font-bold text-white tracking-tight leading-none">
-							My Models
-						</h3>
+						<div className="flex items-center gap-2">
+							<span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] leading-none">
+								Favorite Models
+							</span>
+						</div>
+						<p className="text-xl font-black text-white tracking-tight leading-none mt-1">
+							{enabledModels.length} <span className="text-slate-600">Active</span>
+						</p>
 					</div>
 				</div>
 
-				<div className="flex items-center gap-1.5">
-					<button
-						type="button"
-						onClick={() => setAllExpanded(true)}
-						title="Expand All"
-						className="p-1 hover:bg-slate-800 rounded-md text-slate-400 hover:text-slate-200 transition-all bg-slate-900/40 border border-slate-800/60 focus:outline-none"
-					>
-						<Maximize2 className="w-3.5 h-3.5" />
-					</button>
-					<button
-						type="button"
-						onClick={() => setAllExpanded(false)}
-						title="Collapse All"
-						className="p-1 hover:bg-slate-800 rounded-md text-slate-400 hover:text-slate-200 transition-all bg-slate-900/40 border border-slate-800/60 focus:outline-none"
-					>
-						<Minimize2 className="w-3.5 h-3.5" />
-					</button>
+				<div className="flex items-center gap-2">
+					<div className="flex items-center bg-[#161B26] border border-slate-700 rounded-xl p-1 shadow-sm">
+						<button
+							type="button"
+							onClick={() => setAllExpanded(true)}
+							className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-all focus:outline-none"
+							title="Expand All"
+						>
+							<Maximize2 className="w-4 h-4" />
+						</button>
+						<button
+							type="button"
+							onClick={() => setAllExpanded(false)}
+							className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-all focus:outline-none"
+							title="Collapse All"
+						>
+							<Minimize2 className="w-4 h-4" />
+						</button>
+					</div>
 				</div>
 			</div>
 
-			<div className="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-10">
-				<div className="space-y-4">
+			<div className="space-y-4 pb-20">
 					{difficulties.some((d) => !defaultModels[d.value]) && (
 						<div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-2 text-red-400 mb-4">
 							<AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -452,6 +458,5 @@ export function MyModelsTab({
 					)}
 				</div>
 			</div>
-		</div>
 	);
 }

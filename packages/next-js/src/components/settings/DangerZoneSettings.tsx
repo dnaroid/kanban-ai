@@ -77,8 +77,27 @@ export function DangerZoneSettings({
 	};
 
 	return (
-		<div className="space-y-4 pt-2">
-			<div className="p-5 bg-[#0B0E14] border border-red-900/20 rounded-2xl group transition-all hover:border-red-900/40">
+		<div className="flex flex-col">
+			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 -mx-8 px-8 mb-8 shrink-0 flex items-center justify-between">
+				<div className="flex items-center gap-3">
+					<div className="w-10 h-10 rounded-xl bg-red-500/10 ring-1 ring-red-500/20 flex items-center justify-center shadow-lg shadow-red-500/10">
+						<AlertCircle className="w-5 h-5 text-red-400" />
+					</div>
+					<div>
+						<div className="flex items-center gap-2">
+							<span className="text-[10px] font-black text-red-400 uppercase tracking-[0.2em] leading-none">
+								Security & Safety
+							</span>
+						</div>
+						<p className="text-xl font-black text-white tracking-tight leading-none mt-1">
+							{projects.length} <span className="text-slate-600">Managed Projects</span>
+						</p>
+					</div>
+				</div>
+			</div>
+
+			<div className="space-y-4">
+				<div className="p-5 bg-[#11151C] border border-red-900/20 rounded-2xl group transition-all hover:border-red-900/40 shadow-xl shadow-red-900/5">
 				<div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
 					<div className="space-y-3 flex-1">
 						<div className="flex items-center gap-3">
@@ -143,7 +162,7 @@ export function DangerZoneSettings({
 				</div>
 			</div>
 
-			<div className="p-5 bg-[#0B0E14] border border-red-900/20 rounded-2xl group transition-all hover:border-red-900/40">
+			<div className="p-5 bg-[#11151C] border border-red-900/20 rounded-2xl group transition-all hover:border-red-900/40 shadow-xl shadow-red-900/5">
 				<div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
 					<div className="space-y-3 flex-1">
 						<div className="flex items-center gap-3">
@@ -191,6 +210,7 @@ export function DangerZoneSettings({
 					</div>
 				</div>
 			</div>
+		</div>
 		</div>
 	);
 }
