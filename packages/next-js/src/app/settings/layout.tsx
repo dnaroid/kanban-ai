@@ -110,7 +110,7 @@ function SettingsLayoutInner({ children }: { children: ReactNode }) {
 				</div>
 			)}
 
-			<div className="sticky top-0 z-40 bg-[#0B0E14]/80 backdrop-blur-md -mx-8 -mt-8 px-8 pt-8 mb-6 border-b border-slate-800/40 flex items-center gap-2">
+			<div className="sticky top-0 z-40 bg-[#0B0E14]/80 backdrop-blur-md -mx-8 -mt-8 px-8 pt-4 mb-6 border-b border-slate-800/40 flex items-center gap-2">
 				{tabs.map((tab) => {
 					const Icon = tab.icon;
 					const isActive = activeTab === tab.id;

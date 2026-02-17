@@ -155,21 +155,21 @@ export function MyModelsTab({
 					<div>
 						<div className="flex items-center gap-2">
 							<span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] leading-none">
-								Favorite Models
+								Active Selection
 							</span>
 						</div>
 						<p className="text-xl font-black text-white tracking-tight leading-none mt-1">
-							{enabledModels.length} <span className="text-slate-600">Active</span>
+							{enabledModels.length} <span className="text-slate-600">Models</span>
 						</p>
 					</div>
 				</div>
 
 				<div className="flex items-center gap-2">
-					<div className="flex items-center bg-[#161B26] border border-slate-700 rounded-xl p-1 shadow-sm">
+					<div className="flex items-center h-10 bg-[#161B26] border border-slate-700 rounded-xl p-1 shadow-sm">
 						<button
 							type="button"
 							onClick={() => setAllExpanded(true)}
-							className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-all focus:outline-none"
+							className="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-all focus:outline-none"
 							title="Expand All"
 						>
 							<Maximize2 className="w-4 h-4" />
@@ -177,7 +177,7 @@ export function MyModelsTab({
 						<button
 							type="button"
 							onClick={() => setAllExpanded(false)}
-							className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-all focus:outline-none"
+							className="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-all focus:outline-none"
 							title="Collapse All"
 						>
 							<Minimize2 className="w-4 h-4" />

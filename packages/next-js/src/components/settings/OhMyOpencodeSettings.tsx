@@ -911,6 +911,69 @@ export function OhMyOpencodeSettings({
 				</div>
 
 				<div className="flex items-center gap-3 flex-wrap">
+					{/* Preset Section */}
+					<div className="flex items-center bg-[#161B26] border border-slate-700 rounded-xl p-1 shadow-sm">
+						<div className="flex items-center gap-2 px-2">
+							<Layers className="w-4 h-4 text-slate-500" />
+							<div className="relative">
+								<select
+									value={selectedPreset}
+									onChange={(e) => setSelectedPreset(e.target.value)}
+									className="bg-transparent text-[11px] font-bold text-slate-200 pr-6 py-1 focus:outline-none appearance-none cursor-pointer min-w-[120px] max-w-[180px] truncate"
+								>
+									<option value="" className="bg-[#161B26]">Select Preset...</option>
+									{presets.map((preset) => (
+										<option key={preset} value={preset} className="bg-[#161B26]">
+											{preset}
+										</option>
+									))}
+								</select>
+								<ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500 pointer-events-none" />
+							</div>
+						</div>
+						
+						<button
+							type="button"
+							onClick={() => void handleLoadPreset()}
+							disabled={!selectedPreset}
+							className={cn(
+								"h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all",
+								selectedPreset
+									? "bg-slate-700 text-white hover:bg-slate-600"
+									: "text-slate-600 cursor-not-allowed",
+							)}
+						>
+							Load
+						</button>
+
+						<div className="w-px h-4 bg-slate-700 mx-1" />
+
+						<div className="flex items-center gap-1 pl-1">
+							<input
+								value={newPresetName}
+								onChange={(e) => setNewPresetName(e.target.value)}
+								placeholder="New name..."
+								className="bg-transparent text-[11px] text-slate-300 px-2 py-1 focus:outline-none w-24 placeholder:text-slate-600"
+							/>
+							<button
+								type="button"
+								onClick={() => void handleSavePreset()}
+								disabled={!newPresetName.trim() || !config}
+								className={cn(
+									"h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all",
+									newPresetName.trim() && config
+										? "bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 ring-1 ring-emerald-500/30"
+										: "text-slate-600 cursor-not-allowed",
+								)}
+							>
+								Save
+							</button>
+						</div>
+					</div>
+
+					<div className="w-px h-8 bg-slate-800/60 mx-1" />
+
+					{/* Config Section */}
 					<div className="flex items-center bg-[#161B26] border border-slate-700 rounded-xl p-1 shadow-sm">
 						<button
 							type="button"
@@ -918,126 +981,53 @@ export function OhMyOpencodeSettings({
 							className="h-8 px-3 hover:bg-slate-800 text-slate-300 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-2"
 						>
 							<FolderOpen className="w-3.5 h-3.5 text-slate-400" />
-							Change
+							Config
 						</button>
 						<div className="w-px h-4 bg-slate-700 mx-1" />
-						<div className="px-3 text-[10px] text-slate-500 font-mono truncate max-w-[200px]">
+						<div className="px-3 text-[10px] text-slate-500 font-mono truncate max-w-[100px]" title={configPath || ""}>
 							{configPath?.split("/").pop()}
 						</div>
 					</div>
 
-					<div className="w-px h-8 bg-slate-800/60 mx-1" />
+					{/* Action Buttons */}
+					<button
+						type="button"
+						onClick={() => {
+							void handleSave();
+						}}
+						disabled={!unsavedChanges}
+						className={cn(
+							"h-10 px-5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-2 shadow-lg",
+							unsavedChanges
+								? "bg-blue-600 text-white shadow-blue-600/20 hover:bg-blue-500"
+								: "bg-slate-800/40 text-slate-500 cursor-not-allowed shadow-none",
+						)}
+					>
+						<Save className="w-4 h-4" />
+						{unsavedChanges ? "Apply" : "Synced"}
+					</button>
 
-					<div className="flex items-center gap-2">
+					<div className="flex items-center bg-[#161B26] border border-slate-700 rounded-xl p-1 shadow-sm">
 						<button
 							type="button"
 							onClick={() => {
-								void handleSave();
+								void handleBackup();
 							}}
-							disabled={!unsavedChanges}
-							className={cn(
-								"h-10 px-6 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 shadow-lg",
-								unsavedChanges
-									? "bg-blue-600 text-white shadow-blue-600/20 hover:bg-blue-500 hover:scale-105 active:scale-95"
-									: "bg-slate-800/40 text-slate-500 cursor-not-allowed shadow-none",
-							)}
+							className="w-8 h-8 flex items-center justify-center hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-all"
+							title="Create Backup"
 						>
-							<Save className="w-4 h-4" />
-							{unsavedChanges ? "Apply Changes" : "Synced"}
+							<RotateCcw className="w-4 h-4" />
 						</button>
-
-						<div className="flex items-center bg-[#161B26] border border-slate-700 rounded-xl p-1 shadow-sm">
-							<button
-								type="button"
-								onClick={() => {
-									void handleBackup();
-								}}
-								className="w-8 h-8 flex items-center justify-center hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-all"
-								title="Create Backup"
-							>
-								<RotateCcw className="w-4 h-4" />
-							</button>
-							<button
-								type="button"
-								onClick={() => {
-									void handleRestore();
-								}}
-								disabled={!hasBackup}
-								className="w-8 h-8 flex items-center justify-center hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-all disabled:opacity-20 disabled:cursor-not-allowed"
-								title="Restore from Backup"
-							>
-								<ShieldAlert className="w-4 h-4" />
-							</button>
-						</div>
-					</div>
-				</div>
-			</div>
-
-			<div className="flex-none -mx-8 px-8 mb-6">
-				<div className="flex items-center gap-4 py-3 px-4 bg-[#161B26]/50 border border-slate-800/50 rounded-xl backdrop-blur-sm">
-					<div className="flex items-center gap-3 flex-1">
-						<div className="w-8 h-8 rounded-lg bg-slate-800/50 flex items-center justify-center text-slate-500">
-							<Layers className="w-4 h-4" />
-						</div>
-						<div className="flex-1">
-							<div className="relative">
-								<select
-									value={selectedPreset}
-									onChange={(e) => setSelectedPreset(e.target.value)}
-									className="w-full h-10 bg-[#0B0E14] border border-slate-700 text-xs font-medium text-slate-200 rounded-lg pl-3 pr-8 py-2 hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer transition-colors"
-								>
-									<option value="">Select a preset configuration...</option>
-									{presets.map((preset) => (
-										<option key={preset} value={preset}>
-											{preset}
-										</option>
-									))}
-								</select>
-								<ChevronDown className="absolute right-3 top-3 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
-							</div>
-						</div>
 						<button
 							type="button"
 							onClick={() => {
-								void handleLoadPreset();
+								void handleRestore();
 							}}
-							disabled={!selectedPreset}
-							className={cn(
-								"h-10 px-4 rounded-lg text-xs font-bold uppercase tracking-wider transition-all",
-								selectedPreset
-									? "bg-slate-700 text-white hover:bg-slate-600 shadow-lg shadow-black/20"
-									: "bg-slate-800/40 text-slate-500 cursor-not-allowed",
-							)}
+							disabled={!hasBackup}
+							className="w-8 h-8 flex items-center justify-center hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-all disabled:opacity-20 disabled:cursor-not-allowed"
+							title="Restore from Backup"
 						>
-							Load
-						</button>
-					</div>
-
-					<div className="w-px h-8 bg-slate-800/50" />
-
-					<div className="flex items-center gap-3 flex-1">
-						<div className="relative flex-1">
-							<input
-								value={newPresetName}
-								onChange={(e) => setNewPresetName(e.target.value)}
-								placeholder="Save current config as preset..."
-								className="w-full h-10 bg-[#0B0E14] border border-slate-700 text-xs text-slate-200 rounded-lg px-3 py-2 hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-slate-600"
-							/>
-						</div>
-						<button
-							type="button"
-							onClick={() => {
-								void handleSavePreset();
-							}}
-							disabled={!newPresetName.trim() || !config}
-							className={cn(
-								"h-10 px-4 rounded-lg text-xs font-bold uppercase tracking-wider transition-all",
-								newPresetName.trim() && config
-									? "bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-600/20"
-									: "bg-slate-800/40 text-slate-500 cursor-not-allowed",
-							)}
-						>
-							Save New
+							<ShieldAlert className="w-4 h-4" />
 						</button>
 					</div>
 				</div>
