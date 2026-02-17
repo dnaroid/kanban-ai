@@ -130,53 +130,52 @@ export function AllModelsTab({
 					</div>
 				</div>
 
-				<div className="flex items-center gap-3 flex-wrap">
-					<button
-						type="button"
-						onClick={() => void handleRefreshModelsAction()}
-						className="p-2.5 bg-[#161B26] border border-slate-700 hover:border-slate-600 text-slate-400 hover:text-white rounded-xl transition-all shadow-sm"
-						title="Refresh models"
-					>
-						<RefreshCw className="w-4 h-4" />
-					</button>
-
-					<div className="w-px h-8 bg-slate-800/60 mx-1" />
-
-					<div className="flex items-center bg-[#161B26] border border-slate-700 rounded-xl p-1 shadow-sm">
-						<button
-							type="button"
-							onClick={() => setShowFreeOnly(!showFreeOnly)}
-							className={cn(
-								"p-2 rounded-lg transition-all flex items-center gap-2 px-3",
-								showFreeOnly
-									? "bg-emerald-500/20 text-emerald-400"
-									: "hover:bg-slate-800 text-slate-400 hover:text-slate-200",
-							)}
-						>
-							<Gift className="w-4 h-4" />
-							<span className="text-[10px] font-bold uppercase tracking-widest">
-								Free Only
-							</span>
-						</button>
-						<div className="w-px h-4 bg-slate-700 mx-1" />
-						<button
-							type="button"
-							onClick={() => setAllExpanded(true)}
-							className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-all"
-							title="Expand All"
-						>
-							<Maximize2 className="w-4 h-4" />
-						</button>
-						<button
-							type="button"
-							onClick={() => setAllExpanded(false)}
-							className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-all"
-							title="Collapse All"
-						>
-							<Minimize2 className="w-4 h-4" />
-						</button>
-					</div>
-
+								<div className="flex items-center gap-3 flex-wrap">
+									<button
+										type="button"
+										onClick={() => void handleRefreshModelsAction()}
+										className="h-10 w-10 flex items-center justify-center bg-[#161B26] border border-slate-700 hover:border-slate-600 text-slate-400 hover:text-white rounded-xl transition-all shadow-sm"
+										title="Refresh models"
+									>
+										<RefreshCw className="w-4 h-4" />
+									</button>
+									
+									<div className="w-px h-8 bg-slate-800/60 mx-1" />
+				
+									<div className="flex items-center h-10 bg-[#161B26] border border-slate-700 rounded-xl p-1 shadow-sm">
+										<button
+											type="button"
+											onClick={() => setShowFreeOnly(!showFreeOnly)}
+											className={cn(
+												"h-8 rounded-lg transition-all flex items-center gap-2 px-3",
+												showFreeOnly
+													? "bg-emerald-500/20 text-emerald-400"
+													: "hover:bg-slate-800 text-slate-400 hover:text-slate-200",
+											)}
+										>
+											<Gift className="w-4 h-4" />
+											<span className="text-[10px] font-bold uppercase tracking-widest">
+												Free Only
+											</span>
+										</button>
+										<div className="w-px h-4 bg-slate-700 mx-1" />
+										<button
+											type="button"
+											onClick={() => setAllExpanded(true)}
+											className="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-all"
+											title="Expand All"
+										>
+											<Maximize2 className="w-4 h-4" />
+										</button>
+										<button
+											type="button"
+											onClick={() => setAllExpanded(false)}
+											className="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-all"
+											title="Collapse All"
+										>
+											<Minimize2 className="w-4 h-4" />
+										</button>
+									</div>
 					<div className="relative">
 						<Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
 						<input
@@ -184,7 +183,7 @@ export function AllModelsTab({
 							placeholder="Search models..."
 							value={searchQuery}
 							onChange={(e) => setSearchQuery(e.target.value)}
-							className="pl-10 pr-4 py-2 bg-[#161B26] border border-slate-700 rounded-xl text-sm text-slate-200 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all w-48 placeholder:text-slate-500 shadow-sm"
+							className="pl-10 pr-4 py-2.5 bg-[#161B26] border border-slate-700 rounded-xl text-sm text-slate-200 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all w-48 placeholder:text-slate-500 shadow-sm"
 						/>
 					</div>
 
@@ -194,7 +193,7 @@ export function AllModelsTab({
 							void handleToggleAllAction(filteredModels, !isAllEnabled)
 						}
 						className={cn(
-							"px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 shadow-lg",
+							"h-10 px-4 text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 shadow-lg",
 							isAllEnabled
 								? "bg-slate-800 text-slate-400"
 								: "bg-blue-600 text-white shadow-blue-600/20 hover:bg-blue-500",
