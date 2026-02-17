@@ -923,7 +923,7 @@ export function OhMyOpencodeSettings({
 
 	return (
 		<div className="flex flex-col">
-			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 -mx-8 px-8 mb-6 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4">
+			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 mb-6 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4">
 				<div className="flex items-center gap-3">
 					<div className="w-10 h-10 rounded-xl bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center text-blue-400 shadow-lg shadow-blue-500/10">
 						<SettingsIcon className="w-5 h-5 animate-spin-slow" />
@@ -1074,7 +1074,7 @@ export function OhMyOpencodeSettings({
 
 			<div className="flex-1 relative">
 				<div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/10 to-transparent" />
-				<div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-500/5 rounded-full blur-[100px] pointer-events-none -translate-y-1/2 translate-x-1/2" />
+				<div className="absolute top-0 right-0 w-[300px] h-[300px] bg-blue-500/5 rounded-full blur-[80px] pointer-events-none" />
 
 				{config ? (
 					<div className="space-y-8 pb-20">

@@ -505,6 +505,7 @@ function ObjectTreeNode({
 									modelVariants={modelVariants}
 									depth={depth + 1}
 									validationErrors={validationErrors}
+									entityModel={obj.model as string}
 									labelAction={
 										<button
 											type="button"

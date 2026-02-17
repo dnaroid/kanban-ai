@@ -78,7 +78,7 @@ export function DangerZoneSettings({
 
 	return (
 		<div className="flex flex-col">
-			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 -mx-8 px-8 mb-8 shrink-0 flex items-center justify-between">
+			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 mb-8 shrink-0 flex items-center justify-between">
 				<div className="flex items-center gap-3">
 					<div className="w-10 h-10 rounded-xl bg-red-500/10 ring-1 ring-red-500/20 flex items-center justify-center shadow-lg shadow-red-500/10">
 						<AlertCircle className="w-5 h-5 text-red-400" />

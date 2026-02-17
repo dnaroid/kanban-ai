@@ -113,7 +113,7 @@ export function AllModelsTab({
 
 	return (
 		<div className="flex flex-col">
-			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 -mx-8 px-8 mb-6 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4">
+			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 mb-6 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4">
 				<div className="flex items-center gap-3">
 					<div className="w-10 h-10 rounded-xl bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center text-blue-400 shadow-lg shadow-blue-500/10">
 						<Cpu className="w-5 h-5" />

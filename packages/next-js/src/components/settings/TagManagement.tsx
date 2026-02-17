@@ -89,7 +89,7 @@ export function TagManagement() {
 
 	return (
 		<div className="flex flex-col">
-			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 -mx-8 px-8 mb-8 shrink-0 flex items-center justify-between">
+			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 mb-8 shrink-0 flex items-center justify-between">
 				<div className="flex items-center gap-3">
 					<div className="w-10 h-10 rounded-xl bg-indigo-500/10 ring-1 ring-indigo-500/20 flex items-center justify-center shadow-lg shadow-indigo-500/10">
 						<TagIcon className="w-5 h-5 text-indigo-400" />
@@ -171,14 +171,14 @@ export function TagManagement() {
 						</button>
 					</div>
 
-					<div className="bg-[#0B0E14] border border-slate-800/60 rounded-xl overflow-hidden shadow-inner shadow-black/40">
+					<div className="bg-[#0B0E14] border border-slate-800/60 rounded-xl overflow-hidden shadow-inner shadow-black/40 max-w-full">
 						<div className="max-h-[300px] overflow-y-auto custom-scrollbar">
-							<table className="w-full text-left">
+							<table className="w-full text-left table-fixed">
 								<thead className="sticky top-0 z-10 bg-slate-900/50 backdrop-blur-md">
 									<tr className="text-[9px] uppercase tracking-[0.2em] text-slate-500 font-black">
-										<th className="px-4 py-3">Label</th>
-										<th className="px-4 py-3">Hex</th>
-										<th className="px-4 py-3 text-right">Action</th>
+										<th className="px-4 py-3 w-[60%]">Label</th>
+										<th className="px-4 py-3 w-[25%]">Hex</th>
+										<th className="px-4 py-3 w-[15%] text-right">Action</th>
 									</tr>
 								</thead>
 								<tbody className="divide-y divide-slate-800/40">
