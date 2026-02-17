@@ -513,20 +513,16 @@ function DynamicField({
 
 	if (schema.type === "object") {
 		return (
-			<div className="border border-slate-700/50 rounded-lg p-4">
-				<div className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wider">
-					{fieldLabel}
-				</div>
-				<DynamicObjectField
-					schema={schema}
-					value={value}
-					onChange={onChange}
-					path={path}
-					models={models}
-					modelVariants={modelVariants}
-					depth={depth + 1}
-				/>
-			</div>
+			<DynamicObjectField
+				schema={schema}
+				value={value}
+				onChange={onChange}
+				path={path}
+				models={models}
+				modelVariants={modelVariants}
+				depth={depth + 1}
+				label={depth === 0 ? fieldLabel : undefined}
+			/>
 		);
 	}
 
@@ -655,24 +651,22 @@ export function DynamicFormFields({
 				</CollapsibleSection>
 			)}
 
-			{/* Section fields (objects/arrays) */}
 			{sectionFields.map(([key, propSchema]) => {
 				const ps = propSchema as JSONSchema;
 				const sectionTitle = ps.title ?? key;
 
 				return (
-					<CollapsibleSection key={key} title={sectionTitle}>
-						<DynamicField
-							schema={ps}
-							value={data[key]}
-							onChange={(v) => onChange(key, v)}
-							label={sectionTitle}
-							path={key}
-							models={models}
-							modelVariants={modelVariants}
-							depth={0}
-						/>
-					</CollapsibleSection>
+					<DynamicField
+						key={key}
+						schema={ps}
+						value={data[key]}
+						onChange={(v) => onChange(key, v)}
+						label={sectionTitle}
+						path={key}
+						models={models}
+						modelVariants={modelVariants}
+						depth={1}
+					/>
 				);
 			})}
 		</div>
