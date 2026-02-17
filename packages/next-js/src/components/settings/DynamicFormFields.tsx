@@ -3,7 +3,14 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { JSONSchema } from "@/lib/json-schema-types";
-import { ChevronDown, ChevronRight, Plus, AlertCircle, X } from "lucide-react";
+import {
+	ChevronDown,
+	ChevronRight,
+	Plus,
+	AlertCircle,
+	X,
+	AlertTriangle,
+} from "lucide-react";
 import { ModelPicker } from "@/components/common/ModelPicker";
 import type { OpencodeModel } from "@/types/kanban";
 import Ajv from "ajv";
@@ -16,8 +23,12 @@ export interface ValidationError {
 	params?: Record<string, unknown>;
 }
 
-// Global AJV instance
-const ajv = new Ajv({ allErrors: true, strict: false });
+// Global AJV instance - addUsedSchema: false prevents caching by $id
+const ajv = new Ajv({
+	allErrors: true,
+	strict: false,
+	addUsedSchema: false,
+});
 
 interface FieldProps {
 	schema: JSONSchema;
@@ -41,9 +52,7 @@ function FieldLabel({
 }) {
 	return (
 		<div className="flex items-center justify-between pl-1">
-			<div className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-				{label}
-			</div>
+			<div className="block text-[10px] font-bold text-slate-400">{label}</div>
 			{action}
 		</div>
 	);
@@ -104,7 +113,7 @@ function DynamicSelectField({
 }) {
 	return (
 		<div className="relative space-y-1.5">
-			<div className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+			<div className="block text-[10px] font-bold text-slate-400 pl-1">
 				{label}
 			</div>
 			<div className="relative">
@@ -143,7 +152,7 @@ function DynamicToggleField({
 }) {
 	return (
 		<div className="flex items-center justify-between py-2 px-1 hover:bg-slate-800/20 rounded-lg transition-colors group">
-			<div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-slate-300 transition-colors">
+			<div className="text-[10px] font-bold text-slate-400 group-hover:text-slate-300 transition-colors">
 				{label}
 			</div>
 			<button
@@ -201,7 +210,7 @@ function DynamicArrayField({
 				<button
 					type="button"
 					onClick={handleAdd}
-					className="text-[10px] font-bold uppercase tracking-wider text-blue-400 hover:text-blue-300 px-2 py-1 rounded hover:bg-blue-500/10 transition-colors"
+					className="text-[10px] font-bold text-blue-400 hover:text-blue-300 px-2 py-1 rounded hover:bg-blue-500/10 transition-colors"
 				>
 					+ Add Item
 				</button>
@@ -412,7 +421,7 @@ function ObjectTreeNode({
 				) : (
 					<ChevronRight className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
 				)}
-				<span className="text-xs font-bold text-slate-300 uppercase tracking-widest truncate">
+				<span className="text-xs font-bold text-slate-300 truncate">
 					{fieldLabel}
 				</span>
 				{pathErrors.length > 0 && (
@@ -422,9 +431,7 @@ function ObjectTreeNode({
 					</span>
 				)}
 				{!hasContent && pathErrors.length === 0 && (
-					<span className="text-[10px] text-slate-500 ml-auto uppercase tracking-wider">
-						empty
-					</span>
+					<span className="text-[10px] text-slate-500 ml-auto">empty</span>
 				)}
 			</button>
 			{isExpanded && (
@@ -545,7 +552,7 @@ function ObjectTreeNode({
 								<button
 									type="button"
 									onClick={() => setShowAddModal(true)}
-									className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-blue-400 hover:text-blue-300 px-2 py-1.5 rounded hover:bg-blue-500/10 transition-colors"
+									className="flex items-center gap-1.5 text-[10px] font-bold text-blue-400 hover:text-blue-300 px-2 py-1.5 rounded hover:bg-blue-500/10 transition-colors"
 								>
 									<Plus className="w-3.5 h-3.5" />
 									Add Entity
@@ -647,7 +654,7 @@ function DynamicField({
 							value={(value as string) ?? ""}
 							onChange={(e) => onChange(e.target.value || undefined)}
 							placeholder={schema.description ?? "#RRGGBB"}
-							className="flex-1 bg-[#161B26] border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all uppercase placeholder:text-slate-500"
+							className="flex-1 bg-[#161B26] border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all placeholder:text-slate-500"
 						/>
 					</div>
 				</div>
@@ -751,7 +758,7 @@ function DynamicField({
 		return (
 			<div className="space-y-2">
 				{fieldLabel && (
-					<div className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 pl-1">
+					<div className="block text-[10px] font-bold text-slate-400 mb-1.5 pl-1">
 						{fieldLabel}
 					</div>
 				)}
@@ -832,9 +839,7 @@ function CollapsibleSection({
 				) : (
 					<ChevronRight className="w-4 h-4 text-slate-400" />
 				)}
-				<span className="text-xs font-bold text-slate-300 uppercase tracking-widest">
-					{title}
-				</span>
+				<span className="text-xs font-bold text-slate-300">{title}</span>
 			</button>
 			{isExpanded && <div className="p-6 space-y-4">{children}</div>}
 		</div>
@@ -875,6 +880,32 @@ export function DynamicFormFields({
 
 	return (
 		<div className="space-y-4">
+			{validationErrors && validationErrors.length > 0 && (
+				<div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-4">
+					<div className="flex items-start gap-3">
+						<AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+						<div className="flex-1">
+							<h4 className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-2">
+								Schema validation warnings
+							</h4>
+							<ul className="text-sm text-amber-700 dark:text-amber-300 space-y-1">
+								{validationErrors.map((error, index) => (
+									<li
+										key={`${error.path}-${index}`}
+										className="flex items-start gap-2"
+									>
+										<span className="font-mono text-xs bg-amber-100 dark:bg-amber-800 px-1.5 py-0.5 rounded">
+											{error.path || "root"}
+										</span>
+										<span>{error.message}</span>
+									</li>
+								))}
+							</ul>
+						</div>
+					</div>
+				</div>
+			)}
+
 			{/* Simple fields section */}
 			{simpleFields.length > 0 && (
 				<CollapsibleSection title="General Settings">
@@ -948,11 +979,12 @@ export function validateSchema(
 			}));
 		}
 		return [];
-	} catch {
+	} catch (e) {
+		const errorMessage = e instanceof Error ? e.message : String(e);
 		return [
 			{
 				path: "/",
-				message: "Schema validation failed",
+				message: `Schema validation error: ${errorMessage}`,
 				keyword: "exception",
 			},
 		];

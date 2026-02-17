@@ -171,8 +171,8 @@ export function ModelsManagement({
 	}
 
 	return (
-		<div className="flex flex-col h-full overflow-hidden">
-			<div className="flex-1 overflow-hidden">
+		<div className="flex flex-col">
+			<div className="flex-1">
 				{activeSubTab === "all" && (
 					<AllModelsTab
 						models={models}

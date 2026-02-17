@@ -892,15 +892,15 @@ export function OhMyOpencodeSettings({
 	};
 
 	return (
-		<div className="flex flex-col h-full overflow-hidden">
-			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 px-8 pt-8 shrink-0">
+		<div className="flex flex-col w-full overflow-x-hidden">
+			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 -mx-8 px-8 mb-6 shrink-0">
 				<div className="flex items-center justify-between mb-6">
 					<div className="flex items-center gap-4">
 						<div className="w-12 h-12 rounded-2xl bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center text-blue-400 shadow-lg shadow-blue-500/10 transition-transform hover:scale-110">
 							<SettingsIcon className="w-6 h-6 animate-spin-slow" />
 						</div>
 						<div>
-							<h1 className="text-2xl font-black text-white tracking-tight leading-tight uppercase">
+							<h1 className="text-xl font-black text-white tracking-tight leading-tight uppercase">
 								Oh My Opencode
 							</h1>
 							<div className="flex items-center gap-2 mt-1">
@@ -1033,22 +1033,20 @@ export function OhMyOpencodeSettings({
 				</div>
 			</div>
 
-			<div className="flex-1 overflow-hidden bg-[#0B0E14] relative">
+			<div className="flex-1 relative">
 				<div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/10 to-transparent" />
 				<div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-500/5 rounded-full blur-[100px] pointer-events-none -translate-y-1/2 translate-x-1/2" />
 
 				{config ? (
-					<div className="h-full overflow-y-auto custom-scrollbar p-8">
-						<div className="max-w-5xl mx-auto space-y-8 pb-20">
-							<DynamicFormFields
-								schema={schema}
-								data={config as unknown as Record<string, unknown>}
-								onChange={handleChange}
-								excludeFields={new Set(["$schema"])}
-								models={models}
-								validationErrors={validationErrors}
-							/>
-						</div>
+					<div className="space-y-8 pb-20">
+						<DynamicFormFields
+							schema={schema}
+							data={config as unknown as Record<string, unknown>}
+							onChange={handleChange}
+							excludeFields={new Set(["$schema"])}
+							models={models}
+							validationErrors={validationErrors}
+						/>
 					</div>
 				) : (
 					<div className="flex flex-col items-center justify-center h-full text-center p-8">

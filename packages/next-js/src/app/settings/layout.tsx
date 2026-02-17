@@ -110,7 +110,7 @@ function SettingsLayoutInner({ children }: { children: ReactNode }) {
 				</div>
 			)}
 
-			<div className="flex items-center gap-2 mb-4 border-b border-slate-800/40">
+			<div className="sticky top-0 z-40 bg-[#0B0E14]/80 backdrop-blur-md -mx-8 -mt-8 px-8 pt-8 mb-6 border-b border-slate-800/40 flex items-center gap-2">
 				{tabs.map((tab) => {
 					const Icon = tab.icon;
 					const isActive = activeTab === tab.id;
@@ -119,7 +119,7 @@ function SettingsLayoutInner({ children }: { children: ReactNode }) {
 							href={`/settings/${tab.id}`}
 							key={tab.id}
 							className={cn(
-								"flex items-center gap-2 px-4 py-1.5 text-xs font-bold uppercase tracking-widest rounded-t-xl transition-all border-b-2 focus:outline-none",
+								"flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-t-xl transition-all border-b-2 -mb-[1px] focus:outline-none",
 								isActive
 									? "border-blue-500 text-blue-400 bg-blue-500/5"
 									: "border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-800/20",
