@@ -52,7 +52,7 @@ function FieldLabel({
 }) {
 	return (
 		<div className="flex items-center justify-between pl-1">
-			<div className="block text-[10px] font-bold text-slate-400">{label}</div>
+			<div className="block text-xs font-bold text-slate-400">{label}</div>
 			{action}
 		</div>
 	);
@@ -113,9 +113,7 @@ function DynamicSelectField({
 }) {
 	return (
 		<div className="relative space-y-1.5">
-			<div className="block text-[10px] font-bold text-slate-400 pl-1">
-				{label}
-			</div>
+			<div className="block text-xs font-bold text-slate-400 pl-1">{label}</div>
 			<div className="relative">
 				<select
 					value={value ?? ""}
@@ -152,7 +150,7 @@ function DynamicToggleField({
 }) {
 	return (
 		<div className="flex items-center justify-between py-2 px-1 hover:bg-slate-800/20 rounded-lg transition-colors group">
-			<div className="text-[10px] font-bold text-slate-400 group-hover:text-slate-300 transition-colors">
+			<div className="text-xs font-bold text-slate-400 group-hover:text-slate-300 transition-colors">
 				{label}
 			</div>
 			<button
@@ -210,7 +208,7 @@ function DynamicArrayField({
 				<button
 					type="button"
 					onClick={handleAdd}
-					className="text-[10px] font-bold text-blue-400 hover:text-blue-300 px-2 py-1 rounded hover:bg-blue-500/10 transition-colors"
+					className="text-xs font-bold text-blue-400 hover:text-blue-300 px-2 py-1 rounded hover:bg-blue-500/10 transition-colors"
 				>
 					+ Add Item
 				</button>
@@ -421,17 +419,17 @@ function ObjectTreeNode({
 				) : (
 					<ChevronRight className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
 				)}
-				<span className="text-xs font-bold text-slate-300 truncate">
+				<span className="text-sm font-bold text-slate-300 truncate">
 					{fieldLabel}
 				</span>
 				{pathErrors.length > 0 && (
-					<span className="text-[10px] text-red-400 ml-2 flex items-center gap-1">
+					<span className="text-xs text-red-400 ml-2 flex items-center gap-1">
 						<AlertCircle className="w-3 h-3" />
 						{pathErrors.length} error{pathErrors.length > 1 ? "s" : ""}
 					</span>
 				)}
 				{!hasContent && pathErrors.length === 0 && (
-					<span className="text-[10px] text-slate-500 ml-auto">empty</span>
+					<span className="text-xs text-slate-500 ml-auto">empty</span>
 				)}
 			</button>
 			{isExpanded && (
@@ -474,7 +472,7 @@ function ObjectTreeNode({
 										{keyErrors.map((error) => (
 											<div
 												key={`${error.path}-${error.keyword}`}
-												className="flex items-start gap-1.5 text-[10px] text-red-400"
+												className="flex items-start gap-1.5 text-xs text-red-400"
 											>
 												<AlertCircle className="w-3 h-3 flex-shrink-0 mt-0.5" />
 												<span>{error.message}</span>
@@ -552,7 +550,7 @@ function ObjectTreeNode({
 								<button
 									type="button"
 									onClick={() => setShowAddModal(true)}
-									className="flex items-center gap-1.5 text-[10px] font-bold text-blue-400 hover:text-blue-300 px-2 py-1.5 rounded hover:bg-blue-500/10 transition-colors"
+									className="flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-blue-300 px-2 py-1.5 rounded hover:bg-blue-500/10 transition-colors"
 								>
 									<Plus className="w-3.5 h-3.5" />
 									Add Entity
@@ -758,7 +756,7 @@ function DynamicField({
 		return (
 			<div className="space-y-2">
 				{fieldLabel && (
-					<div className="block text-[10px] font-bold text-slate-400 mb-1.5 pl-1">
+					<div className="block text-xs font-bold text-slate-400 mb-1.5 pl-1">
 						{fieldLabel}
 					</div>
 				)}
@@ -839,7 +837,7 @@ function CollapsibleSection({
 				) : (
 					<ChevronRight className="w-4 h-4 text-slate-400" />
 				)}
-				<span className="text-xs font-bold text-slate-300">{title}</span>
+				<span className="text-sm font-bold text-slate-300">{title}</span>
 			</button>
 			{isExpanded && <div className="p-6 space-y-4">{children}</div>}
 		</div>
