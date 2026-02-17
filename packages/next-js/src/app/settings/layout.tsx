@@ -78,7 +78,7 @@ function SettingsLayoutInner({ children }: { children: ReactNode }) {
 		tabs.find((tab) => pathname?.includes(tab.id))?.id ?? "all-models";
 
 	return (
-		<div className="flex flex-col min-h-screen">
+		<div className="flex flex-col h-dvh">
 			{status && (
 				<div className="fixed top-20 right-8 z-50">
 					<div
@@ -110,7 +110,7 @@ function SettingsLayoutInner({ children }: { children: ReactNode }) {
 				</div>
 			)}
 
-			<div className="sticky top-0 z-40 bg-[#0B0E14]/80 backdrop-blur-md px-8 pt-4 mb-6 border-b border-slate-800/40 flex items-center gap-2">
+			<div className="shrink-0 bg-[#0B0E14]/80 backdrop-blur-md px-8 pt-4 border-b border-slate-800/40 flex items-center gap-2">
 				{tabs.map((tab) => {
 					const Icon = tab.icon;
 					const isActive = activeTab === tab.id;
@@ -137,7 +137,9 @@ function SettingsLayoutInner({ children }: { children: ReactNode }) {
 				})}
 			</div>
 
-			<div className="flex-1 flex flex-col px-8 pb-12">{children}</div>
+			<div className="flex-1 overflow-auto">
+				<div className="flex flex-col px-8 pt-5 pb-12">{children}</div>
+			</div>
 		</div>
 	);
 }
