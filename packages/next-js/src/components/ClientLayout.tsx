@@ -75,7 +75,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 			/>
 			<main
 				className={cn(
-					"transition-all duration-300 min-h-screen",
+					"transition-all duration-300 min-h-screen overflow-x-hidden",
 					isSidebarCollapsed ? "pl-16" : "pl-64",
 				)}
 			>

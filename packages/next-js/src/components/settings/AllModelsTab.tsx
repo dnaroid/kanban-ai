@@ -239,14 +239,15 @@ export function AllModelsTab({
 											: "rgba(30, 41, 59, 0.5)",
 									}}
 								>
-									<button
-										type="button"
-										onClick={() => toggleGroup(provider)}
+									<div
 										className={cn(
-											"flex items-center justify-between p-4 cursor-pointer transition-all hover:bg-white/5",
+											"flex items-center justify-between p-4 transition-all hover:bg-white/5",
 										)}
 									>
-										<div className="flex items-center gap-3">
+										<div 
+											className="flex items-center gap-3 cursor-pointer flex-1"
+											onClick={() => toggleGroup(provider)}
+										>
 											<div
 												className="transition-colors"
 												style={{
@@ -315,7 +316,7 @@ export function AllModelsTab({
 												)}
 											/>
 										</button>
-									</button>
+									</div>
 
 									{isExpanded && (
 										<div className="p-4 pt-0 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

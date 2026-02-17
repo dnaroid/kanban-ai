@@ -229,12 +229,13 @@ export function MyModelsTab({
 												: "rgba(239, 68, 68, 0.3)",
 										}}
 									>
-										<button
-											type="button"
-											onClick={() => toggleGroup(`diff:${diff.value}`)}
-											className="w-full flex items-center justify-between p-3 cursor-pointer transition-all hover:bg-white/5"
+										<div
+											className="w-full flex items-center justify-between p-3 transition-all hover:bg-white/5"
 										>
-											<div className="flex items-center gap-2 min-w-0 flex-1">
+											<div 
+												className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer"
+												onClick={() => toggleGroup(`diff:${diff.value}`)}
+											>
 												<div
 													className="transition-colors flex-shrink-0"
 													style={{ color: styles.text }}
@@ -251,35 +252,35 @@ export function MyModelsTab({
 												>
 													{diff.label}
 												</h4>
-												<div className="flex items-center gap-2 min-w-0">
-													<ModelPicker
-														value={defaultModels[diff.value] || null}
-														models={groupModels}
-														onChange={(val) => {
-															if (!val) return;
-															const [name, variant] = val.split("#");
-															void handleSetDefaultModelAction(
-																diff.value,
-																name,
-																variant,
-															);
-														}}
-														difficulty={diff.value}
-														placeholder="Select Default"
-													/>
-													<span
-														className="px-2 py-0.5 rounded-full text-[8px] font-bold border transition-all flex-shrink-0"
-														style={{
-															backgroundColor: styles.bg,
-															color: styles.text,
-															borderColor: styles.border,
-														}}
-													>
-														{groupModels.length} models
-													</span>
-												</div>
 											</div>
-										</button>
+											<div className="flex items-center gap-2 min-w-0">
+												<ModelPicker
+													value={defaultModels[diff.value] || null}
+													models={groupModels}
+													onChange={(val) => {
+														if (!val) return;
+														const [name, variant] = val.split("#");
+														void handleSetDefaultModelAction(
+															diff.value,
+															name,
+															variant,
+														);
+													}}
+													difficulty={diff.value}
+													placeholder="Select Default"
+												/>
+												<span
+													className="px-2 py-0.5 rounded-full text-[8px] font-bold border transition-all flex-shrink-0"
+													style={{
+														backgroundColor: styles.bg,
+														color: styles.text,
+														borderColor: styles.border,
+													}}
+												>
+													{groupModels.length} models
+												</span>
+											</div>
+										</div>
 
 										{isExpanded && (
 											<div className="p-3 pt-0 grid grid-cols-1 md:grid-cols-2 gap-3">
