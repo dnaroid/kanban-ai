@@ -3,9 +3,21 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { JSONSchema } from "@/lib/json-schema-types";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, AlertCircle, X } from "lucide-react";
 import { ModelPicker } from "@/components/common/ModelPicker";
 import type { OpencodeModel } from "@/types/kanban";
+import Ajv from "ajv";
+
+// Validation error type
+export interface ValidationError {
+	path: string;
+	message: string;
+	keyword: string;
+	params?: Record<string, unknown>;
+}
+
+// Global AJV instance
+const ajv = new Ajv({ allErrors: true, strict: false });
 
 interface FieldProps {
 	schema: JSONSchema;
@@ -16,6 +28,25 @@ interface FieldProps {
 	models?: OpencodeModel[];
 	modelVariants?: string[];
 	depth?: number;
+	validationErrors?: ValidationError[];
+	labelAction?: React.ReactNode;
+}
+
+function FieldLabel({
+	label,
+	action,
+}: {
+	label: string;
+	action?: React.ReactNode;
+}) {
+	return (
+		<div className="flex items-center justify-between pl-1">
+			<div className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+				{label}
+			</div>
+			{action}
+		</div>
+	);
 }
 
 function DynamicInputField({
@@ -25,6 +56,7 @@ function DynamicInputField({
 	type = "text",
 	placeholder,
 	disabled,
+	labelAction,
 }: {
 	label: string;
 	value: string | number | undefined;
@@ -32,25 +64,27 @@ function DynamicInputField({
 	type?: string;
 	placeholder?: string;
 	disabled?: boolean;
+	labelAction?: React.ReactNode;
 }) {
 	return (
-		<div className="relative">
-			<div className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">
-				{label}
+		<div className="relative space-y-1.5">
+			<FieldLabel label={label} action={labelAction} />
+			<div className="relative">
+				<input
+					type={type}
+					value={value ?? ""}
+					onChange={(e) => onChange(e.target.value)}
+					placeholder={placeholder}
+					disabled={disabled}
+					className={cn(
+						"w-full bg-[#161B26] border border-slate-700 rounded-xl px-4 py-2.5",
+						"text-sm text-slate-200 placeholder:text-slate-500",
+						"hover:border-slate-600 transition-all",
+						"focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 focus:shadow-[0_0_20px_rgba(59,130,246,0.1)]",
+						"disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none",
+					)}
+				/>
 			</div>
-			<input
-				type={type}
-				value={value ?? ""}
-				onChange={(e) => onChange(e.target.value)}
-				placeholder={placeholder}
-				disabled={disabled}
-				className={cn(
-					"w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2.5",
-					"text-sm text-slate-200 placeholder:text-slate-500",
-					"focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50",
-					"disabled:opacity-50 disabled:cursor-not-allowed",
-				)}
-			/>
 		</div>
 	);
 }
@@ -69,8 +103,8 @@ function DynamicSelectField({
 	placeholder?: string;
 }) {
 	return (
-		<div className="relative">
-			<div className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">
+		<div className="relative space-y-1.5">
+			<div className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
 				{label}
 			</div>
 			<div className="relative">
@@ -78,9 +112,10 @@ function DynamicSelectField({
 					value={value ?? ""}
 					onChange={(e) => onChange(e.target.value || "")}
 					className={cn(
-						"w-full appearance-none bg-slate-900/50 border border-slate-700/50",
-						"rounded-lg px-3 py-2.5 pr-10 text-sm text-slate-200",
-						"focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50",
+						"w-full appearance-none bg-[#161B26] border border-slate-700",
+						"rounded-xl px-4 py-2.5 pr-10 text-sm text-slate-200",
+						"hover:border-slate-600 transition-all",
+						"focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 focus:shadow-[0_0_20px_rgba(59,130,246,0.1)]",
 						value === undefined && "text-slate-500",
 					)}
 				>
@@ -107,21 +142,21 @@ function DynamicToggleField({
 	onChange: (val: boolean) => void;
 }) {
 	return (
-		<div className="flex items-center justify-between py-2">
-			<div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">
+		<div className="flex items-center justify-between py-2 px-1 hover:bg-slate-800/20 rounded-lg transition-colors group">
+			<div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-slate-300 transition-colors">
 				{label}
 			</div>
 			<button
 				type="button"
 				onClick={() => onChange(!value)}
 				className={cn(
-					"relative w-10 h-5 rounded-full transition-colors",
-					value ? "bg-blue-500" : "bg-slate-600",
+					"relative w-11 h-6 rounded-full transition-all duration-200 ease-in-out focus:outline-none focus:ring-4 focus:ring-blue-500/10",
+					value ? "bg-blue-600 shadow-lg shadow-blue-600/20" : "bg-slate-700",
 				)}
 			>
 				<div
 					className={cn(
-						"absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform",
+						"absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200",
 						value && "translate-x-5",
 					)}
 				/>
@@ -135,11 +170,13 @@ function DynamicArrayField({
 	value,
 	onChange,
 	items,
+	labelAction,
 }: {
 	label: string;
 	value: string[] | undefined;
 	onChange: (val: string[]) => void;
 	items?: JSONSchema;
+	labelAction?: React.ReactNode;
 }) {
 	const arr = Array.isArray(value) ? value : [];
 
@@ -158,52 +195,61 @@ function DynamicArrayField({
 	};
 
 	return (
-		<div>
-			<div className="flex items-center justify-between mb-2">
-				<div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">
-					{label}
-				</div>
+		<div className="space-y-2">
+			<div className="flex items-center justify-between">
+				<FieldLabel label={label} action={labelAction} />
 				<button
 					type="button"
 					onClick={handleAdd}
-					className="text-xs text-blue-400 hover:text-blue-300"
+					className="text-[10px] font-bold uppercase tracking-wider text-blue-400 hover:text-blue-300 px-2 py-1 rounded hover:bg-blue-500/10 transition-colors"
 				>
-					+ Add
+					+ Add Item
 				</button>
 			</div>
 			<div className="space-y-2">
-				{arr.map((item, index) => (
-					<div key={`${item}-${index}`} className="flex gap-2">
-						{items?.enum ? (
-							<select
-								value={item}
-								onChange={(e) => handleChange(index, e.target.value)}
-								className="flex-1 appearance-none bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200"
+				{arr.map((item, index) => {
+					const uniqueId = `${item}-${index}-${Math.random().toString(36).slice(2, 11)}`;
+					return (
+						<div key={uniqueId} className="flex gap-2">
+							{items?.enum ? (
+								<div className="relative flex-1">
+									<select
+										value={item}
+										onChange={(e) => handleChange(index, e.target.value)}
+										className="w-full appearance-none bg-[#161B26] border border-slate-700 rounded-xl px-4 py-2 text-sm text-slate-200 hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all"
+									>
+										<option value="">Select...</option>
+										{items.enum.map((opt) => (
+											<option key={String(opt)} value={String(opt)}>
+												{String(opt)}
+											</option>
+										))}
+									</select>
+									<ChevronDown className="absolute right-3 top-2.5 w-4 h-4 text-slate-500 pointer-events-none" />
+								</div>
+							) : (
+								<input
+									type="text"
+									value={item}
+									onChange={(e) => handleChange(index, e.target.value)}
+									className="flex-1 bg-[#161B26] border border-slate-700 rounded-xl px-4 py-2 text-sm text-slate-200 hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all placeholder:text-slate-500"
+								/>
+							)}
+							<button
+								type="button"
+								onClick={() => handleRemove(index)}
+								className="text-slate-500 hover:text-red-400 px-2 transition-colors"
 							>
-								<option value="">Select...</option>
-								{items.enum.map((opt) => (
-									<option key={String(opt)} value={String(opt)}>
-										{String(opt)}
-									</option>
-								))}
-							</select>
-						) : (
-							<input
-								type="text"
-								value={item}
-								onChange={(e) => handleChange(index, e.target.value)}
-								className="flex-1 bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200"
-							/>
-						)}
-						<button
-							type="button"
-							onClick={() => handleRemove(index)}
-							className="text-red-400 hover:text-red-300 px-2"
-						>
-							×
-						</button>
+								×
+							</button>
+						</div>
+					);
+				})}
+				{arr.length === 0 && (
+					<div className="text-xs text-slate-600 italic px-1">
+						No items added
 					</div>
-				))}
+				)}
 			</div>
 		</div>
 	);
@@ -301,6 +347,7 @@ function ObjectTreeNode({
 	definedProps,
 	dynamicKeys,
 	additionalSchema,
+	validationErrors = [],
 }: FieldProps & {
 	depth: number;
 	definedProps: [string, unknown][];
@@ -308,39 +355,93 @@ function ObjectTreeNode({
 	additionalSchema?: JSONSchema;
 }) {
 	const [isExpanded, setIsExpanded] = useState(false);
+	const [showAddModal, setShowAddModal] = useState(false);
+	const [newKeyName, setNewKeyName] = useState("");
 	const obj = (value as Record<string, unknown>) ?? {};
 
 	const handleChange = (key: string, newValue: unknown) => {
 		onChange({ ...obj, [key]: newValue });
 	};
 
-	const hasContent = definedProps.length > 0 || dynamicKeys.length > 0;
+	const handleAddEntity = () => {
+		if (!newKeyName.trim()) return;
+		const allKeys = [...definedProps.map(([k]) => k), ...dynamicKeys];
+		if (allKeys.includes(newKeyName.trim())) return;
 
-	// Calculate label from path
+		const defaultValue =
+			additionalSchema?.type === "object"
+				? {}
+				: additionalSchema?.type === "array"
+					? []
+					: additionalSchema?.type === "string"
+						? ""
+						: additionalSchema?.type === "number"
+							? 0
+							: additionalSchema?.type === "boolean"
+								? false
+								: null;
+
+		onChange({ ...obj, [newKeyName.trim()]: defaultValue });
+		setNewKeyName("");
+		setShowAddModal(false);
+	};
+
+	const handleRemoveDynamicKey = (key: string) => {
+		const { [key]: _, ...rest } = obj;
+		onChange(rest);
+	};
+
+	const hasContent = definedProps.length > 0 || dynamicKeys.length > 0;
+	const canAddEntity = additionalSchema && dynamicKeys.length >= 0;
 	const label = path.split(".").pop() ?? "";
 	const fieldLabel = schema.title ?? label;
 
+	const pathErrors = validationErrors.filter(
+		(e) => e.path === path || e.path.startsWith(`${path}.`),
+	);
+
 	return (
-		<div className="border border-slate-700/30 rounded-lg overflow-hidden">
+		<div className="border border-slate-800/60 rounded-xl overflow-hidden bg-slate-900/20">
 			<button
 				type="button"
 				onClick={() => setIsExpanded(!isExpanded)}
-				className="w-full flex items-center gap-2 px-3 py-2 bg-slate-800/30 hover:bg-slate-700/30 transition-colors"
+				className="w-full flex items-center gap-2 px-4 py-3 bg-slate-800/40 hover:bg-slate-800/60 transition-colors border-b border-transparent hover:border-slate-800/60"
 			>
 				{isExpanded ? (
 					<ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
 				) : (
 					<ChevronRight className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
 				)}
-				<span className="text-xs font-semibold text-slate-300 uppercase tracking-wider truncate">
+				<span className="text-xs font-bold text-slate-300 uppercase tracking-widest truncate">
 					{fieldLabel}
 				</span>
-				{!hasContent && (
-					<span className="text-[10px] text-slate-500 ml-auto">empty</span>
+				{pathErrors.length > 0 && (
+					<span className="text-[10px] text-red-400 ml-2 flex items-center gap-1">
+						<AlertCircle className="w-3 h-3" />
+						{pathErrors.length} error{pathErrors.length > 1 ? "s" : ""}
+					</span>
+				)}
+				{!hasContent && pathErrors.length === 0 && (
+					<span className="text-[10px] text-slate-500 ml-auto uppercase tracking-wider">
+						empty
+					</span>
 				)}
 			</button>
-			{isExpanded && hasContent && (
-				<div className="p-3 space-y-3 bg-slate-900/20">
+			{isExpanded && (
+				<div className="p-4 space-y-4 bg-slate-900/10">
+					{pathErrors.length > 0 && (
+						<div className="space-y-1.5 mb-3">
+							{pathErrors.map((error) => (
+								<div
+									key={`${error.path}-${error.keyword}`}
+									className="flex items-start gap-2 text-xs text-red-400 bg-red-500/10 px-3 py-2 rounded-lg"
+								>
+									<AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+									<span>{error.message}</span>
+								</div>
+							))}
+						</div>
+					)}
 					{definedProps.map(([key, propSchema]) => (
 						<DynamicField
 							key={key}
@@ -352,21 +453,106 @@ function ObjectTreeNode({
 							models={models}
 							modelVariants={modelVariants}
 							depth={depth + 1}
+							validationErrors={validationErrors}
 						/>
 					))}
-					{dynamicKeys.map((key) => (
-						<DynamicField
-							key={key}
-							schema={additionalSchema!}
-							value={obj[key]}
-							onChange={(v) => handleChange(key, v)}
-							label={key}
-							path={`${path}.${key}`}
-							models={models}
-							modelVariants={modelVariants}
-							depth={depth + 1}
-						/>
-					))}
+					{dynamicKeys.map((key) => {
+						const keyErrors = validationErrors.filter(
+							(e) => e.path === `${path}.${key}`,
+						);
+						return (
+							<div key={key} className="relative">
+								{keyErrors.length > 0 && (
+									<div className="space-y-1 mb-2">
+										{keyErrors.map((error) => (
+											<div
+												key={`${error.path}-${error.keyword}`}
+												className="flex items-start gap-1.5 text-[10px] text-red-400"
+											>
+												<AlertCircle className="w-3 h-3 flex-shrink-0 mt-0.5" />
+												<span>{error.message}</span>
+											</div>
+										))}
+									</div>
+								)}
+								<DynamicField
+									schema={additionalSchema!}
+									value={obj[key]}
+									onChange={(v) => handleChange(key, v)}
+									label={key}
+									path={`${path}.${key}`}
+									models={models}
+									modelVariants={modelVariants}
+									depth={depth + 1}
+									validationErrors={validationErrors}
+									labelAction={
+										<button
+											type="button"
+											onClick={() => handleRemoveDynamicKey(key)}
+											className="text-slate-500 hover:text-red-400 transition-colors"
+											title="Remove"
+										>
+											<X className="w-3.5 h-3.5" />
+										</button>
+									}
+								/>
+							</div>
+						);
+					})}
+					{canAddEntity && (
+						<div className="pt-2">
+							{showAddModal ? (
+								<div className="flex gap-2">
+									<input
+										type="text"
+										value={newKeyName}
+										onChange={(e) => setNewKeyName(e.target.value)}
+										placeholder="Enter key name..."
+										className="flex-1 bg-[#161B26] border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50"
+										ref={(input) => {
+											if (input && showAddModal) {
+												input.focus();
+											}
+										}}
+										onKeyDown={(e) => {
+											if (e.key === "Enter") handleAddEntity();
+											if (e.key === "Escape") {
+												setShowAddModal(false);
+												setNewKeyName("");
+											}
+										}}
+									/>
+									<button
+										type="button"
+										onClick={handleAddEntity}
+										disabled={!newKeyName.trim()}
+										className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+									>
+										Add
+									</button>
+									<button
+										type="button"
+										onClick={() => {
+											setShowAddModal(false);
+											setNewKeyName("");
+										}}
+										className="px-3 py-1.5 bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg hover:bg-slate-600 transition-colors"
+									>
+										Cancel
+									</button>
+								</div>
+							) : (
+								<button
+									type="button"
+									onClick={() => setShowAddModal(true)}
+									className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-blue-400 hover:text-blue-300 px-2 py-1.5 rounded hover:bg-blue-500/10 transition-colors"
+								>
+									<Plus className="w-3.5 h-3.5" />
+									Add Entity
+								</button>
+							)}
+						</div>
+					)}
 				</div>
 			)}
 		</div>
@@ -382,6 +568,8 @@ function DynamicField({
 	models,
 	modelVariants,
 	depth = 0,
+	validationErrors,
+	labelAction,
 }: FieldProps) {
 	if (!schema) return null;
 
@@ -412,10 +600,8 @@ function DynamicField({
 	if (schema.type === "string") {
 		if (path.endsWith(".model") && models) {
 			return (
-				<div>
-					<div className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">
-						{fieldLabel}
-					</div>
+				<div className="space-y-1.5">
+					<FieldLabel label={fieldLabel} action={labelAction} />
 					<ModelPicker
 						value={typeof value === "string" ? value : null}
 						models={models}
@@ -430,16 +616,14 @@ function DynamicField({
 
 		if (schema.format === "multiline" || path.includes("prompt")) {
 			return (
-				<div>
-					<div className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">
-						{fieldLabel}
-					</div>
+				<div className="space-y-1.5">
+					<FieldLabel label={fieldLabel} action={labelAction} />
 					<textarea
 						value={(value as string) ?? ""}
 						onChange={(e) => onChange(e.target.value || undefined)}
 						placeholder={schema.description}
 						rows={4}
-						className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50"
+						className="w-full bg-[#161B26] border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-200 placeholder:text-slate-500 resize-none hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 focus:shadow-[0_0_20px_rgba(59,130,246,0.1)] transition-all custom-scrollbar"
 					/>
 				</div>
 			);
@@ -447,23 +631,23 @@ function DynamicField({
 
 		if (schema.format === "color" || path.endsWith(".color")) {
 			return (
-				<div>
-					<div className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">
-						{fieldLabel}
-					</div>
-					<div className="flex gap-2">
-						<input
-							type="color"
-							value={(value as string) ?? "#000000"}
-							onChange={(e) => onChange(e.target.value)}
-							className="w-10 h-10 rounded border border-slate-700/50 bg-transparent cursor-pointer"
-						/>
+				<div className="space-y-1.5">
+					<FieldLabel label={fieldLabel} action={labelAction} />
+					<div className="flex gap-3">
+						<div className="relative">
+							<input
+								type="color"
+								value={(value as string) ?? "#000000"}
+								onChange={(e) => onChange(e.target.value)}
+								className="w-11 h-11 rounded-xl border border-slate-700 bg-[#161B26] cursor-pointer p-1"
+							/>
+						</div>
 						<input
 							type="text"
 							value={(value as string) ?? ""}
 							onChange={(e) => onChange(e.target.value || undefined)}
 							placeholder={schema.description ?? "#RRGGBB"}
-							className="flex-1 bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2.5 text-sm text-slate-200"
+							className="flex-1 bg-[#161B26] border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all uppercase placeholder:text-slate-500"
 						/>
 					</div>
 				</div>
@@ -476,6 +660,7 @@ function DynamicField({
 				value={value as string | undefined}
 				onChange={(v) => onChange(v || undefined)}
 				placeholder={schema.description}
+				labelAction={labelAction}
 			/>
 		);
 	}
@@ -496,6 +681,7 @@ function DynamicField({
 						? `${schema.minimum} - ${schema.maximum}`
 						: undefined)
 				}
+				labelAction={labelAction}
 			/>
 		);
 	}
@@ -507,6 +693,7 @@ function DynamicField({
 				value={value as string[] | undefined}
 				onChange={(v) => onChange(v.length > 0 ? v : undefined)}
 				items={schema.items as JSONSchema | undefined}
+				labelAction={labelAction}
 			/>
 		);
 	}
@@ -564,7 +751,7 @@ function DynamicField({
 		return (
 			<div className="space-y-2">
 				{fieldLabel && (
-					<div className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">
+					<div className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 pl-1">
 						{fieldLabel}
 					</div>
 				)}
@@ -581,10 +768,10 @@ function DynamicField({
 						else if (newVariant.type === "boolean") onChange(false);
 						else onChange(null);
 					}}
-					className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 mb-3"
+					className="w-full bg-[#161B26] border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 mb-4 hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all"
 				>
 					{variants.map((v, i) => (
-						<option key={i} value={i}>
+						<option key={`${v.type}-${i}`} value={i}>
 							{getVariantLabel(v, i)}
 						</option>
 					))}
@@ -612,6 +799,7 @@ interface DynamicFormFieldsProps {
 	models?: OpencodeModel[];
 	modelVariants?: string[];
 	excludeFields?: Set<string>;
+	validationErrors?: ValidationError[];
 }
 
 function CollapsibleSection({
@@ -630,25 +818,25 @@ function CollapsibleSection({
 	return (
 		<div
 			className={cn(
-				"border border-slate-700/50 rounded-lg overflow-hidden",
+				"border border-slate-800/60 rounded-xl overflow-hidden bg-slate-900/10",
 				className,
 			)}
 		>
 			<button
 				type="button"
 				onClick={() => setIsExpanded(!isExpanded)}
-				className="w-full flex items-center gap-2 px-4 py-3 bg-slate-800/50 hover:bg-slate-700/50 transition-colors"
+				className="w-full flex items-center gap-2 px-6 py-4 bg-slate-800/20 hover:bg-slate-800/40 transition-colors border-b border-transparent hover:border-slate-800/50"
 			>
 				{isExpanded ? (
 					<ChevronDown className="w-4 h-4 text-slate-400" />
 				) : (
 					<ChevronRight className="w-4 h-4 text-slate-400" />
 				)}
-				<span className="text-sm font-semibold text-slate-200 uppercase tracking-wider">
+				<span className="text-xs font-bold text-slate-300 uppercase tracking-widest">
 					{title}
 				</span>
 			</button>
-			{isExpanded && <div className="p-4">{children}</div>}
+			{isExpanded && <div className="p-6 space-y-4">{children}</div>}
 		</div>
 	);
 }
@@ -660,6 +848,7 @@ export function DynamicFormFields({
 	models,
 	modelVariants,
 	excludeFields = new Set(),
+	validationErrors = [],
 }: DynamicFormFieldsProps) {
 	if (!schema?.properties) {
 		return (
@@ -739,4 +928,33 @@ export function DynamicFormFields({
 			})}
 		</div>
 	);
+}
+
+// Validate data against a JSON schema and return validation errors
+export function validateSchema(
+	schema: JSONSchema,
+	data: unknown,
+): ValidationError[] {
+	try {
+		const validate = ajv.compile(schema);
+		const isValid = validate(data);
+
+		if (!isValid && validate.errors) {
+			return validate.errors.map((err) => ({
+				path: err.instancePath || "/",
+				message: err.message || "Validation error",
+				keyword: err.keyword,
+				params: err.params as Record<string, unknown>,
+			}));
+		}
+		return [];
+	} catch {
+		return [
+			{
+				path: "/",
+				message: "Schema validation failed",
+				keyword: "exception",
+			},
+		];
+	}
 }

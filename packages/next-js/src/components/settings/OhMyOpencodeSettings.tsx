@@ -3,6 +3,7 @@
 import {
 	useCallback,
 	useEffect,
+	useId,
 	useMemo,
 	useState,
 	type ReactNode,
@@ -41,7 +42,11 @@ import type {
 	PermissionValue,
 	ThinkingConfig,
 } from "./OhMyOpencodeTypes";
-import { DynamicFormFields } from "./DynamicFormFields";
+import {
+	DynamicFormFields,
+	validateSchema,
+	type ValidationError,
+} from "./DynamicFormFields";
 import type { JSONSchema } from "@/lib/json-schema-types";
 
 type OhMyOpencodeSettingsProps = {
@@ -75,18 +80,29 @@ const getColorFromName = (name: string) => {
 
 function SectionHeader({
 	title,
+	subtitle,
 	icon: Icon,
 	children,
 }: {
 	title: string;
+	subtitle?: string;
 	icon: LucideIcon;
 	children?: ReactNode;
 }) {
 	return (
-		<div className="flex items-center justify-between mb-4">
-			<div className="flex items-center gap-2 text-slate-300">
-				<Icon className="w-4 h-4 text-blue-400" />
-				<h4 className="text-sm font-bold uppercase tracking-wider">{title}</h4>
+		<div className="flex items-center justify-between mb-6">
+			<div className="flex items-center gap-3">
+				<div className="w-10 h-10 rounded-xl bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center text-blue-400">
+					<Icon className="w-5 h-5" />
+				</div>
+				<div>
+					<h3 className="text-lg font-bold text-white tracking-tight">
+						{title}
+					</h3>
+					{subtitle && (
+						<p className="text-xs text-slate-500 font-medium">{subtitle}</p>
+					)}
+				</div>
 			</div>
 			{children}
 		</div>
@@ -108,18 +124,25 @@ function InputField({
 	type?: string;
 	className?: string;
 }) {
+	const id = useId();
 	return (
-		<div className={className}>
-			<div className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">
+		<div className={cn("space-y-1.5", className)}>
+			<label
+				htmlFor={id}
+				className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1"
+			>
 				{label}
+			</label>
+			<div className="relative">
+				<input
+					id={id}
+					type={type}
+					value={value ?? ""}
+					onChange={(e) => onChange(e.target.value)}
+					placeholder={placeholder}
+					className="w-full bg-[#161B26] border border-slate-700 text-sm text-slate-200 rounded-xl px-4 py-2.5 hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.1)] transition-all placeholder:text-slate-500"
+				/>
 			</div>
-			<input
-				type={type}
-				value={value ?? ""}
-				onChange={(e) => onChange(e.target.value)}
-				placeholder={placeholder}
-				className="w-full bg-[#161B26] border border-slate-700 text-sm text-slate-200 rounded-xl px-4 py-2.5 hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all placeholder:text-slate-600"
-			/>
 		</div>
 	);
 }
@@ -137,16 +160,21 @@ function SelectField({
 	onChange: (val: string) => void;
 	className?: string;
 }) {
+	const id = useId();
 	return (
-		<div className={className}>
-			<div className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">
+		<div className={cn("space-y-1.5", className)}>
+			<label
+				htmlFor={id}
+				className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1"
+			>
 				{label}
-			</div>
+			</label>
 			<div className="relative">
 				<select
+					id={id}
 					value={value ?? ""}
 					onChange={(e) => onChange(e.target.value)}
-					className="w-full bg-[#161B26] border border-slate-700 text-sm text-slate-200 rounded-xl px-4 py-2.5 hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all appearance-none cursor-pointer"
+					className="w-full bg-[#161B26] border border-slate-700 text-sm text-slate-200 rounded-xl px-4 py-2.5 hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.1)] transition-all appearance-none cursor-pointer placeholder:text-slate-500"
 				>
 					<option value="">Default / None</option>
 					{options.map((opt) => (
@@ -171,19 +199,23 @@ function ToggleField({
 	onChange: (val: boolean) => void;
 }) {
 	return (
-		<div className="flex items-center justify-between p-3 bg-[#161B26] border border-slate-700 rounded-xl">
-			<span className="text-sm font-medium text-slate-300">{label}</span>
+		<div className="flex items-center justify-between p-4 bg-[#161B26] border border-slate-700 rounded-xl hover:border-slate-600 transition-all group">
+			<span className="text-sm font-medium text-slate-300 group-hover:text-slate-200 transition-colors">
+				{label}
+			</span>
 			<button
 				type="button"
 				onClick={() => onChange(!value)}
 				className={cn(
-					"w-10 h-5 rounded-full transition-colors relative",
-					value ? "bg-blue-600" : "bg-slate-700",
+					"w-11 h-6 rounded-full transition-all relative focus:outline-none focus:ring-2 focus:ring-blue-500/20",
+					value
+						? "bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.3)]"
+						: "bg-slate-700",
 				)}
 			>
 				<div
 					className={cn(
-						"absolute top-1 w-3 h-3 rounded-full bg-white transition-transform",
+						"absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm",
 						value ? "left-6" : "left-1",
 					)}
 				/>
@@ -202,32 +234,49 @@ function ThinkingEditor({
 	const isEnabled = value?.type === "enabled";
 
 	return (
-		<div className="space-y-3 p-5 bg-slate-900/40 border border-slate-800/50 rounded-2xl">
+		<div className="space-y-4 p-6 bg-[#11151C] border border-slate-800/50 rounded-2xl shadow-xl">
 			<div className="flex items-center justify-between">
-				<div className="flex items-center gap-2">
-					<BrainCircuit className="w-4 h-4 text-purple-400" />
-					<span className="text-sm font-bold text-slate-300">
-						Extended Thinking
-					</span>
+				<div className="flex items-center gap-3">
+					<div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400">
+						<BrainCircuit className="w-4 h-4" />
+					</div>
+					<div>
+						<h4 className="text-sm font-bold text-white">Extended Thinking</h4>
+						<p className="text-xs text-slate-500">
+							Enable advanced reasoning capabilities
+						</p>
+					</div>
 				</div>
-				<ToggleField
-					label=""
-					value={isEnabled}
-					onChange={(v) =>
+				<button
+					type="button"
+					onClick={() =>
 						onChange(
-							v
-								? {
+							isEnabled
+								? undefined
+								: {
 										type: "enabled",
 										budgetTokens: value?.budgetTokens ?? 16000,
-									}
-								: undefined,
+									},
 						)
 					}
-				/>
+					className={cn(
+						"w-11 h-6 rounded-full transition-all relative focus:outline-none focus:ring-2 focus:ring-purple-500/20",
+						isEnabled
+							? "bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.3)]"
+							: "bg-slate-700",
+					)}
+				>
+					<div
+						className={cn(
+							"absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm",
+							isEnabled ? "left-6" : "left-1",
+						)}
+					/>
+				</button>
 			</div>
 
 			{isEnabled && (
-				<div className="pt-3 border-t border-slate-800/40">
+				<div className="pt-4 border-t border-slate-800/40 animate-in slide-in-from-top-2 fade-in duration-200">
 					<InputField
 						label="Budget Tokens"
 						type="number"
@@ -239,6 +288,7 @@ function ThinkingEditor({
 								budgetTokens: Number.isNaN(nextBudget) ? undefined : nextBudget,
 							});
 						}}
+						placeholder="16000"
 					/>
 				</div>
 			)}
@@ -270,13 +320,13 @@ function PermissionEditor({
 	) => (
 		<div
 			className={cn(
-				"flex items-center justify-between p-2 transition-all duration-200",
+				"flex items-center justify-between py-2 transition-all duration-200",
 				!isEnabled && "opacity-40 grayscale-[0.5] pointer-events-none",
 			)}
 		>
 			<div className="flex items-center gap-2">
 				{icon}
-				<span className="text-sm text-slate-400">{label}</span>
+				<span className="text-sm text-slate-400 font-medium">{label}</span>
 			</div>
 			<div className="relative w-32">
 				<select
@@ -286,61 +336,78 @@ function PermissionEditor({
 						updatePermission(key, e.target.value as PermissionValue)
 					}
 					className={cn(
-						"w-full text-xs font-bold uppercase rounded-lg px-2 py-1.5 border appearance-none cursor-pointer focus:outline-none focus:ring-2 transition-colors",
+						"w-full text-xs font-bold uppercase rounded-lg px-3 py-1.5 border appearance-none cursor-pointer focus:outline-none focus:ring-2 transition-all",
 						value?.[key] === "allow"
-							? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+							? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 focus:ring-emerald-500/20"
 							: value?.[key] === "deny"
-								? "bg-red-500/10 border-red-500/30 text-red-400"
-								: "bg-amber-500/10 border-amber-500/30 text-amber-400",
+								? "bg-red-500/10 border-red-500/30 text-red-400 focus:ring-red-500/20"
+								: "bg-amber-500/10 border-amber-500/30 text-amber-400 focus:ring-amber-500/20",
 					)}
 				>
 					<option value="ask">Ask</option>
 					<option value="allow">Allow</option>
 					<option value="deny">Deny</option>
 				</select>
-				<ChevronDown className="absolute right-2 top-2 w-3 h-3 opacity-50 pointer-events-none" />
+				<ChevronDown className="absolute right-2 top-2.5 w-3 h-3 opacity-50 pointer-events-none" />
 			</div>
 		</div>
 	);
 
 	return (
-		<div className="space-y-3 p-5 bg-slate-900/40 border border-slate-800/50 rounded-2xl">
+		<div className="space-y-4 p-6 bg-[#11151C] border border-slate-800/50 rounded-2xl shadow-xl">
 			<div className="flex items-center justify-between">
-				<div className="flex items-center gap-2">
-					<ShieldAlert className="w-4 h-4 text-orange-400" />
-					<span className="text-sm font-bold text-slate-300">
-						Custom Permissions
-					</span>
+				<div className="flex items-center gap-3">
+					<div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
+						<ShieldAlert className="w-4 h-4" />
+					</div>
+					<div>
+						<h4 className="text-sm font-bold text-white">Permissions</h4>
+						<p className="text-xs text-slate-500">Granular access control</p>
+					</div>
 				</div>
-				<ToggleField
-					label=""
-					value={isEnabled}
-					onChange={(v) => onChange(v ? {} : undefined)}
-				/>
+				<button
+					type="button"
+					onClick={() => onChange(isEnabled ? undefined : {})}
+					className={cn(
+						"w-11 h-6 rounded-full transition-all relative focus:outline-none focus:ring-2 focus:ring-amber-500/20",
+						isEnabled
+							? "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]"
+							: "bg-slate-700",
+					)}
+				>
+					<div
+						className={cn(
+							"absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm",
+							isEnabled ? "left-6" : "left-1",
+						)}
+					/>
+				</button>
 			</div>
 
-			<div className="space-y-1 pt-3 border-t border-slate-800/40">
-				{renderSelect(
-					"edit",
-					"File Editing",
-					<FileText className="w-4 h-4 text-slate-500" />,
-				)}
-				{renderSelect(
-					"webfetch",
-					"Web Access",
-					<Globe className="w-4 h-4 text-slate-500" />,
-				)}
-				{renderSelect(
-					"bash",
-					"Shell Execution",
-					<Terminal className="w-4 h-4 text-slate-500" />,
-				)}
-				{renderSelect(
-					"external_directory",
-					"External Access",
-					<FolderOpen className="w-4 h-4 text-slate-500" />,
-				)}
-			</div>
+			{isEnabled && (
+				<div className="space-y-1 pt-4 border-t border-slate-800/40 animate-in slide-in-from-top-2 fade-in duration-200">
+					{renderSelect(
+						"edit",
+						"File Editing",
+						<FileText className="w-4 h-4 text-slate-500" />,
+					)}
+					{renderSelect(
+						"webfetch",
+						"Web Access",
+						<Globe className="w-4 h-4 text-slate-500" />,
+					)}
+					{renderSelect(
+						"bash",
+						"Shell Execution",
+						<Terminal className="w-4 h-4 text-slate-500" />,
+					)}
+					{renderSelect(
+						"external_directory",
+						"External Access",
+						<FolderOpen className="w-4 h-4 text-slate-500" />,
+					)}
+				</div>
+			)}
 		</div>
 	);
 }
@@ -367,23 +434,25 @@ function ToolsEditor({
 
 	return (
 		<div>
-			<div className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">
+			<div className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 pl-1">
 				Tools Configuration
 			</div>
 
 			<div className="flex gap-2 mb-3">
-				<input
-					value={newTool}
-					onChange={(e) => setNewTool(e.target.value)}
-					placeholder="Add tool (e.g. read_file)..."
-					className="flex-1 bg-[#161B26] border border-slate-700 text-sm text-slate-200 rounded-xl px-4 py-2 hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-					onKeyDown={(e) => {
-						if (e.key === "Enter" && newTool.trim()) {
-							setToolValue(newTool.trim(), true);
-							setNewTool("");
-						}
-					}}
-				/>
+				<div className="relative flex-1">
+					<input
+						value={newTool}
+						onChange={(e) => setNewTool(e.target.value)}
+						placeholder="Add tool (e.g. read_file)..."
+						className="w-full bg-[#161B26] border border-slate-700 text-sm text-slate-200 rounded-xl px-4 py-2.5 hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.1)] transition-all placeholder:text-slate-500"
+						onKeyDown={(e) => {
+							if (e.key === "Enter" && newTool.trim()) {
+								setToolValue(newTool.trim(), true);
+								setNewTool("");
+							}
+						}}
+					/>
+				</div>
 				<button
 					type="button"
 					onClick={() => {
@@ -392,9 +461,10 @@ function ToolsEditor({
 							setNewTool("");
 						}
 					}}
-					className="px-4 bg-blue-600 rounded-xl text-white font-bold hover:bg-blue-500"
+					className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center disabled:opacity-50 disabled:shadow-none"
+					disabled={!newTool.trim()}
 				>
-					Add
+					<Plus className="w-5 h-5" />
 				</button>
 			</div>
 
@@ -402,24 +472,26 @@ function ToolsEditor({
 				{Object.entries(value || {}).map(([tool, enabled]) => (
 					<div
 						key={tool}
-						className="flex items-center justify-between p-3 bg-[#161B26] border border-slate-700 rounded-xl"
+						className="flex items-center justify-between p-4 bg-[#161B26] border border-slate-700 rounded-xl hover:border-slate-600 transition-all group"
 					>
-						<span className="text-sm font-medium text-slate-300 font-mono">
+						<span className="text-sm font-medium text-slate-300 font-mono group-hover:text-slate-200 transition-colors">
 							{tool}
 						</span>
-						<div className="flex items-center gap-3">
+						<div className="flex items-center gap-4">
 							<button
 								type="button"
 								onClick={() => setToolValue(tool, !enabled)}
 								title={enabled ? "Enabled" : "Disabled"}
 								className={cn(
-									"w-10 h-5 rounded-full transition-colors relative",
-									enabled ? "bg-emerald-600" : "bg-slate-700",
+									"w-11 h-6 rounded-full transition-all relative focus:outline-none focus:ring-2 focus:ring-blue-500/20",
+									enabled
+										? "bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.3)]"
+										: "bg-slate-700",
 								)}
 							>
 								<div
 									className={cn(
-										"absolute top-1 w-3 h-3 rounded-full bg-white transition-transform",
+										"absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm",
 										enabled ? "left-6" : "left-1",
 									)}
 								/>
@@ -427,7 +499,7 @@ function ToolsEditor({
 							<button
 								type="button"
 								onClick={() => removeTool(tool)}
-								className="text-slate-500 hover:text-red-400 transition-colors"
+								className="text-slate-500 hover:text-red-400 transition-colors p-1 hover:bg-red-500/10 rounded-lg"
 							>
 								<Trash2 className="w-4 h-4" />
 							</button>
@@ -435,7 +507,7 @@ function ToolsEditor({
 					</div>
 				))}
 				{(!value || Object.keys(value).length === 0) && (
-					<div className="text-xs text-slate-500 italic p-2 text-center">
+					<div className="text-xs text-slate-500 italic p-4 text-center border border-dashed border-slate-800 rounded-xl">
 						No explicit tool configurations
 					</div>
 				)}
@@ -469,21 +541,24 @@ function ArrayEditor({
 
 	return (
 		<div>
-			<div className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">
+			<div className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 pl-1">
 				{label}
 			</div>
-			<div className="flex gap-2 mb-2">
-				<input
-					value={input}
-					onChange={(e) => setInput(e.target.value)}
-					onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-					placeholder="Add item..."
-					className="flex-1 bg-[#161B26] border border-slate-700 text-sm text-slate-200 rounded-xl px-4 py-2 hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-				/>
+			<div className="flex gap-2 mb-3">
+				<div className="relative flex-1">
+					<input
+						value={input}
+						onChange={(e) => setInput(e.target.value)}
+						onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+						placeholder="Add item..."
+						className="w-full bg-[#161B26] border border-slate-700 text-sm text-slate-200 rounded-xl px-4 py-2.5 hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.1)] transition-all placeholder:text-slate-500"
+					/>
+				</div>
 				<button
 					type="button"
 					onClick={handleAdd}
-					className="p-2 bg-blue-600 rounded-xl text-white hover:bg-blue-500"
+					className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center disabled:opacity-50 disabled:shadow-none"
+					disabled={!input.trim()}
 				>
 					<Plus className="w-5 h-5" />
 				</button>
@@ -492,15 +567,15 @@ function ArrayEditor({
 				{value?.map((item, idx) => (
 					<span
 						key={item}
-						className="flex items-center gap-1 px-3 py-1 bg-slate-800 rounded-lg text-xs text-slate-300 border border-slate-700"
+						className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 rounded-lg text-xs font-medium text-slate-300 border border-slate-700 hover:border-slate-600 hover:bg-slate-800 transition-all group"
 					>
 						{item}
 						<button
 							type="button"
 							onClick={() => handleRemove(idx)}
-							className="hover:text-red-400 ml-1"
+							className="text-slate-500 hover:text-red-400 transition-colors ml-1"
 						>
-							<Trash2 className="w-3 h-3" />
+							<Trash2 className="w-3.5 h-3.5" />
 						</button>
 					</span>
 				))}
@@ -657,12 +732,15 @@ export function OhMyOpencodeSettings({
 			await api.omc.saveConfig({ path: configPath, config });
 			setUnsavedChanges(false);
 			onStatusChangeAction({
-				message: "Config saved successfully",
+				message: "CONFIGURATION SYNCHRONIZED",
 				type: "success",
 			});
 		} catch (error) {
 			console.error("Failed to save config:", error);
-			onStatusChangeAction({ message: "Failed to save config", type: "error" });
+			onStatusChangeAction({
+				message: "SYNCHRONIZATION FAILED",
+				type: "error",
+			});
 		}
 	};
 
@@ -752,6 +830,11 @@ export function OhMyOpencodeSettings({
 		setUnsavedChanges(true);
 	}, []);
 
+	const validationErrors = useMemo(() => {
+		if (!schema || !config) return [];
+		return validateSchema(schema, config);
+	}, [schema, config]);
+
 	if (isLoading && !config) {
 		return (
 			<div className="flex items-center justify-center h-96">
@@ -810,153 +893,183 @@ export function OhMyOpencodeSettings({
 
 	return (
 		<div className="flex flex-col h-full overflow-hidden">
-			<div className="flex-none bg-slate-950/80 backdrop-blur-md pb-3 px-0 flex items-center justify-between border-b border-slate-800/60 mb-4 shrink-0">
-				<div className="flex items-center gap-3">
-					<div className="w-7 h-7 rounded-lg bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center text-blue-400">
-						<SettingsIcon className="w-3.5 h-3.5" />
+			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 px-8 pt-8 shrink-0">
+				<div className="flex items-center justify-between mb-6">
+					<div className="flex items-center gap-4">
+						<div className="w-12 h-12 rounded-2xl bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center text-blue-400 shadow-lg shadow-blue-500/10 transition-transform hover:scale-110">
+							<SettingsIcon className="w-6 h-6 animate-spin-slow" />
+						</div>
+						<div>
+							<h1 className="text-2xl font-black text-white tracking-tight leading-tight uppercase">
+								Oh My Opencode
+							</h1>
+							<div className="flex items-center gap-2 mt-1">
+								<div className="px-2 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/20 text-[10px] font-bold text-blue-400 uppercase tracking-widest">
+									Config
+								</div>
+								<p className="text-[10px] text-slate-500 font-mono truncate max-w-[400px]">
+									{configPath}
+								</p>
+							</div>
+						</div>
 					</div>
-					<div className="flex items-baseline gap-2 overflow-hidden">
-						<h3 className="text-sm font-bold text-white tracking-tight leading-none">
-							Configuration
-						</h3>
-						<p className="text-[9px] text-slate-500 font-medium truncate max-w-[400px]">
-							{configPath}
-						</p>
-					</div>
-				</div>
 
-				<div className="flex items-center gap-1.5">
-					<button
-						type="button"
-						onClick={handleSelectFile}
-						className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors focus:outline-none"
-						title="Change Config File"
-					>
-						<FolderOpen className="w-3 h-3" />
-					</button>
-					<div className="w-px h-4 bg-slate-800 mx-0.5" />
-					<button
-						type="button"
-						onClick={() => {
-							void handleSave();
-						}}
-						disabled={!unsavedChanges}
-						className={cn(
-							"px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 focus:outline-none",
-							unsavedChanges
-								? "bg-blue-600 text-white shadow-lg shadow-blue-600/20 hover:bg-blue-500"
-								: "bg-slate-800/40 text-slate-500 cursor-not-allowed",
-						)}
-					>
-						<Save className="w-3 h-3" />
-						Save
-					</button>
-					<div className="w-px h-4 bg-slate-800 mx-0.5" />
-					<button
-						type="button"
-						onClick={() => {
-							void handleBackup();
-						}}
-						className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors focus:outline-none"
-						title="Backup"
-					>
-						<RotateCcw className="w-3 h-3" />
-					</button>
-					<button
-						type="button"
-						onClick={() => {
-							void handleRestore();
-						}}
-						disabled={!hasBackup}
-						className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors disabled:opacity-30 focus:outline-none"
-						title="Restore"
-					>
-						<ShieldAlert className="w-3 h-3" />
-					</button>
-				</div>
-			</div>
-
-			<div className="flex-none px-0 pb-4 flex flex-wrap items-center gap-2">
-				<div className="flex items-center gap-2">
-					<span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-						Presets
-					</span>
-					<div className="relative">
-						<select
-							value={selectedPreset}
-							onChange={(e) => setSelectedPreset(e.target.value)}
-							className="bg-[#161B26] border border-slate-700 text-[10px] text-slate-200 rounded-lg px-2 py-1.5 pr-6 hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none"
+					<div className="flex items-center gap-3">
+						<button
+							type="button"
+							onClick={handleSelectFile}
+							className="px-4 py-2 bg-[#161B26] border border-slate-700 hover:border-slate-600 text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 shadow-sm"
 						>
-							<option value="">Select preset...</option>
-							{presets.map((preset) => (
-								<option key={preset} value={preset}>
-									{preset}
-								</option>
-							))}
-						</select>
-						<ChevronDown className="absolute right-2 top-2 w-3 h-3 text-slate-500 pointer-events-none" />
+							<FolderOpen className="w-4 h-4 text-slate-400" />
+							Open
+						</button>
+						<div className="w-px h-8 bg-slate-800/60 mx-1" />
+						<button
+							type="button"
+							onClick={() => {
+								void handleSave();
+							}}
+							disabled={!unsavedChanges}
+							className={cn(
+								"px-6 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 shadow-lg",
+								unsavedChanges
+									? "bg-blue-600 text-white shadow-blue-600/20 hover:bg-blue-500 hover:scale-105 active:scale-95"
+									: "bg-slate-800/40 text-slate-500 cursor-not-allowed shadow-none",
+							)}
+						>
+							<Save className="w-4 h-4" />
+							Save Changes
+						</button>
+						<button
+							type="button"
+							onClick={() => {
+								void handleBackup();
+							}}
+							className="p-2.5 bg-[#161B26] border border-slate-700 hover:border-slate-600 text-slate-400 hover:text-white rounded-xl transition-all shadow-sm"
+							title="Create Backup"
+						>
+							<RotateCcw className="w-4 h-4" />
+						</button>
+						<button
+							type="button"
+							onClick={() => {
+								void handleRestore();
+							}}
+							disabled={!hasBackup}
+							className="p-2.5 bg-[#161B26] border border-slate-700 hover:border-slate-600 text-slate-400 hover:text-white rounded-xl transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+							title="Restore from Backup"
+						>
+							<ShieldAlert className="w-4 h-4" />
+						</button>
 					</div>
-					<button
-						type="button"
-						onClick={() => {
-							void handleLoadPreset();
-						}}
-						disabled={!selectedPreset}
-						className={cn(
-							"px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all",
-							selectedPreset
-								? "bg-slate-800/70 text-slate-200 hover:bg-slate-700/70"
-								: "bg-slate-800/40 text-slate-500 cursor-not-allowed",
-						)}
-					>
-						Load
-					</button>
 				</div>
 
-				<div className="flex items-center gap-2">
-					<input
-						value={newPresetName}
-						onChange={(e) => setNewPresetName(e.target.value)}
-						placeholder="Preset name"
-						className="bg-[#161B26] border border-slate-700 text-[10px] text-slate-200 rounded-lg px-2 py-1.5 w-40 hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-					/>
-					<button
-						type="button"
-						onClick={() => {
-							void handleSavePreset();
-						}}
-						disabled={!newPresetName.trim() || !config}
-						className={cn(
-							"px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all",
-							newPresetName.trim() && config
-								? "bg-blue-600 text-white hover:bg-blue-500"
-								: "bg-slate-800/40 text-slate-500 cursor-not-allowed",
-						)}
-					>
-						Save Preset
-					</button>
+				<div className="flex items-center gap-4 py-3 px-4 bg-[#161B26]/50 border border-slate-800/50 rounded-xl backdrop-blur-sm">
+					<div className="flex items-center gap-3 flex-1">
+						<div className="w-8 h-8 rounded-lg bg-slate-800/50 flex items-center justify-center text-slate-500">
+							<Layers className="w-4 h-4" />
+						</div>
+						<div className="flex-1">
+							<div className="relative">
+								<select
+									value={selectedPreset}
+									onChange={(e) => setSelectedPreset(e.target.value)}
+									className="w-full bg-[#0B0E14] border border-slate-700 text-xs font-medium text-slate-200 rounded-lg pl-3 pr-8 py-2 hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer transition-colors"
+								>
+									<option value="">Select a preset configuration...</option>
+									{presets.map((preset) => (
+										<option key={preset} value={preset}>
+											{preset}
+										</option>
+									))}
+								</select>
+								<ChevronDown className="absolute right-3 top-2.5 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+							</div>
+						</div>
+						<button
+							type="button"
+							onClick={() => {
+								void handleLoadPreset();
+							}}
+							disabled={!selectedPreset}
+							className={cn(
+								"px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all",
+								selectedPreset
+									? "bg-slate-700 text-white hover:bg-slate-600 shadow-lg shadow-black/20"
+									: "bg-slate-800/40 text-slate-500 cursor-not-allowed",
+							)}
+						>
+							Load
+						</button>
+					</div>
+
+					<div className="w-px h-8 bg-slate-800/50" />
+
+					<div className="flex items-center gap-3 flex-1">
+						<div className="relative flex-1">
+							<input
+								value={newPresetName}
+								onChange={(e) => setNewPresetName(e.target.value)}
+								placeholder="Save current config as preset..."
+								className="w-full bg-[#0B0E14] border border-slate-700 text-xs text-slate-200 rounded-lg px-3 py-2 hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-slate-600"
+							/>
+						</div>
+						<button
+							type="button"
+							onClick={() => {
+								void handleSavePreset();
+							}}
+							disabled={!newPresetName.trim() || !config}
+							className={cn(
+								"px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all",
+								newPresetName.trim() && config
+									? "bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-600/20"
+									: "bg-slate-800/40 text-slate-500 cursor-not-allowed",
+							)}
+						>
+							Save New
+						</button>
+					</div>
 				</div>
 			</div>
 
-			<div className="flex-1 overflow-hidden">
+			<div className="flex-1 overflow-hidden bg-[#0B0E14] relative">
+				<div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/10 to-transparent" />
+				<div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-500/5 rounded-full blur-[100px] pointer-events-none -translate-y-1/2 translate-x-1/2" />
+
 				{config ? (
-					<div className="h-full overflow-y-auto custom-scrollbar p-4">
-						<DynamicFormFields
-							schema={schema}
-							data={config as unknown as Record<string, unknown>}
-							onChange={handleChange}
-							excludeFields={new Set(["$schema"])}
-							models={models}
-						/>
+					<div className="h-full overflow-y-auto custom-scrollbar p-8">
+						<div className="max-w-5xl mx-auto space-y-8 pb-20">
+							<DynamicFormFields
+								schema={schema}
+								data={config as unknown as Record<string, unknown>}
+								onChange={handleChange}
+								excludeFields={new Set(["$schema"])}
+								models={models}
+								validationErrors={validationErrors}
+							/>
+						</div>
 					</div>
 				) : (
-					<div className="flex items-center justify-center h-full">
-						<div className="text-center">
-							<FileJson className="w-12 h-12 mx-auto mb-3 text-slate-600" />
-							<p className="text-sm text-slate-500">
-								Select a config file to edit
-							</p>
+					<div className="flex flex-col items-center justify-center h-full text-center p-8">
+						<div className="w-24 h-24 rounded-3xl bg-slate-800/30 flex items-center justify-center mb-6 ring-1 ring-slate-700/50">
+							<FileJson className="w-10 h-10 text-slate-600" />
 						</div>
+						<h3 className="text-xl font-bold text-white mb-2">
+							No Configuration Loaded
+						</h3>
+						<p className="text-slate-400 max-w-md mb-8 leading-relaxed">
+							Select a configuration file to start editing your environment
+							settings, agents, and tools.
+						</p>
+						<button
+							type="button"
+							onClick={handleSelectFile}
+							className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-xl shadow-blue-600/20 hover:shadow-blue-600/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 group"
+						>
+							<FolderOpen className="w-5 h-5 group-hover:text-blue-100" />
+							Select Config File
+						</button>
 					</div>
 				)}
 			</div>
