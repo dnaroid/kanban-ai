@@ -3,6 +3,7 @@ import type {
 	CreateProjectInput,
 	UpdateProjectInput,
 } from "@/server/types";
+import type { JSONSchema } from "./json-schema-types";
 import type { Task, CreateTaskInput, UpdateTaskInput } from "@/server/types";
 import type { Board, BoardColumn } from "@/server/types";
 import type {
@@ -492,6 +493,23 @@ class ApiClient {
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ messages: OpenCodeMessage[] }>(payload);
 			return { messages: data.messages ?? [] };
+		},
+	};
+
+	readonly schema = {
+		fetch: async (url: string): Promise<{ schema: JSONSchema }> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/schema?url=${encodeURIComponent(url)}`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to fetch schema",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ schema: JSONSchema }>(payload);
 		},
 	};
 

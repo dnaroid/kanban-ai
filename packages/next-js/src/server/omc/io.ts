@@ -1,22 +1,18 @@
 import fs from "fs/promises";
 import path from "path";
+import { parse as parseJsonc, ParseError } from "jsonc-parser";
 import { appSettingsRepo } from "@/server/repositories";
 
 export const OMC_PRESET_SUFFIX = ".oh-my-opencode.json";
 export const OMC_ORIGINAL_PRESET_NAME = `_original${OMC_PRESET_SUFFIX}`;
 
-function stripJsonComments(content: string): string {
-	return content
-		.replace(/\/\*[\s\S]*?\*\//g, "")
-		.replace(/(^|\s)\/\/.*$/gm, "$1");
-}
-
 export function parseMaybeJsonc(content: string): unknown {
-	try {
-		return JSON.parse(content);
-	} catch {
-		return JSON.parse(stripJsonComments(content));
+	const errors: ParseError[] = [];
+	const result = parseJsonc(content, errors, { allowTrailingComma: true });
+	if (errors.length > 0) {
+		throw new Error(`Failed to parse JSONC: ${errors.length} error(s)`);
 	}
+	return result;
 }
 
 export function resolveOmcPath(pathFromRequest?: string | null): string | null {

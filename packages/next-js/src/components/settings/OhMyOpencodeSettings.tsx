@@ -12,6 +12,7 @@ import {
 	ChevronDown,
 	ChevronRight,
 	Cpu,
+	FileJson,
 	FileText,
 	FolderOpen,
 	Globe,
@@ -40,6 +41,8 @@ import type {
 	PermissionValue,
 	ThinkingConfig,
 } from "./OhMyOpencodeTypes";
+import { DynamicFormFields } from "./DynamicFormFields";
+import type { JSONSchema } from "@/lib/json-schema-types";
 
 type OhMyOpencodeSettingsProps = {
 	onStatusChangeAction: (status: {
@@ -515,9 +518,6 @@ export function OhMyOpencodeSettings({
 	const [isLoading, setIsLoading] = useState(false);
 	const [hasBackup, setHasBackup] = useState(false);
 	const [unsavedChanges, setUnsavedChanges] = useState(false);
-	const [activeTab, setActiveTab] = useState<ConfigTab>("agents");
-	const [selectedItem, setSelectedItem] = useState<string | null>(null);
-	const [searchQuery, setSearchQuery] = useState("");
 	const [presets, setPresets] = useState<string[]>([]);
 	const [selectedPreset, setSelectedPreset] = useState("");
 	const [newPresetName, setNewPresetName] = useState("");
@@ -525,6 +525,7 @@ export function OhMyOpencodeSettings({
 	const [pickerInitialPath, setPickerInitialPath] = useState<
 		string | undefined
 	>(undefined);
+	const [schema, setSchema] = useState<JSONSchema | null>(null);
 
 	const loadPresets = useCallback(async (path: string) => {
 		try {
@@ -547,13 +548,27 @@ export function OhMyOpencodeSettings({
 		}
 	}, []);
 
+	const loadSchema = useCallback(async (schemaUrl: string) => {
+		try {
+			const response = await api.schema.fetch(schemaUrl);
+			setSchema(response.schema);
+		} catch (error) {
+			console.error("Failed to load schema:", error);
+			setSchema(null);
+		}
+	}, []);
+
 	const loadConfig = useCallback(
 		async (path: string) => {
 			try {
 				setIsLoading(true);
 				const response = await api.omc.readConfig({ path });
-				setConfig(response.config as OhMyOpencodeConfig);
+				const config = response.config as OhMyOpencodeConfig;
+				setConfig(config);
 				setUnsavedChanges(false);
+				if (config.$schema) {
+					await loadSchema(config.$schema);
+				}
 				await checkBackupExists(path);
 				await loadPresets(path);
 			} catch (error) {
@@ -566,7 +581,7 @@ export function OhMyOpencodeSettings({
 				setIsLoading(false);
 			}
 		},
-		[checkBackupExists, loadPresets, onStatusChangeAction],
+		[checkBackupExists, loadPresets, onStatusChangeAction, loadSchema],
 	);
 
 	const loadConfigPath = useCallback(async () => {
@@ -681,7 +696,6 @@ export function OhMyOpencodeSettings({
 			});
 			setConfig(response.config as OhMyOpencodeConfig);
 			setUnsavedChanges(true);
-			setSelectedItem(null);
 			onStatusChangeAction({
 				message: `Preset loaded: ${selectedPreset}`,
 				type: "success",
@@ -730,314 +744,13 @@ export function OhMyOpencodeSettings({
 		}
 	};
 
-	const updateConfigItem = (
-		type: ConfigTab,
-		name: string,
-		value: EditableConfig | undefined,
-	) => {
+	const handleChange = useCallback((key: string, value: unknown) => {
 		setConfig((prev) => {
 			if (!prev) return null;
-			const section = (prev[type] || {}) as Record<string, EditableConfig>;
-
-			if (value === undefined) {
-				const newSection = { ...section };
-				delete newSection[name];
-				return { ...prev, [type]: newSection };
-			}
-
-			return {
-				...prev,
-				[type]: {
-					...section,
-					[name]: value,
-				},
-			};
+			return { ...prev, [key]: value };
 		});
 		setUnsavedChanges(true);
-	};
-
-	const items = useMemo(() => {
-		if (!config) return [] as Array<[string, EditableConfig]>;
-		const collection = (config[activeTab] || {}) as Record<
-			string,
-			EditableConfig
-		>;
-		return Object.entries(collection)
-			.filter(([name]) =>
-				name.toLowerCase().includes(searchQuery.toLowerCase()),
-			)
-			.sort((a, b) => a[0].localeCompare(b[0]));
-	}, [config, activeTab, searchQuery]);
-
-	const activeItemData = useMemo(() => {
-		if (!config || !selectedItem) return null;
-		const collection = (config[activeTab] || {}) as Record<
-			string,
-			EditableConfig
-		>;
-		return collection[selectedItem] || null;
-	}, [config, activeTab, selectedItem]);
-
-	const renderEditor = () => {
-		if (!selectedItem || !activeItemData) {
-			return (
-				<div className="flex flex-col items-center justify-center h-full text-slate-500">
-					<SettingsIcon className="w-12 h-12 mb-4 opacity-20" />
-					<p>Select an item to edit</p>
-				</div>
-			);
-		}
-
-		const isAgent = activeTab === "agents";
-		const data = activeItemData;
-
-		const handleChange = (field: string, value: unknown) => {
-			const newData: Record<string, unknown> = { ...data, [field]: value };
-			if (value === undefined || value === "") {
-				delete newData[field];
-			}
-			updateConfigItem(activeTab, selectedItem, newData as EditableConfig);
-		};
-
-		const baseModelName =
-			typeof data.model === "string" ? data.model.split("#")[0] : undefined;
-		const selectedModel = models.find((m) => m.name === baseModelName);
-
-		const isOpenAI = (name?: string) => {
-			if (!name) return false;
-			return name.toLowerCase().includes("gpt");
-		};
-
-		const modelVariants = selectedModel?.variants
-			? selectedModel.variants
-					.split(",")
-					.map((variant) => variant.trim())
-					.filter(Boolean)
-			: [];
-		const hasVariants = modelVariants.length > 0;
-		const isOpenAIModel = baseModelName ? isOpenAI(baseModelName) : false;
-		const showReasoning = isOpenAIModel && hasVariants;
-		const showVariant = !isOpenAIModel && hasVariants;
-
-		return (
-			<div className="flex-1 overflow-y-auto custom-scrollbar bg-[#0B0E14] p-6 space-y-8 animate-in fade-in duration-200">
-				<section>
-					<SectionHeader title="Core Configuration" icon={Cpu}>
-						<button
-							type="button"
-							onClick={() => {
-								if (window.confirm(`Delete ${selectedItem}?`)) {
-									updateConfigItem(activeTab, selectedItem, undefined);
-									setSelectedItem(null);
-								}
-							}}
-							className="p-1.5 hover:bg-red-500/10 text-slate-500 hover:text-red-400 rounded-lg transition-colors"
-							title={`Delete ${selectedItem}`}
-						>
-							<Trash2 className="w-4 h-4" />
-						</button>
-					</SectionHeader>
-					<div className="grid grid-cols-1 md:grid-cols-2 gap-5 bg-slate-900/40 p-5 rounded-2xl border border-slate-800/50">
-						{isAgent && (
-							<div className="col-span-2 md:col-span-1">
-								<div className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">
-									Category
-								</div>
-								<div className="relative">
-									<select
-										value={
-											typeof data.category === "string" ? data.category : ""
-										}
-										onChange={(e) =>
-											handleChange("category", e.target.value || undefined)
-										}
-										className="w-full bg-[#161B26] border border-slate-700 text-sm text-slate-200 rounded-xl px-4 py-2.5 hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all appearance-none cursor-pointer"
-									>
-										<option value="">None</option>
-										{Object.keys(config?.categories || {}).map((c) => (
-											<option key={c} value={c}>
-												{c}
-											</option>
-										))}
-									</select>
-									<ChevronDown className="absolute right-4 top-3 w-4 h-4 text-slate-500 pointer-events-none" />
-								</div>
-							</div>
-						)}
-
-						<div className={cn("col-span-2", isAgent ? "md:col-span-1" : "")}>
-							<div className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">
-								Model
-							</div>
-							<ModelPicker
-								value={typeof data.model === "string" ? data.model : null}
-								models={models}
-								onChange={(val) => handleChange("model", val ?? undefined)}
-								placeholder="Inherit / Default"
-								allowAuto={false}
-								showVariantSelector={false}
-							/>
-						</div>
-
-						{showVariant && (
-							<SelectField
-								label="Variant"
-								value={
-									typeof data.variant === "string" ? data.variant : undefined
-								}
-								options={modelVariants}
-								onChange={(v) => handleChange("variant", v)}
-							/>
-						)}
-
-						{showReasoning && (
-							<SelectField
-								label="Reasoning Effort (OpenAI)"
-								value={
-									typeof data.reasoningEffort === "string"
-										? data.reasoningEffort
-										: undefined
-								}
-								options={modelVariants}
-								onChange={(v) => handleChange("reasoningEffort", v)}
-							/>
-						)}
-
-						<InputField
-							label="Temperature"
-							type="number"
-							value={
-								typeof data.temperature === "number"
-									? data.temperature
-									: undefined
-							}
-							onChange={(v) => {
-								const parsed = Number.parseFloat(v);
-								handleChange(
-									"temperature",
-									Number.isNaN(parsed) ? undefined : parsed,
-								);
-							}}
-							placeholder="0.0 - 2.0"
-						/>
-
-						<InputField
-							label="Top P"
-							type="number"
-							value={typeof data.top_p === "number" ? data.top_p : undefined}
-							onChange={(v) => {
-								const parsed = Number.parseFloat(v);
-								handleChange(
-									"top_p",
-									Number.isNaN(parsed) ? undefined : parsed,
-								);
-							}}
-							placeholder="0.0 - 1.0"
-						/>
-
-						<InputField
-							label="Max Tokens"
-							type="number"
-							value={
-								typeof data.maxTokens === "number" ? data.maxTokens : undefined
-							}
-							onChange={(v) => {
-								const parsed = Number.parseInt(v, 10);
-								handleChange(
-									"maxTokens",
-									Number.isNaN(parsed) ? undefined : parsed,
-								);
-							}}
-							placeholder="e.g. 8000"
-						/>
-
-						<SelectField
-							label="Text Verbosity"
-							value={
-								typeof data.textVerbosity === "string"
-									? data.textVerbosity
-									: undefined
-							}
-							options={TEXT_VERBOSITIES}
-							onChange={(v) => handleChange("textVerbosity", v)}
-						/>
-					</div>
-				</section>
-
-				<section>
-					<SectionHeader title="Capabilities & Skills" icon={Layers} />
-					<div className="grid grid-cols-1 gap-5">
-						<ThinkingEditor
-							value={data.thinking as ThinkingConfig | undefined}
-							onChange={(v) => handleChange("thinking", v)}
-						/>
-
-						{isAgent && (
-							<PermissionEditor
-								value={(data as AgentConfig).permission}
-								onChange={(v) => handleChange("permission", v)}
-							/>
-						)}
-
-						{isAgent && (
-							<div className="bg-slate-900/40 p-5 rounded-2xl border border-slate-800/50">
-								<ArrayEditor
-									label="Skills"
-									value={(data as AgentConfig).skills}
-									onChange={(v) => handleChange("skills", v)}
-								/>
-							</div>
-						)}
-
-						<div className="bg-slate-900/40 p-5 rounded-2xl border border-slate-800/50">
-							<ToolsEditor
-								value={data.tools as Record<string, boolean> | undefined}
-								onChange={(v) => handleChange("tools", v)}
-							/>
-						</div>
-					</div>
-				</section>
-
-				<section>
-					<SectionHeader title="Prompt Engineering" icon={Wrench} />
-					<div className="space-y-4 bg-slate-900/40 p-5 rounded-2xl border border-slate-800/50">
-						{isAgent && (
-							<div className="space-y-1">
-								<div className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">
-									System Prompt Override
-								</div>
-								<textarea
-									value={
-										typeof (data as AgentConfig).prompt === "string"
-											? (data as AgentConfig).prompt
-											: ""
-									}
-									onChange={(e) => handleChange("prompt", e.target.value)}
-									className="w-full bg-[#161B26] border border-slate-700 text-sm text-slate-200 rounded-xl px-4 py-3 min-h-[100px] hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all custom-scrollbar"
-									placeholder="Override default system prompt..."
-								/>
-							</div>
-						)}
-						<div className="space-y-1">
-							<div className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">
-								Append to Prompt
-							</div>
-							<textarea
-								value={
-									typeof data.prompt_append === "string"
-										? data.prompt_append
-										: ""
-								}
-								onChange={(e) => handleChange("prompt_append", e.target.value)}
-								className="w-full bg-[#161B26] border border-slate-700 text-sm text-slate-200 rounded-xl px-4 py-3 min-h-[80px] hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all custom-scrollbar"
-								placeholder="Additional instructions..."
-							/>
-						</div>
-					</div>
-				</section>
-			</div>
-		);
-	};
+	}, []);
 
 	if (isLoading && !config) {
 		return (
@@ -1225,114 +938,27 @@ export function OhMyOpencodeSettings({
 				</div>
 			</div>
 
-			<div className="flex flex-1 overflow-hidden">
-				<div className="w-64 border-r border-slate-800/60 flex flex-col bg-[#11151C]/50">
-					<div className="flex-none flex p-1 bg-slate-900/50 rounded-xl border border-slate-800/40 m-2">
-						{(["agents", "categories"] as const).map((tab) => (
-							<button
-								type="button"
-								key={tab}
-								onClick={() => {
-									setActiveTab(tab);
-									setSelectedItem(null);
-								}}
-								className={cn(
-									"flex-1 py-1 text-[9px] font-bold uppercase tracking-wider transition-all rounded-lg focus:outline-none",
-									activeTab === tab
-										? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
-										: "text-slate-500 hover:text-slate-300 hover:bg-slate-800/40",
-								)}
-							>
-								{tab}
-							</button>
-						))}
+			<div className="flex-1 overflow-hidden">
+				{config ? (
+					<div className="h-full overflow-y-auto custom-scrollbar p-4">
+						<DynamicFormFields
+							schema={schema}
+							data={config as unknown as Record<string, unknown>}
+							onChange={handleChange}
+							excludeFields={new Set(["$schema"])}
+							models={models}
+						/>
 					</div>
-
-					<div className="flex-none p-2 border-b border-slate-800/60 space-y-1.5">
-						<div className="relative">
-							<Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-slate-500" />
-							<input
-								value={searchQuery}
-								onChange={(e) => setSearchQuery(e.target.value)}
-								placeholder="Search..."
-								className="w-full bg-[#161B26] border border-slate-700 rounded-lg pl-8 pr-2 py-1.5 text-[10px] text-slate-200 focus:outline-none focus:border-blue-500/50"
-							/>
+				) : (
+					<div className="flex items-center justify-center h-full">
+						<div className="text-center">
+							<FileJson className="w-12 h-12 mx-auto mb-3 text-slate-600" />
+							<p className="text-sm text-slate-500">
+								Select a config file to edit
+							</p>
 						</div>
-						<button
-							type="button"
-							onClick={() => {
-								const name = window.prompt(
-									`Enter new ${activeTab === "agents" ? "agent" : "category"} name:`,
-								);
-								if (name) {
-									updateConfigItem(activeTab, name, {});
-									setSelectedItem(name);
-								}
-							}}
-							className="w-full py-1.5 bg-slate-800/40 border border-slate-800/60 rounded-lg text-[9px] font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-all flex items-center justify-center gap-1.5 focus:outline-none"
-						>
-							<Plus className="w-3 h-3" />
-							Add New
-						</button>
 					</div>
-
-					<div className="flex-1 overflow-y-auto custom-scrollbar p-1.5 space-y-1">
-						{items.map(([name, data]) => {
-							const modelLabel = itemModelLabel(data);
-							return (
-								<button
-									type="button"
-									key={name}
-									onClick={() => setSelectedItem(name)}
-									className={cn(
-										"w-full text-left px-2.5 py-2 rounded-xl transition-all flex items-center justify-between group focus:outline-none",
-										selectedItem === name
-											? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
-											: "text-slate-400 hover:bg-slate-800/40 hover:text-slate-200",
-									)}
-								>
-									<div className="flex flex-col overflow-hidden">
-										<div className="flex items-center gap-2 mb-0.5">
-											<div
-												className={cn(
-													"w-1.5 h-1.5 rounded-full shrink-0",
-													getColorFromName(name),
-												)}
-											/>
-											<span className="font-bold text-[13px] truncate leading-tight capitalize">
-												{name}
-											</span>
-										</div>
-										{modelLabel && (
-											<span
-												className={cn(
-													"text-[9px] truncate opacity-80 font-medium pl-3.5",
-													selectedItem === name
-														? "text-blue-100"
-														: "text-slate-500",
-												)}
-											>
-												{modelLabel}
-											</span>
-										)}
-									</div>
-									<ChevronRight
-										className={cn(
-											"w-3.5 h-3.5 transition-transform",
-											selectedItem === name
-												? "text-white translate-x-1"
-												: "text-slate-600 opacity-0 group-hover:opacity-100",
-										)}
-									/>
-								</button>
-							);
-						})}
-					</div>
-				</div>
-
-				<div className="flex-1 flex flex-col overflow-hidden">
-					{renderEditor()}
-				</div>
+				)}
 			</div>
 
 			<FileSystemPicker

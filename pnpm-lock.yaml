@@ -59,9 +59,6 @@ importers:
       tailwind-merge:
         specifier: ^3.4.0
         version: 3.4.0
-      vosk-browser:
-        specifier: ^0.0.8
-        version: 0.0.8
       ws:
         specifier: ^8.19.0
         version: 8.19.0
@@ -177,15 +174,15 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@19.2.4)
-      '@kanban-ai/server':
-        specifier: workspace:*
-        version: link:../server
-      '@kanban-ai/shared':
-        specifier: workspace:*
-        version: link:../shared
+      '@opencode-ai/sdk':
+        specifier: ^1.1.42
+        version: 1.1.65
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      jsonc-parser:
+        specifier: ^3.3.1
+        version: 3.3.1
       lucide-react:
         specifier: ^0.563.0
         version: 0.563.0(react@19.2.4)
@@ -3076,10 +3073,6 @@ packages:
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
 
-  uuid@9.0.0:
-    resolution: {integrity: sha512-MXcSTerfPa4uqyzStbRoTgt5XIe3x5+42+q1sDuy3R5MDk66URdLMOZe5aPX/SQd+kuYAh0FdP/pO28IkQyTeg==}
-    hasBin: true
-
   vite@7.3.1:
     resolution: {integrity: sha512-w+N7Hifpc3gRjZ63vYBXA56dvvRlNWRczTdmCBBa+CotUzAPf5b7YMdMR/8CQoeYE5LX3W4wj6RYTgonm1b9DA==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -3153,9 +3146,6 @@ packages:
         optional: true
       jsdom:
         optional: true
-
-  vosk-browser@0.0.8:
-    resolution: {integrity: sha512-df9MuChirUGKxP/+4k8tBV6hJOic8IRdJXv64+ET0Ue5CddOzLZINiHOWCka765gBzHJWNtQKgaYakS0FXZIJA==}
 
   w3c-xmlserializer@5.0.0:
     resolution: {integrity: sha512-o8qghlI8NZHU1lLPrpi2+Uq7abh4GGPpYANlalzWxyWteJOCsr/P+oPBA49TOLu5FTZO4d3F9MnWJfiMo4BkmA==}
@@ -6232,8 +6222,6 @@ snapshots:
 
   util-deprecate@1.0.2: {}
 
-  uuid@9.0.0: {}
-
   vite@7.3.1(@types/node@22.19.11)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0):
     dependencies:
       esbuild: 0.27.3
@@ -6288,10 +6276,6 @@ snapshots:
       - terser
       - tsx
       - yaml
-
-  vosk-browser@0.0.8:
-    dependencies:
-      uuid: 9.0.0
 
   w3c-xmlserializer@5.0.0:
     dependencies:
