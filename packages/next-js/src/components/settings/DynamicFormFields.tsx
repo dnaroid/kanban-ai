@@ -971,12 +971,28 @@ export function validateSchema(
 		const isValid = validate(data);
 
 		if (!isValid && validate.errors) {
-			return validate.errors.map((err) => ({
-				path: err.instancePath || "/",
-				message: err.message || "Validation error",
-				keyword: err.keyword,
-				params: err.params as Record<string, unknown>,
-			}));
+			return validate.errors.map((err) => {
+				let message = err.message || "Validation error";
+
+				// Add more context for specific error types
+				if (
+					err.keyword === "additionalProperties" &&
+					err.params?.additionalProperty
+				) {
+					message = `Unknown property "${err.params.additionalProperty}" is not allowed`;
+				} else if (err.keyword === "required" && err.params?.missingProperty) {
+					message = `Missing required property "${err.params.missingProperty}"`;
+				} else if (err.keyword === "enum" && err.params?.allowedValues) {
+					message = `Must be one of: ${(err.params.allowedValues as string[]).join(", ")}`;
+				}
+
+				return {
+					path: err.instancePath || "/",
+					message,
+					keyword: err.keyword,
+					params: err.params as Record<string, unknown>,
+				};
+			});
 		}
 		return [];
 	} catch (e) {

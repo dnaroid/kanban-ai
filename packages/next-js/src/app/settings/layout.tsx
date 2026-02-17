@@ -78,7 +78,7 @@ function SettingsLayoutInner({ children }: { children: ReactNode }) {
 		tabs.find((tab) => pathname?.includes(tab.id))?.id ?? "all-models";
 
 	return (
-		<div className="flex flex-col h-full w-full">
+		<div className="flex flex-col min-h-screen">
 			{status && (
 				<div className="fixed top-20 right-8 z-50">
 					<div
@@ -137,7 +137,7 @@ function SettingsLayoutInner({ children }: { children: ReactNode }) {
 				})}
 			</div>
 
-			<div className="flex-1 flex flex-col px-8 pb-12 overflow-hidden">{children}</div>
+			<div className="flex-1 flex flex-col px-8 pb-12">{children}</div>
 		</div>
 	);
 }
