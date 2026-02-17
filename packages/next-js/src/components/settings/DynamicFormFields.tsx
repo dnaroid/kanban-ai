@@ -608,9 +608,12 @@ function DynamicField({
 
 	// Handle variant field BEFORE enum check - schema may not have enum
 	if (path.endsWith(".variant") && models) {
-		const modelData = entityModel
-			? models.find((m) => m.name === entityModel)
-			: undefined;
+		// entityModel may be in "provider/model#variant" format, extract model name
+		const modelName = (entityModel?.includes("/")
+			? entityModel.split("/").slice(-1)[0]
+			: entityModel)?.split('#')?.[0];
+		const modelData = models.find((m) =>
+			m.name.split("/").slice(-1)[0] === modelName);
 		// variants is a comma-separated string
 		const variantOptions = modelData?.variants
 			? modelData.variants
