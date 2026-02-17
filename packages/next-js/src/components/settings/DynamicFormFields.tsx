@@ -527,9 +527,77 @@ function DynamicField({
 	}
 
 	if (schema.oneOf || schema.anyOf) {
+		const variants = (schema.oneOf || schema.anyOf) as JSONSchema[];
+
+		const getCurrentVariantIndex = (): number => {
+			if (value === null || value === undefined) return 0;
+			for (let i = 0; i < variants.length; i++) {
+				const v = variants[i];
+				if (v.type === "array" && Array.isArray(value)) return i;
+				if (
+					v.type === "object" &&
+					typeof value === "object" &&
+					!Array.isArray(value)
+				)
+					return i;
+				if (v.type === "string" && typeof value === "string") return i;
+				if (v.type === "number" && typeof value === "number") return i;
+				if (v.type === "boolean" && typeof value === "boolean") return i;
+			}
+			return 0;
+		};
+
+		const currentVariantIndex = getCurrentVariantIndex();
+		const currentVariant = variants[currentVariantIndex];
+
+		// Get label for variant
+		const getVariantLabel = (v: JSONSchema, index: number): string => {
+			if (v.title) return v.title;
+			if (v.type === "array" && v.items) {
+				const items = v.items as JSONSchema;
+				return `Array<${items.type || "items"}>`;
+			}
+			const typeStr = Array.isArray(v.type) ? v.type[0] : v.type;
+			return typeStr || `Variant ${index + 1}`;
+		};
+
 		return (
-			<div className="text-xs text-slate-500 italic">
-				{fieldLabel}: Complex type (oneOf/anyOf) - not yet supported
+			<div className="space-y-2">
+				{fieldLabel && (
+					<div className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">
+						{fieldLabel}
+					</div>
+				)}
+				<select
+					value={currentVariantIndex}
+					onChange={(e) => {
+						const newIndex = parseInt(e.target.value);
+						const newVariant = variants[newIndex];
+						// Initialize with default value for new type
+						if (newVariant.type === "array") onChange([]);
+						else if (newVariant.type === "object") onChange({});
+						else if (newVariant.type === "string") onChange("");
+						else if (newVariant.type === "number") onChange(0);
+						else if (newVariant.type === "boolean") onChange(false);
+						else onChange(null);
+					}}
+					className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 mb-3"
+				>
+					{variants.map((v, i) => (
+						<option key={i} value={i}>
+							{getVariantLabel(v, i)}
+						</option>
+					))}
+				</select>
+				<DynamicField
+					schema={currentVariant}
+					value={value}
+					onChange={onChange}
+					path={path}
+					models={models}
+					modelVariants={modelVariants}
+					depth={depth}
+				/>
 			</div>
 		);
 	}
