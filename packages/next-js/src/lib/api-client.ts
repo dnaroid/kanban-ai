@@ -55,6 +55,24 @@ class ApiClient {
 
 	readonly project = {
 		getAll: async (): Promise<Project[]> => this.getProjects(),
+		delete: async ({ id }: { id: string }): Promise<{ ok: boolean }> => ({
+			ok: await this.deleteProject(id),
+		}),
+		browseDirectory: async ({
+			path,
+		}: {
+			path?: string;
+		}): Promise<{
+			currentPath: string;
+			parentPath: string | null;
+			homePath: string;
+			entries: {
+				name: string;
+				path: string;
+				isDirectory: boolean;
+				isFile: boolean;
+			}[];
+		}> => this.browseDirectory(path),
 	};
 
 	readonly task = {
@@ -253,6 +271,19 @@ class ApiClient {
 		}),
 		create: async (input: { name: string; color: string }): Promise<Tag> =>
 			this.createTag(input),
+		delete: async ({ id }: { id: string }): Promise<{ ok: boolean }> => {
+			const response = await fetch(`${this.baseUrl}/api/tags/${id}`, {
+				method: "DELETE",
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to delete tag",
+				);
+				throw new Error(message);
+			}
+			return { ok: true };
+		},
 	};
 
 	readonly roles = {
@@ -307,6 +338,85 @@ class ApiClient {
 				const message = await this.getErrorMessage(
 					response,
 					"Failed to fetch enabled models",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ models: OpencodeModel[] }>(payload);
+		},
+		listModels: async (): Promise<{ models: OpencodeModel[] }> => {
+			const response = await fetch(`${this.baseUrl}/api/opencode/models`);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to fetch models",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ models: OpencodeModel[] }>(payload);
+		},
+		toggleModel: async ({
+			name,
+			enabled,
+		}: {
+			name: string;
+			enabled: boolean;
+		}): Promise<{ model: OpencodeModel }> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/models/toggle`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ name, enabled }),
+				},
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to toggle model",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ model: OpencodeModel }>(payload);
+		},
+		updateModelDifficulty: async ({
+			name,
+			difficulty,
+		}: {
+			name: string;
+			difficulty: OpencodeModel["difficulty"];
+		}): Promise<{ model: OpencodeModel }> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/models/difficulty`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ name, difficulty }),
+				},
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to update model difficulty",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ model: OpencodeModel }>(payload);
+		},
+		refreshModels: async (): Promise<{ models: OpencodeModel[] }> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/models/refresh`,
+				{
+					method: "POST",
+				},
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to refresh models",
 				);
 				throw new Error(message);
 			}
@@ -383,6 +493,212 @@ class ApiClient {
 			const data = this.unwrapApiData<{ messages: OpenCodeMessage[] }>(payload);
 			return { messages: data.messages ?? [] };
 		},
+	};
+
+	readonly omc = {
+		readConfig: async ({
+			path,
+		}: {
+			path?: string;
+		}): Promise<{ config: unknown; path?: string }> => {
+			const query = path ? `?path=${encodeURIComponent(path)}` : "";
+			const response = await fetch(`${this.baseUrl}/api/omc${query}`);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to read OMC config",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ config: unknown; path?: string }>(payload);
+		},
+		saveConfig: async ({
+			path,
+			config,
+		}: {
+			path: string;
+			config: unknown;
+		}): Promise<{ ok: boolean }> => {
+			const response = await fetch(`${this.baseUrl}/api/omc`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ path, config }),
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to save OMC config",
+				);
+				throw new Error(message);
+			}
+			return { ok: true };
+		},
+		listPresets: async ({
+			path,
+		}: {
+			path: string;
+		}): Promise<{ presets: string[] }> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/omc/presets?path=${encodeURIComponent(path)}`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to list OMC presets",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ presets: string[] }>(payload);
+		},
+		savePreset: async ({
+			path,
+			presetName,
+			config,
+		}: {
+			path: string;
+			presetName: string;
+			config: unknown;
+		}): Promise<{ ok: boolean; presetPath?: string }> => {
+			const response = await fetch(`${this.baseUrl}/api/omc/presets/save`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ path, presetName, config }),
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to save OMC preset",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ ok: boolean; presetPath?: string }>(payload);
+		},
+		loadPreset: async ({
+			path,
+			presetName,
+		}: {
+			path: string;
+			presetName: string;
+		}): Promise<{ config: unknown }> => {
+			const response = await fetch(`${this.baseUrl}/api/omc/presets/load`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ path, presetName }),
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to load OMC preset",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ config: unknown }>(payload);
+		},
+		backup: async ({
+			path,
+		}: {
+			path: string;
+		}): Promise<{ ok: boolean; backupPath: string }> => {
+			const response = await fetch(`${this.baseUrl}/api/omc/backup`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ path }),
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to backup OMC config",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ ok: boolean; backupPath: string }>(payload);
+		},
+		restore: async ({ path }: { path: string }): Promise<{ ok: boolean }> => {
+			const response = await fetch(`${this.baseUrl}/api/omc/restore`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ path }),
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to restore OMC config",
+				);
+				throw new Error(message);
+			}
+			return { ok: true };
+		},
+	};
+
+	readonly filesystem = {
+		exists: async ({
+			path,
+		}: {
+			path: string;
+		}): Promise<{ exists: boolean }> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/filesystem/exists?path=${encodeURIComponent(path)}`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to check path",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ exists: boolean }>(payload);
+		},
+	};
+
+	readonly database = {
+		delete: async (_: Record<string, never>): Promise<{ ok: boolean }> => {
+			const response = await fetch(`${this.baseUrl}/api/database/delete`, {
+				method: "POST",
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to wipe database",
+				);
+				throw new Error(message);
+			}
+			return { ok: true };
+		},
+	};
+
+	readonly appSetting = {
+		getDefaultModel: async ({
+			difficulty,
+		}: {
+			difficulty: "easy" | "medium" | "hard" | "epic";
+		}): Promise<{ modelName: string | null }> => ({
+			modelName: await this.getAppSetting(`defaultModel_${difficulty}`),
+		}),
+		setDefaultModel: async ({
+			difficulty,
+			modelName,
+		}: {
+			difficulty: "easy" | "medium" | "hard" | "epic";
+			modelName: string;
+		}): Promise<{ ok: boolean }> => ({
+			ok: await this.setAppSetting(`defaultModel_${difficulty}`, modelName),
+		}),
+		getOhMyOpencodePath: async (): Promise<{ path: string | null }> => ({
+			path: await this.getAppSetting("ohMyOpencodePath"),
+		}),
+		setOhMyOpencodePath: async ({
+			path,
+		}: {
+			path: string;
+		}): Promise<{ ok: boolean }> => ({
+			ok: await this.setAppSetting("ohMyOpencodePath", path),
+		}),
 	};
 
 	readonly artifact = {
