@@ -82,7 +82,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 				{pathname.startsWith("/board/") ? (
 					<div className="h-screen flex flex-col">{children}</div>
 				) : (
-					<div className="p-8 max-w-7xl mx-auto">{children}</div>
+					<div className="min-h-screen flex flex-col">{children}</div>
 				)}
 			</main>
 		</div>

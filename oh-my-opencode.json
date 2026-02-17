@@ -124,5 +124,5 @@
       "chatgpt-proxy/gpt-4": 1
     }
   },
-  "auto_update": true
+  "auto_update": false
 }

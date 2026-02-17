@@ -77,249 +77,260 @@ export default function DiagnosticsPage() {
 	}, [loadStats]);
 
 	return (
-		<div className="space-y-8 animate-in fade-in duration-500 pb-12">
+		<div className="flex flex-col min-h-screen animate-in fade-in duration-500 pb-12">
 			{/* Header */}
-			<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-				<div>
-					<h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
-						<Activity className="w-8 h-8 text-blue-500" />
-						System Diagnostics
-					</h1>
-					<p className="text-slate-400 mt-1">
-						Monitor real-time system health, queue status, and provider
-						performance
-					</p>
+			<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-8 py-6 border-b border-slate-800/60 bg-[#0B0E14] sticky top-0 z-40">
+				<div className="flex items-center gap-4">
+					<div className="w-12 h-12 rounded-2xl bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center text-blue-400 shadow-lg shadow-blue-500/10 transition-transform hover:scale-110">
+						<Activity className="w-6 h-6 animate-pulse" />
+					</div>
+					<div>
+						<h1 className="text-xl font-black text-white tracking-tight leading-tight uppercase">
+							System Diagnostics
+						</h1>
+						<div className="flex items-center gap-2 mt-1">
+							<div className="px-2 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/20 text-[10px] font-bold text-blue-400 uppercase tracking-widest">
+								Real-time Monitor
+							</div>
+							<p className="text-[10px] text-slate-500 font-mono truncate max-w-[400px]">
+								Queue status and provider performance
+							</p>
+						</div>
+					</div>
 				</div>
 				<button
 					type="button"
 					onClick={() => loadStats()}
 					disabled={loading}
-					className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 rounded-xl transition-all border border-blue-500/20 active:scale-95 disabled:opacity-50"
+					className="h-10 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-blue-600/20 active:scale-95 disabled:opacity-50 text-[10px] uppercase tracking-wider"
 				>
 					<RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
 					<span>Refresh Status</span>
 				</button>
 			</div>
 
-			{/* Top Metrics Cards */}
-			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-				<MetricCard
-					label="Total Queued"
-					value={queueStats?.totalQueued ?? 0}
-					icon={ListFilter}
-					color="text-amber-400"
-					loading={loading}
-				/>
-				<MetricCard
-					label="Total Running"
-					value={queueStats?.totalRunning ?? 0}
-					icon={Zap}
-					color="text-emerald-400"
-					loading={loading}
-				/>
-				<MetricCard
-					label="Active Providers"
-					value={queueStats?.providers.length ?? 0}
-					icon={Server}
-					color="text-blue-400"
-					loading={loading}
-				/>
-				<MetricCard
-					label="Platform"
-					value="Production"
-					icon={Cpu}
-					color="text-purple-400"
-					loading={loading}
-				/>
-			</div>
-
-			{/* Queue Status Section */}
-			<div className="space-y-4">
-				<div className="flex items-center gap-2 px-1">
-					<Layers className="w-5 h-5 text-slate-400" />
-					<h2 className="text-xl font-semibold text-white">
-						Provider Queue Stats
-					</h2>
+			<div className="p-8 space-y-8">
+				{/* Top Metrics Cards */}
+				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+					<MetricCard
+						label="Total Queued"
+						value={queueStats?.totalQueued ?? 0}
+						icon={ListFilter}
+						color="text-amber-400"
+						loading={loading}
+					/>
+					<MetricCard
+						label="Total Running"
+						value={queueStats?.totalRunning ?? 0}
+						icon={Zap}
+						color="text-emerald-400"
+						loading={loading}
+					/>
+					<MetricCard
+						label="Active Providers"
+						value={queueStats?.providers.length ?? 0}
+						icon={Server}
+						color="text-blue-400"
+						loading={loading}
+					/>
+					<MetricCard
+						label="Platform"
+						value="Production"
+						icon={Cpu}
+						color="text-purple-400"
+						loading={loading}
+					/>
 				</div>
 
-				{error ? (
-					<div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 flex flex-col items-center justify-center text-center space-y-3">
-						<AlertCircle className="w-10 h-10 text-red-500 opacity-50" />
-						<div>
-							<h3 className="text-red-400 font-semibold">Connection Error</h3>
-							<p className="text-red-400/70 text-sm max-w-md">{error}</p>
-						</div>
-						<button
-							type="button"
-							onClick={() => loadStats()}
-							className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm transition-colors"
-						>
-							Retry Connection
-						</button>
+				{/* Queue Status Section */}
+				<div className="space-y-4">
+					<div className="flex items-center gap-2 px-1">
+						<Layers className="w-5 h-5 text-slate-400" />
+						<h2 className="text-xl font-semibold text-white">
+							Provider Queue Stats
+						</h2>
 					</div>
-				) : (
-					<div className="bg-[#11151C] border border-slate-800/50 rounded-2xl overflow-hidden shadow-xl">
-						<div className="overflow-x-auto">
-							<table className="w-full text-left border-collapse">
-								<thead>
-									<tr className="bg-slate-800/20 border-b border-slate-800/50">
-										<th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">
-											Provider Key
-										</th>
-										<th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">
-											Queued
-										</th>
-										<th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">
-											Running
-										</th>
-										<th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">
-											Concurrency
-										</th>
-										<th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">
-											Utilization
-										</th>
-									</tr>
-								</thead>
-								<tbody className="divide-y divide-slate-800/30">
-									{!queueStats || queueStats.providers.length === 0 ? (
-										<tr>
-											<td
-												colSpan={5}
-												className="px-6 py-12 text-center text-slate-500"
-											>
-												{loading ? (
-													<div className="flex flex-col items-center gap-2">
-														<RefreshCw className="w-6 h-6 animate-spin text-blue-500/50" />
-														<span>Fetching provider data...</span>
-													</div>
-												) : (
-													"No active providers reported"
-												)}
-											</td>
+
+					{error ? (
+						<div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 flex flex-col items-center justify-center text-center space-y-3">
+							<AlertCircle className="w-10 h-10 text-red-500 opacity-50" />
+							<div>
+								<h3 className="text-red-400 font-semibold">Connection Error</h3>
+								<p className="text-red-400/70 text-sm max-w-md">{error}</p>
+							</div>
+							<button
+								type="button"
+								onClick={() => loadStats()}
+								className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm transition-colors"
+							>
+								Retry Connection
+							</button>
+						</div>
+					) : (
+						<div className="bg-[#11151C] border border-slate-800/50 rounded-2xl overflow-hidden shadow-xl">
+							<div className="overflow-x-auto">
+								<table className="w-full text-left border-collapse">
+									<thead>
+										<tr className="bg-slate-800/20 border-b border-slate-800/50">
+											<th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">
+												Provider Key
+											</th>
+											<th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">
+												Queued
+											</th>
+											<th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">
+												Running
+											</th>
+											<th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">
+												Concurrency
+											</th>
+											<th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">
+												Utilization
+											</th>
 										</tr>
-									) : (
-										queueStats.providers.map((provider) => {
-											const utilization =
-												provider.concurrency > 0
-													? Math.min(
-															100,
-															Math.round(
-																(provider.running / provider.concurrency) * 100,
-															),
-														)
-													: 0;
-
-											return (
-												<tr
-													key={provider.providerKey}
-													className="hover:bg-slate-800/20 transition-colors group"
+									</thead>
+									<tbody className="divide-y divide-slate-800/30">
+										{!queueStats || queueStats.providers.length === 0 ? (
+											<tr>
+												<td
+													colSpan={5}
+													className="px-6 py-12 text-center text-slate-500"
 												>
-													<td className="px-6 py-4">
-														<div className="flex items-center gap-3">
-															<div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
-															<span className="font-mono text-sm text-slate-200 group-hover:text-blue-400 transition-colors">
-																{provider.providerKey}
-															</span>
+													{loading ? (
+														<div className="flex flex-col items-center gap-2">
+															<RefreshCw className="w-6 h-6 animate-spin text-blue-500/50" />
+															<span>Fetching provider data...</span>
 														</div>
-													</td>
-													<td className="px-6 py-4 text-center">
-														<span
-															className={cn(
-																"px-2.5 py-1 rounded-lg border text-xs font-mono transition-colors",
-																provider.queued > 0
-																	? "bg-amber-500/10 border-amber-500/30 text-amber-400"
-																	: "bg-slate-800/50 border-slate-700/30 text-slate-500",
-															)}
-														>
-															{provider.queued}
-														</span>
-													</td>
-													<td className="px-6 py-4 text-center">
-														<span
-															className={cn(
-																"px-2.5 py-1 rounded-lg border text-xs font-mono transition-colors",
-																provider.running > 0
-																	? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-																	: "bg-slate-800/50 border-slate-700/30 text-slate-500",
-															)}
-														>
-															{provider.running}
-														</span>
-													</td>
-													<td className="px-6 py-4 text-center">
-														<span className="px-2.5 py-1 bg-slate-800/50 border border-slate-700/30 text-slate-300 rounded-lg text-xs font-mono">
-															{provider.concurrency}
-														</span>
-													</td>
-													<td className="px-6 py-4 text-right">
-														<div className="flex flex-col items-end gap-1.5">
-															<div className="flex items-center gap-2">
-																<span
-																	className={cn(
-																		"text-[10px] font-bold uppercase tracking-wider",
-																		getUtilizationTextColor(utilization),
-																	)}
-																>
-																	{getUtilizationLabel(utilization)}
-																</span>
-																<div className="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/30">
-																	<div
-																		className={cn(
-																			"h-full transition-all duration-500 ease-out",
-																			getUtilizationColor(utilization),
-																		)}
-																		style={{ width: `${utilization}%` }}
-																	/>
-																</div>
-															</div>
-															<span className="text-[10px] font-mono text-slate-500">
-																{utilization}% capacity
-															</span>
-														</div>
-													</td>
-												</tr>
-											);
-										})
-									)}
-								</tbody>
-							</table>
-						</div>
-					</div>
-				)}
-			</div>
+													) : (
+														"No active providers reported"
+													)}
+												</td>
+											</tr>
+										) : (
+											queueStats.providers.map((provider) => {
+												const utilization =
+													provider.concurrency > 0
+														? Math.min(
+																100,
+																Math.round(
+																	(provider.running / provider.concurrency) *
+																		100,
+																),
+															)
+														: 0;
 
-			{/* Bottom Grid for additional info */}
-			<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-				{/* Database Info Placeholder (consistent with legacy) */}
-				<div className="bg-[#11151C] border border-slate-800/50 rounded-2xl overflow-hidden shadow-xl">
-					<div className="p-4 border-b border-slate-800/50 flex items-center gap-3 bg-gradient-to-r from-emerald-600/10 to-transparent">
-						<Database className="w-5 h-5 text-emerald-500" />
-						<h3 className="font-bold text-white text-sm uppercase tracking-wider">
-							Storage Persistence
-						</h3>
-					</div>
-					<div className="p-6">
-						<div className="flex items-center justify-center h-24 border-2 border-dashed border-slate-800 rounded-xl">
-							<span className="text-slate-500 text-sm">
-								Database metrics coming soon...
-							</span>
+												return (
+													<tr
+														key={provider.providerKey}
+														className="hover:bg-slate-800/20 transition-colors group"
+													>
+														<td className="px-6 py-4">
+															<div className="flex items-center gap-3">
+																<div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+																<span className="font-mono text-sm text-slate-200 group-hover:text-blue-400 transition-colors">
+																	{provider.providerKey}
+																</span>
+															</div>
+														</td>
+														<td className="px-6 py-4 text-center">
+															<span
+																className={cn(
+																	"px-2.5 py-1 rounded-lg border text-xs font-mono transition-colors",
+																	provider.queued > 0
+																		? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+																		: "bg-slate-800/50 border-slate-700/30 text-slate-500",
+																)}
+															>
+																{provider.queued}
+															</span>
+														</td>
+														<td className="px-6 py-4 text-center">
+															<span
+																className={cn(
+																	"px-2.5 py-1 rounded-lg border text-xs font-mono transition-colors",
+																	provider.running > 0
+																		? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+																		: "bg-slate-800/50 border-slate-700/30 text-slate-500",
+																)}
+															>
+																{provider.running}
+															</span>
+														</td>
+														<td className="px-6 py-4 text-center">
+															<span className="px-2.5 py-1 bg-slate-800/50 border border-slate-700/30 text-slate-300 rounded-lg text-xs font-mono">
+																{provider.concurrency}
+															</span>
+														</td>
+														<td className="px-6 py-4 text-right">
+															<div className="flex flex-col items-end gap-1.5">
+																<div className="flex items-center gap-2">
+																	<span
+																		className={cn(
+																			"text-[10px] font-bold uppercase tracking-wider",
+																			getUtilizationTextColor(utilization),
+																		)}
+																	>
+																		{getUtilizationLabel(utilization)}
+																	</span>
+																	<div className="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/30">
+																		<div
+																			className={cn(
+																				"h-full transition-all duration-500 ease-out",
+																				getUtilizationColor(utilization),
+																			)}
+																			style={{ width: `${utilization}%` }}
+																		/>
+																	</div>
+																</div>
+																<span className="text-[10px] font-mono text-slate-500">
+																	{utilization}% capacity
+																</span>
+															</div>
+														</td>
+													</tr>
+												);
+											})
+										)}
+									</tbody>
+								</table>
+							</div>
 						</div>
-					</div>
+					)}
 				</div>
 
-				{/* System Info Placeholder */}
-				<div className="bg-[#11151C] border border-slate-800/50 rounded-2xl overflow-hidden shadow-xl">
-					<div className="p-4 border-b border-slate-800/50 flex items-center gap-3 bg-gradient-to-r from-purple-600/10 to-transparent">
-						<Server className="w-5 h-5 text-purple-500" />
-						<h3 className="font-bold text-white text-sm uppercase tracking-wider">
-							Infrastructure
-						</h3>
+				{/* Bottom Grid for additional info */}
+				<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+					{/* Database Info Placeholder (consistent with legacy) */}
+					<div className="bg-[#11151C] border border-slate-800/50 rounded-2xl overflow-hidden shadow-xl">
+						<div className="p-4 border-b border-slate-800/50 flex items-center gap-3 bg-gradient-to-r from-emerald-600/10 to-transparent">
+							<Database className="w-5 h-5 text-emerald-500" />
+							<h3 className="font-bold text-white text-sm uppercase tracking-wider">
+								Storage Persistence
+							</h3>
+						</div>
+						<div className="p-6">
+							<div className="flex items-center justify-center h-24 border-2 border-dashed border-slate-800 rounded-xl">
+								<span className="text-slate-500 text-sm">
+									Database metrics coming soon...
+								</span>
+							</div>
+						</div>
 					</div>
-					<div className="p-6">
-						<div className="flex items-center justify-center h-24 border-2 border-dashed border-slate-800 rounded-xl">
-							<span className="text-slate-500 text-sm">
-								Environment diagnostics coming soon...
-							</span>
+
+					{/* System Info Placeholder */}
+					<div className="bg-[#11151C] border border-slate-800/50 rounded-2xl overflow-hidden shadow-xl">
+						<div className="p-4 border-b border-slate-800/50 flex items-center gap-3 bg-gradient-to-r from-purple-600/10 to-transparent">
+							<Server className="w-5 h-5 text-purple-500" />
+							<h3 className="font-bold text-white text-sm uppercase tracking-wider">
+								Infrastructure
+							</h3>
+						</div>
+						<div className="p-6">
+							<div className="flex items-center justify-center h-24 border-2 border-dashed border-slate-800 rounded-xl">
+								<span className="text-slate-500 text-sm">
+									Environment diagnostics coming soon...
+								</span>
+							</div>
 						</div>
 					</div>
 				</div>

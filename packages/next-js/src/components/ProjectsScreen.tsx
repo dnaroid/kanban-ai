@@ -392,27 +392,33 @@ export function ProjectsScreen({ onProjectSelect }: ProjectsScreenProps) {
 	};
 
 	return (
-		<div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-			<div className="flex items-center justify-between">
-				<div>
-					<h2 className="text-3xl font-bold text-white tracking-tight">
-						Projects
-					</h2>
-					<p className="text-slate-500 mt-1">
-						Manage and monitor your AI-driven workspaces
-					</p>
+		<div className="flex flex-col min-h-screen animate-in fade-in duration-500">
+			<div className="flex items-center justify-between px-8 py-6 border-b border-slate-800/60 bg-[#0B0E14] sticky top-0 z-40">
+				<div className="flex items-center gap-3">
+					<div className="w-10 h-10 rounded-xl bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center text-blue-400">
+						<FolderKanban className="w-5 h-5" />
+					</div>
+					<div>
+						<h2 className="text-xl font-bold text-white tracking-tight leading-tight">
+							Projects
+						</h2>
+						<p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest mt-0.5">
+							Manage AI Workspaces
+						</p>
+					</div>
 				</div>
 				<button
 					type="button"
 					onClick={() => setIsModalOpen(true)}
-					className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 shadow-lg shadow-blue-600/20 active:scale-95 text-xs"
+					className="bg-blue-600 hover:bg-blue-500 text-white px-4 h-10 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-blue-600/20 active:scale-95 text-xs uppercase tracking-wider"
 				>
 					<Plus className="w-4 h-4" />
 					New Project
 				</button>
 			</div>
 
-			{loading ? (
+			<div className="p-8 space-y-8">
+				{loading ? (
 				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 					{[1, 2, 3].map((i) => (
 						<div
@@ -459,6 +465,7 @@ export function ProjectsScreen({ onProjectSelect }: ProjectsScreenProps) {
 				onClose={() => setIsModalOpen(false)}
 				onCreate={handleCreateProject}
 			/>
+		</div>
 		</div>
 	);
 }
