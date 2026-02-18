@@ -6,8 +6,27 @@ import { Sidebar } from "@/components/Sidebar";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 
+const SIDEBAR_COLLAPSED_KEY = "sidebar-collapsed";
+
 export function ClientLayout({ children }: { children: React.ReactNode }) {
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+	const [isHydrated, setIsHydrated] = useState(false);
+
+	// Load from localStorage after hydration to avoid SSR mismatch
+	useEffect(() => {
+		const stored = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+		if (stored !== null) {
+			setIsSidebarCollapsed(stored === "true");
+		}
+		setIsHydrated(true);
+	}, []);
+
+	// Save to localStorage when changed (only after initial hydration)
+	useEffect(() => {
+		if (isHydrated) {
+			localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(isSidebarCollapsed));
+		}
+	}, [isSidebarCollapsed, isHydrated]);
 	const [activeProject, setActiveProject] = useState<{
 		id: string;
 		name: string;
@@ -22,21 +41,13 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 			const boardMatch = pathname.match(/^\/board\/([^/]+)/);
 			if (boardMatch) {
 				const projectId = boardMatch[1];
-				// Get project name from URL query or fetch it
-				const urlParams = new URLSearchParams(window.location.search);
-				const name = urlParams.get("name");
-				if (name) {
-					setActiveProject({ id: projectId, name });
-				} else {
-					// Fetch project to get name
-					try {
-						const project = await api.getProject(projectId);
-						if (project) {
-							setActiveProject({ id: project.id, name: project.name });
-						}
-					} catch (error) {
-						console.error("Failed to load active project:", error);
+				try {
+					const project = await api.getProject(projectId);
+					if (project) {
+						setActiveProject({ id: project.id, name: project.name });
 					}
+				} catch (error) {
+					console.error("Failed to load active project:", error);
 				}
 			} else if (pathname === "/projects") {
 				// Clear active project when on projects list
@@ -62,7 +73,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
 	const handleProjectSelect = (id: string, name: string) => {
 		setActiveProject({ id, name });
-		router.push(`/board/${id}?name=${encodeURIComponent(name)}`);
+		router.push(`/board/${id}`);
 	};
 
 	return (
