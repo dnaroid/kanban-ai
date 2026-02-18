@@ -1,4 +1,5 @@
 import { boardRepo } from "@/server/repositories/board";
+import { publishSseEvent } from "@/server/events/sse-broker";
 import { taskRepo } from "@/server/repositories/task";
 import type { Run, RunStatus } from "@/types/ipc";
 
@@ -122,6 +123,23 @@ function isTaskDescriptionImproveRun(run: Run): boolean {
 }
 
 export class RunTaskProjector {
+	private updateTaskAndPublish(
+		taskId: string,
+		patch: Parameters<typeof taskRepo.update>[1],
+	): void {
+		const updatedTask = taskRepo.update(taskId, patch);
+		if (!updatedTask) {
+			return;
+		}
+
+		publishSseEvent("task:event", {
+			taskId: updatedTask.id,
+			boardId: updatedTask.boardId,
+			projectId: updatedTask.projectId,
+			updatedAt: updatedTask.updatedAt,
+		});
+	}
+
 	public projectRunStarted(run: Run): void {
 		if (isTaskDescriptionImproveRun(run)) {
 			return;
@@ -137,7 +155,7 @@ export class RunTaskProjector {
 			"in_progress",
 		);
 
-		taskRepo.update(task.id, {
+		this.updateTaskAndPublish(task.id, {
 			status: "running",
 			columnId: inProgressColumnId ?? task.columnId,
 		});
@@ -169,13 +187,13 @@ export class RunTaskProjector {
 				patch.difficulty = parsed.difficulty;
 			}
 
-			taskRepo.update(run.taskId, patch);
+			this.updateTaskAndPublish(run.taskId, patch);
 			return;
 		}
 
 		if (isTaskDescriptionImproveRun(run)) {
 			if (status === "failed" || status === "timeout") {
-				taskRepo.update(run.taskId, { status: "failed" });
+				this.updateTaskAndPublish(run.taskId, { status: "failed" });
 			}
 			return;
 		}
@@ -187,7 +205,7 @@ export class RunTaskProjector {
 
 		if (status === "completed") {
 			const doneColumnId = resolveColumnIdBySystemKey(task.boardId, "done");
-			taskRepo.update(task.id, {
+			this.updateTaskAndPublish(task.id, {
 				status: "done",
 				columnId: doneColumnId ?? task.columnId,
 			});
@@ -195,18 +213,18 @@ export class RunTaskProjector {
 		}
 
 		if (status === "failed" || status === "timeout") {
-			taskRepo.update(task.id, { status: "failed" });
+			this.updateTaskAndPublish(task.id, { status: "failed" });
 			return;
 		}
 
 		if (status === "paused") {
-			taskRepo.update(task.id, { status: "paused" });
+			this.updateTaskAndPublish(task.id, { status: "paused" });
 			return;
 		}
 
 		if (status === "cancelled") {
 			const todoColumnId = resolveColumnIdBySystemKey(task.boardId, "todo");
-			taskRepo.update(task.id, {
+			this.updateTaskAndPublish(task.id, {
 				status: "queued",
 				columnId: todoColumnId ?? task.columnId,
 			});

@@ -98,9 +98,14 @@ export function TaskDetailsDescription({
 		} catch (error) {
 			console.error("Failed to generate user story:", error);
 			setGenerationError("Failed to generate user story. Please try again.");
+		} finally {
 			setIsGeneratingStory(false);
 		}
 	};
+
+	const currentDescription = isEditing
+		? editedDescription
+		: (task.description ?? "");
 
 	const handleVoiceDelta = (delta: string) => {
 		setLiveTranscript(delta);
@@ -282,7 +287,10 @@ export function TaskDetailsDescription({
 					{!isEditing && (
 						<button
 							type="button"
-							onClick={() => setIsEditing(true)}
+							onClick={() => {
+								setEditedDescription(task.description || "");
+								setIsEditing(true);
+							}}
 							className="w-8 h-8 flex items-center justify-center bg-slate-500/10 hover:bg-slate-500 text-slate-400 hover:text-white rounded-lg transition-all border border-slate-500/20 hover:border-slate-500"
 							title="Edit description"
 						>
@@ -383,10 +391,10 @@ export function TaskDetailsDescription({
 					</div>
 				) : (
 					<div className="relative w-full h-full bg-[#161B26]/50 border border-transparent rounded-xl p-4 text-sm text-slate-300 overflow-y-auto transition-colors">
-						{editedDescription ? (
+						{currentDescription ? (
 							<>
 								<LightMarkdown
-									text={editedDescription}
+									text={currentDescription}
 									onRemoveLink={handleRemoveLink}
 								/>
 								{liveTranscript && (

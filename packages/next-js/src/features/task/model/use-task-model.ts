@@ -39,6 +39,17 @@ export function useTaskModel(projectId: string, taskId: string) {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
+	const refreshTaskFromServer = useCallback(async () => {
+		try {
+			const nextTask = await api.getTask(taskId);
+			if (nextTask) {
+				setTask(nextTask);
+			}
+		} catch (err) {
+			console.error("Failed to refresh task from server:", err);
+		}
+	}, [taskId]);
+
 	const loadData = useCallback(async () => {
 		try {
 			setLoading(true);
@@ -66,6 +77,85 @@ export function useTaskModel(projectId: string, taskId: string) {
 	useEffect(() => {
 		loadData();
 	}, [loadData]);
+
+	useEffect(() => {
+		const token = localStorage.getItem("token");
+		const params = new URLSearchParams();
+		const terminalStatuses = new Set([
+			"completed",
+			"failed",
+			"cancelled",
+			"timeout",
+			"paused",
+		]);
+		const pendingRefreshes = new Set<number>();
+		if (token) {
+			params.set("token", token);
+		}
+
+		const query = params.toString();
+		const eventSource = new EventSource(
+			query.length > 0 ? `/events?${query}` : "/events",
+		);
+
+		const onRunEvent = (event: MessageEvent<string>) => {
+			try {
+				const payload = JSON.parse(event.data) as {
+					taskId?: string;
+					status?: string;
+				};
+
+				if (!payload.taskId || payload.taskId !== taskId) {
+					return;
+				}
+
+				void refreshTaskFromServer();
+
+				if (payload.status && terminalStatuses.has(payload.status)) {
+					const timerId = window.setTimeout(() => {
+						pendingRefreshes.delete(timerId);
+						void refreshTaskFromServer();
+					}, 600);
+					pendingRefreshes.add(timerId);
+				}
+			} catch (err) {
+				console.error("Failed to parse run:event payload:", err);
+			}
+		};
+
+		const onTaskEvent = (event: MessageEvent<string>) => {
+			try {
+				const payload = JSON.parse(event.data) as {
+					taskId?: string;
+				};
+
+				if (!payload.taskId || payload.taskId !== taskId) {
+					return;
+				}
+
+				void refreshTaskFromServer();
+			} catch (err) {
+				console.error("Failed to parse task:event payload:", err);
+			}
+		};
+
+		eventSource.addEventListener("run:event", onRunEvent);
+		eventSource.addEventListener("task:event", onTaskEvent);
+
+		eventSource.onerror = (event) => {
+			console.error("Task model SSE error:", event);
+		};
+
+		return () => {
+			eventSource.removeEventListener("run:event", onRunEvent);
+			eventSource.removeEventListener("task:event", onTaskEvent);
+			eventSource.close();
+			for (const timerId of pendingRefreshes) {
+				window.clearTimeout(timerId);
+			}
+			pendingRefreshes.clear();
+		};
+	}, [taskId, refreshTaskFromServer]);
 
 	const handleUpdate = async (id: string, patch: KanbanTaskPatch) => {
 		try {

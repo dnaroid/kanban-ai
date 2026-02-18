@@ -534,8 +534,18 @@ export class RunsQueueManager {
 			eventType: "status",
 			payload: { status, message: `Run ${status}` },
 		});
+
+		try {
+			this.taskProjector.projectRunOutcome(nextRun, status, assistantContent);
+		} catch (error) {
+			log.error("Failed to project run outcome", {
+				runId,
+				status,
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
+
 		publishRunUpdate(nextRun);
-		this.taskProjector.projectRunOutcome(nextRun, status, assistantContent);
 		this.runInputs.delete(runId);
 
 		await this.unsubscribeRunSession(runId);

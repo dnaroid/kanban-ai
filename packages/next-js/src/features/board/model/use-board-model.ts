@@ -86,6 +86,79 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		void loadBoard();
 	}, [loadBoard]);
 
+	const refreshTaskFromServer = useCallback(async (taskId: string) => {
+		try {
+			const nextTask = await api.getTask(taskId);
+			if (!nextTask) {
+				return;
+			}
+
+			setTasks((prev) =>
+				prev.map((task) => (task.id === taskId ? nextTask : task)),
+			);
+
+			setActiveTask((prev) => (prev && prev.id === taskId ? nextTask : prev));
+		} catch (refreshError) {
+			console.error("Failed to refresh board task from server:", refreshError);
+		}
+	}, []);
+
+	useEffect(() => {
+		const token = localStorage.getItem("token");
+		const params = new URLSearchParams();
+		if (token) {
+			params.set("token", token);
+		}
+
+		const query = params.toString();
+		const eventSource = new EventSource(
+			query.length > 0 ? `/events?${query}` : "/events",
+		);
+
+		const onTaskEvent = (event: MessageEvent<string>) => {
+			try {
+				const payload = JSON.parse(event.data) as {
+					taskId?: string;
+				};
+				if (!payload.taskId) {
+					return;
+				}
+
+				void refreshTaskFromServer(payload.taskId);
+			} catch (eventError) {
+				console.error("Failed to parse task:event payload:", eventError);
+			}
+		};
+
+		const onRunEvent = (event: MessageEvent<string>) => {
+			try {
+				const payload = JSON.parse(event.data) as {
+					taskId?: string;
+				};
+				if (!payload.taskId) {
+					return;
+				}
+
+				void refreshTaskFromServer(payload.taskId);
+			} catch (eventError) {
+				console.error("Failed to parse run:event payload:", eventError);
+			}
+		};
+
+		eventSource.addEventListener("task:event", onTaskEvent);
+		eventSource.addEventListener("run:event", onRunEvent);
+
+		eventSource.onerror = (event) => {
+			console.error("Board model SSE error:", event);
+		};
+
+		return () => {
+			eventSource.removeEventListener("task:event", onTaskEvent);
+			eventSource.removeEventListener("run:event", onRunEvent);
+			eventSource.close();
+		};
+	}, [refreshTaskFromServer]);
+
 	const handleDragStart = (event: DragStartEvent) => {
 		if (event.active.data.current?.type === "task") {
 			setActiveTask(
