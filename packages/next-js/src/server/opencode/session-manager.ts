@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 import { createOpencodeClient } from "@opencode-ai/sdk/v2/client";
 import type { OpenCodeMessage, OpenCodeTodo, Part } from "@/types/ipc";
-import { OpencodeStorageReader } from "@/server/opencode/opencode-storage-reader";
 import { getOpencodeService } from "@/server/opencode/opencode-service";
 
 type OpenCodeClient = ReturnType<typeof createOpencodeClient>;
@@ -73,15 +72,13 @@ export class OpencodeSessionManager {
 	private readonly sessionClients = new Map<string, OpenCodeClient>();
 	private readonly directoryClients = new Map<string, OpenCodeClient>();
 	private readonly sessions = new Map<string, SessionInfo>();
+	private rootClient: OpenCodeClient | null = null;
 	private readonly subscribers = new Map<string, Map<string, Subscriber>>();
 	private readonly directoryStreamControllers = new Map<
 		string,
 		AbortController
 	>();
 	private readonly directoryStreamPromises = new Map<string, Promise<void>>();
-	private readonly storageReader = new OpencodeStorageReader((parts) =>
-		this.buildMessageContent(parts),
-	);
 
 	public async createSession(
 		title: string,
@@ -143,10 +140,10 @@ export class OpencodeSessionManager {
 				return messages;
 			}
 		} catch {
-			return this.storageReader.getMessagesFromFilesystem(sessionId, limit);
+			return [];
 		}
 
-		return this.storageReader.getMessagesFromFilesystem(sessionId, limit);
+		return [];
 	}
 
 	public async getTodos(sessionId: string): Promise<OpenCodeTodo[]> {
@@ -236,7 +233,156 @@ export class OpencodeSessionManager {
 			return knownSession.directory;
 		}
 
-		return this.storageReader.getSessionDirectoryFromStorage(sessionId);
+		const session = await this.fetchSessionInfo(sessionId);
+		if (!session) {
+			return null;
+		}
+
+		this.sessions.set(session.id, session);
+		this.sessionClients.set(
+			session.id,
+			this.getDirectoryClient(session.directory),
+		);
+		return session.directory;
+	}
+
+	private async fetchSessionInfo(
+		sessionId: string,
+	): Promise<SessionInfo | null> {
+		const client = this.getRootClient();
+		const fromSessionGet = await this.fetchSessionInfoByGet(client, sessionId);
+		if (fromSessionGet) {
+			return fromSessionGet;
+		}
+
+		return this.findSessionInfoByProjectScan(client, sessionId);
+	}
+
+	private async fetchSessionInfoByGet(
+		client: OpenCodeClient,
+		sessionId: string,
+	): Promise<SessionInfo | null> {
+		try {
+			const response = await client.session.get({ sessionID: sessionId });
+			const data = getData<unknown>(response);
+			const sessionRecord = asRecord(data);
+			const id =
+				asString(sessionRecord?.id) ??
+				asString(sessionRecord?.sessionID) ??
+				sessionId;
+			const directory =
+				asString(sessionRecord?.directory) ??
+				asString(sessionRecord?.dir) ??
+				null;
+
+			if (!directory) {
+				return null;
+			}
+
+			return { id, directory };
+		} catch {
+			return null;
+		}
+	}
+
+	private async findSessionInfoByProjectScan(
+		client: OpenCodeClient,
+		sessionId: string,
+	): Promise<SessionInfo | null> {
+		try {
+			const projectListResponse = await client.project.list();
+			const projectListData = getData<unknown>(projectListResponse);
+			const projects = this.pickArray(projectListData, ["projects", "items"]);
+
+			for (const projectRaw of projects) {
+				const project = asRecord(projectRaw);
+				if (!project) {
+					continue;
+				}
+
+				const projectInfo = asRecord(project.info);
+				const projectDirectory =
+					asString(project.directory) ??
+					asString(project.worktree) ??
+					asString(project.path) ??
+					asString(projectInfo?.directory) ??
+					asString(projectInfo?.worktree);
+
+				if (!projectDirectory) {
+					continue;
+				}
+
+				const sessionsResponse = await this.getDirectoryClient(
+					projectDirectory,
+				).session.list({
+					directory: projectDirectory,
+				});
+				const sessionsData = getData<unknown>(sessionsResponse);
+				const sessions = this.pickArray(sessionsData, ["sessions", "items"]);
+
+				for (const sessionRaw of sessions) {
+					const sessionRecord = asRecord(sessionRaw);
+					if (!sessionRecord) {
+						continue;
+					}
+
+					const id =
+						asString(sessionRecord.id) ?? asString(sessionRecord.sessionID);
+					if (id !== sessionId) {
+						continue;
+					}
+
+					const sessionDirectory =
+						asString(sessionRecord.directory) ??
+						asString(sessionRecord.dir) ??
+						projectDirectory;
+
+					return { id, directory: sessionDirectory };
+				}
+			}
+		} catch {
+			return null;
+		}
+
+		return null;
+	}
+
+	private getRootClient(): OpenCodeClient {
+		if (this.rootClient) {
+			return this.rootClient;
+		}
+
+		const service = getOpencodeService();
+		const baseUrl =
+			process.env.OPENCODE_URL ?? `http://127.0.0.1:${service.getPort()}`;
+
+		this.rootClient = createOpencodeClient({
+			baseUrl,
+			throwOnError: true,
+			directory: process.cwd(),
+		});
+
+		return this.rootClient;
+	}
+
+	private pickArray(value: unknown, keys: string[]): unknown[] {
+		if (Array.isArray(value)) {
+			return value;
+		}
+
+		const record = asRecord(value);
+		if (!record) {
+			return [];
+		}
+
+		for (const key of keys) {
+			const candidate = record[key];
+			if (Array.isArray(candidate)) {
+				return candidate;
+			}
+		}
+
+		return [];
 	}
 
 	private async runEventStream(

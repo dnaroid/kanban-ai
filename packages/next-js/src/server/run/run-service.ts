@@ -1,6 +1,7 @@
 import { createLogger } from "@/lib/logger";
 import { buildTaskPrompt } from "@/server/run/prompts/task";
 import { buildUserStoryPrompt } from "@/server/run/prompts/user-story";
+import { publishSseEvent } from "@/server/events/sse-broker";
 import { publishRunUpdate } from "@/server/run/run-publisher";
 import type { QueueStats } from "@/server/run/runs-queue-manager";
 import { getRunsQueueManager } from "@/server/run/runs-queue-manager";
@@ -168,7 +169,15 @@ export class RunService {
 			eventType: "status",
 			payload: { status: run.status, message: "User story generation queued" },
 		});
-		taskRepo.update(task.id, { status: "generating" });
+		const updatedTask = taskRepo.update(task.id, { status: "generating" });
+		if (updatedTask) {
+			publishSseEvent("task:event", {
+				taskId: updatedTask.id,
+				boardId: updatedTask.boardId,
+				projectId: updatedTask.projectId,
+				updatedAt: updatedTask.updatedAt,
+			});
+		}
 		publishRunUpdate(run);
 
 		const taskTags = this.parseTaskTags(task.tags);

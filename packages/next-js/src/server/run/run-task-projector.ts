@@ -142,6 +142,7 @@ export class RunTaskProjector {
 
 	public projectRunStarted(run: Run): void {
 		if (isTaskDescriptionImproveRun(run)) {
+			this.updateTaskAndPublish(run.taskId, { status: "generating" });
 			return;
 		}
 
@@ -194,6 +195,16 @@ export class RunTaskProjector {
 		if (isTaskDescriptionImproveRun(run)) {
 			if (status === "failed" || status === "timeout") {
 				this.updateTaskAndPublish(run.taskId, { status: "failed" });
+				return;
+			}
+
+			if (status === "paused") {
+				this.updateTaskAndPublish(run.taskId, { status: "question" });
+				return;
+			}
+
+			if (status === "cancelled") {
+				this.updateTaskAndPublish(run.taskId, { status: "queued" });
 			}
 			return;
 		}
