@@ -129,7 +129,13 @@ function ListColumn({
 				<button
 					type="button"
 					onClick={onToggle}
-					className="flex items-center gap-3 text-left"
+					onKeyDown={(e) => {
+						if (e.key === "Enter" || e.key === " ") {
+							e.preventDefault();
+							onToggle();
+						}
+					}}
+					className="flex items-center gap-3 text-left flex-1"
 				>
 					<div className="text-slate-500">
 						{isExpanded ? (
