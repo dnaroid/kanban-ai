@@ -2,8 +2,7 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ExternalLink, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { Trash2 } from "lucide-react";
 import type { KanbanTask, Tag } from "@/types/kanban";
 import { cn } from "@/lib/utils";
 import {
@@ -99,15 +98,6 @@ export function SortableTask({
 						{task.title}
 					</h4>
 					<div className="flex flex-col gap-1">
-						<Link
-							href={`/board/${projectId}/task/${task.id}`}
-							onClick={(e) => e.stopPropagation()}
-							onPointerDown={(e) => e.stopPropagation()}
-							className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-blue-400 transition-all p-1 rounded-md hover:bg-blue-500/10"
-							title="Open Task Page"
-						>
-							<ExternalLink className="w-4 h-4" />
-						</Link>
 						<button
 							type="button"
 							onClick={(e) => {

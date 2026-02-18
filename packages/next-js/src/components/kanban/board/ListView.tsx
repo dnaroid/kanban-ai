@@ -1,16 +1,8 @@
 "use client";
 
-"use client";
-
 import React from "react";
-import {
-	ChevronDown,
-	ChevronRight,
-	Plus,
-	Trash2,
-	ExternalLink,
-} from "lucide-react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import {
 	useSortable,
 	SortableContext,
@@ -31,7 +23,6 @@ interface ListViewProps {
 	columns: BoardColumn[];
 	tasks: KanbanTask[];
 	globalTags: Tag[];
-	onTaskClick: (task: KanbanTask) => void;
 	onAddTask: (columnId: string) => void;
 	onDeleteTask: (taskId: string) => void;
 	expandedColumns: Record<string, boolean>;
@@ -45,7 +36,6 @@ export function ListView({
 	columns,
 	tasks,
 	globalTags,
-	onTaskClick,
 	onAddTask,
 	onDeleteTask,
 	expandedColumns,
@@ -76,7 +66,6 @@ export function ListView({
 						onToggle={() => toggleColumn(column.id)}
 						onAddTask={onAddTask}
 						globalTags={globalTags}
-						onTaskClick={onTaskClick}
 						onDeleteTask={onDeleteTask}
 						projectId={projectId}
 					/>
@@ -93,7 +82,6 @@ interface ListColumnProps {
 	onToggle: () => void;
 	onAddTask: (columnId: string) => void;
 	globalTags: Tag[];
-	onTaskClick: (task: KanbanTask) => void;
 	onDeleteTask: (taskId: string) => void;
 	projectId: string;
 }
@@ -105,7 +93,6 @@ function ListColumn({
 	onToggle,
 	onAddTask,
 	globalTags,
-	onTaskClick,
 	onDeleteTask,
 	projectId,
 }: ListColumnProps) {
@@ -184,7 +171,6 @@ function ListColumn({
 										key={task.id}
 										task={task}
 										globalTags={globalTags}
-										onTaskClick={onTaskClick}
 										onDeleteTask={onDeleteTask}
 										projectId={projectId}
 									/>
@@ -201,7 +187,6 @@ function ListColumn({
 interface ListItemProps {
 	task: KanbanTask;
 	globalTags: Tag[];
-	onTaskClick: (task: KanbanTask) => void;
 	onDeleteTask: (taskId: string) => void;
 	projectId: string;
 }
@@ -209,7 +194,6 @@ interface ListItemProps {
 function ListItem({
 	task,
 	globalTags,
-	onTaskClick,
 	onDeleteTask,
 	projectId,
 }: ListItemProps) {
@@ -234,14 +218,14 @@ function ListItem({
 	};
 
 	return (
-		<div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+		<div ref={setNodeRef} style={style} {...attributes}>
 			<ListItemView
 				task={task}
 				globalTags={globalTags}
-				onTaskClick={onTaskClick}
 				onDeleteTask={onDeleteTask}
 				isDragging={isDragging}
 				projectId={projectId}
+				dragListeners={listeners}
 			/>
 		</div>
 	);
@@ -250,22 +234,23 @@ function ListItem({
 export interface ListItemViewProps {
 	task: KanbanTask;
 	globalTags: Tag[];
-	onTaskClick?: (task: KanbanTask) => void;
 	onDeleteTask?: (taskId: string) => void;
 	isDragging?: boolean;
 	isOverlay?: boolean;
 	projectId?: string;
+	dragListeners?: Record<string, unknown>;
 }
 
 export function ListItemView({
 	task,
 	globalTags,
-	onTaskClick,
 	onDeleteTask,
 	isDragging,
 	isOverlay,
 	projectId,
+	dragListeners,
 }: ListItemViewProps) {
+	const router = useRouter();
 	const pConfig =
 		priorityConfig[task.priority as keyof typeof priorityConfig] ||
 		priorityConfig.normal;
@@ -283,16 +268,23 @@ export function ListItemView({
 		);
 	};
 
+	const handleRowClick = () => {
+		if (projectId) {
+			router.push(`/board/${projectId}/task/${task.id}`);
+		}
+	};
+
 	return (
 		<div
+			onClick={handleRowClick}
+			{...(!isOverlay && dragListeners)}
 			className={cn(
-				"flex items-center gap-4 p-4 hover:bg-slate-800/40 transition-all cursor-pointer group relative overflow-hidden",
+				"group flex items-center gap-4 p-4 hover:bg-slate-800/40 transition-all relative overflow-hidden cursor-grab active:cursor-grabbing",
 				task.status === "running" && "bg-blue-500/5",
 				task.status === "generating" && "bg-purple-500/5",
 				isDragging && !isOverlay && "opacity-50 bg-slate-800/60",
 				isOverlay &&
 					"bg-slate-800 shadow-2xl rounded-xl border border-blue-500/50 scale-[1.02]",
-				!isOverlay && "cursor-grab active:cursor-grabbing",
 			)}
 		>
 			{sConfig && (
@@ -301,13 +293,9 @@ export function ListItemView({
 
 			<div className="flex-1 min-w-0">
 				<div className="flex items-center gap-3 mb-1.5">
-					<button
-						type="button"
-						onClick={() => onTaskClick?.(task)}
-						className="text-sm font-semibold text-slate-200 truncate group-hover:text-white transition-colors text-left"
-					>
+					<span className="text-sm font-semibold text-slate-200 truncate group-hover:text-white transition-colors">
 						{task.title}
-					</button>
+					</span>
 					<div className="flex items-center gap-1.5 flex-shrink-0">
 						<span
 							className={cn(
@@ -364,16 +352,6 @@ export function ListItemView({
 
 			{!isOverlay && (
 				<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-					{projectId && (
-						<Link
-							href={`/board/${projectId}/task/${task.id}`}
-							onClick={(e) => e.stopPropagation()}
-							className="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-xl transition-all"
-							title="Open in page"
-						>
-							<ExternalLink className="w-4 h-4" />
-						</Link>
-					)}
 					<button
 						type="button"
 						onClick={(e) => {
