@@ -1,3 +1,4 @@
+import { createLogger } from "@/lib/logger";
 import { extractOpencodeStatus } from "@/lib/opencode-status";
 import type { SessionEvent } from "@/server/opencode/session-manager";
 import { getOpencodeService } from "@/server/opencode/opencode-service";
@@ -8,6 +9,8 @@ import { runRepo } from "@/server/repositories/run";
 import { getRunTaskProjector } from "@/server/run/run-task-projector";
 import { publishRunUpdate } from "@/server/run/run-publisher";
 import type { RunStatus } from "@/types/ipc";
+
+const log = createLogger("runs-queue");
 
 interface QueuedRunInput {
 	projectPath: string;
@@ -195,6 +198,7 @@ export class RunsQueueManager {
 
 	public enqueue(runId: string, input: QueuedRunInput): void {
 		if (this.providerByRunId.has(runId)) {
+			log.warn("Run already queued", { runId });
 			return;
 		}
 
@@ -204,22 +208,37 @@ export class RunsQueueManager {
 		this.runInputs.set(runId, input);
 		this.providerByRunId.set(runId, providerKey);
 		queue.push(runId);
+		log.info("Run enqueued", {
+			runId,
+			providerKey,
+			projectPath: input.projectPath,
+		});
 		this.scheduleDrain();
 	}
 
 	public async cancel(runId: string): Promise<void> {
+		log.info("Cancelling run", { runId });
 		this.removeFromQueue(runId);
 
 		const run = runRepo.getById(runId);
 		if (!run) {
+			log.warn("Run not found for cancel", { runId });
 			return;
 		}
 
 		if (run.sessionId) {
 			try {
+				log.debug("Aborting OpenCode session", {
+					runId,
+					sessionId: run.sessionId,
+				});
 				await this.sessionManager.abortSession(run.sessionId);
 			} catch (error) {
-				console.warn("Failed to abort OpenCode session during cancel", error);
+				log.error("Failed to abort OpenCode session during cancel", {
+					runId,
+					sessionId: run.sessionId,
+					error,
+				});
 			}
 		}
 
@@ -322,8 +341,13 @@ export class RunsQueueManager {
 	}
 
 	private async executeRun(runId: string): Promise<void> {
+		log.info("Executing run", { runId });
 		const current = runRepo.getById(runId);
 		if (!current || current.status !== "queued") {
+			log.warn("Run not in queued state, skipping", {
+				runId,
+				status: current?.status,
+			});
 			this.runInputs.delete(runId);
 			return;
 		}
@@ -335,6 +359,11 @@ export class RunsQueueManager {
 			errorText: "",
 		});
 
+		log.info("Run started", {
+			runId,
+			taskId: current.taskId,
+			roleId: current.roleId,
+		});
 		runEventRepo.create({
 			runId,
 			eventType: "status",
@@ -349,11 +378,18 @@ export class RunsQueueManager {
 				throw new Error(`Run input not found for run: ${runId}`);
 			}
 
+			log.debug("Starting OpenCode service", { runId });
 			await this.opencodeService.start();
+
+			log.debug("Creating OpenCode session", {
+				runId,
+				projectPath: runInput.projectPath,
+			});
 			const sessionId = await this.sessionManager.createSession(
 				runInput.sessionTitle,
 				runInput.projectPath,
 			);
+			log.info("OpenCode session created", { runId, sessionId });
 
 			runningRun = runRepo.update(runId, { sessionId });
 			runEventRepo.create({
@@ -367,7 +403,13 @@ export class RunsQueueManager {
 			});
 			publishRunUpdate(runningRun);
 
+			// Subscribe BEFORE sending prompt to avoid race condition
+			// (session may complete before subscription is established)
+			await this.subscribeRunSession(runId, sessionId);
+
+			log.debug("Sending prompt to OpenCode", { runId, sessionId });
 			await this.sessionManager.sendPrompt(sessionId, runInput.prompt);
+			log.info("Prompt request completed", { runId, sessionId });
 
 			runEventRepo.create({
 				runId,
@@ -378,10 +420,11 @@ export class RunsQueueManager {
 				},
 			});
 
-			await this.subscribeRunSession(runId, sessionId);
+			await this.tryFinalizeFromSessionSnapshot(runId, sessionId);
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : "Run execution failed";
+			log.error("Run execution failed", { runId, error: message });
 			const finishedAt = new Date().toISOString();
 			const failedRun = runRepo.update(runId, {
 				status: "failed",
@@ -408,8 +451,10 @@ export class RunsQueueManager {
 		runId: string,
 		sessionId: string,
 	): Promise<void> {
+		log.debug("Subscribing to session", { runId, sessionId });
 		const subscriberId = `run:${runId}`;
 		if (this.sessionSubscribers.has(runId)) {
+			log.debug("Already subscribed to session", { runId, sessionId });
 			return;
 		}
 
@@ -418,12 +463,14 @@ export class RunsQueueManager {
 		});
 
 		this.sessionSubscribers.set(runId, sessionId);
+		log.info("Subscribed to session", { runId, sessionId });
 	}
 
 	private async handleSessionEvent(
 		runId: string,
 		event: SessionEvent,
 	): Promise<void> {
+		log.debug("Session event received", { runId, eventType: event.type });
 		if (event.type !== "message.updated") {
 			return;
 		}
@@ -437,6 +484,10 @@ export class RunsQueueManager {
 			return;
 		}
 
+		log.info("Assistant response received, finalizing run", {
+			runId,
+			status: nextStatus,
+		});
 		await this.finalizeRunFromSession(runId, nextStatus, event.message.content);
 	}
 
@@ -445,12 +496,22 @@ export class RunsQueueManager {
 		status: RunStatus,
 		assistantContent: string,
 	): Promise<void> {
+		log.info("Finalizing run", { runId, status });
 		const run = runRepo.getById(runId);
 		if (!run || run.status === status) {
+			log.debug("Run already in target status or not found", {
+				runId,
+				currentStatus: run?.status,
+				targetStatus: status,
+			});
 			return;
 		}
 
 		if (run.status !== "running" && run.status !== "queued") {
+			log.warn("Run not in running/queued state, cannot finalize", {
+				runId,
+				currentStatus: run.status,
+			});
 			return;
 		}
 
@@ -462,6 +523,12 @@ export class RunsQueueManager {
 			durationSec: this.durationSec(run.startedAt ?? finishedAt, finishedAt),
 		});
 
+		log.info("Run finalized", {
+			runId,
+			status,
+			durationSec: this.durationSec(run.startedAt ?? finishedAt, finishedAt),
+			taskId: run.taskId,
+		});
 		runEventRepo.create({
 			runId,
 			eventType: "status",
@@ -474,14 +541,62 @@ export class RunsQueueManager {
 		await this.unsubscribeRunSession(runId);
 	}
 
+	private async tryFinalizeFromSessionSnapshot(
+		runId: string,
+		sessionId: string,
+	): Promise<void> {
+		const run = runRepo.getById(runId);
+		if (!run || (run.status !== "running" && run.status !== "queued")) {
+			return;
+		}
+
+		const messages = await this.sessionManager.getMessages(sessionId, 200);
+		if (messages.length === 0) {
+			log.warn("No session messages found after prompt completion", {
+				runId,
+				sessionId,
+			});
+			return;
+		}
+
+		for (let index = messages.length - 1; index >= 0; index -= 1) {
+			const message = messages[index];
+			if (message.role !== "assistant") {
+				continue;
+			}
+
+			const nextStatus = mapOpencodeStatusToRunStatus(message.content);
+			if (!nextStatus) {
+				continue;
+			}
+
+			log.info("Finalizing run from session snapshot", {
+				runId,
+				sessionId,
+				status: nextStatus,
+				messageId: message.id,
+			});
+			await this.finalizeRunFromSession(runId, nextStatus, message.content);
+			return;
+		}
+
+		log.warn("No assistant completion marker in session snapshot", {
+			runId,
+			sessionId,
+			messageCount: messages.length,
+		});
+	}
+
 	private async unsubscribeRunSession(runId: string): Promise<void> {
 		const sessionId = this.sessionSubscribers.get(runId);
 		if (!sessionId) {
 			return;
 		}
 
+		log.debug("Unsubscribing from session", { runId, sessionId });
 		this.sessionSubscribers.delete(runId);
 		await this.sessionManager.unsubscribe(sessionId, `run:${runId}`);
+		log.info("Unsubscribed from session", { runId, sessionId });
 	}
 
 	private removeFromQueue(runId: string): void {

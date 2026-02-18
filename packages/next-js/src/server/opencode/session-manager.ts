@@ -74,8 +74,11 @@ export class OpencodeSessionManager {
 	private readonly directoryClients = new Map<string, OpenCodeClient>();
 	private readonly sessions = new Map<string, SessionInfo>();
 	private readonly subscribers = new Map<string, Map<string, Subscriber>>();
-	private readonly streamControllers = new Map<string, AbortController>();
-	private readonly streamPromises = new Map<string, Promise<void>>();
+	private readonly directoryStreamControllers = new Map<
+		string,
+		AbortController
+	>();
+	private readonly directoryStreamPromises = new Map<string, Promise<void>>();
 	private readonly storageReader = new OpencodeStorageReader((parts) =>
 		this.buildMessageContent(parts),
 	);
@@ -178,25 +181,34 @@ export class OpencodeSessionManager {
 
 		sessionSubscribers.set(subscriberId, handler);
 
-		if (this.streamControllers.has(sessionId)) {
+		const directory = await this.resolveSessionDirectory(sessionId);
+		if (!directory) {
+			throw new Error(
+				`Cannot subscribe: unknown directory for session ${sessionId}`,
+			);
+		}
+
+		if (this.directoryStreamControllers.has(directory)) {
 			return;
 		}
 
 		const abortController = new AbortController();
-		this.streamControllers.set(sessionId, abortController);
+		this.directoryStreamControllers.set(directory, abortController);
 
-		const streamPromise = this.runEventStream(sessionId, abortController.signal)
+		const streamPromise = this.runEventStream(directory, abortController.signal)
 			.catch((error: unknown) => {
 				const message =
 					error instanceof Error ? error.message : "Event stream failed";
-				this.emit(sessionId, { type: "error", sessionId, error: message });
+				for (const [sid] of this.subscribers) {
+					this.emit(sid, { type: "error", sessionId: sid, error: message });
+				}
 			})
 			.finally(() => {
-				this.streamControllers.delete(sessionId);
-				this.streamPromises.delete(sessionId);
+				this.directoryStreamControllers.delete(directory);
+				this.directoryStreamPromises.delete(directory);
 			});
 
-		this.streamPromises.set(sessionId, streamPromise);
+		this.directoryStreamPromises.set(directory, streamPromise);
 	}
 
 	public async unsubscribe(
@@ -214,16 +226,6 @@ export class OpencodeSessionManager {
 		}
 
 		this.subscribers.delete(sessionId);
-
-		const controller = this.streamControllers.get(sessionId);
-		if (controller) {
-			controller.abort();
-		}
-
-		const streamPromise = this.streamPromises.get(sessionId);
-		if (streamPromise) {
-			await streamPromise;
-		}
 	}
 
 	public async resolveSessionDirectory(
@@ -238,16 +240,27 @@ export class OpencodeSessionManager {
 	}
 
 	private async runEventStream(
-		sessionId: string,
+		directory: string,
 		signal: AbortSignal,
 	): Promise<void> {
-		const client = await this.getSessionClient(sessionId);
-		const eventFactory = this.resolveEventFactory(client);
-		if (!eventFactory) {
-			throw new Error("OpenCode event subscription API is not available");
+		const client = this.getDirectoryClient(directory);
+		const eventApi = asRecord(asRecord(client)?.event);
+		if (!eventApi) {
+			throw new Error("OpenCode event API not available");
 		}
 
-		const streamResult = await eventFactory({ sessionID: sessionId, signal });
+		const subscribe = eventApi["subscribe"] as
+			| ((args: {
+					directory?: string;
+					signal?: AbortSignal;
+			  }) => Promise<unknown>)
+			| undefined;
+
+		if (typeof subscribe !== "function") {
+			throw new Error("OpenCode event.subscribe not available");
+		}
+
+		const streamResult = await subscribe.call(eventApi, { directory, signal });
 		const streamSource =
 			(asRecord(streamResult)?.stream as unknown) ??
 			(asRecord(streamResult)?.data as unknown) ??
@@ -259,35 +272,169 @@ export class OpencodeSessionManager {
 
 		for await (const entry of streamSource) {
 			if (signal.aborted) break;
-			const event = this.normalizeEvent(sessionId, entry);
+			const event = this.normalizeEventFromStream(entry);
 			if (event) {
-				this.emit(sessionId, event);
+				this.emit(event.sessionId, event);
 			}
 		}
 	}
 
-	private resolveEventFactory(
-		client: OpenCodeClient,
-	):
-		| ((args: { sessionID: string; signal: AbortSignal }) => Promise<unknown>)
-		| null {
-		const eventApi = asRecord(asRecord(client)?.event);
-		if (!eventApi) {
+	private normalizeEventFromStream(raw: unknown): SessionEvent | null {
+		const data = this.unwrapEventPayload(raw);
+		if (!data) return null;
+
+		const type = asString(data.type);
+		if (!type) return null;
+
+		const properties = asRecord(data.properties);
+		if (!properties) return null;
+
+		if (type === "todo.updated") {
+			const sessionId = this.pickSessionId(properties, data);
+			if (!sessionId) return null;
+
+			const todosValue = properties?.todos;
+			if (!Array.isArray(todosValue)) return null;
+			const todos = todosValue
+				.map((todo, index) => this.normalizeTodo(todo, index))
+				.filter((todo): todo is OpenCodeTodo => todo !== null);
+			return { type, sessionId, todos };
+		}
+
+		if (type === "message.updated") {
+			const messageInfo =
+				asRecord(properties.info) ??
+				asRecord(properties.message) ??
+				asRecord(data.message) ??
+				properties;
+			const sessionId = this.pickSessionId(messageInfo, properties, data);
+			if (!sessionId) return null;
+
+			const message = this.normalizeMessage(messageInfo);
+			if (!message) return null;
+			return { type, sessionId, message };
+		}
+
+		if (type === "message.part.updated") {
+			const partRecord = asRecord(properties.part);
+			const sessionId = this.pickSessionId(partRecord, properties, data);
+			const messageId = this.pickMessageId(partRecord, properties, data);
+			const part = this.normalizePart(partRecord);
+			if (!sessionId || !messageId || !part) return null;
+			return {
+				type,
+				sessionId,
+				messageId,
+				part,
+				delta: asString(properties?.delta) ?? undefined,
+			};
+		}
+
+		if (type === "message.removed") {
+			const sessionId = this.pickSessionId(properties, data);
+			const messageId = this.pickMessageId(properties, data);
+			if (!sessionId || !messageId) return null;
+			return { type, sessionId, messageId };
+		}
+
+		return null;
+	}
+
+	private unwrapEventPayload(raw: unknown): Record<string, unknown> | null {
+		const root = asRecord(raw);
+		if (!root) return null;
+
+		const direct = this.asEventRecord(root);
+		if (direct) {
+			return direct;
+		}
+
+		const candidates: unknown[] = [root.payload, root.data];
+		const nestedData = asRecord(root.data);
+		if (nestedData) {
+			candidates.push(nestedData.payload, nestedData.data);
+		}
+
+		for (const candidate of candidates) {
+			const candidateRecord = this.asEventRecord(candidate);
+			if (candidateRecord) {
+				return candidateRecord;
+			}
+
+			const parsed = this.parseEventJson(candidate);
+			if (!parsed) {
+				continue;
+			}
+
+			const parsedRecord = this.asEventRecord(parsed);
+			if (parsedRecord) {
+				return parsedRecord;
+			}
+
+			const parsedPayloadRecord = this.asEventRecord(parsed.payload);
+			if (parsedPayloadRecord) {
+				return parsedPayloadRecord;
+			}
+		}
+
+		return null;
+	}
+
+	private asEventRecord(value: unknown): Record<string, unknown> | null {
+		const record = asRecord(value);
+		if (!record) {
 			return null;
 		}
 
-		const subscribe = eventApi["subscribe"] as
-			| ((args: { sessionID: string; signal: AbortSignal }) => Promise<unknown>)
-			| undefined;
-		if (typeof subscribe !== "function") {
+		const type = asString(record.type);
+		const properties = asRecord(record.properties);
+		if (!type || !properties) {
 			return null;
 		}
 
-		return async (args) =>
-			subscribe.call(eventApi, {
-				sessionID: args.sessionID,
-				signal: args.signal,
-			});
+		return record;
+	}
+
+	private parseEventJson(value: unknown): Record<string, unknown> | null {
+		if (typeof value !== "string" || value.trim().length === 0) {
+			return null;
+		}
+
+		try {
+			return asRecord(JSON.parse(value));
+		} catch {
+			return null;
+		}
+	}
+
+	private pickSessionId(
+		...sources: Array<Record<string, unknown> | null>
+	): string | null {
+		for (const source of sources) {
+			const sessionId =
+				asString(source?.sessionID) ?? asString(source?.sessionId);
+			if (sessionId) {
+				return sessionId;
+			}
+		}
+
+		return null;
+	}
+
+	private pickMessageId(
+		...sources: Array<Record<string, unknown> | null>
+	): string | null {
+		for (const source of sources) {
+			const messageId =
+				asString(source?.messageID) ??
+				asString(source?.messageId) ??
+				asString(source?.id);
+			if (messageId) {
+				return messageId;
+			}
+		}
+
+		return null;
 	}
 
 	private emit(sessionId: string, event: SessionEvent): void {
@@ -451,54 +598,6 @@ export class OpencodeSessionManager {
 		}
 
 		return { type: "other" };
-	}
-
-	private normalizeEvent(sessionId: string, raw: unknown): SessionEvent | null {
-		const data = asRecord(raw);
-		if (!data) return null;
-
-		const type = asString(data.type);
-		if (!type) return null;
-
-		if (type === "todo.updated") {
-			const todosValue = asRecord(data.properties)?.todos;
-			if (!Array.isArray(todosValue)) return null;
-			const todos = todosValue
-				.map((todo, index) => this.normalizeTodo(todo, index))
-				.filter((todo): todo is OpenCodeTodo => todo !== null);
-			return { type, sessionId, todos };
-		}
-
-		if (type === "message.updated") {
-			const message = this.normalizeMessage(data.properties ?? data.message);
-			if (!message) return null;
-			return { type, sessionId, message };
-		}
-
-		if (type === "message.part.updated") {
-			const properties = asRecord(data.properties);
-			const messageId =
-				asString(properties?.messageID) ?? asString(data.messageID);
-			const part = this.normalizePart(asRecord(properties?.part));
-			if (!messageId || !part) return null;
-			return {
-				type,
-				sessionId,
-				messageId,
-				part,
-				delta: asString(properties?.delta) ?? undefined,
-			};
-		}
-
-		if (type === "message.removed") {
-			const messageId =
-				asString(asRecord(data.properties)?.messageID) ??
-				asString(data.messageID);
-			if (!messageId) return null;
-			return { type, sessionId, messageId };
-		}
-
-		return null;
 	}
 
 	private buildMessageContent(parts: Part[]): string {
