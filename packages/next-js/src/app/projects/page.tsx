@@ -7,7 +7,7 @@ export default function ProjectsPage() {
 	return (
 		<ProjectsScreen
 			onProjectSelect={(id, name) => {
-				router.push(`/board/${id}?name=${encodeURIComponent(name)}`);
+				router.push(`/board/${id}`);
 			}}
 		/>
 	);

@@ -8,7 +8,6 @@ import {
 	FolderKanban,
 	Layout,
 	Settings,
-	Kanban,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -24,7 +23,6 @@ export function Sidebar({
 	isSidebarCollapsed,
 	onToggleSidebar,
 	activeProject,
-	onProjectSelect,
 }: SidebarProps) {
 	const pathname = usePathname();
 	const router = useRouter();
@@ -125,7 +123,7 @@ export function Sidebar({
 								if (item.id === "timeline") {
 									if (!activeProject) return;
 									router.push(
-										`/timeline/${activeProject.id}?name=${encodeURIComponent(activeProject.name)}`,
+										`/timeline/${activeProject.id}`,
 									);
 									return;
 								}

@@ -26,4 +26,4 @@ UX
 
 - контекст онбординга LLM для каждой задачи
 
-- тэги UI BE FE Arch Fix Design Refactor
+- тэги UI Core Logic Arch Design
