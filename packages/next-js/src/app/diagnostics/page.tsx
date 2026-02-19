@@ -11,6 +11,7 @@ import {
 	ListFilter,
 	Zap,
 	AlertCircle,
+	RotateCcw,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -43,6 +44,7 @@ export default function DiagnosticsPage() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [isPolling, setIsPolling] = useState(false);
+	const [isRestarting, setIsRestarting] = useState(false);
 
 	const loadStats = useCallback(
 		async (silent = false) => {
@@ -76,6 +78,21 @@ export default function DiagnosticsPage() {
 		return () => clearInterval(interval);
 	}, [loadStats]);
 
+	const handleRestart = async () => {
+		setIsRestarting(true);
+		try {
+			await api.opencode.restartServe();
+			await loadStats();
+		} catch (err) {
+			console.error("Failed to restart opencode serve:", err);
+			setError(
+				err instanceof Error ? err.message : "Failed to restart opencode serve",
+			);
+		} finally {
+			setIsRestarting(false);
+		}
+	};
+
 	return (
 		<div className="flex flex-col min-h-screen animate-in fade-in duration-500 pb-12">
 			{/* Header */}
@@ -98,15 +115,28 @@ export default function DiagnosticsPage() {
 						</div>
 					</div>
 				</div>
-				<button
-					type="button"
-					onClick={() => loadStats()}
-					disabled={loading}
-					className="h-10 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-blue-600/20 active:scale-95 disabled:opacity-50 text-[10px] uppercase tracking-wider"
-				>
-					<RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
-					<span>Refresh Status</span>
-				</button>
+				<div className="flex items-center gap-2">
+					<button
+						type="button"
+						onClick={handleRestart}
+						disabled={isRestarting}
+						className="h-10 px-4 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-amber-600/20 active:scale-95 disabled:opacity-50 text-[10px] uppercase tracking-wider"
+					>
+						<RotateCcw
+							className={cn("w-4 h-4", isRestarting && "animate-spin")}
+						/>
+						<span>Restart OpenCode</span>
+					</button>
+					<button
+						type="button"
+						onClick={() => loadStats()}
+						disabled={loading}
+						className="h-10 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-blue-600/20 active:scale-95 disabled:opacity-50 text-[10px] uppercase tracking-wider"
+					>
+						<RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
+						<span>Refresh Status</span>
+					</button>
+				</div>
 			</div>
 
 			<div className="p-8 space-y-8">

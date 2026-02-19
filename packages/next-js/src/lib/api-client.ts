@@ -285,6 +285,30 @@ class ApiClient {
 			}
 			return { ok: true };
 		},
+		update: async ({
+			id,
+			name,
+			color,
+		}: {
+			id: string;
+			name: string;
+			color: string;
+		}): Promise<Tag> => {
+			const response = await fetch(`${this.baseUrl}/api/tags/${id}`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ name, color }),
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to update tag",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<Tag>(payload);
+		},
 	};
 
 	readonly roles = {
@@ -423,6 +447,20 @@ class ApiClient {
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ models: OpencodeModel[] }>(payload);
+		},
+		restartServe: async (): Promise<{ restarted: boolean }> => {
+			const response = await fetch(`${this.baseUrl}/api/opencode/restart`, {
+				method: "POST",
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to restart opencode serve",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ restarted: boolean }>(payload);
 		},
 		getSessionTodos: async ({
 			sessionId,
