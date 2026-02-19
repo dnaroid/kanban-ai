@@ -6,13 +6,7 @@ export default defineConfig({
 	plugins: [react()],
 	resolve: {
 		alias: {
-			"@shared": path.resolve(__dirname, "packages/shared/src"),
-			"@server": path.resolve(__dirname, "packages/server/src"),
-			"@web": path.resolve(__dirname, "packages/web/src"),
-			electron: path.resolve(
-				__dirname,
-				"packages/server/src/__mocks__/electron.ts",
-			),
+			"@": path.resolve(__dirname, "packages/next-js/src"),
 		},
 	},
 	test: {
