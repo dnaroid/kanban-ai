@@ -36,6 +36,7 @@ coverage/
 data/
 *.db-*
 packages/server/dist/
+*.db
 
 # TypeScript
 *.tsbuildinfo

@@ -99,6 +99,14 @@ CREATE TABLE IF NOT EXISTS tags (
   UNIQUE(name)
 );
 
+-- seed tags
+INSERT OR IGNORE INTO tags (id, name, color, created_at, updated_at) VALUES
+  ('tag-logic', 'Logic', '#3b82f6', datetime('now'), datetime('now')),
+  ('tag-arch', 'Arch', '#ec4899', datetime('now'), datetime('now')),
+  ('tag-core', 'Core', '#84cc16', datetime('now'), datetime('now')),
+  ('tag-design', 'Design', '#f59e0b', datetime('now'), datetime('now')),
+  ('tag-ui', 'UI', '#a855f7', datetime('now'), datetime('now'));
+
 -- indexes
 CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
