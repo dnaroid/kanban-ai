@@ -10,13 +10,7 @@ import {
 import type { TaskStatus } from "@/types/kanban";
 import type { Run, RunStatus } from "@/types/ipc";
 
-const allowedTaskTypes = [
-	"feature",
-	"bug",
-	"chore",
-	"improvement",
-	"task",
-] as const;
+const allowedTaskTypes = ["feature", "bug", "chore", "improvement"] as const;
 const allowedDifficulties = ["easy", "medium", "hard", "epic"] as const;
 const agentRoleTagPrefix = "agent:";
 

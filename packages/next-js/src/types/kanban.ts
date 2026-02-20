@@ -17,7 +17,7 @@ export type TaskPriority = "postpone" | "low" | "normal" | "urgent";
 
 export type TaskDifficulty = "easy" | "medium" | "hard" | "epic";
 
-export type TaskType = "feature" | "bug" | "chore" | "improvement" | "task";
+export type TaskType = "feature" | "bug" | "chore" | "improvement";
 
 // Extended KanbanTask for UI - maps DB task to kanban display
 export interface KanbanTask {

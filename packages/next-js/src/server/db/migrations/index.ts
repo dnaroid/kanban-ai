@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   order_in_column INTEGER DEFAULT 0,
 
   -- extended
-  type TEXT NOT NULL DEFAULT 'task',
+  type TEXT NOT NULL DEFAULT 'chore',
   tags_json TEXT NOT NULL DEFAULT '[]',
   description_md TEXT,
 

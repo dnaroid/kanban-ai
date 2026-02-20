@@ -11,6 +11,7 @@ import type { AgentRolePreset } from "@/server/repositories/role";
 import { roleRepo } from "@/server/repositories/role";
 import { runEventRepo } from "@/server/repositories/run-event";
 import { runRepo } from "@/server/repositories/run";
+import { tagRepo } from "@/server/repositories/tag";
 import { taskRepo } from "@/server/repositories/task";
 import type { Run } from "@/types/ipc";
 
@@ -22,13 +23,7 @@ export interface StartRunInput {
 	mode?: string;
 }
 
-const allowedTaskTypes = [
-	"feature",
-	"bug",
-	"chore",
-	"improvement",
-	"task",
-] as const;
+const allowedTaskTypes = ["feature", "bug", "chore", "improvement"] as const;
 const allowedDifficulties = ["easy", "medium", "hard", "epic"] as const;
 const agentRoleTagPrefix = "agent:";
 const activeGenerationRunStatuses = new Set(["queued", "running", "paused"]);
@@ -217,6 +212,7 @@ export class RunService {
 
 		const taskTags = this.parseTaskTags(task.tags);
 		const availableRoles = roleRepo.list();
+		const availableTags = tagRepo.listNames();
 
 		log.debug("Enqueueing user story run", {
 			runId: run.id,
@@ -239,7 +235,7 @@ export class RunService {
 					path: project.path,
 				},
 				{
-					availableTags: taskTags,
+					availableTags,
 					availableTypes: [...allowedTaskTypes],
 					availableDifficulties: [...allowedDifficulties],
 					availableRoles,

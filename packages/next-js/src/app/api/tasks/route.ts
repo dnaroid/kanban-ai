@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
 			closedReason: reasons.closedReason,
 			priority: body.priority ?? "normal",
 			difficulty: body.difficulty ?? "medium",
-			type: body.type ?? "task",
+			type: body.type ?? "chore",
 			tags: body.tags,
 			dueDate: body.dueDate,
 			modelName: body.modelName,

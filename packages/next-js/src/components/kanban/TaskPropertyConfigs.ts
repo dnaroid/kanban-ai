@@ -97,12 +97,6 @@ export const typeConfig = {
 		bg: "bg-blue-400/10",
 		border: "border-blue-400/20",
 	},
-	task: {
-		icon: FileText,
-		color: "text-slate-400",
-		bg: "bg-slate-400/10",
-		border: "border-slate-400/20",
-	},
 } as const;
 
 export const statusConfig = {

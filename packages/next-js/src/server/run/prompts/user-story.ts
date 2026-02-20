@@ -32,7 +32,6 @@ export function buildUserStoryPrompt(
 		"bug",
 		"chore",
 		"improvement",
-		"task",
 	];
 	const difficulties = options.availableDifficulties ?? [
 		"easy",

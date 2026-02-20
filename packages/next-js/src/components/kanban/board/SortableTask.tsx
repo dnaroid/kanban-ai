@@ -50,7 +50,7 @@ export function SortableTask({
 		priorityConfig[task.priority as keyof typeof priorityConfig] ||
 		priorityConfig.normal;
 	const tConfig =
-		typeConfig[task.type as keyof typeof typeConfig] || typeConfig.task;
+		typeConfig[task.type as keyof typeof typeConfig] || typeConfig.chore;
 	const sConfig = task.status
 		? statusConfig[task.status as keyof typeof statusConfig]
 		: null;

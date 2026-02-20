@@ -12,7 +12,7 @@ export class TaskRepository {
 		const closedReason = input.closedReason ?? null;
 		const priority = input.priority ?? "normal";
 		const difficulty = input.difficulty ?? "medium";
-		const type = input.type ?? "task";
+		const type = input.type ?? "chore";
 		const tags = input.tags ? JSON.stringify(input.tags) : "[]";
 
 		// Get the max order_in_column for this column

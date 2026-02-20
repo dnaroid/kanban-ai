@@ -190,7 +190,7 @@ function buildTask(
 		closedReason: null,
 		priority,
 		difficulty: "medium",
-		type: "task",
+		type: "chore",
 		orderInColumn: 0,
 		tags: "[]",
 		startDate: null,
