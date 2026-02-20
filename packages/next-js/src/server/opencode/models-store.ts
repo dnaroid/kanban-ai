@@ -176,7 +176,7 @@ export async function refreshModelsFromProviders(): Promise<OpencodeModel[]> {
 		name: string;
 	}>;
 	const insertStmt = db.prepare(
-		`INSERT OR IGNORE INTO opencode_models (name, enabled, difficulty, variants) VALUES (?, 1, 'medium', ?)`,
+		`INSERT OR IGNORE INTO opencode_models (name, variants) VALUES (?, ?)`,
 	);
 	const updateVariantsStmt = db.prepare(
 		`UPDATE opencode_models SET variants = ? WHERE name = ?`,
