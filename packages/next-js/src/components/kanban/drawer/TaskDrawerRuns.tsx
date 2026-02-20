@@ -33,6 +33,27 @@ interface AgentRole {
 	description: string;
 }
 
+const QUICK_SELECT_ROLE_IDS = new Set(["executor", "ba", "qa", "dev"]);
+const AGENT_ROLE_TAG_PREFIX = "agent:";
+
+function resolveAssignedRoleId(
+	tags: string[] | null | undefined,
+): string | null {
+	if (!Array.isArray(tags)) {
+		return null;
+	}
+
+	const roleTag = tags.find((tag) =>
+		tag.toLowerCase().startsWith(AGENT_ROLE_TAG_PREFIX),
+	);
+	if (!roleTag) {
+		return null;
+	}
+
+	const roleId = roleTag.slice(AGENT_ROLE_TAG_PREFIX.length).trim();
+	return roleId.length > 0 ? roleId : null;
+}
+
 function selectRunId(
 	runs: Run[],
 	previousSelectedRunId: string | null,
@@ -67,6 +88,21 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 	const [roles, setRoles] = useState<AgentRole[]>([]);
 	const [isLoadingRoles, setIsLoadingRoles] = useState(false);
 	const [selectedRoleId, setSelectedRoleId] = useState<string>("");
+
+	const quickSelectRoles = roles.filter((role) =>
+		QUICK_SELECT_ROLE_IDS.has(role.id),
+	);
+	const assignedRoleId = resolveAssignedRoleId(task.tags);
+	const assignedRole = assignedRoleId
+		? (roles.find((role) => role.id === assignedRoleId) ?? null)
+		: null;
+	const visibleRoles =
+		quickSelectRoles.length > 0
+			? assignedRole &&
+				!quickSelectRoles.some((role) => role.id === assignedRole.id)
+				? [...quickSelectRoles, assignedRole]
+				: quickSelectRoles
+			: roles;
 
 	const fetchRuns = useCallback(async () => {
 		setIsLoadingRuns(true);
@@ -169,9 +205,14 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 	const handleRetryRun = async (run: Run, e: React.MouseEvent) => {
 		e.stopPropagation();
 		try {
+			const retryRoleId = run.roleId || selectedRoleId || visibleRoles[0]?.id;
+			if (!retryRoleId) {
+				console.error("Failed to retry run: no role available");
+				return;
+			}
 			const response = await api.run.start({
 				taskId: task.id,
-				roleId: run.roleId || "default",
+				roleId: retryRoleId,
 				mode: run.mode,
 			});
 			await fetchRuns();
@@ -186,10 +227,21 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 			setIsLoadingRoles(true);
 			try {
 				const response = await api.roles.list();
-				setRoles(response.roles);
-				if (response.roles.length > 0) {
-					setSelectedRoleId(response.roles[0].id);
-				}
+				const fetchedRoles = response.roles;
+				setRoles(fetchedRoles);
+				if (fetchedRoles.length === 0) return;
+
+				const dailyRoles = fetchedRoles.filter((role) =>
+					QUICK_SELECT_ROLE_IDS.has(role.id),
+				);
+				const assignedRoleFromTask = resolveAssignedRoleId(task.tags);
+				const assignedRoleExists = assignedRoleFromTask
+					? fetchedRoles.some((role) => role.id === assignedRoleFromTask)
+					: false;
+				const defaultRole =
+					(assignedRoleExists ? assignedRoleFromTask : null) ??
+					(dailyRoles.length > 0 ? dailyRoles[0].id : fetchedRoles[0].id);
+				setSelectedRoleId(defaultRole);
 			} catch (error) {
 				console.error("Failed to fetch roles:", error);
 			} finally {
@@ -198,7 +250,7 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 		};
 
 		fetchRoles();
-	}, []);
+	}, [task.tags]);
 
 	const selectedRun = runs.find((r) => r.id === selectedRunId) || null;
 	const selectedRole = roles.find((role) => role.id === selectedRoleId) ?? null;
@@ -245,7 +297,7 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 							className="h-7 min-w-[150px] text-[10px] bg-slate-900 border border-slate-700 rounded px-2 text-slate-300 focus:outline-none focus:border-blue-500/50"
 							disabled={isLoadingRoles}
 						>
-							{roles.map((role) => (
+							{visibleRoles.map((role) => (
 								<option key={role.id} value={role.id}>
 									{role.name}
 								</option>

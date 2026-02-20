@@ -7,6 +7,7 @@ import type { QueueStats } from "@/server/run/runs-queue-manager";
 import { getRunsQueueManager } from "@/server/run/runs-queue-manager";
 import { contextSnapshotRepo } from "@/server/repositories/context-snapshot";
 import { projectRepo } from "@/server/repositories/project";
+import type { AgentRolePreset } from "@/server/repositories/role";
 import { roleRepo } from "@/server/repositories/role";
 import { runEventRepo } from "@/server/repositories/run-event";
 import { runRepo } from "@/server/repositories/run";
@@ -29,6 +30,7 @@ const allowedTaskTypes = [
 	"task",
 ] as const;
 const allowedDifficulties = ["easy", "medium", "hard", "epic"] as const;
+const agentRoleTagPrefix = "agent:";
 
 export class RunService {
 	private readonly queueManager = getRunsQueueManager();
@@ -46,11 +48,21 @@ export class RunService {
 			throw new Error(`Task not found: ${input.taskId}`);
 		}
 
-		const selectedRoleId = input.roleId ?? roleRepo.list()[0]?.id;
+		const availableRoles = roleRepo.list();
+		const taskTags = this.parseTaskTags(task.tags);
+		const assignedRoleId = this.resolveAssignedRoleIdFromTags(taskTags);
+		const selectedRoleId =
+			input.roleId ?? assignedRoleId ?? availableRoles[0]?.id;
 		if (!selectedRoleId) {
 			log.error("No agent roles configured");
 			throw new Error("No agent roles configured");
 		}
+
+		const selectedRole =
+			availableRoles.find((role) => role.id === selectedRoleId) ?? null;
+		const selectedRolePreset = this.parseRolePreset(
+			roleRepo.getPresetJson(selectedRoleId),
+		);
 
 		log.debug("Creating context snapshot", { taskId: task.id });
 		const snapshotId = contextSnapshotRepo.create({
@@ -104,6 +116,12 @@ export class RunService {
 				{
 					id: project.id,
 					path: project.path,
+				},
+				{
+					id: selectedRoleId,
+					name: selectedRole?.name ?? selectedRoleId,
+					systemPrompt: selectedRolePreset?.systemPrompt,
+					skills: selectedRolePreset?.skills,
 				},
 			),
 		});
@@ -181,6 +199,7 @@ export class RunService {
 		publishRunUpdate(run);
 
 		const taskTags = this.parseTaskTags(task.tags);
+		const availableRoles = roleRepo.list();
 
 		log.debug("Enqueueing user story run", {
 			runId: run.id,
@@ -206,6 +225,7 @@ export class RunService {
 					availableTags: taskTags,
 					availableTypes: [...allowedTaskTypes],
 					availableDifficulties: [...allowedDifficulties],
+					availableRoles,
 				},
 			),
 		});
@@ -255,6 +275,60 @@ export class RunService {
 				.filter((value) => value.length > 0);
 		} catch {
 			return [];
+		}
+	}
+
+	private resolveAssignedRoleIdFromTags(tags: string[]): string | null {
+		const roleTag = tags.find((tag) =>
+			tag.toLowerCase().startsWith(agentRoleTagPrefix),
+		);
+		if (!roleTag) {
+			return null;
+		}
+
+		const roleId = roleTag.slice(agentRoleTagPrefix.length).trim();
+		if (roleId.length === 0) {
+			return null;
+		}
+
+		if (!roleRepo.list().some((role) => role.id === roleId)) {
+			return null;
+		}
+
+		return roleId;
+	}
+
+	private parseRolePreset(rawPreset: string | null): AgentRolePreset | null {
+		if (!rawPreset) {
+			return null;
+		}
+
+		try {
+			const parsed = JSON.parse(rawPreset) as Partial<AgentRolePreset>;
+			return {
+				version: parsed.version ?? "1.0",
+				provider: parsed.provider ?? "",
+				modelName: parsed.modelName ?? "",
+				skills: Array.isArray(parsed.skills)
+					? parsed.skills.filter(
+							(skill): skill is string => typeof skill === "string",
+						)
+					: [],
+				systemPrompt:
+					typeof parsed.systemPrompt === "string" ? parsed.systemPrompt : "",
+				mustDo: Array.isArray(parsed.mustDo)
+					? parsed.mustDo.filter(
+							(item): item is string => typeof item === "string",
+						)
+					: [],
+				outputContract: Array.isArray(parsed.outputContract)
+					? parsed.outputContract.filter(
+							(item): item is string => typeof item === "string",
+						)
+					: [],
+			};
+		} catch {
+			return null;
 		}
 	}
 }

@@ -332,7 +332,12 @@ class ApiClient {
 			return { roles: data.roles ?? [] };
 		},
 		listFull: async (): Promise<{
-			roles: Array<{ id: string; name: string; description: string; preset_json: string }>;
+			roles: Array<{
+				id: string;
+				name: string;
+				description: string;
+				preset_json: string;
+			}>;
 		}> => {
 			const response = await fetch(`${this.baseUrl}/api/roles/list-full`);
 			if (!response.ok) {
@@ -344,7 +349,12 @@ class ApiClient {
 			}
 			const payload = await response.json();
 			const data = this.unwrapApiData<{
-				roles?: Array<{ id: string; name: string; description: string; preset_json: string }>;
+				roles?: Array<{
+					id: string;
+					name: string;
+					description: string;
+					preset_json: string;
+				}>;
 			}>(payload);
 			return { roles: data.roles ?? [] };
 		},
@@ -408,6 +418,19 @@ class ApiClient {
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ runId: string }>(payload);
+		},
+		listSkills: async (): Promise<{ skills: string[] }> => {
+			const response = await fetch(`${this.baseUrl}/api/opencode/skills`);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to fetch OpenCode skills",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{ skills?: string[] }>(payload);
+			return { skills: data.skills ?? [] };
 		},
 		listEnabledModels: async (): Promise<{ models: OpencodeModel[] }> => {
 			const response = await fetch(

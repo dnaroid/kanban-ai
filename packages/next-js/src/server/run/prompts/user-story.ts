@@ -18,6 +18,7 @@ interface UserStoryPromptOptions {
 	availableTags?: string[];
 	availableTypes?: string[];
 	availableDifficulties?: string[];
+	availableRoles?: Array<{ id: string; name: string; description: string }>;
 }
 
 export function buildUserStoryPrompt(
@@ -41,6 +42,11 @@ export function buildUserStoryPrompt(
 	];
 
 	const tagsLine = tags.length > 0 ? tags.join(", ") : "(нет доступных тегов)";
+	const availableRoles = options.availableRoles ?? [];
+	const rolesLine =
+		availableRoles.length > 0
+			? availableRoles.map((role) => `${role.id} (${role.name})`).join(", ")
+			: "(нет доступных ролей)";
 
 	return `Твоя задача: переписать описание задачи в формат user story для AI-агента (код-исполнителя), чтобы по нему можно было сразу запускать работу.
 
@@ -62,6 +68,7 @@ export function buildUserStoryPrompt(
 - Теги: ${tagsLine}
 - Тип: ${types.join(", ")}
 - Сложность: ${difficulties.join(", ")}
+- Агент (id): ${rolesLine}
 
 Верни ответ строго в формате:
 
@@ -69,7 +76,8 @@ export function buildUserStoryPrompt(
 {
   "tags": ["tag1", "tag2"],
   "type": "feature",
-  "difficulty": "medium"
+  "difficulty": "medium",
+  "agentRoleId": "executor"
 }
 </META>
 
@@ -108,7 +116,8 @@ export function buildUserStoryPrompt(
 2) Не расписывай реализацию на уровне кода.
 3) Возвращай только блоки <META> и <STORY>, без доп. текста.
 4) В <META> не используй markdown-код-блок, только JSON.
-5) Последняя строка ответа должна быть marker-статусом:
+5) В поле agentRoleId укажи один id из списка доступных ролей. Выбирай роль по смыслу задачи (кто должен исполнять).
+6) Последняя строка ответа должна быть marker-статусом:
    - успех: ${buildOpencodeStatusLine("done")}
    - ошибка: ${buildOpencodeStatusLine("fail")}
    - нужен ответ пользователя: ${buildOpencodeStatusLine("question")}`;

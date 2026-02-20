@@ -18,6 +18,7 @@ const allowedTaskTypes = [
 	"task",
 ] as const;
 const allowedDifficulties = ["easy", "medium", "hard", "epic"] as const;
+const agentRoleTagPrefix = "agent:";
 
 type AllowedTaskType = (typeof allowedTaskTypes)[number];
 type AllowedDifficulty = (typeof allowedDifficulties)[number];
@@ -28,7 +29,40 @@ type ParsedUserStoryResponse = {
 	tags?: string[];
 	type?: AllowedTaskType;
 	difficulty?: AllowedDifficulty;
+	agentRoleId?: string;
 };
+
+function parseTaskTags(rawTags: unknown): string[] {
+	if (typeof rawTags !== "string" || rawTags.trim().length === 0) {
+		return [];
+	}
+
+	try {
+		const parsed = JSON.parse(rawTags) as unknown;
+		if (!Array.isArray(parsed)) {
+			return [];
+		}
+
+		return parsed
+			.filter((value): value is string => typeof value === "string")
+			.map((value) => value.trim())
+			.filter((value) => value.length > 0);
+	} catch {
+		return [];
+	}
+}
+
+function upsertAgentRoleTag(tags: string[], roleId: string): string[] {
+	const normalized = roleId.trim();
+	if (normalized.length === 0) {
+		return tags;
+	}
+
+	const withoutRoleTag = tags.filter(
+		(tag) => !tag.toLowerCase().startsWith(agentRoleTagPrefix),
+	);
+	return [...withoutRoleTag, `${agentRoleTagPrefix}${normalized}`];
+}
 
 function parseUserStoryResponse(content: string): ParsedUserStoryResponse {
 	const metaMatch = content.match(/<META>([\s\S]*?)<\/META>/i);
@@ -78,6 +112,7 @@ function parseUserStoryResponse(content: string): ParsedUserStoryResponse {
 			tags?: unknown;
 			type?: unknown;
 			difficulty?: unknown;
+			agentRoleId?: unknown;
 		};
 
 		if (Array.isArray(meta.tags)) {
@@ -103,6 +138,13 @@ function parseUserStoryResponse(content: string): ParsedUserStoryResponse {
 				(allowedDifficulties as readonly string[]).includes(difficultyValue)
 			) {
 				result.difficulty = difficultyValue as AllowedDifficulty;
+			}
+		}
+
+		if (typeof meta.agentRoleId === "string") {
+			const roleId = meta.agentRoleId.trim();
+			if (/^[a-z0-9_-]+$/i.test(roleId)) {
+				result.agentRoleId = roleId;
 			}
 		}
 	} catch {
@@ -185,6 +227,7 @@ export class RunTaskProjector {
 
 		if (isTaskDescriptionImproveRun(run) && status === "completed") {
 			const parsed = parseUserStoryResponse(assistantContent);
+			const currentTags = parseTaskTags(task.tags);
 			const patch: Parameters<typeof taskRepo.update>[1] = {
 				...this.buildStatusPatch(task, "queued"),
 				description: parsed.description,
@@ -194,8 +237,14 @@ export class RunTaskProjector {
 			if (parsed.title) {
 				patch.title = parsed.title;
 			}
-			if (parsed.tags && parsed.tags.length > 0) {
-				patch.tags = JSON.stringify(parsed.tags);
+			let nextTags =
+				parsed.tags && parsed.tags.length > 0 ? parsed.tags : currentTags;
+			if (parsed.agentRoleId) {
+				nextTags = upsertAgentRoleTag(nextTags, parsed.agentRoleId);
+			}
+
+			if (nextTags.length > 0) {
+				patch.tags = JSON.stringify([...new Set(nextTags)]);
 			}
 			if (parsed.type) {
 				patch.type = parsed.type;
