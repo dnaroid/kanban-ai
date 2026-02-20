@@ -1,5 +1,15 @@
-import { v017SystemKeySql, v018AppMetricsSql } from "./sql";
-export { v017SystemKeySql, v018AppMetricsSql };
+import {
+	v017SystemKeySql,
+	v018AppMetricsSql,
+	v019TaskBlockedReasonSql,
+	v020TaskClosedReasonSql,
+} from "./sql";
+export {
+	v017SystemKeySql,
+	v018AppMetricsSql,
+	v019TaskBlockedReasonSql,
+	v020TaskClosedReasonSql,
+};
 
 export const INIT_DB_SQL = `
 PRAGMA foreign_keys = ON;
@@ -38,6 +48,7 @@ CREATE TABLE IF NOT EXISTS board_columns (
   id TEXT PRIMARY KEY,
   board_id TEXT NOT NULL,
   name TEXT NOT NULL,
+  system_key TEXT NOT NULL DEFAULT '',
   order_index INTEGER NOT NULL,
   wip_limit INTEGER,
   color TEXT NOT NULL DEFAULT '',
@@ -57,6 +68,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   title TEXT NOT NULL,
   description TEXT,
   status TEXT NOT NULL,           -- 'queued' | 'running' | 'done' | 'archived' (migration 2)
+  blocked_reason TEXT,
+  closed_reason TEXT,
   priority TEXT NOT NULL,         -- 'low' | 'normal' | 'urgent' (migration 4)
   difficulty TEXT NOT NULL DEFAULT 'medium',  -- migration 1
   assigned_agent TEXT,            -- optional (manual), не обязателен при queue
@@ -467,6 +480,14 @@ export const migrations = [
 	{
 		version: 18,
 		sql: v018AppMetricsSql,
+	},
+	{
+		version: 19,
+		sql: v019TaskBlockedReasonSql,
+	},
+	{
+		version: 20,
+		sql: v020TaskClosedReasonSql,
 	},
 ] as const;
 

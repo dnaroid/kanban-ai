@@ -14,6 +14,10 @@ function mapPatchToUpdateInput(patch: KanbanTaskPatch): UpdateTaskInput {
 	if (patch.descriptionMd !== undefined)
 		updateData.descriptionMd = patch.descriptionMd;
 	if (patch.status !== undefined) updateData.status = patch.status;
+	if (patch.blockedReason !== undefined)
+		updateData.blockedReason = patch.blockedReason;
+	if (patch.closedReason !== undefined)
+		updateData.closedReason = patch.closedReason;
 	if (patch.priority !== undefined) updateData.priority = patch.priority;
 	if (patch.difficulty !== undefined) updateData.difficulty = patch.difficulty;
 	if (patch.type !== undefined) updateData.type = patch.type;

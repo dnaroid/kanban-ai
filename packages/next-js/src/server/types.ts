@@ -57,6 +57,8 @@ export interface Task {
 	description: string | null;
 	descriptionMd: string | null;
 	status: string;
+	blockedReason: "question" | "paused" | "failed" | null;
+	closedReason: "done" | "failed" | null;
 	priority: string;
 	difficulty: string;
 	type: string;
@@ -79,6 +81,8 @@ export interface CreateTaskInput {
 	title: string;
 	description?: string;
 	status?: string;
+	blockedReason?: "question" | "paused" | "failed" | null;
+	closedReason?: "done" | "failed" | null;
 	priority?: string;
 	difficulty?: string;
 	type?: string;
@@ -93,6 +97,8 @@ export interface UpdateTaskInput {
 	description?: string | null;
 	descriptionMd?: string | null;
 	status?: string;
+	blockedReason?: "question" | "paused" | "failed" | null;
+	closedReason?: "done" | "failed" | null;
 	priority?: string;
 	difficulty?: string;
 	type?: string;

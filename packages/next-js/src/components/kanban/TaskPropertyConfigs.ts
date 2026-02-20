@@ -150,6 +150,47 @@ export const statusConfig = {
 	},
 } as const;
 
+export const blockedReasonConfig = {
+	question: {
+		icon: HelpCircle,
+		color: "text-orange-400",
+		bg: "bg-orange-400/5",
+		border: "border-orange-400/20",
+		label: "Question",
+	},
+	paused: {
+		icon: Pause,
+		color: "text-yellow-400",
+		bg: "bg-yellow-400/5",
+		border: "border-yellow-400/20",
+		label: "Paused",
+	},
+	failed: {
+		icon: XCircle,
+		color: "text-red-400",
+		bg: "bg-red-400/5",
+		border: "border-red-400/20",
+		label: "Failed",
+	},
+} as const;
+
+export const closedReasonConfig = {
+	done: {
+		icon: Check,
+		color: "text-emerald-400",
+		bg: "bg-emerald-400/5",
+		border: "border-emerald-400/20",
+		label: "Done",
+	},
+	failed: {
+		icon: XCircle,
+		color: "text-red-400",
+		bg: "bg-red-400/5",
+		border: "border-red-400/20",
+		label: "Failed",
+	},
+} as const;
+
 export const runStatusConfig = {
 	queued: {
 		icon: Clock,

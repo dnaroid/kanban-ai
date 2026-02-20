@@ -8,6 +8,8 @@ export class TaskRepository {
 		const now = new Date().toISOString();
 		const id = randomUUID();
 		const status = input.status ?? "queued";
+		const blockedReason = input.blockedReason ?? null;
+		const closedReason = input.closedReason ?? null;
 		const priority = input.priority ?? "normal";
 		const difficulty = input.difficulty ?? "medium";
 		const type = input.type ?? "task";
@@ -27,11 +29,11 @@ export class TaskRepository {
 		const stmt = db.prepare(`
       INSERT INTO tasks (
 				id, project_id, board_id, column_id, title, description, description_md,
-				status, priority, difficulty, type, order_in_column, tags_json,
+				status, blocked_reason, closed_reason, priority, difficulty, type, order_in_column, tags_json,
 				start_date, due_date, estimate_points, estimate_hours, assignee, model_name,
 				created_at, updated_at
 			)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
 		stmt.run(
@@ -43,6 +45,8 @@ export class TaskRepository {
 			input.description ?? null,
 			null, // description_md
 			status,
+			blockedReason,
+			closedReason,
 			priority,
 			difficulty,
 			type,
@@ -73,6 +77,8 @@ export class TaskRepository {
         description,
         description_md as descriptionMd,
         status,
+        blocked_reason as blockedReason,
+        closed_reason as closedReason,
         priority,
         difficulty,
         type,
@@ -106,6 +112,8 @@ export class TaskRepository {
         description,
         description_md as descriptionMd,
         status,
+        blocked_reason as blockedReason,
+        closed_reason as closedReason,
         priority,
         difficulty,
         type,
@@ -152,6 +160,14 @@ export class TaskRepository {
 		if (updates.status !== undefined) {
 			sets.push("status = ?");
 			values.push(updates.status);
+		}
+		if (updates.blockedReason !== undefined) {
+			sets.push("blocked_reason = ?");
+			values.push(updates.blockedReason);
+		}
+		if (updates.closedReason !== undefined) {
+			sets.push("closed_reason = ?");
+			values.push(updates.closedReason);
 		}
 		if (updates.priority !== undefined) {
 			sets.push("priority = ?");

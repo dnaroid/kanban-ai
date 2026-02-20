@@ -9,6 +9,10 @@ export type TaskStatus =
 	| "failed"
 	| "generating";
 
+export type BlockedReason = "question" | "paused" | "failed";
+
+export type ClosedReason = "done" | "failed";
+
 export type TaskPriority = "postpone" | "low" | "normal" | "urgent";
 
 export type TaskDifficulty = "easy" | "medium" | "hard" | "epic";
@@ -25,6 +29,8 @@ export interface KanbanTask {
 	description: string | null;
 	descriptionMd: string | null;
 	status: TaskStatus;
+	blockedReason: BlockedReason | null;
+	closedReason: ClosedReason | null;
 	priority: TaskPriority;
 	difficulty: TaskDifficulty;
 	type: TaskType;
@@ -60,6 +66,8 @@ export interface KanbanTaskPatch {
 	description?: string | null;
 	descriptionMd?: string | null;
 	status?: TaskStatus;
+	blockedReason?: BlockedReason | null;
+	closedReason?: ClosedReason | null;
 	priority?: TaskPriority;
 	difficulty?: TaskDifficulty;
 	type?: TaskType;

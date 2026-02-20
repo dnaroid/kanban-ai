@@ -265,7 +265,7 @@ export function TaskDrawerContent({
 						activeTab !== "properties" && "hidden",
 					)}
 				>
-					<TaskDrawerProperties task={task} />
+					<TaskDrawerProperties task={task} onUpdate={onUpdate} />
 				</div>
 
 				<div

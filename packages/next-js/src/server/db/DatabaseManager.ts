@@ -1,7 +1,13 @@
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
-import { INIT_DB_SQL, migrations } from "./migrations";
+import {
+	INIT_DB_SQL,
+	migrations,
+	v017SystemKeySql,
+	v019TaskBlockedReasonSql,
+	v020TaskClosedReasonSql,
+} from "./migrations";
 
 export class DatabaseManager {
 	private db: Database.Database | null = null;
@@ -31,6 +37,7 @@ export class DatabaseManager {
 		} else {
 			this.runMigrations();
 		}
+		this.ensureCriticalSchema();
 		this.seedAgentRoles();
 
 		console.log("[DB] Connected to database:", this.dbPath);
@@ -116,10 +123,56 @@ export class DatabaseManager {
 
 		this.db.exec(INIT_DB_SQL);
 
-		const latestVersion = migrations[migrations.length - 1]?.version ?? 0;
+		const baseVersion = migrations[0]?.version ?? 0;
 		this.db
-			.prepare("INSERT INTO schema_migrations (version) VALUES (?)")
-			.run(latestVersion);
+			.prepare("INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)")
+			.run(baseVersion);
+
+		this.runMigrations();
+	}
+
+	private hasColumn(tableName: string, columnName: string): boolean {
+		if (!this.db) {
+			return false;
+		}
+
+		const rows = this.db.prepare(`PRAGMA table_info(${tableName})`).all() as {
+			name: string;
+		}[];
+
+		return rows.some((row) => row.name === columnName);
+	}
+
+	private ensureCriticalSchema(): void {
+		if (!this.db) {
+			return;
+		}
+
+		if (!this.hasColumn("board_columns", "system_key")) {
+			console.log(
+				"[DB] Repairing schema: adding board_columns.system_key column",
+			);
+			this.db.exec(v017SystemKeySql);
+			this.db
+				.prepare("INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)")
+				.run(17);
+		}
+
+		if (!this.hasColumn("tasks", "blocked_reason")) {
+			console.log("[DB] Repairing schema: adding tasks.blocked_reason column");
+			this.db.exec(v019TaskBlockedReasonSql);
+			this.db
+				.prepare("INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)")
+				.run(19);
+		}
+
+		if (!this.hasColumn("tasks", "closed_reason")) {
+			console.log("[DB] Repairing schema: adding tasks.closed_reason column");
+			this.db.exec(v020TaskClosedReasonSql);
+			this.db
+				.prepare("INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)")
+				.run(20);
+		}
 	}
 
 	private seedAgentRoles(): void {

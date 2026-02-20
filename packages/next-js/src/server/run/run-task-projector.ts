@@ -1,6 +1,13 @@
 import { boardRepo } from "@/server/repositories/board";
 import { publishSseEvent } from "@/server/events/sse-broker";
 import { taskRepo } from "@/server/repositories/task";
+import type { Task } from "@/server/types";
+import {
+	getPreferredColumnIdForStatus,
+	getWorkflowColumnSystemKey,
+	resolveTaskStatusReasons,
+} from "@/server/workflow/task-workflow-manager";
+import type { TaskStatus } from "@/types/kanban";
 import type { Run, RunStatus } from "@/types/ipc";
 
 const allowedTaskTypes = [
@@ -105,19 +112,6 @@ function parseUserStoryResponse(content: string): ParsedUserStoryResponse {
 	return result;
 }
 
-function resolveColumnIdBySystemKey(
-	boardId: string,
-	systemKey: "todo" | "in_progress" | "done",
-): string | null {
-	const board = boardRepo.getById(boardId);
-	if (!board) {
-		return null;
-	}
-
-	const column = board.columns.find((item) => item.systemKey === systemKey);
-	return column?.id ?? null;
-}
-
 function isTaskDescriptionImproveRun(run: Run): boolean {
 	return run.metadata?.kind === "task-description-improve";
 }
@@ -140,26 +134,43 @@ export class RunTaskProjector {
 		});
 	}
 
-	public projectRunStarted(run: Run): void {
-		if (isTaskDescriptionImproveRun(run)) {
-			this.updateTaskAndPublish(run.taskId, { status: "generating" });
-			return;
-		}
+	private buildStatusPatch(
+		task: Task,
+		status: TaskStatus,
+	): Parameters<typeof taskRepo.update>[1] {
+		const board = boardRepo.getById(task.boardId);
+		const preferredColumnId = board
+			? getPreferredColumnIdForStatus(board, status)
+			: null;
+		const nextColumnId = preferredColumnId ?? task.columnId;
+		const nextColumnKey = board
+			? getWorkflowColumnSystemKey(board, nextColumnId)
+			: null;
+		const reasons = resolveTaskStatusReasons(status, nextColumnKey);
 
+		return {
+			status,
+			columnId: nextColumnId,
+			blockedReason: reasons.blockedReason,
+			closedReason: reasons.closedReason,
+		};
+	}
+
+	public projectRunStarted(run: Run): void {
 		const task = taskRepo.getById(run.taskId);
 		if (!task) {
 			return;
 		}
 
-		const inProgressColumnId = resolveColumnIdBySystemKey(
-			task.boardId,
-			"in_progress",
-		);
+		if (isTaskDescriptionImproveRun(run)) {
+			this.updateTaskAndPublish(
+				task.id,
+				this.buildStatusPatch(task, "generating"),
+			);
+			return;
+		}
 
-		this.updateTaskAndPublish(task.id, {
-			status: "running",
-			columnId: inProgressColumnId ?? task.columnId,
-		});
+		this.updateTaskAndPublish(task.id, this.buildStatusPatch(task, "running"));
 	}
 
 	public projectRunOutcome(
@@ -167,10 +178,15 @@ export class RunTaskProjector {
 		status: RunStatus,
 		assistantContent: string,
 	): void {
+		const task = taskRepo.getById(run.taskId);
+		if (!task) {
+			return;
+		}
+
 		if (isTaskDescriptionImproveRun(run) && status === "completed") {
 			const parsed = parseUserStoryResponse(assistantContent);
 			const patch: Parameters<typeof taskRepo.update>[1] = {
-				status: "queued",
+				...this.buildStatusPatch(task, "queued"),
 				description: parsed.description,
 				descriptionMd: parsed.description,
 			};
@@ -194,51 +210,47 @@ export class RunTaskProjector {
 
 		if (isTaskDescriptionImproveRun(run)) {
 			if (status === "failed" || status === "timeout") {
-				this.updateTaskAndPublish(run.taskId, { status: "failed" });
+				this.updateTaskAndPublish(
+					task.id,
+					this.buildStatusPatch(task, "failed"),
+				);
 				return;
 			}
 
 			if (status === "paused") {
-				this.updateTaskAndPublish(run.taskId, { status: "question" });
+				this.updateTaskAndPublish(
+					task.id,
+					this.buildStatusPatch(task, "question"),
+				);
 				return;
 			}
 
 			if (status === "cancelled") {
-				this.updateTaskAndPublish(run.taskId, { status: "queued" });
+				this.updateTaskAndPublish(
+					task.id,
+					this.buildStatusPatch(task, "queued"),
+				);
 			}
 			return;
 		}
 
-		const task = taskRepo.getById(run.taskId);
-		if (!task) {
-			return;
-		}
-
 		if (status === "completed") {
-			const doneColumnId = resolveColumnIdBySystemKey(task.boardId, "done");
-			this.updateTaskAndPublish(task.id, {
-				status: "done",
-				columnId: doneColumnId ?? task.columnId,
-			});
+			this.updateTaskAndPublish(task.id, this.buildStatusPatch(task, "done"));
 			return;
 		}
 
 		if (status === "failed" || status === "timeout") {
-			this.updateTaskAndPublish(task.id, { status: "failed" });
+			this.updateTaskAndPublish(task.id, this.buildStatusPatch(task, "failed"));
 			return;
 		}
 
 		if (status === "paused") {
-			this.updateTaskAndPublish(task.id, { status: "paused" });
+			this.updateTaskAndPublish(task.id, this.buildStatusPatch(task, "paused"));
 			return;
 		}
 
 		if (status === "cancelled") {
-			const todoColumnId = resolveColumnIdBySystemKey(task.boardId, "todo");
-			this.updateTaskAndPublish(task.id, {
-				status: "queued",
-				columnId: todoColumnId ?? task.columnId,
-			});
+			this.updateTaskAndPublish(task.id, this.buildStatusPatch(task, "queued"));
 		}
 	}
 }

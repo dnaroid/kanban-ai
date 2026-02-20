@@ -11,3 +11,11 @@ CREATE TABLE IF NOT EXISTS app_metrics (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 `;
+
+export const v019TaskBlockedReasonSql = `
+ALTER TABLE tasks ADD COLUMN blocked_reason TEXT;
+`;
+
+export const v020TaskClosedReasonSql = `
+ALTER TABLE tasks ADD COLUMN closed_reason TEXT;
+`;
