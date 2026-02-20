@@ -206,27 +206,43 @@ export type ModelsExportData = {
 	exportedAt: string;
 	models: Array<{
 		name: string;
-		enabled: boolean;
 		difficulty: Difficulty;
 	}>;
 	defaultModels: Record<string, string>;
+	allModelsHash: string;
 };
+
+function computeModelsHash(modelNames: string[]): string {
+	let hash = 0;
+	const sorted = [...modelNames].sort().join(",");
+	for (let i = 0; i < sorted.length; i++) {
+		const char = sorted.charCodeAt(i);
+		hash = (hash << 5) - hash + char;
+		hash = hash & hash;
+	}
+	return Math.abs(hash).toString(16).padStart(8, "0");
+}
 
 export function exportModelsConfig(): ModelsExportData {
 	const db = dbManager.connect();
-	const rows = db
+
+	const allRows = db
+		.prepare(`SELECT name FROM opencode_models ORDER BY name ASC`)
+		.all() as Array<{ name: string }>;
+
+	const allModelsHash = computeModelsHash(allRows.map((r) => r.name));
+
+	const enabledRows = db
 		.prepare(
-			`SELECT name, enabled, difficulty FROM opencode_models ORDER BY name ASC`,
+			`SELECT name, difficulty FROM opencode_models WHERE enabled = 1 ORDER BY name ASC`,
 		)
 		.all() as Array<{
 		name: string;
-		enabled: number;
 		difficulty: string;
 	}>;
 
-	const models = rows.map((row) => ({
+	const models = enabledRows.map((row) => ({
 		name: row.name,
-		enabled: row.enabled === 1,
 		difficulty: row.difficulty as Difficulty,
 	}));
 
@@ -247,7 +263,16 @@ export function exportModelsConfig(): ModelsExportData {
 		exportedAt: new Date().toISOString(),
 		models,
 		defaultModels,
+		allModelsHash,
 	};
+}
+
+export function getCurrentModelsHash(): string {
+	const db = dbManager.connect();
+	const rows = db
+		.prepare(`SELECT name FROM opencode_models ORDER BY name ASC`)
+		.all() as Array<{ name: string }>;
+	return computeModelsHash(rows.map((r) => r.name));
 }
 
 export function importModelsConfig(data: ModelsExportData): {
@@ -267,6 +292,8 @@ export function importModelsConfig(data: ModelsExportData): {
 	let skipped = 0;
 
 	const tx = db.transaction(() => {
+		db.prepare(`UPDATE opencode_models SET enabled = 0`).run();
+
 		for (const model of data.models) {
 			if (!existingNames.has(model.name)) {
 				skipped++;
@@ -274,8 +301,8 @@ export function importModelsConfig(data: ModelsExportData): {
 			}
 
 			db.prepare(
-				`UPDATE opencode_models SET enabled = ?, difficulty = ? WHERE name = ?`,
-			).run(model.enabled ? 1 : 0, model.difficulty, model.name);
+				`UPDATE opencode_models SET enabled = 1, difficulty = ? WHERE name = ?`,
+			).run(model.difficulty, model.name);
 			imported++;
 		}
 

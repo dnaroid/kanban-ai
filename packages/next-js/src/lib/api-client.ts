@@ -453,10 +453,10 @@ class ApiClient {
 			exportedAt: string;
 			models: Array<{
 				name: string;
-				enabled: boolean;
 				difficulty: string;
 			}>;
 			defaultModels: Record<string, string>;
+			allModelsHash: string;
 		}> => {
 			const response = await fetch(
 				`${this.baseUrl}/api/opencode/models/config`,
@@ -474,21 +474,25 @@ class ApiClient {
 				exportedAt: string;
 				models: Array<{
 					name: string;
-					enabled: boolean;
 					difficulty: string;
 				}>;
 				defaultModels: Record<string, string>;
+				allModelsHash: string;
 			}>(payload);
 		},
 		importModelsConfig: async (data: {
 			version: number;
 			models: Array<{
 				name: string;
-				enabled: boolean;
 				difficulty: string;
 			}>;
 			defaultModels?: Record<string, string>;
-		}): Promise<{ imported: number; skipped: number }> => {
+			allModelsHash?: string;
+		}): Promise<{
+			imported: number;
+			skipped: number;
+			hashMismatch: boolean;
+		}> => {
 			const response = await fetch(
 				`${this.baseUrl}/api/opencode/models/config`,
 				{
@@ -505,7 +509,11 @@ class ApiClient {
 				throw new Error(message);
 			}
 			const payload = await response.json();
-			return this.unwrapApiData<{ imported: number; skipped: number }>(payload);
+			return this.unwrapApiData<{
+				imported: number;
+				skipped: number;
+				hashMismatch: boolean;
+			}>(payload);
 		},
 		restartServe: async (): Promise<{ restarted: boolean }> => {
 			const response = await fetch(`${this.baseUrl}/api/opencode/restart`, {

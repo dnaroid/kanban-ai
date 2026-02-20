@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import {
 	AlertCircle,
+	AlertTriangle,
 	ChevronDown,
 	ChevronRight,
 	Download,
@@ -142,9 +143,12 @@ export function MyModelsTab({
 			const text = await file.text();
 			const data = JSON.parse(text);
 			const result = await api.opencode.importModelsConfig(data);
+			const warningSuffix = result.hashMismatch
+				? " ⚠️ File may be outdated - model list changed since export"
+				: "";
 			onStatusChangeAction({
-				message: `Imported ${result.imported} models, skipped ${result.skipped}`,
-				type: "success",
+				message: `Imported ${result.imported} models, skipped ${result.skipped}${warningSuffix}`,
+				type: result.hashMismatch ? "error" : "success",
 			});
 			window.location.reload();
 		} catch (error) {

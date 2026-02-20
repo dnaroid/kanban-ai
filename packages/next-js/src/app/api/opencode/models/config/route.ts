@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
 	exportModelsConfig,
 	importModelsConfig,
+	getCurrentModelsHash,
 	type ModelsExportData,
 } from "@/server/opencode/models-store";
 
@@ -27,8 +28,21 @@ export async function POST(request: Request) {
 				{ status: 400 },
 			);
 		}
+
+		const currentHash = getCurrentModelsHash();
+		const hashMismatch =
+			data.allModelsHash && data.allModelsHash !== currentHash;
+
 		const result = importModelsConfig(data);
-		return NextResponse.json({ success: true, data: result });
+		return NextResponse.json({
+			success: true,
+			data: {
+				...result,
+				hashMismatch,
+				currentHash,
+				fileHash: data.allModelsHash,
+			},
+		});
 	} catch (error) {
 		console.error("Failed to import models config:", error);
 		return NextResponse.json(
