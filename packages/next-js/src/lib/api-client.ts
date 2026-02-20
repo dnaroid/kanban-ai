@@ -448,6 +448,65 @@ class ApiClient {
 			const payload = await response.json();
 			return this.unwrapApiData<{ models: OpencodeModel[] }>(payload);
 		},
+		exportModelsConfig: async (): Promise<{
+			version: number;
+			exportedAt: string;
+			models: Array<{
+				name: string;
+				enabled: boolean;
+				difficulty: string;
+			}>;
+			defaultModels: Record<string, string>;
+		}> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/models/config`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to export models config",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{
+				version: number;
+				exportedAt: string;
+				models: Array<{
+					name: string;
+					enabled: boolean;
+					difficulty: string;
+				}>;
+				defaultModels: Record<string, string>;
+			}>(payload);
+		},
+		importModelsConfig: async (data: {
+			version: number;
+			models: Array<{
+				name: string;
+				enabled: boolean;
+				difficulty: string;
+			}>;
+			defaultModels?: Record<string, string>;
+		}): Promise<{ imported: number; skipped: number }> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/models/config`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify(data),
+				},
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to import models config",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ imported: number; skipped: number }>(payload);
+		},
 		restartServe: async (): Promise<{ restarted: boolean }> => {
 			const response = await fetch(`${this.baseUrl}/api/opencode/restart`, {
 				method: "POST",

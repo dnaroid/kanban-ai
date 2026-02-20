@@ -200,3 +200,97 @@ export async function refreshModelsFromProviders(): Promise<OpencodeModel[]> {
 	tx();
 	return listAllModels();
 }
+
+export type ModelsExportData = {
+	version: 1;
+	exportedAt: string;
+	models: Array<{
+		name: string;
+		enabled: boolean;
+		difficulty: Difficulty;
+	}>;
+	defaultModels: Record<string, string>;
+};
+
+export function exportModelsConfig(): ModelsExportData {
+	const db = dbManager.connect();
+	const rows = db
+		.prepare(
+			`SELECT name, enabled, difficulty FROM opencode_models ORDER BY name ASC`,
+		)
+		.all() as Array<{
+		name: string;
+		enabled: number;
+		difficulty: string;
+	}>;
+
+	const models = rows.map((row) => ({
+		name: row.name,
+		enabled: row.enabled === 1,
+		difficulty: row.difficulty as Difficulty,
+	}));
+
+	const defaultModels: Record<string, string> = {};
+	const difficulties: Difficulty[] = ["easy", "medium", "hard", "epic"];
+
+	for (const diff of difficulties) {
+		const row = db
+			.prepare(`SELECT value FROM app_settings WHERE key = ?`)
+			.get(`defaultModel_${diff}`) as { value: string } | undefined;
+		if (row?.value) {
+			defaultModels[diff] = row.value;
+		}
+	}
+
+	return {
+		version: 1,
+		exportedAt: new Date().toISOString(),
+		models,
+		defaultModels,
+	};
+}
+
+export function importModelsConfig(data: ModelsExportData): {
+	imported: number;
+	skipped: number;
+} {
+	const db = dbManager.connect();
+	const existingNames = new Set(
+		(
+			db.prepare(`SELECT name FROM opencode_models`).all() as Array<{
+				name: string;
+			}>
+		).map((r) => r.name),
+	);
+
+	let imported = 0;
+	let skipped = 0;
+
+	const tx = db.transaction(() => {
+		for (const model of data.models) {
+			if (!existingNames.has(model.name)) {
+				skipped++;
+				continue;
+			}
+
+			db.prepare(
+				`UPDATE opencode_models SET enabled = ?, difficulty = ? WHERE name = ?`,
+			).run(model.enabled ? 1 : 0, model.difficulty, model.name);
+			imported++;
+		}
+
+		if (data.defaultModels) {
+			for (const [difficulty, modelName] of Object.entries(
+				data.defaultModels,
+			)) {
+				db.prepare(
+					`INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)`,
+				).run(`defaultModel_${difficulty}`, modelName);
+			}
+		}
+	});
+
+	tx();
+
+	return { imported, skipped };
+}
