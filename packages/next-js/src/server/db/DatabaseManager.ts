@@ -79,7 +79,23 @@ export class DatabaseManager {
 			if (migration.version > maxVersion) {
 				console.log("[DB] Running migration version:", migration.version);
 				const tx = this.db.transaction(() => {
-					this.db!.exec(migration.sql);
+					try {
+						this.db!.exec(migration.sql);
+					} catch (err: unknown) {
+						// Handle duplicate column error (migration already applied at schema level)
+						if (
+							err instanceof Error &&
+							err.message.includes("duplicate column name")
+						) {
+							console.log(
+								"[DB] Migration version",
+								migration.version,
+								"skipped - column already exists",
+							);
+						} else {
+							throw err;
+						}
+					}
 					this.db!.prepare(
 						"INSERT INTO schema_migrations (version) VALUES (?)",
 					).run(migration.version);

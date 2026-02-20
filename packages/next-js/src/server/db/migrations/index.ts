@@ -38,7 +38,6 @@ CREATE TABLE IF NOT EXISTS board_columns (
   id TEXT PRIMARY KEY,
   board_id TEXT NOT NULL,
   name TEXT NOT NULL,
-  system_key TEXT NOT NULL DEFAULT '',
   order_index INTEGER NOT NULL,
   wip_limit INTEGER,
   color TEXT NOT NULL DEFAULT '',

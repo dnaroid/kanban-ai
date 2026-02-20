@@ -1,4 +1,5 @@
 export const v017SystemKeySql = `
+-- Add system_key column to board_columns (idempotent via error handling in code)
 ALTER TABLE board_columns ADD COLUMN system_key TEXT NOT NULL DEFAULT '';
 `;
 
