@@ -1,14 +1,32 @@
 import { createLogger } from "@/lib/logger";
 import { extractOpencodeStatus } from "@/lib/opencode-status";
+import { buildTaskPrompt } from "@/server/run/prompts/task";
 import type { SessionEvent } from "@/server/opencode/session-manager";
 import { getOpencodeService } from "@/server/opencode/opencode-service";
 import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
+import { contextSnapshotRepo } from "@/server/repositories/context-snapshot";
+import { projectRepo } from "@/server/repositories/project";
+import type { AgentRolePreset } from "@/server/repositories/role";
 import { roleRepo } from "@/server/repositories/role";
 import { runEventRepo } from "@/server/repositories/run-event";
 import { runRepo } from "@/server/repositories/run";
+import { taskLinkRepo } from "@/server/repositories/task-link";
+import { taskRepo } from "@/server/repositories/task";
 import { getRunTaskProjector } from "@/server/run/run-task-projector";
 import { publishRunUpdate } from "@/server/run/run-publisher";
-import type { RunStatus } from "@/types/ipc";
+import type { TaskPriority } from "@/types/kanban";
+import type { Run, RunStatus } from "@/types/ipc";
+
+const generationRunKind = "task-description-improve";
+const agentRoleTagPrefix = "agent:";
+const dependencyReadyStatus = "done";
+
+const runPriorityScore: Record<TaskPriority, number> = {
+	postpone: 1,
+	low: 2,
+	normal: 3,
+	urgent: 4,
+};
 
 const log = createLogger("runs-queue");
 
@@ -194,6 +212,11 @@ export class RunsQueueManager {
 	private readonly providerConcurrency = parseProviderConcurrencyConfig(
 		process.env.RUNS_PROVIDER_CONCURRENCY,
 	);
+	private readonly blockedRetryDelayMs = parsePositiveInt(
+		process.env.RUNS_BLOCKED_RETRY_MS,
+		5000,
+	);
+	private blockedRetryTimer: ReturnType<typeof setTimeout> | null = null;
 	private draining = false;
 
 	public enqueue(runId: string, input: QueuedRunInput): void {
@@ -322,7 +345,7 @@ export class RunsQueueManager {
 				const concurrency = this.resolveProviderConcurrency(providerKey);
 
 				while (running.size < concurrency) {
-					const runId = queue.shift();
+					const runId = this.selectNextRunnableRun(queue);
 					if (!runId) {
 						break;
 					}
@@ -337,6 +360,10 @@ export class RunsQueueManager {
 					});
 				}
 			}
+		}
+
+		if (!progressed && this.hasQueuedRuns()) {
+			this.scheduleBlockedRetry();
 		}
 	}
 
@@ -537,6 +564,9 @@ export class RunsQueueManager {
 
 		try {
 			this.taskProjector.projectRunOutcome(nextRun, status, assistantContent);
+			if (status === "completed" && this.isGenerationRun(nextRun)) {
+				await this.enqueueExecutionForGeneratedTask(nextRun.taskId);
+			}
 		} catch (error) {
 			log.error("Failed to project run outcome", {
 				runId,
@@ -549,6 +579,321 @@ export class RunsQueueManager {
 		this.runInputs.delete(runId);
 
 		await this.unsubscribeRunSession(runId);
+	}
+
+	private selectNextRunnableRun(queue: string[]): string | null {
+		let bestIndex = -1;
+		let bestScore = Number.NEGATIVE_INFINITY;
+		let bestCreatedAt = Number.POSITIVE_INFINITY;
+
+		for (let index = 0; index < queue.length; index += 1) {
+			const runId = queue[index];
+			const run = runRepo.getById(runId);
+			if (!run) {
+				queue.splice(index, 1);
+				index -= 1;
+				this.providerByRunId.delete(runId);
+				this.runInputs.delete(runId);
+				continue;
+			}
+
+			if (!this.canRunNow(run)) {
+				continue;
+			}
+
+			const score = this.resolveRunPriorityScore(run);
+			const createdAtMs = Date.parse(run.createdAt);
+			const safeCreatedAt = Number.isFinite(createdAtMs)
+				? createdAtMs
+				: Number.POSITIVE_INFINITY;
+
+			if (
+				score > bestScore ||
+				(score === bestScore && safeCreatedAt < bestCreatedAt)
+			) {
+				bestIndex = index;
+				bestScore = score;
+				bestCreatedAt = safeCreatedAt;
+			}
+		}
+
+		if (bestIndex < 0) {
+			return null;
+		}
+
+		const [selected] = queue.splice(bestIndex, 1);
+		return selected ?? null;
+	}
+
+	private canRunNow(run: Run): boolean {
+		if (this.isGenerationRun(run)) {
+			return true;
+		}
+
+		const task = taskRepo.getById(run.taskId);
+		if (!task) {
+			return true;
+		}
+
+		if (task.priority === "postpone") {
+			return false;
+		}
+
+		return this.areDependenciesResolved(task.id);
+	}
+
+	private areDependenciesResolved(taskId: string): boolean {
+		const links = taskLinkRepo.listByTaskId(taskId);
+		const blockers = links.filter(
+			(link) => link.linkType === "blocks" && link.toTaskId === taskId,
+		);
+		for (const blocker of blockers) {
+			const blockerTask = taskRepo.getById(blocker.fromTaskId);
+			if (!blockerTask) {
+				continue;
+			}
+
+			if (blockerTask.status !== dependencyReadyStatus) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	private resolveRunPriorityScore(run: Run): number {
+		if (this.isGenerationRun(run)) {
+			return Number.MAX_SAFE_INTEGER;
+		}
+
+		const task = taskRepo.getById(run.taskId);
+		if (!task) {
+			return runPriorityScore.normal;
+		}
+
+		switch (task.priority) {
+			case "postpone":
+				return runPriorityScore.postpone;
+			case "low":
+				return runPriorityScore.low;
+			case "normal":
+				return runPriorityScore.normal;
+			case "urgent":
+				return runPriorityScore.urgent;
+			default:
+				return runPriorityScore.normal;
+		}
+	}
+
+	private hasQueuedRuns(): boolean {
+		for (const queue of this.providerQueues.values()) {
+			if (queue.length > 0) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private scheduleBlockedRetry(): void {
+		if (this.blockedRetryTimer) {
+			return;
+		}
+
+		this.blockedRetryTimer = setTimeout(() => {
+			this.blockedRetryTimer = null;
+			this.scheduleDrain();
+		}, this.blockedRetryDelayMs);
+	}
+
+	private isGenerationRun(run: Run): boolean {
+		return run.metadata?.kind === generationRunKind;
+	}
+
+	private async enqueueExecutionForGeneratedTask(
+		taskId: string,
+	): Promise<void> {
+		const task = taskRepo.getById(taskId);
+		if (!task) {
+			log.warn("Skipping execution enqueue after generation; task not found", {
+				taskId,
+			});
+			return;
+		}
+
+		if (task.priority === "postpone") {
+			log.info("Skipping execution enqueue for postponed task", {
+				taskId,
+			});
+			return;
+		}
+
+		const activeExecutionRun = runRepo
+			.listByTask(task.id)
+			.find(
+				(run) =>
+					!this.isGenerationRun(run) &&
+					(run.status === "queued" ||
+						run.status === "running" ||
+						run.status === "paused"),
+			);
+		if (activeExecutionRun) {
+			log.info("Execution run already active for task", {
+				taskId: task.id,
+				runId: activeExecutionRun.id,
+				status: activeExecutionRun.status,
+			});
+			return;
+		}
+
+		const project = projectRepo.getById(task.projectId);
+		if (!project) {
+			log.warn("Skipping execution enqueue; project not found", {
+				taskId: task.id,
+				projectId: task.projectId,
+			});
+			return;
+		}
+
+		const availableRoles = roleRepo.list();
+		const taskTags = this.parseTaskTags(task.tags);
+		const assignedRoleId = this.resolveAssignedRoleIdFromTags(taskTags);
+		const roleId = assignedRoleId ?? availableRoles[0]?.id;
+		if (!roleId) {
+			log.warn("Skipping execution enqueue; no roles configured", {
+				taskId: task.id,
+			});
+			return;
+		}
+
+		const selectedRole =
+			availableRoles.find((role) => role.id === roleId) ?? null;
+		const selectedRolePreset = this.parseRolePreset(
+			roleRepo.getPresetJson(roleId),
+		);
+
+		const snapshotId = contextSnapshotRepo.create({
+			taskId: task.id,
+			kind: "run-start",
+			summary: `Execution queued after BA story generation for ${task.title}`,
+			payload: {
+				taskId: task.id,
+				title: task.title,
+				description: task.description,
+				mode: "execute",
+				roleId,
+				reason: "generated-story-ready",
+			},
+		});
+
+		const executionRun = runRepo.create({
+			taskId: task.id,
+			roleId,
+			mode: "execute",
+			contextSnapshotId: snapshotId,
+		});
+
+		runEventRepo.create({
+			runId: executionRun.id,
+			eventType: "status",
+			payload: {
+				status: executionRun.status,
+				message: "Execution run queued after BA story generation",
+			},
+		});
+		publishRunUpdate(executionRun);
+
+		this.enqueue(executionRun.id, {
+			projectPath: project.path,
+			sessionTitle: task.title.slice(0, 120),
+			prompt: buildTaskPrompt(
+				{ title: task.title, description: task.description },
+				{
+					id: project.id,
+					path: project.path,
+				},
+				{
+					id: roleId,
+					name: selectedRole?.name ?? roleId,
+					systemPrompt: selectedRolePreset?.systemPrompt,
+					skills: selectedRolePreset?.skills,
+				},
+			),
+		});
+	}
+
+	private parseTaskTags(rawTags: unknown): string[] {
+		if (typeof rawTags !== "string" || rawTags.trim().length === 0) {
+			return [];
+		}
+
+		try {
+			const parsed = JSON.parse(rawTags) as unknown;
+			if (!Array.isArray(parsed)) {
+				return [];
+			}
+
+			return parsed
+				.filter((value): value is string => typeof value === "string")
+				.map((value) => value.trim())
+				.filter((value) => value.length > 0);
+		} catch {
+			return [];
+		}
+	}
+
+	private resolveAssignedRoleIdFromTags(tags: string[]): string | null {
+		const roleTag = tags.find((tag) =>
+			tag.toLowerCase().startsWith(agentRoleTagPrefix),
+		);
+		if (!roleTag) {
+			return null;
+		}
+
+		const roleId = roleTag.slice(agentRoleTagPrefix.length).trim();
+		if (roleId.length === 0) {
+			return null;
+		}
+
+		if (!roleRepo.list().some((role) => role.id === roleId)) {
+			return null;
+		}
+
+		return roleId;
+	}
+
+	private parseRolePreset(rawPreset: string | null): AgentRolePreset | null {
+		if (!rawPreset) {
+			return null;
+		}
+
+		try {
+			const parsed = JSON.parse(rawPreset) as Partial<AgentRolePreset>;
+			return {
+				version: parsed.version ?? "1.0",
+				provider: parsed.provider ?? "",
+				modelName: parsed.modelName ?? "",
+				skills: Array.isArray(parsed.skills)
+					? parsed.skills.filter(
+							(skill): skill is string => typeof skill === "string",
+						)
+					: [],
+				systemPrompt:
+					typeof parsed.systemPrompt === "string" ? parsed.systemPrompt : "",
+				mustDo: Array.isArray(parsed.mustDo)
+					? parsed.mustDo.filter(
+							(item): item is string => typeof item === "string",
+						)
+					: [],
+				outputContract: Array.isArray(parsed.outputContract)
+					? parsed.outputContract.filter(
+							(item): item is string => typeof item === "string",
+						)
+					: [],
+			};
+		} catch {
+			return null;
+		}
 	}
 
 	private async tryFinalizeFromSessionSnapshot(

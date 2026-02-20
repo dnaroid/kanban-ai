@@ -419,6 +419,30 @@ class ApiClient {
 			const payload = await response.json();
 			return this.unwrapApiData<{ runId: string }>(payload);
 		},
+		generateUserStories: async ({
+			taskIds,
+		}: {
+			taskIds: string[];
+		}): Promise<{ runIds: string[] }> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/generate-user-story`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ taskIds }),
+				},
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to generate user stories",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{ runIds?: string[] }>(payload);
+			return { runIds: data.runIds ?? [] };
+		},
 		listSkills: async (): Promise<{ skills: string[] }> => {
 			const response = await fetch(`${this.baseUrl}/api/opencode/skills`);
 			if (!response.ok) {

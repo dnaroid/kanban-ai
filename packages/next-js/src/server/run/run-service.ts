@@ -31,6 +31,7 @@ const allowedTaskTypes = [
 ] as const;
 const allowedDifficulties = ["easy", "medium", "hard", "epic"] as const;
 const agentRoleTagPrefix = "agent:";
+const activeGenerationRunStatuses = new Set(["queued", "running", "paused"]);
 
 export class RunService {
 	private readonly queueManager = getRunsQueueManager();
@@ -137,6 +138,22 @@ export class RunService {
 		if (!task) {
 			log.error("Task not found", { taskId });
 			throw new Error(`Task not found: ${taskId}`);
+		}
+
+		const activeGenerationRun = runRepo
+			.listByTask(task.id)
+			.find(
+				(run) =>
+					run.metadata?.kind === "task-description-improve" &&
+					activeGenerationRunStatuses.has(run.status),
+			);
+		if (activeGenerationRun) {
+			log.info("User story generation already active for task", {
+				taskId: task.id,
+				runId: activeGenerationRun.id,
+				status: activeGenerationRun.status,
+			});
+			return { runId: activeGenerationRun.id };
 		}
 
 		const selectedRoleId = roleRepo.list().find((role) => role.id === "ba")?.id;
