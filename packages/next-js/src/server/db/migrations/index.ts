@@ -281,7 +281,7 @@ CREATE INDEX IF NOT EXISTS idx_task_events_task ON task_events(task_id, ts);
 CREATE TABLE IF NOT EXISTS task_queue (
   task_id TEXT PRIMARY KEY,
   state TEXT NOT NULL,      -- queued|running|waiting_user|paused|done|failed
-  stage TEXT NOT NULL,      -- ba|fe|be|qa|kb (или твои ключи ролей)
+  stage TEXT NOT NULL,      -- ba|tl|fe|be|qa|sre|sec|data (or custom role keys)
   priority INTEGER NOT NULL,
   enqueued_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -295,7 +295,7 @@ CREATE INDEX IF NOT EXISTS idx_task_queue_state_prio ON task_queue(state, priori
 CREATE INDEX IF NOT EXISTS idx_task_queue_stage_state ON task_queue(stage, state, priority);
 
 CREATE TABLE IF NOT EXISTS role_slots (
-  role_key TEXT PRIMARY KEY,       -- ba|fe|be|qa
+  role_key TEXT PRIMARY KEY,       -- ba|tl|fe|be|qa|sre|sec|data
   max_concurrency INTEGER NOT NULL,
   updated_at TEXT NOT NULL
 );

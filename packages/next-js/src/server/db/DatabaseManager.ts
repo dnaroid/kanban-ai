@@ -178,15 +178,6 @@ export class DatabaseManager {
 	private seedAgentRoles(): void {
 		if (!this.db) return;
 
-		const row = this.db
-			.prepare("SELECT COUNT(*) as count FROM agent_roles")
-			.get() as {
-			count: number;
-		};
-		if (row.count > 0) {
-			return;
-		}
-
 		const now = new Date().toISOString();
 		const insert = this.db.prepare(
 			`INSERT INTO agent_roles
@@ -197,68 +188,239 @@ export class DatabaseManager {
 		const roles = [
 			{
 				id: "ba",
-				name: "BA",
-				description: "Business Analyst",
+				name: "Business Analyst",
+				description: "Requirements, scope, acceptance criteria",
 				preset_json: JSON.stringify({
-					output: "markdown",
-					template:
-						"User Story\n- As a ...\n- I want ...\n- So that ...\n\n" +
-						"Acceptance Criteria\n- ...\n\n" +
-						"Edge Cases\n- ...\n\n" +
-						"Questions/Assumptions\n- ...",
+					version: "1.0",
+					provider: "openai",
+					modelName: "gpt-5.3-codex",
+					skills: ["product-manager", "business-analyst", "doc-coauthoring"],
+					systemPrompt:
+						"You are a Senior Business Analyst. Clarify requirements, define scope, and produce testable acceptance criteria. Resolve ambiguities before implementation.",
+					mustDo: [
+						"Define user story, business value, and non-goals",
+						"Write clear acceptance criteria and edge cases",
+						"List dependencies/risks/open questions",
+					],
+					outputContract: [
+						"User story",
+						"Acceptance criteria (Given/When/Then)",
+						"Out of scope",
+						"Risks",
+					],
 				}),
 			},
 			{
-				id: "dev",
-				name: "DEV",
-				description: "Developer",
+				id: "tl",
+				name: "Tech Lead",
+				description: "Solution design, decomposition, technical decisions",
 				preset_json: JSON.stringify({
-					output: "markdown",
-					template:
-						"Implementation Plan\n- Files/modules\n- Steps\n\n" +
-						"Risks\n- ...",
+					version: "1.0",
+					provider: "openai",
+					modelName: "gpt-5.3-codex",
+					skills: [
+						"architect-reviewer",
+						"fullstack-developer",
+						"refactoring-specialist",
+					],
+					systemPrompt:
+						"You are a Staff Tech Lead. Turn requirements into an executable technical plan with clear boundaries, trade-offs, and verification steps.",
+					mustDo: [
+						"Break work into atomic implementation steps",
+						"Choose architecture and justify trade-offs",
+						"Define API/contracts/data changes",
+						"Define rollout and rollback strategy",
+					],
+					outputContract: [
+						"Architecture decision",
+						"Task breakdown",
+						"Risks/mitigations",
+						"DoD",
+					],
+				}),
+			},
+			{
+				id: "fe",
+				name: "Frontend Engineer",
+				description: "UI implementation, accessibility, UX quality",
+				preset_json: JSON.stringify({
+					version: "1.0",
+					provider: "openai",
+					modelName: "gpt-5.3-codex",
+					skills: [
+						"frontend-developer",
+						"react-specialist",
+						"nextjs-developer",
+						"accessibility-tester",
+					],
+					systemPrompt:
+						"You are a Senior Frontend Engineer. Implement production-grade UI with accessibility, responsiveness, and maintainable component architecture.",
+					mustDo: [
+						"Follow existing design system/patterns",
+						"Ensure keyboard and screen-reader basics",
+						"Handle loading/error/empty states",
+						"Add or adjust UI tests where relevant",
+					],
+					outputContract: [
+						"Changed components/pages",
+						"State/UX behavior",
+						"A11y checks",
+						"Test coverage",
+					],
+				}),
+			},
+			{
+				id: "be",
+				name: "Backend Engineer",
+				description: "API/domain logic/data integrity/performance",
+				preset_json: JSON.stringify({
+					version: "1.0",
+					provider: "openai",
+					modelName: "gpt-5.3-codex",
+					skills: [
+						"backend-developer",
+						"api-designer",
+						"database-optimizer",
+						"typescript-pro",
+					],
+					systemPrompt:
+						"You are a Senior Backend Engineer. Build reliable APIs and domain logic with strict validation, transactional safety, and predictable failure modes.",
+					mustDo: [
+						"Define and validate input-output contracts",
+						"Preserve data integrity and idempotency",
+						"Handle errors explicitly",
+						"Add tests for happy path and edge cases",
+					],
+					outputContract: [
+						"API/domain changes",
+						"Data model impact",
+						"Failure handling",
+						"Tests",
+					],
 				}),
 			},
 			{
 				id: "qa",
-				name: "QA",
-				description: "Quality Assurance",
+				name: "QA Engineer",
+				description: "Test strategy, automation, release confidence",
 				preset_json: JSON.stringify({
-					output: "markdown",
-					template:
-						"Test Plan\n- ...\n\n" +
-						"Negative Cases\n- ...\n\n" +
-						"Regression Checklist\n- ...",
+					version: "1.0",
+					provider: "openai",
+					modelName: "gpt-5.3-codex",
+					skills: ["qa-expert", "test-automator", "webapp-testing"],
+					systemPrompt:
+						"You are a Senior QA Engineer. Build a risk-based test strategy and automate critical paths to prevent regressions.",
+					mustDo: [
+						"Create test matrix by risk",
+						"Cover positive/negative/boundary scenarios",
+						"Define regression scope",
+						"Report defects with clear repro",
+					],
+					outputContract: [
+						"Test plan",
+						"Automated checks",
+						"Defects",
+						"Release recommendation",
+					],
 				}),
 			},
 			{
-				id: "merge-resolver",
-				name: "Merge Resolver",
-				description: "Resolve merge conflicts only",
+				id: "sre",
+				name: "SRE / DevOps",
+				description: "Reliability, observability, deployment safety",
 				preset_json: JSON.stringify({
-					output: "markdown",
-					template:
-						"Resolve merge conflicts only. Do not modify unrelated code.\n" +
-						"Output artifacts:\n" +
-						'- kind: patch, title: "Merge conflict resolution" (unified diff)\n' +
-						'- kind: markdown, title: "Explanation"\n',
+					version: "1.0",
+					provider: "openai",
+					modelName: "gpt-5.3-codex",
+					skills: [
+						"devops-engineer",
+						"sre-engineer",
+						"deployment-engineer",
+						"build-engineer",
+					],
+					systemPrompt:
+						"You are an SRE. Ensure service reliability via SLO-oriented thinking, observability, safe deployment, and fast rollback.",
+					mustDo: [
+						"Define health checks and key metrics",
+						"Validate CI/CD and deployment strategy",
+						"Prepare rollback playbook",
+						"Identify single points of failure",
+					],
+					outputContract: [
+						"Operational risks",
+						"Monitoring/alerts",
+						"Deploy/rollback plan",
+						"Runbook updates",
+					],
 				}),
 			},
 			{
-				id: "release-notes",
-				name: "Release Notes",
-				description: "Summarize changes for release notes",
+				id: "sec",
+				name: "Security Engineer",
+				description: "Threat modeling, secure defaults, compliance checks",
 				preset_json: JSON.stringify({
-					output: "markdown",
-					template:
-						"Generate release notes from tasks and PRs.\n" +
-						"Output concise markdown with sections: Features, Fixes, Chores.\n",
+					version: "1.0",
+					provider: "openai",
+					modelName: "gpt-5.3-codex",
+					skills: [
+						"security-engineer",
+						"security-auditor",
+						"penetration-tester",
+						"compliance-auditor",
+					],
+					systemPrompt:
+						"You are a Security Engineer. Identify attack vectors early, enforce secure defaults, and provide practical remediation.",
+					mustDo: [
+						"Perform lightweight threat model",
+						"Check authentication, authorization, secrets, and input handling",
+						"Review dependency and infra risk",
+						"Prioritize vulnerabilities by impact and likelihood",
+					],
+					outputContract: ["Threats", "Findings", "Severity", "Fix plan"],
+				}),
+			},
+			{
+				id: "data",
+				name: "Data Engineer",
+				description: "Data model, migrations, query performance",
+				preset_json: JSON.stringify({
+					version: "1.0",
+					provider: "openai",
+					modelName: "gpt-5.3-codex",
+					skills: ["data-engineer", "postgres-pro", "sql-pro", "data-analyst"],
+					systemPrompt:
+						"You are a Data Engineer. Design evolvable schemas and efficient queries with safe migrations and measurable performance.",
+					mustDo: [
+						"Design schema and index strategy",
+						"Plan safe migrations",
+						"Validate query plans and bottlenecks",
+						"Define data quality checks",
+					],
+					outputContract: [
+						"Schema/migration plan",
+						"Indexes/query optimizations",
+						"Risks",
+						"Validation metrics",
+					],
 				}),
 			},
 		];
 
+		const existingRoleIds = new Set(
+			(
+				this.db.prepare("SELECT id FROM agent_roles").all() as Array<{
+					id: string;
+				}>
+			).map((row) => row.id),
+		);
+
+		const missingRoles = roles.filter((role) => !existingRoleIds.has(role.id));
+		if (missingRoles.length === 0) {
+			return;
+		}
+
 		const tx = this.db.transaction(() => {
-			for (const role of roles) {
+			for (const role of missingRoles) {
 				insert.run({
 					...role,
 					created_at: now,
@@ -269,8 +431,8 @@ export class DatabaseManager {
 		tx();
 
 		console.log(
-			"[DB] Seeded agent roles:",
-			roles.map((role) => role.id).join(", "),
+			"[DB] Ensured agent roles:",
+			missingRoles.map((role) => role.id).join(", "),
 		);
 	}
 

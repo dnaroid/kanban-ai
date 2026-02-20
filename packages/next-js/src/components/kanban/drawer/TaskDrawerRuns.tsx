@@ -27,8 +27,10 @@ interface RunEventUpdate {
 	[eventKey: string]: unknown;
 }
 
-interface RolesListResponse {
-	roles: Array<{ id: string }>;
+interface AgentRole {
+	id: string;
+	name: string;
+	description: string;
 }
 
 function selectRunId(
@@ -62,7 +64,7 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 	const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 	const [isLoadingRuns, setIsLoadingRuns] = useState(false);
 	const [isStartingRun, setIsStartingRun] = useState(false);
-	const [roles, setRoles] = useState<string[]>([]);
+	const [roles, setRoles] = useState<AgentRole[]>([]);
 	const [isLoadingRoles, setIsLoadingRoles] = useState(false);
 	const [selectedRoleId, setSelectedRoleId] = useState<string>("");
 
@@ -183,11 +185,10 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 		const fetchRoles = async () => {
 			setIsLoadingRoles(true);
 			try {
-				const response = (await api.roles.list()) as RolesListResponse;
-				const roleIds = response.roles.map((role) => role.id);
-				setRoles(roleIds);
-				if (roleIds.length > 0) {
-					setSelectedRoleId(roleIds[0]);
+				const response = await api.roles.list();
+				setRoles(response.roles);
+				if (response.roles.length > 0) {
+					setSelectedRoleId(response.roles[0].id);
 				}
 			} catch (error) {
 				console.error("Failed to fetch roles:", error);
@@ -200,6 +201,7 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 	}, []);
 
 	const selectedRun = runs.find((r) => r.id === selectedRunId) || null;
+	const selectedRole = roles.find((role) => role.id === selectedRoleId) ?? null;
 	const currentStatusConfig =
 		statusConfig[task.status as keyof typeof statusConfig] || statusConfig.todo;
 
@@ -235,19 +237,26 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 						</p>
 					</div>
 				</div>
-				<div className="flex items-center gap-2">
-					<select
-						value={selectedRoleId}
-						onChange={(e) => setSelectedRoleId(e.target.value)}
-						className="h-7 text-[10px] bg-slate-900 border border-slate-700 rounded px-2 text-slate-300 focus:outline-none focus:border-blue-500/50"
-						disabled={isLoadingRoles}
-					>
-						{roles.map((role) => (
-							<option key={role} value={role}>
-								{role}
-							</option>
-						))}
-					</select>
+				<div className="flex items-end gap-2">
+					<div className="flex flex-col gap-1">
+						<select
+							value={selectedRoleId}
+							onChange={(e) => setSelectedRoleId(e.target.value)}
+							className="h-7 min-w-[150px] text-[10px] bg-slate-900 border border-slate-700 rounded px-2 text-slate-300 focus:outline-none focus:border-blue-500/50"
+							disabled={isLoadingRoles}
+						>
+							{roles.map((role) => (
+								<option key={role.id} value={role.id}>
+									{role.name}
+								</option>
+							))}
+						</select>
+						{selectedRole?.description ? (
+							<p className="max-w-[220px] truncate text-[9px] text-slate-500">
+								{selectedRole.description}
+							</p>
+						) : null}
+					</div>
 
 					<button
 						type="button"
