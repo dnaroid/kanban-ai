@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DangerZoneSettings } from "@/components/settings/DangerZoneSettings";
 import { api } from "@/lib/api-client";
-import { useSettingsStatus } from "../layout";
+import { useSettingsStatus } from "@/components/settings/SettingsStatusContext";
 
 export default function DangerPage() {
 	const router = useRouter();

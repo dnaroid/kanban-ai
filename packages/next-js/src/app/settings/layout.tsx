@@ -1,62 +1,27 @@
 "use client";
 
-import {
-	createContext,
-	useContext,
-	useEffect,
-	useState,
-	type ReactNode,
-} from "react";
+import { type ReactNode } from "react";
 import {
 	Trash2,
 	Tag as TagIcon,
 	Cpu,
 	CheckCircle2,
 	Settings2,
+	Users,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { SettingsStatusProvider } from "@/components/settings/SettingsStatusProvider";
+import { useSettingsStatus } from "@/components/settings/SettingsStatusContext";
 
-type Tab = "all-models" | "my-models" | "oh-my-opencode" | "tags" | "danger";
-
-type Status = {
-	message: string;
-	type: "info" | "error" | "success";
-} | null;
-
-type SettingsContextType = {
-	status: Status;
-	setStatus: (status: Status) => void;
-};
-
-const SettingsContext = createContext<SettingsContextType | null>(null);
-
-export function useSettingsStatus() {
-	const context = useContext(SettingsContext);
-	if (!context) {
-		throw new Error("useSettingsStatus must be used within SettingsLayout");
-	}
-	return context;
-}
-
-function SettingsStatusProvider({ children }: { children: ReactNode }) {
-	const [status, setStatus] = useState<Status>(null);
-
-	useEffect(() => {
-		if (status) {
-			const timer = setTimeout(() => setStatus(null), 5000);
-			return () => clearTimeout(timer);
-		}
-		return undefined;
-	}, [status]);
-
-	return (
-		<SettingsContext.Provider value={{ status, setStatus }}>
-			{children}
-		</SettingsContext.Provider>
-	);
-}
+type Tab =
+	| "all-models"
+	| "my-models"
+	| "team"
+	| "oh-my-opencode"
+	| "tags"
+	| "danger";
 
 const tabs: {
 	id: Tab;
@@ -65,6 +30,7 @@ const tabs: {
 }[] = [
 	{ id: "all-models", label: "All Models", icon: Cpu },
 	{ id: "my-models", label: "My Models", icon: CheckCircle2 },
+	{ id: "team", label: "Team", icon: Users },
 	{ id: "oh-my-opencode", label: "Oh-My-Opencode", icon: Settings2 },
 	{ id: "tags", label: "Tags", icon: TagIcon },
 	{ id: "danger", label: "Danger Zone", icon: Trash2 },

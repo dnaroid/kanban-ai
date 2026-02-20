@@ -331,6 +331,58 @@ class ApiClient {
 			}>(payload);
 			return { roles: data.roles ?? [] };
 		},
+		listFull: async (): Promise<{
+			roles: Array<{ id: string; name: string; description: string; preset_json: string }>;
+		}> => {
+			const response = await fetch(`${this.baseUrl}/api/roles/list-full`);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to list roles with presets",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{
+				roles?: Array<{ id: string; name: string; description: string; preset_json: string }>;
+			}>(payload);
+			return { roles: data.roles ?? [] };
+		},
+		save: async (role: {
+			id: string;
+			name: string;
+			description?: string;
+			preset_json: string;
+		}): Promise<{ success: boolean }> => {
+			const response = await fetch(`${this.baseUrl}/api/roles/save`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(role),
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to save role",
+				);
+				throw new Error(message);
+			}
+			return { success: true };
+		},
+		delete: async ({ id }: { id: string }): Promise<{ success: boolean }> => {
+			const response = await fetch(`${this.baseUrl}/api/roles/delete`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ id }),
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to delete role",
+				);
+				throw new Error(message);
+			}
+			return { success: true };
+		},
 	};
 
 	readonly opencode = {

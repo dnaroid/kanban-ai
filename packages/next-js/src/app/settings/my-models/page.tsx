@@ -1,7 +1,7 @@
 "use client";
 
 import { ModelsManagement } from "@/components/settings/ModelsManagement";
-import { useSettingsStatus } from "../layout";
+import { useSettingsStatus } from "@/components/settings/SettingsStatusContext";
 
 export default function MyModelsPage() {
 	const { setStatus } = useSettingsStatus();
