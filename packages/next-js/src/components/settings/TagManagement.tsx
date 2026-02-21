@@ -271,22 +271,11 @@ export function TagManagement() {
 													if (e.key === "Escape") cancelEditing();
 												}}
 											/>
-											<div className="flex flex-wrap gap-1.5 p-2 bg-black/20 rounded-xl">
-												{DEFAULT_PRESET_COLORS.map((color) => (
-													<button
-														key={color}
-														type="button"
-														onClick={() => setEditColor(color)}
-														className={cn(
-															"w-5 h-5 rounded-md transition-all duration-300",
-															editColor === color
-																? "ring-2 ring-white scale-110 shadow-lg"
-																: "hover:scale-110 shadow-sm",
-														)}
-														style={{ backgroundColor: color }}
-													/>
-												))}
-											</div>
+											<ColorPalettePicker
+												label="Tag Color"
+												value={editColor}
+												onChange={setEditColor}
+											/>
 											<div className="flex gap-2 pt-2">
 												<button
 													type="button"
