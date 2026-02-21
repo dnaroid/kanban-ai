@@ -25,6 +25,7 @@ import {
 	createStatusPillOptions,
 } from "@/components/kanban/workflow-display";
 import { ColorPalettePicker } from "@/components/settings/ColorPalettePicker";
+import { IconPicker } from "@/components/settings/IconPicker";
 
 interface WorkflowStatusesEditorProps {
 	statuses: WorkflowStatusConfig[];
@@ -140,6 +141,14 @@ export function WorkflowStatusesEditor({
 							</div>
 
 							<div className="flex flex-col items-start gap-4 md:flex-row md:items-center">
+								<div className="w-full md:max-w-sm">
+									<IconPicker
+										label="Status Icon"
+										value={s.icon}
+										tone={s.color}
+										onChange={(icon) => updateStatus(s.status, { icon })}
+									/>
+								</div>
 								<PillSelect
 									label="Preferred Column"
 									value={s.preferredColumnSystemKey}
