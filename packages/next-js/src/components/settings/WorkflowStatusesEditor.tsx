@@ -6,6 +6,7 @@ import {
 	Clock,
 	ShieldAlert,
 	Archive,
+	Palette,
 } from "lucide-react";
 import type {
 	WorkflowColumnConfig,
@@ -149,6 +150,27 @@ export function WorkflowStatusesEditor({
 										})
 									}
 								/>
+								<div className="flex items-center gap-2">
+									<div className="relative">
+										<input
+											type="color"
+											value={s.color}
+											onChange={(e) =>
+												updateStatus(s.status, { color: e.target.value })
+											}
+											className="absolute inset-0 h-7 w-7 cursor-pointer opacity-0"
+										/>
+										<div
+											className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-700 ring-1 ring-white/10"
+											style={{ backgroundColor: s.color }}
+										>
+											<Palette className="h-3.5 w-3.5 text-white/80" />
+										</div>
+									</div>
+									<span className="text-[10px] font-mono text-slate-500 uppercase">
+										{s.color}
+									</span>
+								</div>
 							</div>
 						</div>
 
