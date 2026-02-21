@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, Palette } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -22,40 +22,43 @@ export function ColorPalettePicker({
 	className,
 }: ColorPalettePickerProps) {
 	const [isOpen, setIsOpen] = useState(false);
-	const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 });
+	const [popupPosition, setPopupPosition] = useState<{
+		top: number;
+		left: number;
+	} | null>(null);
 	const triggerRef = useRef<HTMLButtonElement | null>(null);
 	const popupRef = useRef<HTMLDivElement | null>(null);
 
-	useEffect(() => {
-		if (!isOpen) {
+	const updatePosition = useCallback(() => {
+		const trigger = triggerRef.current;
+		if (!trigger) {
 			return;
 		}
 
-		const updatePosition = () => {
-			const trigger = triggerRef.current;
-			if (!trigger) {
-				return;
-			}
+		const rect = trigger.getBoundingClientRect();
+		const popupWidth = 224;
+		const popupHeight = popupRef.current?.offsetHeight ?? 260;
+		const viewportPadding = 8;
 
-			const rect = trigger.getBoundingClientRect();
-			const popupWidth = 224;
-			const popupHeight = popupRef.current?.offsetHeight ?? 260;
-			const viewportPadding = 8;
+		const left = Math.min(
+			Math.max(viewportPadding, rect.right - popupWidth),
+			window.innerWidth - popupWidth - viewportPadding,
+		);
 
-			const left = Math.min(
-				Math.max(viewportPadding, rect.right - popupWidth),
-				window.innerWidth - popupWidth - viewportPadding,
-			);
+		const defaultTop = rect.bottom + viewportPadding;
+		const flippedTop = rect.top - popupHeight - viewportPadding;
+		const top =
+			defaultTop + popupHeight <= window.innerHeight - viewportPadding
+				? defaultTop
+				: Math.max(viewportPadding, flippedTop);
 
-			const defaultTop = rect.bottom + viewportPadding;
-			const flippedTop = rect.top - popupHeight - viewportPadding;
-			const top =
-				defaultTop + popupHeight <= window.innerHeight - viewportPadding
-					? defaultTop
-					: Math.max(viewportPadding, flippedTop);
+		setPopupPosition({ top, left });
+	}, []);
 
-			setPopupPosition({ top, left });
-		};
+	useLayoutEffect(() => {
+		if (!isOpen) {
+			return;
+		}
 
 		updatePosition();
 		const frame = window.requestAnimationFrame(updatePosition);
@@ -68,7 +71,7 @@ export function ColorPalettePicker({
 			window.removeEventListener("resize", updatePosition);
 			window.removeEventListener("scroll", updatePosition, true);
 		};
-	}, [isOpen]);
+	}, [isOpen, updatePosition]);
 
 	return (
 		<div className={cn("space-y-3", className)}>
@@ -81,7 +84,14 @@ export function ColorPalettePicker({
 					<button
 						ref={triggerRef}
 						type="button"
-						onClick={() => setIsOpen((prev) => !prev)}
+						onClick={() => {
+							if (isOpen) {
+								setIsOpen(false);
+								return;
+							}
+							setPopupPosition(null);
+							setIsOpen(true);
+						}}
 						className={cn(
 							"flex items-center gap-2 rounded-lg border px-2.5 py-1 text-[10px] font-mono uppercase transition-colors",
 							isOpen
@@ -96,13 +106,16 @@ export function ColorPalettePicker({
 						<span>{value}</span>
 					</button>
 
-					{isOpen
+					{isOpen && popupPosition
 						? createPortal(
 								<>
 									<button
 										type="button"
 										className="fixed inset-0 z-40 cursor-default"
-										onClick={() => setIsOpen(false)}
+										onClick={() => {
+											setPopupPosition(null);
+											setIsOpen(false);
+										}}
 										aria-label="Close color picker"
 									/>
 									<div
@@ -138,6 +151,7 @@ export function ColorPalettePicker({
 													type="button"
 													onClick={() => {
 														onChange(color);
+														setPopupPosition(null);
 														setIsOpen(false);
 													}}
 													className={cn(
