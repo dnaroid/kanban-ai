@@ -43,7 +43,7 @@ const tabs: { id: EditorTab; label: string; icon: LucideIcon }[] = [
 
 export function WorkflowSettingsEditor() {
 	const { setStatus } = useSettingsStatus();
-	const [activeTab, setActiveTab] = useState<EditorTab>("visual");
+	const [activeTab, setActiveTab] = useState<EditorTab>("engine");
 	const [isLoading, setIsLoading] = useState(true);
 	const [isSaving, setIsSaving] = useState(false);
 

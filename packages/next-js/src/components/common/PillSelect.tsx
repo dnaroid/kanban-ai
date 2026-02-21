@@ -54,7 +54,7 @@ export function PillSelect({
 					type="button"
 					onClick={() => setIsOpen(!isOpen)}
 					className={cn(
-						"flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all cursor-pointer hover:brightness-110",
+						"flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border whitespace-nowrap transition-all cursor-pointer hover:brightness-110",
 						currentOption.bg,
 						currentOption.border,
 						isOpen &&
@@ -119,7 +119,7 @@ export function PillSelect({
 										onMouseEnter={() => setHoveredKey(key)}
 										onMouseLeave={() => setHoveredKey(null)}
 										className={cn(
-											"w-full flex items-center gap-2 px-3 py-2 text-[11px] font-medium transition-all text-left rounded-lg",
+											"w-full flex items-center gap-2 px-3 py-2 text-[11px] font-medium whitespace-nowrap transition-all text-left rounded-lg",
 											isSelected || isHovered
 												? cn(opt.bg, opt.color)
 												: cn(opt.color, "opacity-70"),
@@ -141,7 +141,7 @@ export function PillSelect({
 											}
 										/>
 										<span
-											className="uppercase tracking-wider"
+											className="uppercase tracking-wider whitespace-nowrap"
 											style={
 												isSelected || isHovered
 													? opt.style?.color
