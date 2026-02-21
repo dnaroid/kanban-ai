@@ -85,6 +85,9 @@ export function WorkflowMermaid({ config }: WorkflowMermaidProps) {
 			config.statuses.map((s) => s.status),
 			"status",
 		);
+		const statusColorMap = new Map(
+			config.statuses.map((s) => [s.status, s.color] as const),
+		);
 		const columnIdMap = createMermaidIdMap(
 			sortedColumns.map((col) => col.systemKey),
 			"column",
@@ -144,6 +147,19 @@ export function WorkflowMermaid({ config }: WorkflowMermaidProps) {
 			);
 		});
 
+		config.statuses.forEach((status) => {
+			const statusId = statusIdMap.get(status.status);
+			const color = statusColorMap.get(status.status);
+
+			if (!statusId || !color) {
+				return;
+			}
+
+			lines.push(
+				`  style ${statusId} fill:${color},stroke:${color},stroke-width:2px,color:#ffffff`,
+			);
+		});
+
 		return lines.join("\n");
 	}, [config]);
 
@@ -152,7 +168,7 @@ export function WorkflowMermaid({ config }: WorkflowMermaidProps) {
 			if (containerRef.current && diagramCode) {
 				try {
 					containerRef.current.innerHTML = "";
-					const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
+					const id = `mermaid-${Math.random().toString(36).slice(2, 11)}`;
 					const { svg } = await mermaid.render(id, diagramCode);
 					if (containerRef.current) {
 						containerRef.current.innerHTML = svg;

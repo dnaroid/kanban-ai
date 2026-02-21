@@ -11,7 +11,7 @@ import {
 	LayoutGrid,
 	ListTodo,
 	GitCompare,
-	Map,
+	Map as MapIcon,
 	type LucideIcon,
 } from "lucide-react";
 
@@ -23,7 +23,6 @@ import { cn } from "@/lib/utils";
 import { WorkflowColumnsEditor } from "./WorkflowColumnsEditor";
 import { WorkflowStatusesEditor } from "./WorkflowStatusesEditor";
 import { WorkflowTransitionsEditor } from "./WorkflowTransitionsEditor";
-import { WorkflowVisualizer } from "./WorkflowVisualizer";
 import { WorkflowMermaid } from "./WorkflowMermaid";
 import {
 	validateWorkflowConfig,
@@ -33,7 +32,7 @@ import {
 type EditorTab = "visual" | "columns" | "statuses" | "transitions";
 
 const tabs: { id: EditorTab; label: string; icon: LucideIcon }[] = [
-	{ id: "visual", label: "Workflow Map", icon: Map },
+	{ id: "visual", label: "Workflow Map", icon: MapIcon },
 	{ id: "columns", label: "Columns", icon: LayoutGrid },
 	{ id: "statuses", label: "Statuses", icon: ListTodo },
 	{ id: "transitions", label: "Transitions", icon: GitCompare },
@@ -279,8 +278,6 @@ export function WorkflowSettingsEditor() {
 			<div className="min-h-[400px]">
 				{activeTab === "visual" && (
 					<div className="space-y-8">
-						<WorkflowVisualizer config={draftConfig} />
-						<div className="h-px bg-slate-800/50 mx-4" />
 						<WorkflowMermaid config={draftConfig} />
 					</div>
 				)}
