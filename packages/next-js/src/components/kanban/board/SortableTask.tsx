@@ -5,16 +5,17 @@ import { CSS } from "@dnd-kit/utilities";
 import { Trash2 } from "lucide-react";
 import type { KanbanTask, Tag } from "@/types/kanban";
 import { cn } from "@/lib/utils";
+import { priorityConfig, typeConfig } from "../TaskPropertyConfigs";
 import {
-	priorityConfig,
-	statusConfig,
-	typeConfig,
-} from "../TaskPropertyConfigs";
+	getWorkflowStatusVisual,
+	toneOverlayStyle,
+	toneBadgeStyle,
+} from "../workflow-display";
+import { useWorkflowDisplayConfig } from "../useWorkflowDisplayConfig";
 
 export interface SortableTaskProps {
 	task: KanbanTask;
 	globalTags: Tag[];
-	projectId: string;
 	onDelete?: (id: string) => void;
 	onClick?: (task: KanbanTask) => void;
 }
@@ -22,10 +23,10 @@ export interface SortableTaskProps {
 export function SortableTask({
 	task,
 	globalTags,
-	projectId,
 	onDelete,
 	onClick,
 }: SortableTaskProps) {
+	const workflowConfig = useWorkflowDisplayConfig();
 	const {
 		attributes,
 		listeners,
@@ -41,9 +42,15 @@ export function SortableTask({
 		},
 	});
 
+	const statusVisual = task.status
+		? getWorkflowStatusVisual(workflowConfig, task.status)
+		: null;
+	const statusBadge = statusVisual ? toneBadgeStyle(statusVisual.tone) : null;
+
 	const style = {
 		transform: CSS.Transform.toString(transform),
 		transition,
+		borderColor: statusBadge?.borderColor,
 	};
 
 	const pConfig =
@@ -51,10 +58,6 @@ export function SortableTask({
 		priorityConfig.normal;
 	const tConfig =
 		typeConfig[task.type as keyof typeof typeConfig] || typeConfig.chore;
-	const sConfig = task.status
-		? statusConfig[task.status as keyof typeof statusConfig]
-		: null;
-
 	const getTagColor = (tagName: string) => {
 		const normalized = tagName.toLowerCase().trim();
 		return (
@@ -69,52 +72,30 @@ export function SortableTask({
 			style={style}
 			{...attributes}
 			{...listeners}
-			onClick={() => onClick?.(task)}
-			onKeyDown={(e) => e.key === "Enter" && onClick?.(task)}
-			role="button"
-			tabIndex={0}
 			className={cn(
 				"bg-slate-900/40 backdrop-blur-md border rounded-xl mb-3 group hover:shadow-lg hover:shadow-black/20 transition-all cursor-grab active:cursor-grabbing overflow-hidden relative",
-				sConfig?.border ?? "border-slate-700",
-				!sConfig && "hover:border-slate-600",
+				"border-slate-700 hover:border-slate-600",
 				isDragging && "opacity-50 shadow-2xl scale-105",
-				task.status === "running" &&
-					"animate-card-pulse-blue border-blue-500/50",
-				task.status === "generating" &&
-					"animate-card-pulse-purple border-purple-500/50",
+				task.status === "running" && "animate-card-pulse-blue",
+				task.status === "generating" && "animate-card-pulse-purple",
 			)}
 		>
-			{sConfig && (
+			{statusVisual && (
 				<div
-					className={cn(
-						"absolute inset-0 pointer-events-none transition-colors",
-						sConfig.bg,
-					)}
+					className="absolute inset-0 pointer-events-none transition-colors"
+					style={toneOverlayStyle(statusVisual.tone)}
 				/>
 			)}
-			<div className="flex-1 min-w-0 p-4 relative">
-				<div className="flex items-start justify-between gap-2 mb-2">
-					<h4 className="text-sm font-semibold text-slate-200 leading-snug flex-1">
-						{task.title}
-					</h4>
-					<div className="flex flex-col gap-1">
-						<button
-							type="button"
-							onClick={(e) => {
-								e.stopPropagation();
-								onDelete?.(task.id);
-							}}
-							onKeyDown={(e) => e.key === "Enter" && onDelete?.(task.id)}
-							onPointerDown={(e) => e.stopPropagation()}
-							className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all p-1 rounded-md hover:bg-red-500/10"
-							title="Delete Task"
-						>
-							<Trash2 className="w-4 h-4" />
-						</button>
-					</div>
-				</div>
+			<button
+				type="button"
+				onClick={() => onClick?.(task)}
+				className="block w-full min-w-0 p-4 text-left"
+			>
+				<h4 className="mb-2 text-sm font-semibold leading-snug text-slate-200">
+					{task.title}
+				</h4>
 
-				<div className="flex flex-wrap items-center gap-2 mb-2">
+				<div className="mb-2 flex flex-wrap items-center gap-2">
 					<span
 						className={cn(
 							"inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all",
@@ -136,7 +117,7 @@ export function SortableTask({
 				</div>
 
 				{task.tags.length > 0 && (
-					<div className="flex flex-wrap gap-1.5 mt-1">
+					<div className="mt-1 flex flex-wrap gap-1.5">
 						{task.tags.slice(0, 3).map((tag) => {
 							const color = getTagColor(tag);
 							return (
@@ -159,6 +140,20 @@ export function SortableTask({
 						)}
 					</div>
 				)}
+			</button>
+			<div className="absolute right-2 top-2 z-10">
+				<button
+					type="button"
+					onClick={(e) => {
+						e.stopPropagation();
+						onDelete?.(task.id);
+					}}
+					onPointerDown={(e) => e.stopPropagation()}
+					className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all p-1 rounded-md hover:bg-red-500/10"
+					title="Delete Task"
+				>
+					<Trash2 className="h-4 w-4" />
+				</button>
 			</div>
 		</div>
 	);

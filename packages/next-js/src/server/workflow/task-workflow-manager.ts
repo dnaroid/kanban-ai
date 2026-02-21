@@ -1,5 +1,7 @@
 import type { Board } from "@/server/types";
 import type { BlockedReason, ClosedReason, TaskStatus } from "@/types/kanban";
+import type { WorkflowIconKey } from "@/types/workflow";
+import { isWorkflowIconKey } from "@/types/workflow";
 import type Database from "better-sqlite3";
 
 import { dbManager } from "../db";
@@ -21,6 +23,7 @@ export interface WorkflowColumnTemplate {
 	name: string;
 	systemKey: WorkflowColumnSystemKey;
 	color: string;
+	icon: WorkflowIconKey;
 }
 
 export interface WorkflowStatusConfig {
@@ -29,12 +32,15 @@ export interface WorkflowStatusConfig {
 	preferredColumnSystemKey: WorkflowColumnSystemKey;
 	blockedReason: BlockedReason | null;
 	closedReason: ClosedReason | null;
+	color: string;
+	icon: WorkflowIconKey;
 }
 
 export interface WorkflowColumnConfig {
 	systemKey: WorkflowColumnSystemKey;
 	name: string;
 	color: string;
+	icon: WorkflowIconKey;
 	orderIndex: number;
 	defaultStatus: TaskStatus;
 	allowedStatuses: TaskStatus[];
@@ -48,13 +54,43 @@ export interface WorkflowConfig {
 }
 
 const DEFAULT_WORKFLOW_COLUMNS_FALLBACK: readonly WorkflowColumnTemplate[] = [
-	{ name: "Backlog", systemKey: "backlog", color: "#6366f1" },
-	{ name: "Ready", systemKey: "ready", color: "#0ea5e9" },
-	{ name: "Deferred", systemKey: "deferred", color: "#6b7280" },
-	{ name: "In Progress", systemKey: "in_progress", color: "#f59e0b" },
-	{ name: "Blocked", systemKey: "blocked", color: "#ef4444" },
-	{ name: "Review / QA", systemKey: "review", color: "#8b5cf6" },
-	{ name: "Closed", systemKey: "closed", color: "#10b981" },
+	{ name: "Backlog", systemKey: "backlog", color: "#6366f1", icon: "list" },
+	{
+		name: "Ready",
+		systemKey: "ready",
+		color: "#0ea5e9",
+		icon: "check-circle",
+	},
+	{
+		name: "Deferred",
+		systemKey: "deferred",
+		color: "#6b7280",
+		icon: "clock",
+	},
+	{
+		name: "In Progress",
+		systemKey: "in_progress",
+		color: "#f59e0b",
+		icon: "play",
+	},
+	{
+		name: "Blocked",
+		systemKey: "blocked",
+		color: "#ef4444",
+		icon: "shield-alert",
+	},
+	{
+		name: "Review / QA",
+		systemKey: "review",
+		color: "#8b5cf6",
+		icon: "eye",
+	},
+	{
+		name: "Closed",
+		systemKey: "closed",
+		color: "#10b981",
+		icon: "archive",
+	},
 ];
 
 export const DEFAULT_WORKFLOW_COLUMNS = DEFAULT_WORKFLOW_COLUMNS_FALLBACK;
@@ -109,6 +145,19 @@ const CLOSED_REASON_BY_STATUS_FALLBACK: Record<
 	done: "done",
 	failed: "failed",
 	generating: null,
+};
+
+const STATUS_VISUALS_FALLBACK: Record<
+	TaskStatus,
+	{ color: string; icon: WorkflowIconKey }
+> = {
+	queued: { color: "#f59e0b", icon: "clock" },
+	running: { color: "#3b82f6", icon: "play" },
+	question: { color: "#f97316", icon: "help-circle" },
+	paused: { color: "#eab308", icon: "pause" },
+	done: { color: "#10b981", icon: "check-circle" },
+	failed: { color: "#ef4444", icon: "x-circle" },
+	generating: { color: "#8b5cf6", icon: "sparkles" },
 };
 
 const STATUS_TO_WORKFLOW_COLUMN_FALLBACK: Record<
@@ -219,12 +268,15 @@ type WorkflowStatusRow = {
 	preferredColumnSystemKey: string;
 	blockedReason: string | null;
 	closedReason: string | null;
+	color: string;
+	icon: string;
 };
 
 type WorkflowColumnTemplateRow = {
 	systemKey: string;
 	name: string;
 	color: string;
+	icon: string;
 	defaultStatus: string;
 };
 
@@ -280,6 +332,9 @@ function toWorkflowConfig(
 			row.closedReason && isClosedReason(row.closedReason)
 				? row.closedReason
 				: null;
+		if (!row.color.trim() || !isWorkflowIconKey(row.icon)) {
+			return null;
+		}
 
 		statuses.push({
 			status: row.status,
@@ -287,6 +342,8 @@ function toWorkflowConfig(
 			preferredColumnSystemKey: row.preferredColumnSystemKey,
 			blockedReason,
 			closedReason,
+			color: row.color,
+			icon: row.icon,
 		});
 	}
 
@@ -315,7 +372,8 @@ function toWorkflowConfig(
 	for (const row of templateRows) {
 		if (
 			!isWorkflowColumnSystemKey(row.systemKey) ||
-			!isTaskStatus(row.defaultStatus)
+			!isTaskStatus(row.defaultStatus) ||
+			!isWorkflowIconKey(row.icon)
 		) {
 			return null;
 		}
@@ -328,6 +386,7 @@ function toWorkflowConfig(
 			systemKey: row.systemKey,
 			name: row.name,
 			color: row.color,
+			icon: row.icon,
 			orderIndex: row.orderIndex,
 			defaultStatus: row.defaultStatus,
 			allowedStatuses: [...allowedStatusesByColumn[row.systemKey]],
@@ -391,22 +450,25 @@ function buildFallbackWorkflowConfig(): WorkflowConfig {
 		preferredColumnSystemKey: STATUS_TO_WORKFLOW_COLUMN_FALLBACK[status],
 		blockedReason: BLOCKED_REASON_BY_STATUS_FALLBACK[status],
 		closedReason: CLOSED_REASON_BY_STATUS_FALLBACK[status],
+		color: STATUS_VISUALS_FALLBACK[status].color,
+		icon: STATUS_VISUALS_FALLBACK[status].icon,
 	}));
 
-	const columns = WORKFLOW_COLUMN_SYSTEM_KEYS.map((systemKey, orderIndex) => ({
-		systemKey,
-		name:
-			DEFAULT_WORKFLOW_COLUMNS_FALLBACK.find(
-				(item) => item.systemKey === systemKey,
-			)?.name ?? systemKey,
-		color:
-			DEFAULT_WORKFLOW_COLUMNS_FALLBACK.find(
-				(item) => item.systemKey === systemKey,
-			)?.color ?? "#6b7280",
-		orderIndex,
-		defaultStatus: COLUMN_DEFAULT_STATUS_FALLBACK[systemKey],
-		allowedStatuses: [...COLUMN_ALLOWED_STATUSES_FALLBACK[systemKey]],
-	}));
+	const columns = WORKFLOW_COLUMN_SYSTEM_KEYS.map((systemKey, orderIndex) => {
+		const fallbackColumn = DEFAULT_WORKFLOW_COLUMNS_FALLBACK.find(
+			(item) => item.systemKey === systemKey,
+		);
+
+		return {
+			systemKey,
+			name: fallbackColumn?.name ?? systemKey,
+			color: fallbackColumn?.color ?? "#6b7280",
+			icon: fallbackColumn?.icon ?? "list",
+			orderIndex,
+			defaultStatus: COLUMN_DEFAULT_STATUS_FALLBACK[systemKey],
+			allowedStatuses: [...COLUMN_ALLOWED_STATUSES_FALLBACK[systemKey]],
+		};
+	});
 
 	const statusTransitions: Record<TaskStatus, TaskStatus[]> = {
 		queued: [...STATUS_TRANSITIONS_FALLBACK.queued],
@@ -453,7 +515,9 @@ function loadWorkflowConfigFromDb(
          order_index AS orderIndex,
          preferred_column_system_key AS preferredColumnSystemKey,
          blocked_reason AS blockedReason,
-         closed_reason AS closedReason
+         closed_reason AS closedReason,
+         color,
+         icon
        FROM workflow_statuses
        ORDER BY order_index ASC`,
 		)
@@ -465,6 +529,7 @@ function loadWorkflowConfigFromDb(
          system_key AS systemKey,
          name,
          color,
+         icon,
          order_index AS orderIndex,
          default_status AS defaultStatus
        FROM workflow_column_templates
@@ -541,6 +606,12 @@ function validateWorkflowConfig(config: WorkflowConfig): void {
 		if (row.closedReason && !isClosedReason(row.closedReason)) {
 			throw new Error(`Invalid closed reason for status ${row.status}`);
 		}
+		if (!row.color.trim()) {
+			throw new Error(`Status ${row.status} color cannot be empty`);
+		}
+		if (!isWorkflowIconKey(row.icon)) {
+			throw new Error(`Invalid icon for status ${row.status}: ${row.icon}`);
+		}
 		if (!Number.isInteger(row.orderIndex) || row.orderIndex < 0) {
 			throw new Error(`Invalid status order index for status ${row.status}`);
 		}
@@ -573,6 +644,9 @@ function validateWorkflowConfig(config: WorkflowConfig): void {
 		}
 		if (!row.color.trim()) {
 			throw new Error(`Column ${row.systemKey} color cannot be empty`);
+		}
+		if (!isWorkflowIconKey(row.icon)) {
+			throw new Error(`Invalid icon for column ${row.systemKey}: ${row.icon}`);
 		}
 		if (!isTaskStatus(row.defaultStatus)) {
 			throw new Error(`Invalid default status for column ${row.systemKey}`);
@@ -733,6 +807,8 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 			preferredColumnSystemKey,
 			blockedReason,
 			closedReason,
+			color,
+			icon,
 		} = item;
 
 		if (
@@ -740,6 +816,10 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 			!isTaskStatus(status) ||
 			typeof preferredColumnSystemKey !== "string" ||
 			!isWorkflowColumnSystemKey(preferredColumnSystemKey) ||
+			typeof color !== "string" ||
+			!color.trim() ||
+			typeof icon !== "string" ||
+			!isWorkflowIconKey(icon) ||
 			typeof orderIndex !== "number" ||
 			!Number.isInteger(orderIndex) ||
 			orderIndex < 0
@@ -775,6 +855,8 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 				typeof closedReason === "string" && isClosedReason(closedReason)
 					? closedReason
 					: null,
+			color,
+			icon,
 		});
 	}
 
@@ -788,6 +870,7 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 			systemKey,
 			name,
 			color,
+			icon,
 			orderIndex,
 			defaultStatus,
 			allowedStatuses,
@@ -798,6 +881,9 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 			!isWorkflowColumnSystemKey(systemKey) ||
 			typeof name !== "string" ||
 			typeof color !== "string" ||
+			!color.trim() ||
+			typeof icon !== "string" ||
+			!isWorkflowIconKey(icon) ||
 			typeof orderIndex !== "number" ||
 			!Number.isInteger(orderIndex) ||
 			orderIndex < 0 ||
@@ -816,6 +902,7 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 			systemKey,
 			name,
 			color,
+			icon,
 			orderIndex,
 			defaultStatus,
 			allowedStatuses: parsedAllowedStatuses,
@@ -900,8 +987,10 @@ export function updateWorkflowConfig(config: WorkflowConfig): void {
          order_index,
          preferred_column_system_key,
          blocked_reason,
-         closed_reason
-       ) VALUES (?, ?, ?, ?, ?)`,
+         closed_reason,
+         color,
+         icon
+       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		);
 		for (const row of config.statuses) {
 			insertStatus.run(
@@ -910,6 +999,8 @@ export function updateWorkflowConfig(config: WorkflowConfig): void {
 				row.preferredColumnSystemKey,
 				row.blockedReason,
 				row.closedReason,
+				row.color,
+				row.icon,
 			);
 		}
 
@@ -918,15 +1009,17 @@ export function updateWorkflowConfig(config: WorkflowConfig): void {
          system_key,
          name,
          color,
+         icon,
          order_index,
          default_status
-       ) VALUES (?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, ?, ?)`,
 		);
 		for (const row of config.columns) {
 			insertTemplate.run(
 				row.systemKey,
 				row.name,
 				row.color,
+				row.icon,
 				row.orderIndex,
 				row.defaultStatus,
 			);
@@ -1018,6 +1111,7 @@ function loadRuntimeConfigFromDb(): WorkflowRuntimeConfig | null {
 			name: row.name,
 			systemKey: row.systemKey,
 			color: row.color,
+			icon: row.icon,
 		});
 		columnDefaultStatus[row.systemKey] = row.defaultStatus;
 		columnAllowedStatuses[row.systemKey] = row.allowedStatuses;

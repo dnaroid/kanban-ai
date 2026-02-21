@@ -1,11 +1,15 @@
 import { PillSelect } from "@/components/common/PillSelect";
 import type { KanbanTask } from "@/types/kanban";
 import {
-	statusConfig,
 	typeConfig,
 	difficultyConfig,
 	priorityConfig,
 } from "../TaskPropertyConfigs";
+import {
+	createFallbackStatusPillOptions,
+	createStatusPillOptions,
+} from "@/components/kanban/workflow-display";
+import { useWorkflowDisplayConfig } from "@/components/kanban/useWorkflowDisplayConfig";
 
 interface TaskDetailsTopBarProps {
 	task: KanbanTask;
@@ -13,12 +17,17 @@ interface TaskDetailsTopBarProps {
 }
 
 export function TaskDetailsTopBar({ task, onUpdate }: TaskDetailsTopBarProps) {
+	const workflowConfig = useWorkflowDisplayConfig();
+	const statusOptions = workflowConfig
+		? createStatusPillOptions(workflowConfig.statuses)
+		: createFallbackStatusPillOptions();
+
 	return (
 		<div className="flex flex-wrap items-start gap-6">
 			<PillSelect
 				label="Status"
 				value={task.status}
-				options={statusConfig}
+				options={statusOptions}
 				onChange={(status) =>
 					onUpdate?.(task.id, { status: status as KanbanTask["status"] })
 				}

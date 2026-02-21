@@ -4,6 +4,7 @@ import {
 	v019TaskBlockedReasonSql,
 	v020TaskClosedReasonSql,
 	v021WorkflowConfigSql,
+	v022WorkflowVisualsSql,
 } from "./sql";
 export {
 	v017SystemKeySql,
@@ -11,6 +12,7 @@ export {
 	v019TaskBlockedReasonSql,
 	v020TaskClosedReasonSql,
 	v021WorkflowConfigSql,
+	v022WorkflowVisualsSql,
 };
 
 export const INIT_DB_SQL = `
@@ -494,6 +496,10 @@ export const migrations = [
 	{
 		version: 21,
 		sql: v021WorkflowConfigSql,
+	},
+	{
+		version: 22,
+		sql: v022WorkflowVisualsSql,
 	},
 ] as const;
 

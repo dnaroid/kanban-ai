@@ -13,11 +13,13 @@ import { CSS } from "@dnd-kit/utilities";
 import type { KanbanTask, Tag } from "@/types/kanban";
 import type { BoardColumn } from "@/server/types";
 import { cn } from "@/lib/utils";
+import { priorityConfig, typeConfig } from "../TaskPropertyConfigs";
 import {
-	priorityConfig,
-	typeConfig,
-	statusConfig,
-} from "../TaskPropertyConfigs";
+	getWorkflowStatusVisual,
+	toneBadgeStyle,
+	toneOverlayStyle,
+} from "../workflow-display";
+import { useWorkflowDisplayConfig } from "../useWorkflowDisplayConfig";
 
 interface ListViewProps {
 	columns: BoardColumn[];
@@ -251,14 +253,16 @@ export function ListItemView({
 	dragListeners,
 }: ListItemViewProps) {
 	const router = useRouter();
+	const workflowConfig = useWorkflowDisplayConfig();
 	const pConfig =
 		priorityConfig[task.priority as keyof typeof priorityConfig] ||
 		priorityConfig.normal;
 	const tConfig =
 		typeConfig[task.type as keyof typeof typeConfig] || typeConfig.chore;
-	const sConfig = task.status
-		? statusConfig[task.status as keyof typeof statusConfig]
+	const statusVisual = task.status
+		? getWorkflowStatusVisual(workflowConfig, task.status)
 		: null;
+	const statusBadge = statusVisual ? toneBadgeStyle(statusVisual.tone) : null;
 
 	const getTagColor = (tagName: string) => {
 		const normalized = tagName.toLowerCase().trim();
@@ -280,15 +284,17 @@ export function ListItemView({
 			{...(!isOverlay && dragListeners)}
 			className={cn(
 				"group flex items-center gap-4 p-4 hover:bg-slate-800/40 transition-all relative overflow-hidden cursor-grab active:cursor-grabbing",
-				task.status === "running" && "bg-blue-500/5",
-				task.status === "generating" && "bg-purple-500/5",
 				isDragging && !isOverlay && "opacity-50 bg-slate-800/60",
 				isOverlay &&
 					"bg-slate-800 shadow-2xl rounded-xl border border-blue-500/50 scale-[1.02]",
 			)}
+			style={statusVisual ? toneOverlayStyle(statusVisual.tone) : undefined}
 		>
-			{sConfig && (
-				<div className={cn("absolute left-0 top-0 bottom-0 w-1", sConfig.bg)} />
+			{statusBadge && (
+				<div
+					className="absolute left-0 top-0 bottom-0 w-1"
+					style={{ backgroundColor: statusBadge.backgroundColor }}
+				/>
 			)}
 
 			<div className="flex-1 min-w-0">
@@ -319,9 +325,8 @@ export function ListItemView({
 							<span
 								className={cn(
 									"px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-white/5",
-									sConfig?.bg ?? "bg-slate-800",
-									sConfig?.color ?? "text-slate-400",
 								)}
+								style={statusBadge ?? undefined}
 							>
 								{task.status}
 							</span>

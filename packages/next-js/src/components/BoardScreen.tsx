@@ -187,7 +187,6 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 											name={column.name}
 											color={column.color || ""}
 											globalTags={globalTags}
-											projectId={projectId}
 											tasks={tasks
 												.filter((t) => t.columnId === column.id)
 												.sort((a, b) => a.orderInColumn - b.orderInColumn)}
@@ -218,11 +217,7 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 						{activeTask ? (
 							viewMode === "board" ? (
 								<div className="w-80 rotate-3 scale-105 pointer-events-none">
-									<SortableTask
-										task={activeTask}
-										globalTags={globalTags}
-										projectId={projectId}
-									/>
+									<SortableTask task={activeTask} globalTags={globalTags} />
 								</div>
 							) : (
 								<div className="w-[600px] pointer-events-none">

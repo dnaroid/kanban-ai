@@ -13,8 +13,13 @@ import { cn } from "@/lib/utils";
 import type { KanbanTask } from "@/types/kanban";
 import type { Run } from "@/types/ipc";
 import { RunDetailsView } from "./RunDetailsView";
-import { statusConfig, runStatusConfig } from "./TaskPropertyConfigs";
+import { runStatusConfig } from "./TaskPropertyConfigs";
 import { api } from "@/lib/api";
+import {
+	getWorkflowStatusVisual,
+	toneBadgeStyle,
+} from "@/components/kanban/workflow-display";
+import { useWorkflowDisplayConfig } from "@/components/kanban/useWorkflowDisplayConfig";
 
 interface TaskDrawerRunsProps {
 	task: KanbanTask;
@@ -81,6 +86,7 @@ function selectRunId(
 }
 
 export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
+	const workflowConfig = useWorkflowDisplayConfig();
 	const [runs, setRuns] = useState<Run[]>([]);
 	const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 	const [isLoadingRuns, setIsLoadingRuns] = useState(false);
@@ -254,28 +260,26 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 
 	const selectedRun = runs.find((r) => r.id === selectedRunId) || null;
 	const selectedRole = roles.find((role) => role.id === selectedRoleId) ?? null;
-	const currentStatusConfig =
-		statusConfig[task.status as keyof typeof statusConfig] || statusConfig.todo;
+	const currentStatusVisual = getWorkflowStatusVisual(
+		workflowConfig,
+		task.status,
+	);
+	const currentStatusBadge = toneBadgeStyle(currentStatusVisual.tone);
+	const CurrentStatusIcon = currentStatusVisual.icon;
 
 	return (
 		<div className="flex flex-col h-full bg-[#0B0E14] animate-in fade-in duration-300">
 			<div className="p-4 border-b border-slate-800/50 bg-[#11151C]/50 flex items-center justify-between shrink-0">
 				<div className="flex items-center gap-3">
-					<div
-						className={cn(
-							"p-2 rounded-lg border",
-							currentStatusConfig.bg,
-							currentStatusConfig.border,
-							currentStatusConfig.color,
-						)}
-					>
-						<currentStatusConfig.icon
+					<div className="p-2 rounded-lg border" style={currentStatusBadge}>
+						<CurrentStatusIcon
 							className={cn(
 								"w-4 h-4",
 								(task.status === "running" ||
 									(task.status as string) === "in_progress") &&
 									"animate-spin",
 							)}
+							style={{ color: currentStatusBadge.color }}
 						/>
 					</div>
 					<div>

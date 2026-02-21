@@ -13,6 +13,7 @@ import type {
 	TaskLink,
 	TaskLinkType,
 } from "@/types/kanban";
+import type { WorkflowIconKey } from "@/types/workflow";
 import type {
 	Artifact,
 	OpenCodeMessage,
@@ -48,12 +49,15 @@ export interface WorkflowStatusConfig {
 	preferredColumnSystemKey: WorkflowColumnSystemKey;
 	blockedReason: WorkflowBlockedReason | null;
 	closedReason: WorkflowClosedReason | null;
+	color: string;
+	icon: WorkflowIconKey;
 }
 
 export interface WorkflowColumnConfig {
 	systemKey: WorkflowColumnSystemKey;
 	name: string;
 	color: string;
+	icon: WorkflowIconKey;
 	orderIndex: number;
 	defaultStatus: WorkflowTaskStatus;
 	allowedStatuses: WorkflowTaskStatus[];

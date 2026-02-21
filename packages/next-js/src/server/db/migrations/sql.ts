@@ -159,3 +159,45 @@ INSERT OR IGNORE INTO workflow_column_transitions (from_system_key, to_system_ke
   ('closed', 'review'),
   ('closed', 'backlog');
 `;
+
+export const v022WorkflowVisualsSql = `
+ALTER TABLE workflow_statuses ADD COLUMN color TEXT NOT NULL DEFAULT '#94a3b8';
+ALTER TABLE workflow_statuses ADD COLUMN icon TEXT NOT NULL DEFAULT 'circle';
+ALTER TABLE workflow_column_templates ADD COLUMN icon TEXT NOT NULL DEFAULT 'list';
+
+UPDATE workflow_statuses
+SET color = CASE status
+  WHEN 'queued' THEN '#f59e0b'
+  WHEN 'running' THEN '#3b82f6'
+  WHEN 'question' THEN '#f97316'
+  WHEN 'paused' THEN '#eab308'
+  WHEN 'done' THEN '#10b981'
+  WHEN 'failed' THEN '#ef4444'
+  WHEN 'generating' THEN '#8b5cf6'
+  ELSE color
+END;
+
+UPDATE workflow_statuses
+SET icon = CASE status
+  WHEN 'queued' THEN 'clock'
+  WHEN 'running' THEN 'play'
+  WHEN 'question' THEN 'help-circle'
+  WHEN 'paused' THEN 'pause'
+  WHEN 'done' THEN 'check-circle'
+  WHEN 'failed' THEN 'x-circle'
+  WHEN 'generating' THEN 'sparkles'
+  ELSE icon
+END;
+
+UPDATE workflow_column_templates
+SET icon = CASE system_key
+  WHEN 'backlog' THEN 'list'
+  WHEN 'ready' THEN 'check-circle'
+  WHEN 'deferred' THEN 'clock'
+  WHEN 'in_progress' THEN 'play'
+  WHEN 'blocked' THEN 'shield-alert'
+  WHEN 'review' THEN 'eye'
+  WHEN 'closed' THEN 'archive'
+  ELSE icon
+END;
+`;

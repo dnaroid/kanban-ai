@@ -4,9 +4,17 @@ import { cn } from "@/lib/utils";
 
 interface PillSelectOption {
 	icon: LucideIcon;
-	color: string;
-	bg: string;
-	border: string;
+	color?: string;
+	bg?: string;
+	border?: string;
+	style?: {
+		color?: string;
+		backgroundColor?: string;
+		borderColor?: string;
+	};
+	iconStyle?: {
+		color?: string;
+	};
 	label?: string;
 }
 
@@ -52,15 +60,22 @@ export function PillSelect({
 						isOpen &&
 							"ring-1 ring-offset-1 ring-offset-[#0B0E14] ring-slate-700",
 					)}
+					style={currentOption.style}
 				>
 					<currentOption.icon
 						className={cn("w-3.5 h-3.5", currentOption.color)}
+						style={currentOption.iconStyle}
 					/>
 					<span
 						className={cn(
 							"text-[11px] font-bold uppercase tracking-wider",
 							currentOption.color,
 						)}
+						style={
+							currentOption.style?.color
+								? { color: currentOption.style.color }
+								: undefined
+						}
 					>
 						{displayValue || value.replace("_", " ")}
 					</span>
@@ -70,6 +85,11 @@ export function PillSelect({
 							isOpen && "rotate-180",
 							currentOption.color,
 						)}
+						style={
+							currentOption.style?.color
+								? { color: currentOption.style.color }
+								: undefined
+						}
 					/>
 				</button>
 
@@ -104,14 +124,32 @@ export function PillSelect({
 												? cn(opt.bg, opt.color)
 												: cn(opt.color, "opacity-70"),
 										)}
+										style={isSelected || isHovered ? opt.style : undefined}
 									>
 										<opt.icon
 											className={cn(
 												"w-3.5 h-3.5",
 												isSelected || isHovered ? opt.color : "text-slate-500",
 											)}
+											style={
+												isSelected || isHovered
+													? (opt.iconStyle ??
+														(opt.style?.color
+															? { color: opt.style.color }
+															: undefined))
+													: undefined
+											}
 										/>
-										<span className="uppercase tracking-wider">
+										<span
+											className="uppercase tracking-wider"
+											style={
+												isSelected || isHovered
+													? opt.style?.color
+														? { color: opt.style.color }
+														: undefined
+													: undefined
+											}
+										>
 											{opt.label || key.replace("_", " ")}
 										</span>
 									</button>

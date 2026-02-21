@@ -2,82 +2,6 @@
 
 import { useState } from "react";
 import { X } from "lucide-react";
-import { cn } from "@/lib/utils";
-
-const COLUMN_COLORS = [
-	{
-		name: "Blue",
-		value: "#3B82F6",
-		bg: "bg-blue-500",
-		hover: "hover:bg-blue-400",
-	},
-	{
-		name: "Green",
-		value: "#10B981",
-		bg: "bg-emerald-500",
-		hover: "hover:bg-emerald-400",
-	},
-	{
-		name: "Purple",
-		value: "#8B5CF6",
-		bg: "bg-violet-500",
-		hover: "hover:bg-violet-400",
-	},
-	{
-		name: "Red",
-		value: "#EF4444",
-		bg: "bg-red-500",
-		hover: "hover:bg-red-400",
-	},
-	{
-		name: "Orange",
-		value: "#F59E0B",
-		bg: "bg-amber-500",
-		hover: "hover:bg-amber-400",
-	},
-	{
-		name: "Cyan",
-		value: "#06B6D4",
-		bg: "bg-cyan-500",
-		hover: "hover:bg-cyan-400",
-	},
-	{
-		name: "Pink",
-		value: "#EC4899",
-		bg: "bg-pink-500",
-		hover: "hover:bg-pink-400",
-	},
-	{
-		name: "Teal",
-		value: "#14B8A6",
-		bg: "bg-teal-500",
-		hover: "hover:bg-teal-400",
-	},
-	{
-		name: "Indigo",
-		value: "#6366F1",
-		bg: "bg-indigo-500",
-		hover: "hover:bg-indigo-400",
-	},
-	{
-		name: "Yellow",
-		value: "#EAB308",
-		bg: "bg-yellow-500",
-		hover: "hover:bg-yellow-400",
-	},
-	{
-		name: "Rose",
-		value: "#F43F5E",
-		bg: "bg-rose-500",
-		hover: "hover:bg-rose-400",
-	},
-	{
-		name: "Sky",
-		value: "#0EA5E9",
-		bg: "bg-sky-500",
-		hover: "hover:bg-sky-400",
-	},
-];
 
 export interface ColumnModalProps {
 	isOpen: boolean;
@@ -96,7 +20,7 @@ export function ColumnModal({
 }: ColumnModalProps) {
 	const [name, setName] = useState(initialData?.name ?? "");
 	const [selectedColor, setSelectedColor] = useState(
-		initialData?.color || COLUMN_COLORS[0].value,
+		initialData?.color || "#3B82F6",
 	);
 
 	if (!isOpen) return null;
@@ -140,31 +64,27 @@ export function ColumnModal({
 					</div>
 					<div>
 						<span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-							Pick Column Color
+							Column Color
 						</span>
-						<div className="grid grid-cols-6 gap-3">
-							{COLUMN_COLORS.map((color) => (
-								<button
-									key={color.value}
-									type="button"
-									onClick={() => setSelectedColor(color.value)}
-									className={cn(
-										"aspect-square rounded-xl transition-all relative flex items-center justify-center group",
-										color.bg,
-										color.hover,
-										selectedColor === color.value
-											? "ring-2 ring-white ring-offset-2 ring-offset-[#11151C]"
-											: "opacity-80 hover:opacity-100",
-									)}
-									style={{ backgroundColor: color.value }}
-									title={color.name}
-								>
-									{selectedColor === color.value && (
-										<div className="w-2.5 h-2.5 bg-white rounded-full shadow-lg" />
-									)}
-									<div className="absolute inset-0 rounded-xl ring-1 ring-inset ring-black/10 group-hover:ring-black/20" />
-								</button>
-							))}
+						<div className="flex items-center gap-3">
+							<div
+								className="h-8 w-8 rounded-lg border border-slate-700"
+								style={{ backgroundColor: selectedColor }}
+							/>
+							<div className="relative flex items-center">
+								<input
+									type="text"
+									value={selectedColor}
+									onChange={(e) => setSelectedColor(e.target.value)}
+									className="w-28 rounded-lg border border-slate-800 bg-slate-950 py-1.5 pl-3 pr-8 text-xs font-mono text-slate-300 outline-none focus:border-slate-600"
+								/>
+								<input
+									type="color"
+									value={selectedColor}
+									onChange={(e) => setSelectedColor(e.target.value)}
+									className="absolute right-1 h-5 w-5 cursor-pointer opacity-0"
+								/>
+							</div>
 						</div>
 					</div>
 					<div className="flex gap-3 pt-2">

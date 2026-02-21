@@ -33,6 +33,8 @@ function createWorkflowDbMock(options: {
 			preferredColumnSystemKey: "ready",
 			blockedReason: null,
 			closedReason: null,
+			color: "#f59e0b",
+			icon: "clock",
 		},
 		{
 			status: "running",
@@ -40,6 +42,8 @@ function createWorkflowDbMock(options: {
 			preferredColumnSystemKey: "in_progress",
 			blockedReason: null,
 			closedReason: null,
+			color: "#3b82f6",
+			icon: "play",
 		},
 		{
 			status: "question",
@@ -47,6 +51,8 @@ function createWorkflowDbMock(options: {
 			preferredColumnSystemKey: "blocked",
 			blockedReason: "question",
 			closedReason: null,
+			color: "#f97316",
+			icon: "help-circle",
 		},
 		{
 			status: "paused",
@@ -54,6 +60,8 @@ function createWorkflowDbMock(options: {
 			preferredColumnSystemKey: "blocked",
 			blockedReason: "paused",
 			closedReason: null,
+			color: "#eab308",
+			icon: "pause",
 		},
 		{
 			status: "done",
@@ -61,6 +69,8 @@ function createWorkflowDbMock(options: {
 			preferredColumnSystemKey: "review",
 			blockedReason: null,
 			closedReason: "done",
+			color: "#10b981",
+			icon: "check-circle",
 		},
 		{
 			status: "failed",
@@ -68,6 +78,8 @@ function createWorkflowDbMock(options: {
 			preferredColumnSystemKey: "blocked",
 			blockedReason: "failed",
 			closedReason: "failed",
+			color: "#ef4444",
+			icon: "x-circle",
 		},
 		{
 			status: "generating",
@@ -75,6 +87,8 @@ function createWorkflowDbMock(options: {
 			preferredColumnSystemKey: "in_progress",
 			blockedReason: null,
 			closedReason: null,
+			color: "#8b5cf6",
+			icon: "sparkles",
 		},
 	];
 
@@ -83,6 +97,7 @@ function createWorkflowDbMock(options: {
 			systemKey: "backlog",
 			name: options.backlogName,
 			color: "#6366f1",
+			icon: "list",
 			orderIndex: 0,
 			defaultStatus: "queued",
 		},
@@ -90,6 +105,7 @@ function createWorkflowDbMock(options: {
 			systemKey: "ready",
 			name: "Ready",
 			color: "#0ea5e9",
+			icon: "check-circle",
 			orderIndex: 1,
 			defaultStatus: "queued",
 		},
@@ -97,6 +113,7 @@ function createWorkflowDbMock(options: {
 			systemKey: "deferred",
 			name: "Deferred",
 			color: "#6b7280",
+			icon: "clock",
 			orderIndex: 2,
 			defaultStatus: "queued",
 		},
@@ -104,6 +121,7 @@ function createWorkflowDbMock(options: {
 			systemKey: "in_progress",
 			name: "In Progress",
 			color: "#f59e0b",
+			icon: "play",
 			orderIndex: 3,
 			defaultStatus: "running",
 		},
@@ -111,6 +129,7 @@ function createWorkflowDbMock(options: {
 			systemKey: "blocked",
 			name: "Blocked",
 			color: "#ef4444",
+			icon: "shield-alert",
 			orderIndex: 4,
 			defaultStatus: "paused",
 		},
@@ -118,6 +137,7 @@ function createWorkflowDbMock(options: {
 			systemKey: "review",
 			name: "Review / QA",
 			color: "#8b5cf6",
+			icon: "eye",
 			orderIndex: 5,
 			defaultStatus: "done",
 		},
@@ -125,6 +145,7 @@ function createWorkflowDbMock(options: {
 			systemKey: "closed",
 			name: "Closed",
 			color: "#10b981",
+			icon: "archive",
 			orderIndex: 6,
 			defaultStatus: "done",
 		},
@@ -221,6 +242,7 @@ describe("task-workflow-manager runtime config", () => {
 			name: "Backlog from DB",
 			systemKey: "backlog",
 			color: "#6366f1",
+			icon: "list",
 		});
 
 		expect(canTransitionStatus("queued", "running")).toBe(true);
@@ -270,6 +292,7 @@ describe("task-workflow-manager runtime config", () => {
 			name: "Backlog",
 			systemKey: "backlog",
 			color: "#6366f1",
+			icon: "list",
 		});
 
 		expect(canTransitionStatus("queued", "done")).toBe(true);

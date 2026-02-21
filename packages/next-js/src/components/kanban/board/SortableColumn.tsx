@@ -17,7 +17,6 @@ export interface SortableColumnProps {
 	color: string;
 	tasks: KanbanTask[];
 	globalTags: Tag[];
-	projectId: string;
 	onAddTask: () => void;
 	onDeleteTask: (id: string) => void;
 	onTaskClick?: (task: KanbanTask) => void;
@@ -31,7 +30,6 @@ export function SortableColumn({
 	color,
 	tasks,
 	globalTags,
-	projectId,
 	onAddTask,
 	onDeleteTask,
 	onTaskClick,
@@ -78,24 +76,27 @@ export function SortableColumn({
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-2 flex-1 min-w-0">
 						<button
+							type="button"
 							{...attributes}
 							{...listeners}
 							className="text-slate-600 hover:text-slate-300 transition-colors shrink-0 p-2 hover:bg-slate-800/50 rounded-lg -ml-1"
 						>
 							<GripVertical className="w-5 h-5" />
 						</button>
-						<h3
+						<button
+							type="button"
 							className="text-sm font-bold text-slate-200 truncate cursor-pointer hover:text-blue-400 transition-colors px-1"
 							onClick={onEdit}
 						>
 							{name}
-						</h3>
+						</button>
 						<span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-0.5 rounded-full shrink-0">
 							{tasks.length}
 						</span>
 					</div>
 					<div className="flex items-center gap-1 shrink-0 ml-2">
 						<button
+							type="button"
 							onClick={onEdit}
 							className="text-slate-600 hover:text-blue-400 transition-colors p-1"
 							title="Edit Column"
@@ -103,6 +104,7 @@ export function SortableColumn({
 							<Edit2 className="w-4 h-4" />
 						</button>
 						<button
+							type="button"
 							onClick={onDelete}
 							className="text-slate-600 hover:text-red-400 transition-colors p-1"
 							title="Delete Column"
@@ -110,6 +112,7 @@ export function SortableColumn({
 							<Trash2 className="w-4 h-4" />
 						</button>
 						<button
+							type="button"
 							onClick={onAddTask}
 							className="text-slate-600 hover:text-blue-400 hover:bg-blue-400/10 transition-colors p-1"
 							title="Add Task"
@@ -139,7 +142,6 @@ export function SortableColumn({
 								key={task.id}
 								task={task}
 								globalTags={globalTags}
-								projectId={projectId}
 								onDelete={onDeleteTask}
 								onClick={onTaskClick}
 							/>
