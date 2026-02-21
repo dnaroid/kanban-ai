@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
 	Check,
 	Plus,
@@ -101,6 +101,61 @@ function toRunStatusOrNull(value: string): WorkflowRunStatus | null {
 	return isWorkflowRunStatusValue(value) ? value : null;
 }
 
+function hexToRgb(color: string): { r: number; g: number; b: number } | null {
+	const normalized = color.trim().replace(/^#/, "");
+	if (normalized.length === 3) {
+		const r = Number.parseInt(`${normalized[0]}${normalized[0]}`, 16);
+		const g = Number.parseInt(`${normalized[1]}${normalized[1]}`, 16);
+		const b = Number.parseInt(`${normalized[2]}${normalized[2]}`, 16);
+		if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) {
+			return null;
+		}
+		return { r, g, b };
+	}
+
+	if (normalized.length === 6) {
+		const parsed = Number.parseInt(normalized, 16);
+		if (Number.isNaN(parsed)) {
+			return null;
+		}
+		return {
+			r: (parsed >> 16) & 0xff,
+			g: (parsed >> 8) & 0xff,
+			b: parsed & 0xff,
+		};
+	}
+
+	return null;
+}
+
+function getStatusBadgeStyle(
+	status: WorkflowTaskStatus,
+	statusColorByKey: Map<WorkflowTaskStatus, string>,
+): CSSProperties | undefined {
+	const color = statusColorByKey.get(status);
+	if (!color) {
+		return undefined;
+	}
+
+	const rgb = hexToRgb(color);
+	if (!rgb) {
+		return {
+			borderColor: color,
+			backgroundColor: color,
+			color: "#ffffff",
+		};
+	}
+
+	const luminance = (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) / 255;
+	const textColor = luminance > 0.62 ? "#111827" : "#f8fafc";
+
+	return {
+		borderColor: color,
+		backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.22)`,
+		color: textColor,
+	};
+}
+
 export function WorkflowEngineSignalsEditor({
 	signals,
 	signalRules,
@@ -159,6 +214,12 @@ export function WorkflowEngineSignalsEditor({
 
 	// Validation Errors (local to editing)
 	const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+	const statusColorByKey = useMemo(
+		() =>
+			new Map(statuses.map((status) => [status.status, status.color] as const)),
+		[statuses],
+	);
 
 	const statusKeys = useMemo(() => statuses.map((s) => s.status), [statuses]);
 	const targetStatuses = statusKeys.filter((status) =>
@@ -651,6 +712,13 @@ export function WorkflowEngineSignalsEditor({
 					) : (
 						signalRules.map((rule) => {
 							const signal = signals.find((s) => s.key === rule.signalKey);
+							const fromStatusStyle = rule.fromStatus
+								? getStatusBadgeStyle(rule.fromStatus, statusColorByKey)
+								: undefined;
+							const toStatusStyle = getStatusBadgeStyle(
+								rule.toStatus,
+								statusColorByKey,
+							);
 							return (
 								<div
 									key={rule.key}
@@ -700,16 +768,24 @@ export function WorkflowEngineSignalsEditor({
 											<div className="flex flex-col items-center">
 												<div
 													className={cn(
-														"rounded px-2 py-1 text-[10px] font-bold uppercase",
+														"rounded border px-2 py-1 text-[10px] font-bold uppercase",
 														rule.fromStatus
-															? "bg-slate-800 text-slate-400"
+															? ""
 															: "bg-blue-500/10 text-blue-400",
 													)}
+													style={fromStatusStyle}
 												>
 													{rule.fromStatus || "ANY"}
 												</div>
 												<div className="h-4 w-px bg-slate-800 my-0.5" />
-												<div className="rounded bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-400 uppercase">
+												<div
+													className={cn(
+														"rounded border px-2 py-1 text-[10px] font-bold uppercase",
+														!toStatusStyle &&
+															"border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+													)}
+													style={toStatusStyle}
+												>
 													{rule.toStatus}
 												</div>
 											</div>
