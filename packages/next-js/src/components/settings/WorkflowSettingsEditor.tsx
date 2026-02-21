@@ -34,15 +34,12 @@ import {
 type EditorTab = "visual" | "columns" | "statuses" | "transitions" | "engine";
 
 const tabs: { id: EditorTab; label: string; icon: LucideIcon }[] = [
-	{ id: "visual", label: "Workflow Map", icon: MapIcon },
-	{ id: "columns", label: "Columns", icon: LayoutGrid },
-	{ id: "statuses", label: "Statuses", icon: ListTodo },
-	{ id: "transitions", label: "Transitions", icon: GitCompare },
 	{ id: "engine", label: "Engine", icon: SlidersHorizontal },
+	{ id: "statuses", label: "Statuses", icon: ListTodo },
+	{ id: "columns", label: "Columns", icon: LayoutGrid },
+	{ id: "transitions", label: "Transitions", icon: GitCompare },
+	{ id: "visual", label: "Workflow Map", icon: MapIcon },
 ];
-
-const hasSectionChanges = (original: unknown, current: unknown) =>
-	JSON.stringify(original) !== JSON.stringify(current);
 
 export function WorkflowSettingsEditor() {
 	const { setStatus } = useSettingsStatus();
@@ -67,39 +64,6 @@ export function WorkflowSettingsEditor() {
 	}, [draftConfig]);
 
 	const isValid = validationErrors.length === 0 && !jsonError;
-
-	const dirtyTabs = useMemo<Record<EditorTab, boolean>>(() => {
-		if (!originalConfig || !draftConfig) {
-			return {
-				visual: false,
-				columns: false,
-				statuses: false,
-				transitions: false,
-				engine: false,
-			};
-		}
-
-		return {
-			visual: isWorkflowConfigDirty(originalConfig, draftConfig),
-			columns: hasSectionChanges(originalConfig.columns, draftConfig.columns),
-			statuses: hasSectionChanges(
-				originalConfig.statuses,
-				draftConfig.statuses,
-			),
-			transitions:
-				hasSectionChanges(
-					originalConfig.statusTransitions,
-					draftConfig.statusTransitions,
-				) ||
-				hasSectionChanges(
-					originalConfig.columnTransitions,
-					draftConfig.columnTransitions,
-				),
-			engine:
-				hasSectionChanges(originalConfig.signals, draftConfig.signals) ||
-				hasSectionChanges(originalConfig.signalRules, draftConfig.signalRules),
-		};
-	}, [originalConfig, draftConfig]);
 
 	const loadConfig = useCallback(
 		async (confirm = true, hasUnsavedChanges = false) => {
@@ -295,7 +259,6 @@ export function WorkflowSettingsEditor() {
 				{tabs.map((tab) => {
 					const Icon = tab.icon;
 					const isActive = activeTab === tab.id;
-					const isTabDirty = dirtyTabs[tab.id];
 					return (
 						<button
 							key={tab.id}
@@ -310,18 +273,6 @@ export function WorkflowSettingsEditor() {
 						>
 							<Icon className="h-4 w-4" />
 							{tab.label}
-							{isTabDirty && (
-								<span
-									className={cn(
-										"rounded-full border px-2 py-0.5 text-[9px] font-extrabold tracking-wide",
-										isActive
-											? "border-amber-300/50 bg-amber-500/10 text-amber-300"
-											: "border-amber-500/30 bg-amber-500/10 text-amber-400",
-									)}
-								>
-									Unsaved
-								</span>
-							)}
 						</button>
 					);
 				})}
