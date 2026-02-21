@@ -315,7 +315,7 @@ export function WorkflowMermaid({ config }: WorkflowMermaidProps) {
 					Auto-generated
 				</span>
 			</div>
-			<div className="grid gap-4 lg:grid-cols-2">
+			<div className="flex flex-col gap-4">
 				<div className="flex flex-col gap-2">
 					<p className="px-1 text-xs font-semibold tracking-wide text-slate-400 uppercase">
 						Status Transitions by Signals
