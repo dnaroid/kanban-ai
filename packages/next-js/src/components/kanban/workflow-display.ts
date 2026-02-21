@@ -1,17 +1,5 @@
-import {
-	Archive,
-	CheckCircle2,
-	Circle,
-	Clock,
-	Eye,
-	HelpCircle,
-	List,
-	Pause,
-	Play,
-	ShieldAlert,
-	Sparkles,
-	XCircle,
-} from "lucide-react";
+import * as LucideIcons from "lucide-react";
+import { Circle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import type {
@@ -20,7 +8,10 @@ import type {
 	WorkflowStatusConfig,
 	WorkflowTaskStatus,
 } from "@/lib/api-client";
-import type { WorkflowIconKey } from "@/types/workflow";
+import {
+	normalizeWorkflowIconKey,
+	type WorkflowIconKey,
+} from "@/types/workflow";
 
 export type WorkflowVisualOption = {
 	icon: LucideIcon;
@@ -51,20 +42,29 @@ export const FALLBACK_WORKFLOW_COLUMN_ICONS: Record<string, WorkflowIconKey> = {
 	closed: "archive",
 };
 
-const WORKFLOW_ICONS: Record<WorkflowIconKey, LucideIcon> = {
-	clock: Clock,
-	play: Play,
-	sparkles: Sparkles,
-	"help-circle": HelpCircle,
-	pause: Pause,
-	"check-circle": CheckCircle2,
-	"x-circle": XCircle,
-	list: List,
-	"shield-alert": ShieldAlert,
-	eye: Eye,
-	archive: Archive,
-	circle: Circle,
-};
+function toKebabCase(value: string): string {
+	return value
+		.replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
+		.replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+		.replace(/([a-zA-Z])([0-9])/g, "$1-$2")
+		.replace(/([0-9])([a-zA-Z])/g, "$1-$2")
+		.toLowerCase();
+}
+
+const WORKFLOW_ICONS: Record<string, LucideIcon> = Object.fromEntries(
+	Object.entries(LucideIcons)
+		.filter(([name, icon]) => {
+			return (
+				typeof icon === "object" &&
+				icon !== null &&
+				"render" in icon &&
+				/^[A-Z]/.test(name) &&
+				!name.endsWith("Icon") &&
+				name !== "Icon"
+			);
+		})
+		.map(([name, icon]) => [toKebabCase(name), icon as LucideIcon]),
+);
 
 function toHexColor(value: string | undefined | null): string | null {
 	if (!value) {
@@ -91,10 +91,16 @@ function hexToRgba(hex: string, alpha: number): string {
 export function getWorkflowIcon(
 	icon: WorkflowIconKey | string | null | undefined,
 ): LucideIcon {
-	if (!icon || !(icon in WORKFLOW_ICONS)) {
+	if (!icon) {
 		return Circle;
 	}
-	return WORKFLOW_ICONS[icon as WorkflowIconKey];
+
+	const normalizedIcon = normalizeWorkflowIconKey(icon);
+	if (!normalizedIcon) {
+		return Circle;
+	}
+
+	return WORKFLOW_ICONS[normalizedIcon] ?? Circle;
 }
 
 export function getWorkflowStatusVisual(

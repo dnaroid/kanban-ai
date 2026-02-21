@@ -30,6 +30,8 @@ UX
 - done
 - fail
 - question
+- test_ok
+- test_fail
 
 
 

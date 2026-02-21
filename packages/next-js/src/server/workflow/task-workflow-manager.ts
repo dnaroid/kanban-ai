@@ -1,7 +1,7 @@
 import type { Board } from "@/server/types";
 import type { BlockedReason, ClosedReason, TaskStatus } from "@/types/kanban";
 import type { WorkflowIconKey } from "@/types/workflow";
-import { isWorkflowIconKey } from "@/types/workflow";
+import { normalizeWorkflowIconKey } from "@/types/workflow";
 import type Database from "better-sqlite3";
 
 import { dbManager } from "../db";
@@ -332,7 +332,8 @@ function toWorkflowConfig(
 			row.closedReason && isClosedReason(row.closedReason)
 				? row.closedReason
 				: null;
-		if (!row.color.trim() || !isWorkflowIconKey(row.icon)) {
+		const statusIcon = normalizeWorkflowIconKey(row.icon);
+		if (!row.color.trim() || !statusIcon) {
 			return null;
 		}
 
@@ -343,7 +344,7 @@ function toWorkflowConfig(
 			blockedReason,
 			closedReason,
 			color: row.color,
-			icon: row.icon,
+			icon: statusIcon,
 		});
 	}
 
@@ -370,10 +371,11 @@ function toWorkflowConfig(
 
 	const columns: WorkflowColumnConfig[] = [];
 	for (const row of templateRows) {
+		const columnIcon = normalizeWorkflowIconKey(row.icon);
 		if (
 			!isWorkflowColumnSystemKey(row.systemKey) ||
 			!isTaskStatus(row.defaultStatus) ||
-			!isWorkflowIconKey(row.icon)
+			!columnIcon
 		) {
 			return null;
 		}
@@ -386,7 +388,7 @@ function toWorkflowConfig(
 			systemKey: row.systemKey,
 			name: row.name,
 			color: row.color,
-			icon: row.icon,
+			icon: columnIcon,
 			orderIndex: row.orderIndex,
 			defaultStatus: row.defaultStatus,
 			allowedStatuses: [...allowedStatusesByColumn[row.systemKey]],
@@ -592,6 +594,7 @@ function validateWorkflowConfig(config: WorkflowConfig): void {
 	const seenStatuses = new Set<TaskStatus>();
 	const statusOrderIndexes = new Set<number>();
 	for (const row of config.statuses) {
+		const statusIcon = normalizeWorkflowIconKey(row.icon);
 		if (!isTaskStatus(row.status)) {
 			throw new Error(`Invalid status: ${String(row.status)}`);
 		}
@@ -609,9 +612,10 @@ function validateWorkflowConfig(config: WorkflowConfig): void {
 		if (!row.color.trim()) {
 			throw new Error(`Status ${row.status} color cannot be empty`);
 		}
-		if (!isWorkflowIconKey(row.icon)) {
+		if (!statusIcon) {
 			throw new Error(`Invalid icon for status ${row.status}: ${row.icon}`);
 		}
+		row.icon = statusIcon;
 		if (!Number.isInteger(row.orderIndex) || row.orderIndex < 0) {
 			throw new Error(`Invalid status order index for status ${row.status}`);
 		}
@@ -636,6 +640,7 @@ function validateWorkflowConfig(config: WorkflowConfig): void {
 	const seenColumns = new Set<WorkflowColumnSystemKey>();
 	const columnOrderIndexes = new Set<number>();
 	for (const row of config.columns) {
+		const columnIcon = normalizeWorkflowIconKey(row.icon);
 		if (!isWorkflowColumnSystemKey(row.systemKey)) {
 			throw new Error(`Invalid column system key: ${String(row.systemKey)}`);
 		}
@@ -645,9 +650,10 @@ function validateWorkflowConfig(config: WorkflowConfig): void {
 		if (!row.color.trim()) {
 			throw new Error(`Column ${row.systemKey} color cannot be empty`);
 		}
-		if (!isWorkflowIconKey(row.icon)) {
+		if (!columnIcon) {
 			throw new Error(`Invalid icon for column ${row.systemKey}: ${row.icon}`);
 		}
+		row.icon = columnIcon;
 		if (!isTaskStatus(row.defaultStatus)) {
 			throw new Error(`Invalid default status for column ${row.systemKey}`);
 		}
@@ -810,6 +816,8 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 			color,
 			icon,
 		} = item;
+		const statusIcon =
+			typeof icon === "string" ? normalizeWorkflowIconKey(icon) : null;
 
 		if (
 			typeof status !== "string" ||
@@ -818,8 +826,7 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 			!isWorkflowColumnSystemKey(preferredColumnSystemKey) ||
 			typeof color !== "string" ||
 			!color.trim() ||
-			typeof icon !== "string" ||
-			!isWorkflowIconKey(icon) ||
+			!statusIcon ||
 			typeof orderIndex !== "number" ||
 			!Number.isInteger(orderIndex) ||
 			orderIndex < 0
@@ -856,7 +863,7 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 					? closedReason
 					: null,
 			color,
-			icon,
+			icon: statusIcon,
 		});
 	}
 
@@ -875,6 +882,8 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 			defaultStatus,
 			allowedStatuses,
 		} = item;
+		const columnIcon =
+			typeof icon === "string" ? normalizeWorkflowIconKey(icon) : null;
 
 		if (
 			typeof systemKey !== "string" ||
@@ -882,8 +891,7 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 			typeof name !== "string" ||
 			typeof color !== "string" ||
 			!color.trim() ||
-			typeof icon !== "string" ||
-			!isWorkflowIconKey(icon) ||
+			!columnIcon ||
 			typeof orderIndex !== "number" ||
 			!Number.isInteger(orderIndex) ||
 			orderIndex < 0 ||
@@ -902,7 +910,7 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 			systemKey,
 			name,
 			color,
-			icon,
+			icon: columnIcon,
 			orderIndex,
 			defaultStatus,
 			allowedStatuses: parsedAllowedStatuses,
