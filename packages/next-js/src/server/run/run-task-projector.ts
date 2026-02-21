@@ -5,6 +5,8 @@ import type { Task } from "@/server/types";
 import {
 	getPreferredColumnIdForStatus,
 	getWorkflowColumnSystemKey,
+	isTaskStatus,
+	resolveTaskStatusBySignal,
 	resolveTaskStatusReasons,
 } from "@/server/workflow/task-workflow-manager";
 import type { TaskStatus } from "@/types/kanban";
@@ -192,38 +194,78 @@ export class RunTaskProjector {
 		};
 	}
 
+	private resolveStatusBySignal(
+		task: Task,
+		run: Run,
+		runStatus: RunStatus,
+		signalKey: string,
+	): TaskStatus | null {
+		if (!isTaskStatus(task.status)) {
+			return null;
+		}
+
+		const runKind =
+			typeof run.metadata?.kind === "string" ? run.metadata.kind : null;
+
+		return resolveTaskStatusBySignal({
+			scope: "run",
+			signalKey,
+			currentStatus: task.status,
+			runKind,
+			runStatus,
+		});
+	}
+
 	public projectRunStarted(run: Run): void {
 		const task = taskRepo.getById(run.taskId);
 		if (!task) {
 			return;
 		}
 
-		if (isTaskDescriptionImproveRun(run)) {
-			this.updateTaskAndPublish(
-				task.id,
-				this.buildStatusPatch(task, "generating"),
-			);
+		const signalKey = isTaskDescriptionImproveRun(run)
+			? "generation_started"
+			: "run_started";
+		const nextStatus = this.resolveStatusBySignal(
+			task,
+			run,
+			"running",
+			signalKey,
+		);
+		if (!nextStatus) {
 			return;
 		}
 
-		this.updateTaskAndPublish(task.id, this.buildStatusPatch(task, "running"));
+		this.updateTaskAndPublish(task.id, this.buildStatusPatch(task, nextStatus));
 	}
 
 	public projectRunOutcome(
 		run: Run,
-		status: RunStatus,
+		runStatus: RunStatus,
+		signalKey: string,
 		assistantContent: string,
 	): void {
 		const task = taskRepo.getById(run.taskId);
 		if (!task) {
 			return;
 		}
+		const nextStatus = this.resolveStatusBySignal(
+			task,
+			run,
+			runStatus,
+			signalKey,
+		);
 
-		if (isTaskDescriptionImproveRun(run) && status === "completed") {
+		if (
+			isTaskDescriptionImproveRun(run) &&
+			(signalKey === "generated" || signalKey === "done")
+		) {
 			const parsed = parseUserStoryResponse(assistantContent);
 			const currentTags = parseTaskTags(task.tags);
+			const statusPatch = nextStatus
+				? this.buildStatusPatch(task, nextStatus)
+				: {};
 			const patch: Parameters<typeof taskRepo.update>[1] = {
-				...this.buildStatusPatch(task, "queued"),
+				...statusPatch,
 				description: parsed.description,
 				descriptionMd: parsed.description,
 			};
@@ -251,49 +293,11 @@ export class RunTaskProjector {
 			return;
 		}
 
-		if (isTaskDescriptionImproveRun(run)) {
-			if (status === "failed" || status === "timeout") {
-				this.updateTaskAndPublish(
-					task.id,
-					this.buildStatusPatch(task, "failed"),
-				);
-				return;
-			}
-
-			if (status === "paused") {
-				this.updateTaskAndPublish(
-					task.id,
-					this.buildStatusPatch(task, "question"),
-				);
-				return;
-			}
-
-			if (status === "cancelled") {
-				this.updateTaskAndPublish(
-					task.id,
-					this.buildStatusPatch(task, "queued"),
-				);
-			}
-			return;
-		}
-
-		if (status === "completed") {
-			this.updateTaskAndPublish(task.id, this.buildStatusPatch(task, "done"));
-			return;
-		}
-
-		if (status === "failed" || status === "timeout") {
-			this.updateTaskAndPublish(task.id, this.buildStatusPatch(task, "failed"));
-			return;
-		}
-
-		if (status === "paused") {
-			this.updateTaskAndPublish(task.id, this.buildStatusPatch(task, "paused"));
-			return;
-		}
-
-		if (status === "cancelled") {
-			this.updateTaskAndPublish(task.id, this.buildStatusPatch(task, "queued"));
+		if (nextStatus) {
+			this.updateTaskAndPublish(
+				task.id,
+				this.buildStatusPatch(task, nextStatus),
+			);
 		}
 	}
 }

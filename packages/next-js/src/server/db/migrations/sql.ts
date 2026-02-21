@@ -201,3 +201,88 @@ SET icon = CASE system_key
   ELSE icon
 END;
 `;
+
+export const v023WorkflowSignalsSql = `
+CREATE TABLE IF NOT EXISTS workflow_signals (
+  key TEXT PRIMARY KEY,
+  scope TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  order_index INTEGER NOT NULL UNIQUE,
+  is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1))
+);
+
+CREATE TABLE IF NOT EXISTS workflow_signal_rules (
+  key TEXT PRIMARY KEY,
+  signal_key TEXT NOT NULL,
+  run_kind TEXT,
+  run_status TEXT,
+  from_status TEXT,
+  to_status TEXT NOT NULL,
+  FOREIGN KEY (signal_key) REFERENCES workflow_signals(key) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_workflow_signal_rules_selector
+ON workflow_signal_rules (
+  signal_key,
+  COALESCE(run_kind, ''),
+  COALESCE(run_status, ''),
+  COALESCE(from_status, '')
+);
+
+INSERT OR IGNORE INTO workflow_signals
+  (key, scope, title, description, order_index, is_active)
+VALUES
+  ('run_started', 'run', 'Run Started', 'Execution run started', 0, 1),
+  ('generation_started', 'run', 'Generation Started', 'User story generation run started', 1, 1),
+  ('generated', 'run', 'Generated', 'Generation output produced', 2, 1),
+  ('done', 'run', 'Done', 'Run completed successfully', 3, 1),
+  ('fail', 'run', 'Fail', 'Run failed', 4, 1),
+  ('question', 'run', 'Question', 'Run paused waiting for user input', 5, 1),
+  ('test_ok', 'run', 'Test OK', 'Tests passed', 6, 1),
+  ('test_fail', 'run', 'Test Fail', 'Tests failed', 7, 1),
+  ('timeout', 'run', 'Timeout', 'Run timed out', 8, 1),
+  ('cancelled', 'run', 'Cancelled', 'Run cancelled', 9, 1),
+  ('start_generation', 'user_action', 'Start Generation', 'User starts generation flow', 20, 1),
+  ('start_execution', 'user_action', 'Start Execution', 'User starts execution flow', 21, 1),
+  ('pause_run', 'user_action', 'Pause Run', 'User pauses execution', 22, 1),
+  ('resume_run', 'user_action', 'Resume Run', 'User resumes execution', 23, 1),
+  ('cancel_run', 'user_action', 'Cancel Run', 'User cancels execution', 24, 1),
+  ('retry_run', 'user_action', 'Retry Run', 'User retries execution', 25, 1),
+  ('approve_generation', 'user_action', 'Approve Generation', 'User approves generated story', 26, 1),
+  ('reject_generation', 'user_action', 'Reject Generation', 'User rejects generated story', 27, 1),
+  ('request_changes', 'user_action', 'Request Changes', 'User requests changes', 28, 1),
+  ('mark_test_ok', 'user_action', 'Mark Test OK', 'User marks tests as passed', 29, 1),
+  ('mark_test_fail', 'user_action', 'Mark Test Fail', 'User marks tests as failed', 30, 1),
+  ('answer_question', 'user_action', 'Answer Question', 'User answers run question', 31, 1),
+  ('reopen_task', 'user_action', 'Reopen Task', 'User reopens task', 32, 1);
+
+INSERT OR IGNORE INTO workflow_signal_rules
+  (key, signal_key, run_kind, run_status, from_status, to_status)
+VALUES
+  ('rule-run-started-default', 'run_started', NULL, 'running', NULL, 'running'),
+  ('rule-generation-started', 'generation_started', 'task-description-improve', 'running', NULL, 'generating'),
+  ('rule-generated-default', 'generated', 'task-description-improve', 'completed', NULL, 'queued'),
+  ('rule-done-generated', 'done', 'task-description-improve', 'completed', NULL, 'queued'),
+  ('rule-done-default', 'done', NULL, 'completed', NULL, 'done'),
+  ('rule-fail-default', 'fail', NULL, 'failed', NULL, 'failed'),
+  ('rule-test-ok-default', 'test_ok', NULL, 'completed', NULL, 'done'),
+  ('rule-test-fail-default', 'test_fail', NULL, 'failed', NULL, 'failed'),
+  ('rule-question-generated', 'question', 'task-description-improve', 'paused', NULL, 'question'),
+  ('rule-question-default', 'question', NULL, 'paused', NULL, 'paused'),
+  ('rule-timeout-default', 'timeout', NULL, 'timeout', NULL, 'failed'),
+  ('rule-cancelled-default', 'cancelled', NULL, 'cancelled', NULL, 'queued'),
+  ('rule-user-start-generation', 'start_generation', NULL, NULL, NULL, 'generating'),
+  ('rule-user-start-execution', 'start_execution', NULL, NULL, NULL, 'running'),
+  ('rule-user-pause-run', 'pause_run', NULL, NULL, NULL, 'paused'),
+  ('rule-user-resume-run', 'resume_run', NULL, NULL, NULL, 'running'),
+  ('rule-user-cancel-run', 'cancel_run', NULL, NULL, NULL, 'queued'),
+  ('rule-user-retry-run', 'retry_run', NULL, NULL, NULL, 'queued'),
+  ('rule-user-approve-generation', 'approve_generation', NULL, NULL, NULL, 'queued'),
+  ('rule-user-reject-generation', 'reject_generation', NULL, NULL, NULL, 'failed'),
+  ('rule-user-request-changes', 'request_changes', NULL, NULL, NULL, 'question'),
+  ('rule-user-mark-test-ok', 'mark_test_ok', NULL, NULL, NULL, 'done'),
+  ('rule-user-mark-test-fail', 'mark_test_fail', NULL, NULL, NULL, 'failed'),
+  ('rule-user-answer-question', 'answer_question', NULL, NULL, NULL, 'queued'),
+  ('rule-user-reopen-task', 'reopen_task', NULL, NULL, NULL, 'queued');
+`;

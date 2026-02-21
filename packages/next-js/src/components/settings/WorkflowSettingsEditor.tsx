@@ -12,6 +12,7 @@ import {
 	ListTodo,
 	GitCompare,
 	Map as MapIcon,
+	SlidersHorizontal,
 	type LucideIcon,
 } from "lucide-react";
 
@@ -23,19 +24,21 @@ import { cn } from "@/lib/utils";
 import { WorkflowColumnsEditor } from "./WorkflowColumnsEditor";
 import { WorkflowStatusesEditor } from "./WorkflowStatusesEditor";
 import { WorkflowTransitionsEditor } from "./WorkflowTransitionsEditor";
+import { WorkflowEngineSignalsEditor } from "./WorkflowEngineSignalsEditor";
 import { WorkflowMermaid } from "./WorkflowMermaid";
 import {
 	validateWorkflowConfig,
 	isWorkflowConfigDirty,
 } from "./workflow-validation";
 
-type EditorTab = "visual" | "columns" | "statuses" | "transitions";
+type EditorTab = "visual" | "columns" | "statuses" | "transitions" | "engine";
 
 const tabs: { id: EditorTab; label: string; icon: LucideIcon }[] = [
 	{ id: "visual", label: "Workflow Map", icon: MapIcon },
 	{ id: "columns", label: "Columns", icon: LayoutGrid },
 	{ id: "statuses", label: "Statuses", icon: ListTodo },
 	{ id: "transitions", label: "Transitions", icon: GitCompare },
+	{ id: "engine", label: "Engine", icon: SlidersHorizontal },
 ];
 
 export function WorkflowSettingsEditor() {
@@ -133,6 +136,7 @@ export function WorkflowSettingsEditor() {
 	};
 
 	const updateDraft = (updates: Partial<WorkflowConfig>) => {
+		setJsonError(null);
 		setDraftConfig((prev) => (prev ? { ...prev, ...updates } : null));
 	};
 
@@ -310,6 +314,17 @@ export function WorkflowSettingsEditor() {
 						onColumnTransitionsChange={(ct) =>
 							updateDraft({ columnTransitions: ct })
 						}
+					/>
+				)}
+
+				{activeTab === "engine" && (
+					<WorkflowEngineSignalsEditor
+						signals={draftConfig.signals}
+						signalRules={draftConfig.signalRules}
+						statuses={draftConfig.statuses}
+						onSignalsChange={(signals) => updateDraft({ signals })}
+						onSignalRulesChange={(signalRules) => updateDraft({ signalRules })}
+						onErrorChange={setJsonError}
 					/>
 				)}
 			</div>

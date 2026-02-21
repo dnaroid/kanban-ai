@@ -1,4 +1,5 @@
 import type { Board } from "@/server/types";
+import type { RunStatus } from "@/types/ipc";
 import type { BlockedReason, ClosedReason, TaskStatus } from "@/types/kanban";
 import type { WorkflowIconKey } from "@/types/workflow";
 import { normalizeWorkflowIconKey } from "@/types/workflow";
@@ -18,6 +19,12 @@ export const WORKFLOW_COLUMN_SYSTEM_KEYS = [
 
 export type WorkflowColumnSystemKey =
 	(typeof WORKFLOW_COLUMN_SYSTEM_KEYS)[number];
+
+export const WORKFLOW_SIGNAL_SCOPES = ["run", "user_action"] as const;
+
+export type WorkflowSignalScope = (typeof WORKFLOW_SIGNAL_SCOPES)[number];
+
+export type WorkflowRunStatus = RunStatus;
 
 export interface WorkflowColumnTemplate {
 	name: string;
@@ -46,11 +53,31 @@ export interface WorkflowColumnConfig {
 	allowedStatuses: TaskStatus[];
 }
 
+export interface WorkflowSignalConfig {
+	key: string;
+	scope: WorkflowSignalScope;
+	title: string;
+	description: string;
+	orderIndex: number;
+	isActive: boolean;
+}
+
+export interface WorkflowSignalRuleConfig {
+	key: string;
+	signalKey: string;
+	runKind: string | null;
+	runStatus: WorkflowRunStatus | null;
+	fromStatus: TaskStatus | null;
+	toStatus: TaskStatus;
+}
+
 export interface WorkflowConfig {
 	statuses: WorkflowStatusConfig[];
 	columns: WorkflowColumnConfig[];
 	statusTransitions: Record<TaskStatus, TaskStatus[]>;
 	columnTransitions: Record<WorkflowColumnSystemKey, WorkflowColumnSystemKey[]>;
+	signals: WorkflowSignalConfig[];
+	signalRules: WorkflowSignalRuleConfig[];
 }
 
 const DEFAULT_WORKFLOW_COLUMNS_FALLBACK: readonly WorkflowColumnTemplate[] = [
@@ -103,6 +130,11 @@ const WORKFLOW_TABLE_NAMES = [
 	"workflow_column_transitions",
 ] as const;
 
+const WORKFLOW_SIGNAL_TABLE_NAMES = [
+	"workflow_signals",
+	"workflow_signal_rules",
+] as const;
+
 const TASK_STATUS_VALUES: readonly TaskStatus[] = [
 	"queued",
 	"running",
@@ -120,6 +152,16 @@ const BLOCKED_REASON_VALUES: readonly BlockedReason[] = [
 ];
 
 const CLOSED_REASON_VALUES: readonly ClosedReason[] = ["done", "failed"];
+
+const RUN_STATUS_VALUES: readonly WorkflowRunStatus[] = [
+	"queued",
+	"running",
+	"completed",
+	"failed",
+	"cancelled",
+	"timeout",
+	"paused",
+];
 
 const BLOCKED_REASON_BY_STATUS_FALLBACK: Record<
 	TaskStatus,
@@ -222,6 +264,396 @@ const COLUMN_TRANSITIONS_FALLBACK: Record<
 	closed: ["ready", "review", "backlog"],
 };
 
+const WORKFLOW_SIGNALS_FALLBACK: readonly WorkflowSignalConfig[] = [
+	{
+		key: "run_started",
+		scope: "run",
+		title: "Run Started",
+		description: "Execution run started",
+		orderIndex: 0,
+		isActive: true,
+	},
+	{
+		key: "generation_started",
+		scope: "run",
+		title: "Generation Started",
+		description: "User story generation run started",
+		orderIndex: 1,
+		isActive: true,
+	},
+	{
+		key: "generated",
+		scope: "run",
+		title: "Generated",
+		description: "Generation output produced",
+		orderIndex: 2,
+		isActive: true,
+	},
+	{
+		key: "done",
+		scope: "run",
+		title: "Done",
+		description: "Run completed successfully",
+		orderIndex: 3,
+		isActive: true,
+	},
+	{
+		key: "fail",
+		scope: "run",
+		title: "Fail",
+		description: "Run failed",
+		orderIndex: 4,
+		isActive: true,
+	},
+	{
+		key: "question",
+		scope: "run",
+		title: "Question",
+		description: "Run paused waiting for user input",
+		orderIndex: 5,
+		isActive: true,
+	},
+	{
+		key: "test_ok",
+		scope: "run",
+		title: "Test OK",
+		description: "Tests passed",
+		orderIndex: 6,
+		isActive: true,
+	},
+	{
+		key: "test_fail",
+		scope: "run",
+		title: "Test Fail",
+		description: "Tests failed",
+		orderIndex: 7,
+		isActive: true,
+	},
+	{
+		key: "timeout",
+		scope: "run",
+		title: "Timeout",
+		description: "Run timed out",
+		orderIndex: 8,
+		isActive: true,
+	},
+	{
+		key: "cancelled",
+		scope: "run",
+		title: "Cancelled",
+		description: "Run cancelled",
+		orderIndex: 9,
+		isActive: true,
+	},
+	{
+		key: "start_generation",
+		scope: "user_action",
+		title: "Start Generation",
+		description: "User starts generation flow",
+		orderIndex: 20,
+		isActive: true,
+	},
+	{
+		key: "start_execution",
+		scope: "user_action",
+		title: "Start Execution",
+		description: "User starts execution flow",
+		orderIndex: 21,
+		isActive: true,
+	},
+	{
+		key: "pause_run",
+		scope: "user_action",
+		title: "Pause Run",
+		description: "User pauses execution",
+		orderIndex: 22,
+		isActive: true,
+	},
+	{
+		key: "resume_run",
+		scope: "user_action",
+		title: "Resume Run",
+		description: "User resumes execution",
+		orderIndex: 23,
+		isActive: true,
+	},
+	{
+		key: "cancel_run",
+		scope: "user_action",
+		title: "Cancel Run",
+		description: "User cancels execution",
+		orderIndex: 24,
+		isActive: true,
+	},
+	{
+		key: "retry_run",
+		scope: "user_action",
+		title: "Retry Run",
+		description: "User retries execution",
+		orderIndex: 25,
+		isActive: true,
+	},
+	{
+		key: "approve_generation",
+		scope: "user_action",
+		title: "Approve Generation",
+		description: "User approves generated story",
+		orderIndex: 26,
+		isActive: true,
+	},
+	{
+		key: "reject_generation",
+		scope: "user_action",
+		title: "Reject Generation",
+		description: "User rejects generated story",
+		orderIndex: 27,
+		isActive: true,
+	},
+	{
+		key: "request_changes",
+		scope: "user_action",
+		title: "Request Changes",
+		description: "User requests changes",
+		orderIndex: 28,
+		isActive: true,
+	},
+	{
+		key: "mark_test_ok",
+		scope: "user_action",
+		title: "Mark Test OK",
+		description: "User marks tests as passed",
+		orderIndex: 29,
+		isActive: true,
+	},
+	{
+		key: "mark_test_fail",
+		scope: "user_action",
+		title: "Mark Test Fail",
+		description: "User marks tests as failed",
+		orderIndex: 30,
+		isActive: true,
+	},
+	{
+		key: "answer_question",
+		scope: "user_action",
+		title: "Answer Question",
+		description: "User answers run question",
+		orderIndex: 31,
+		isActive: true,
+	},
+	{
+		key: "reopen_task",
+		scope: "user_action",
+		title: "Reopen Task",
+		description: "User reopens task",
+		orderIndex: 32,
+		isActive: true,
+	},
+];
+
+const WORKFLOW_SIGNAL_RULES_FALLBACK: readonly WorkflowSignalRuleConfig[] = [
+	{
+		key: "rule-run-started-default",
+		signalKey: "run_started",
+		runKind: null,
+		runStatus: "running",
+		fromStatus: null,
+		toStatus: "running",
+	},
+	{
+		key: "rule-generation-started",
+		signalKey: "generation_started",
+		runKind: "task-description-improve",
+		runStatus: "running",
+		fromStatus: null,
+		toStatus: "generating",
+	},
+	{
+		key: "rule-generated-default",
+		signalKey: "generated",
+		runKind: "task-description-improve",
+		runStatus: "completed",
+		fromStatus: null,
+		toStatus: "queued",
+	},
+	{
+		key: "rule-done-generated",
+		signalKey: "done",
+		runKind: "task-description-improve",
+		runStatus: "completed",
+		fromStatus: null,
+		toStatus: "queued",
+	},
+	{
+		key: "rule-done-default",
+		signalKey: "done",
+		runKind: null,
+		runStatus: "completed",
+		fromStatus: null,
+		toStatus: "done",
+	},
+	{
+		key: "rule-fail-default",
+		signalKey: "fail",
+		runKind: null,
+		runStatus: "failed",
+		fromStatus: null,
+		toStatus: "failed",
+	},
+	{
+		key: "rule-test-ok-default",
+		signalKey: "test_ok",
+		runKind: null,
+		runStatus: "completed",
+		fromStatus: null,
+		toStatus: "done",
+	},
+	{
+		key: "rule-test-fail-default",
+		signalKey: "test_fail",
+		runKind: null,
+		runStatus: "failed",
+		fromStatus: null,
+		toStatus: "failed",
+	},
+	{
+		key: "rule-question-generated",
+		signalKey: "question",
+		runKind: "task-description-improve",
+		runStatus: "paused",
+		fromStatus: null,
+		toStatus: "question",
+	},
+	{
+		key: "rule-question-default",
+		signalKey: "question",
+		runKind: null,
+		runStatus: "paused",
+		fromStatus: null,
+		toStatus: "paused",
+	},
+	{
+		key: "rule-timeout-default",
+		signalKey: "timeout",
+		runKind: null,
+		runStatus: "timeout",
+		fromStatus: null,
+		toStatus: "failed",
+	},
+	{
+		key: "rule-cancelled-default",
+		signalKey: "cancelled",
+		runKind: null,
+		runStatus: "cancelled",
+		fromStatus: null,
+		toStatus: "queued",
+	},
+	{
+		key: "rule-user-start-generation",
+		signalKey: "start_generation",
+		runKind: null,
+		runStatus: null,
+		fromStatus: null,
+		toStatus: "generating",
+	},
+	{
+		key: "rule-user-start-execution",
+		signalKey: "start_execution",
+		runKind: null,
+		runStatus: null,
+		fromStatus: null,
+		toStatus: "running",
+	},
+	{
+		key: "rule-user-pause-run",
+		signalKey: "pause_run",
+		runKind: null,
+		runStatus: null,
+		fromStatus: null,
+		toStatus: "paused",
+	},
+	{
+		key: "rule-user-resume-run",
+		signalKey: "resume_run",
+		runKind: null,
+		runStatus: null,
+		fromStatus: null,
+		toStatus: "running",
+	},
+	{
+		key: "rule-user-cancel-run",
+		signalKey: "cancel_run",
+		runKind: null,
+		runStatus: null,
+		fromStatus: null,
+		toStatus: "queued",
+	},
+	{
+		key: "rule-user-retry-run",
+		signalKey: "retry_run",
+		runKind: null,
+		runStatus: null,
+		fromStatus: null,
+		toStatus: "queued",
+	},
+	{
+		key: "rule-user-approve-generation",
+		signalKey: "approve_generation",
+		runKind: null,
+		runStatus: null,
+		fromStatus: null,
+		toStatus: "queued",
+	},
+	{
+		key: "rule-user-reject-generation",
+		signalKey: "reject_generation",
+		runKind: null,
+		runStatus: null,
+		fromStatus: null,
+		toStatus: "failed",
+	},
+	{
+		key: "rule-user-request-changes",
+		signalKey: "request_changes",
+		runKind: null,
+		runStatus: null,
+		fromStatus: null,
+		toStatus: "question",
+	},
+	{
+		key: "rule-user-mark-test-ok",
+		signalKey: "mark_test_ok",
+		runKind: null,
+		runStatus: null,
+		fromStatus: null,
+		toStatus: "done",
+	},
+	{
+		key: "rule-user-mark-test-fail",
+		signalKey: "mark_test_fail",
+		runKind: null,
+		runStatus: null,
+		fromStatus: null,
+		toStatus: "failed",
+	},
+	{
+		key: "rule-user-answer-question",
+		signalKey: "answer_question",
+		runKind: null,
+		runStatus: null,
+		fromStatus: null,
+		toStatus: "queued",
+	},
+	{
+		key: "rule-user-reopen-task",
+		signalKey: "reopen_task",
+		runKind: null,
+		runStatus: null,
+		fromStatus: null,
+		toStatus: "queued",
+	},
+];
+
 interface WorkflowRuntimeConfig {
 	defaultColumns: readonly WorkflowColumnTemplate[];
 	statusToColumn: Record<TaskStatus, WorkflowColumnSystemKey>;
@@ -234,6 +666,11 @@ interface WorkflowRuntimeConfig {
 	>;
 	blockedReasonByStatus: Record<TaskStatus, BlockedReason | null>;
 	closedReasonByStatus: Record<TaskStatus, ClosedReason | null>;
+	signalByKey: ReadonlyMap<string, WorkflowSignalConfig>;
+	signalRulesBySignalKey: ReadonlyMap<
+		string,
+		readonly WorkflowSignalRuleConfig[]
+	>;
 }
 
 let runtimeConfig: WorkflowRuntimeConfig | null = null;
@@ -248,7 +685,33 @@ function createFallbackRuntimeConfig(): WorkflowRuntimeConfig {
 		columnTransitions: COLUMN_TRANSITIONS_FALLBACK,
 		blockedReasonByStatus: BLOCKED_REASON_BY_STATUS_FALLBACK,
 		closedReasonByStatus: CLOSED_REASON_BY_STATUS_FALLBACK,
+		signalByKey: new Map(
+			WORKFLOW_SIGNALS_FALLBACK.map((signal) => [signal.key, { ...signal }]),
+		),
+		signalRulesBySignalKey: buildSignalRuleIndex(
+			WORKFLOW_SIGNAL_RULES_FALLBACK,
+		),
 	};
+}
+
+function buildSignalRuleIndex(
+	rules: readonly WorkflowSignalRuleConfig[],
+): ReadonlyMap<string, readonly WorkflowSignalRuleConfig[]> {
+	const index = new Map<string, WorkflowSignalRuleConfig[]>();
+	for (const rule of rules) {
+		const bucket = index.get(rule.signalKey);
+		if (bucket) {
+			bucket.push({ ...rule });
+			continue;
+		}
+		index.set(rule.signalKey, [{ ...rule }]);
+	}
+
+	for (const [signalKey, bucket] of index.entries()) {
+		index.set(signalKey, bucket);
+	}
+
+	return index;
 }
 
 const FALLBACK_RUNTIME_CONFIG = createFallbackRuntimeConfig();
@@ -261,6 +724,16 @@ function hasWorkflowConfigTables(db: Database.Database): boolean {
 		.all(...WORKFLOW_TABLE_NAMES) as Array<{ name: string }>;
 
 	return existingTables.length === WORKFLOW_TABLE_NAMES.length;
+}
+
+function hasWorkflowSignalTables(db: Database.Database): boolean {
+	const existingTables = db
+		.prepare(
+			`SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${WORKFLOW_SIGNAL_TABLE_NAMES.map(() => "?").join(", ")})`,
+		)
+		.all(...WORKFLOW_SIGNAL_TABLE_NAMES) as Array<{ name: string }>;
+
+	return existingTables.length === WORKFLOW_SIGNAL_TABLE_NAMES.length;
 }
 
 type WorkflowStatusRow = {
@@ -303,12 +776,32 @@ type WorkflowColumnTemplateRowWithOrder = WorkflowColumnTemplateRow & {
 	orderIndex: number;
 };
 
+type WorkflowSignalRowWithOrder = {
+	key: string;
+	scope: string;
+	title: string;
+	description: string;
+	orderIndex: number;
+	isActive: number;
+};
+
+type WorkflowSignalRuleRow = {
+	key: string;
+	signalKey: string;
+	runKind: string | null;
+	runStatus: string | null;
+	fromStatus: string | null;
+	toStatus: string;
+};
+
 function toWorkflowConfig(
 	statusRows: WorkflowStatusRowWithOrder[],
 	templateRows: WorkflowColumnTemplateRowWithOrder[],
 	allowedStatusRows: WorkflowAllowedStatusRow[],
 	statusTransitionRows: WorkflowStatusTransitionRow[],
 	columnTransitionRows: WorkflowColumnTransitionRow[],
+	signalRows: WorkflowSignalRowWithOrder[],
+	signalRuleRows: WorkflowSignalRuleRow[],
 ): WorkflowConfig | null {
 	const statuses: WorkflowStatusConfig[] = [];
 	for (const row of statusRows) {
@@ -437,11 +930,72 @@ function toWorkflowConfig(
 		columnTransitions[row.fromSystemKey].push(row.toSystemKey);
 	}
 
+	const signals: WorkflowSignalConfig[] = [];
+	for (const row of signalRows) {
+		if (!isWorkflowSignalScope(row.scope)) {
+			return null;
+		}
+
+		if (!Number.isInteger(row.orderIndex) || row.orderIndex < 0) {
+			return null;
+		}
+
+		signals.push({
+			key: row.key,
+			scope: row.scope,
+			title: row.title,
+			description: row.description,
+			orderIndex: row.orderIndex,
+			isActive: row.isActive === 1,
+		});
+	}
+
+	const normalizedSignals =
+		signals.length > 0
+			? signals
+			: WORKFLOW_SIGNALS_FALLBACK.map((signal) => ({ ...signal }));
+	const signalKeySet = new Set(normalizedSignals.map((signal) => signal.key));
+
+	const signalRules: WorkflowSignalRuleConfig[] = [];
+	for (const row of signalRuleRows) {
+		if (!signalKeySet.has(row.signalKey)) {
+			return null;
+		}
+
+		if (row.runStatus !== null && !isWorkflowRunStatus(row.runStatus)) {
+			return null;
+		}
+
+		if (row.fromStatus !== null && !isTaskStatus(row.fromStatus)) {
+			return null;
+		}
+
+		if (!isTaskStatus(row.toStatus)) {
+			return null;
+		}
+
+		signalRules.push({
+			key: row.key,
+			signalKey: row.signalKey,
+			runKind: row.runKind,
+			runStatus: row.runStatus,
+			fromStatus: row.fromStatus,
+			toStatus: row.toStatus,
+		});
+	}
+
+	const normalizedSignalRules =
+		signalRules.length > 0
+			? signalRules
+			: WORKFLOW_SIGNAL_RULES_FALLBACK.map((rule) => ({ ...rule }));
+
 	return {
 		statuses,
 		columns,
 		statusTransitions,
 		columnTransitions,
+		signals: normalizedSignals,
+		signalRules: normalizedSignalRules,
 	};
 }
 
@@ -500,6 +1054,8 @@ function buildFallbackWorkflowConfig(): WorkflowConfig {
 		columns,
 		statusTransitions,
 		columnTransitions,
+		signals: WORKFLOW_SIGNALS_FALLBACK.map((signal) => ({ ...signal })),
+		signalRules: WORKFLOW_SIGNAL_RULES_FALLBACK.map((rule) => ({ ...rule })),
 	};
 }
 
@@ -573,12 +1129,46 @@ function loadWorkflowConfigFromDb(
 		)
 		.all() as WorkflowColumnTransitionRow[];
 
+	const signalRows = hasWorkflowSignalTables(db)
+		? (db
+				.prepare(
+					`SELECT
+         key,
+         scope,
+         title,
+         description,
+         order_index AS orderIndex,
+         is_active AS isActive
+       FROM workflow_signals
+       ORDER BY order_index ASC`,
+				)
+				.all() as WorkflowSignalRowWithOrder[])
+		: [];
+
+	const signalRuleRows = hasWorkflowSignalTables(db)
+		? (db
+				.prepare(
+					`SELECT
+         key,
+         signal_key AS signalKey,
+         run_kind AS runKind,
+         run_status AS runStatus,
+         from_status AS fromStatus,
+         to_status AS toStatus
+       FROM workflow_signal_rules
+       ORDER BY rowid ASC`,
+				)
+				.all() as WorkflowSignalRuleRow[])
+		: [];
+
 	return toWorkflowConfig(
 		statusRows,
 		templateRows,
 		allowedStatusRows,
 		statusTransitionRows,
 		columnTransitionRows,
+		signalRows,
+		signalRuleRows,
 	);
 }
 
@@ -744,6 +1334,111 @@ function validateWorkflowConfig(config: WorkflowConfig): void {
 			nextKeySet.add(toKey);
 		}
 	}
+
+	if (!Array.isArray(config.signals) || config.signals.length === 0) {
+		throw new Error("Workflow config must include at least one signal");
+	}
+
+	if (!Array.isArray(config.signalRules) || config.signalRules.length === 0) {
+		throw new Error("Workflow config must include at least one signal rule");
+	}
+
+	const seenSignalKeys = new Set<string>();
+	const seenSignalOrderIndexes = new Set<number>();
+	const activeScopes = new Set<WorkflowSignalScope>();
+	const signalByKey = new Map<string, WorkflowSignalConfig>();
+
+	for (const signal of config.signals) {
+		if (!signal.key.trim()) {
+			throw new Error("Signal key cannot be empty");
+		}
+		if (!isWorkflowSignalScope(signal.scope)) {
+			throw new Error(
+				`Invalid signal scope for ${signal.key}: ${signal.scope}`,
+			);
+		}
+		if (!signal.title.trim()) {
+			throw new Error(`Signal ${signal.key} title cannot be empty`);
+		}
+		if (!Number.isInteger(signal.orderIndex) || signal.orderIndex < 0) {
+			throw new Error(`Invalid signal order index for ${signal.key}`);
+		}
+		if (typeof signal.isActive !== "boolean") {
+			throw new Error(`Signal ${signal.key} isActive must be boolean`);
+		}
+		if (seenSignalKeys.has(signal.key)) {
+			throw new Error(`Duplicate signal key: ${signal.key}`);
+		}
+		if (seenSignalOrderIndexes.has(signal.orderIndex)) {
+			throw new Error(`Duplicate signal order index: ${signal.orderIndex}`);
+		}
+
+		seenSignalKeys.add(signal.key);
+		seenSignalOrderIndexes.add(signal.orderIndex);
+		signalByKey.set(signal.key, signal);
+		if (signal.isActive) {
+			activeScopes.add(signal.scope);
+		}
+	}
+
+	for (const scope of WORKFLOW_SIGNAL_SCOPES) {
+		if (!activeScopes.has(scope)) {
+			throw new Error(
+				`Workflow config must include active signal scope: ${scope}`,
+			);
+		}
+	}
+
+	const seenRuleKeys = new Set<string>();
+	const seenRuleSelectors = new Set<string>();
+	for (const rule of config.signalRules) {
+		if (!rule.key.trim()) {
+			throw new Error("Signal rule key cannot be empty");
+		}
+		if (seenRuleKeys.has(rule.key)) {
+			throw new Error(`Duplicate signal rule key: ${rule.key}`);
+		}
+		seenRuleKeys.add(rule.key);
+
+		const signal = signalByKey.get(rule.signalKey);
+		if (!signal) {
+			throw new Error(`Signal rule ${rule.key} references unknown signal`);
+		}
+
+		if (rule.runStatus !== null && !isWorkflowRunStatus(rule.runStatus)) {
+			throw new Error(`Invalid run status in signal rule ${rule.key}`);
+		}
+
+		if (rule.fromStatus !== null && !isTaskStatus(rule.fromStatus)) {
+			throw new Error(`Invalid fromStatus in signal rule ${rule.key}`);
+		}
+
+		if (!isTaskStatus(rule.toStatus)) {
+			throw new Error(`Invalid toStatus in signal rule ${rule.key}`);
+		}
+
+		if (
+			signal.scope !== "run" &&
+			(rule.runStatus !== null || rule.runKind !== null)
+		) {
+			throw new Error(
+				`Signal rule ${rule.key} can use run selectors only for run signals`,
+			);
+		}
+
+		const selectorKey = [
+			rule.signalKey,
+			rule.runKind ?? "",
+			rule.runStatus ?? "",
+			rule.fromStatus ?? "",
+		].join("|");
+		if (seenRuleSelectors.has(selectorKey)) {
+			throw new Error(
+				`Duplicate signal rule selector for signal ${rule.signalKey}`,
+			);
+		}
+		seenRuleSelectors.add(selectorKey);
+	}
 }
 
 function parseStatusList(value: unknown): TaskStatus[] | null {
@@ -791,6 +1486,8 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 	const columnsValue = value.columns;
 	const statusTransitionsValue = value.statusTransitions;
 	const columnTransitionsValue = value.columnTransitions;
+	const signalsValue = value.signals;
+	const signalRulesValue = value.signalRules;
 
 	if (
 		!Array.isArray(statusesValue) ||
@@ -958,11 +1655,103 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 		columnTransitions[systemKey] = parsedSystemKeys;
 	}
 
+	let signals = WORKFLOW_SIGNALS_FALLBACK.map((signal) => ({ ...signal }));
+	if (signalsValue !== undefined) {
+		if (!Array.isArray(signalsValue)) {
+			return null;
+		}
+
+		signals = [];
+		for (const item of signalsValue) {
+			if (!isRecord(item)) {
+				return null;
+			}
+
+			const { key, scope, title, description, orderIndex, isActive } = item;
+			if (
+				typeof key !== "string" ||
+				!key.trim() ||
+				typeof scope !== "string" ||
+				!isWorkflowSignalScope(scope) ||
+				typeof title !== "string" ||
+				!title.trim() ||
+				typeof description !== "string" ||
+				typeof orderIndex !== "number" ||
+				!Number.isInteger(orderIndex) ||
+				orderIndex < 0 ||
+				typeof isActive !== "boolean"
+			) {
+				return null;
+			}
+
+			signals.push({
+				key,
+				scope,
+				title,
+				description,
+				orderIndex,
+				isActive,
+			});
+		}
+	}
+
+	let signalRules = WORKFLOW_SIGNAL_RULES_FALLBACK.map((rule) => ({ ...rule }));
+	if (signalRulesValue !== undefined) {
+		if (!Array.isArray(signalRulesValue)) {
+			return null;
+		}
+
+		signalRules = [];
+		for (const item of signalRulesValue) {
+			if (!isRecord(item)) {
+				return null;
+			}
+
+			const { key, signalKey, runKind, runStatus, fromStatus, toStatus } = item;
+			if (
+				typeof key !== "string" ||
+				!key.trim() ||
+				typeof signalKey !== "string" ||
+				!signalKey.trim() ||
+				(runKind !== null &&
+					runKind !== undefined &&
+					typeof runKind !== "string") ||
+				(runStatus !== null &&
+					runStatus !== undefined &&
+					(typeof runStatus !== "string" || !isWorkflowRunStatus(runStatus))) ||
+				(fromStatus !== null &&
+					fromStatus !== undefined &&
+					(typeof fromStatus !== "string" || !isTaskStatus(fromStatus))) ||
+				typeof toStatus !== "string" ||
+				!isTaskStatus(toStatus)
+			) {
+				return null;
+			}
+
+			signalRules.push({
+				key,
+				signalKey,
+				runKind: typeof runKind === "string" ? runKind : null,
+				runStatus:
+					typeof runStatus === "string" && isWorkflowRunStatus(runStatus)
+						? runStatus
+						: null,
+				fromStatus:
+					typeof fromStatus === "string" && isTaskStatus(fromStatus)
+						? fromStatus
+						: null,
+				toStatus,
+			});
+		}
+	}
+
 	return {
 		statuses,
 		columns,
 		statusTransitions,
 		columnTransitions,
+		signals,
+		signalRules,
 	};
 }
 
@@ -981,8 +1770,14 @@ export function updateWorkflowConfig(config: WorkflowConfig): void {
 	validateWorkflowConfig(config);
 
 	const db = dbManager.connect();
+	const shouldPersistSignals = hasWorkflowSignalTables(db);
 
 	const replaceConfig = db.transaction(() => {
+		if (shouldPersistSignals) {
+			db.prepare(`DELETE FROM workflow_signal_rules`).run();
+			db.prepare(`DELETE FROM workflow_signals`).run();
+		}
+
 		db.prepare(`DELETE FROM workflow_column_allowed_statuses`).run();
 		db.prepare(`DELETE FROM workflow_status_transitions`).run();
 		db.prepare(`DELETE FROM workflow_column_transitions`).run();
@@ -1062,6 +1857,50 @@ export function updateWorkflowConfig(config: WorkflowConfig): void {
 				insertColumnTransition.run(fromSystemKey, toSystemKey);
 			}
 		}
+
+		if (shouldPersistSignals) {
+			const insertSignal = db.prepare(
+				`INSERT INTO workflow_signals (
+         key,
+         scope,
+         title,
+         description,
+         order_index,
+         is_active
+       ) VALUES (?, ?, ?, ?, ?, ?)`,
+			);
+			for (const signal of config.signals) {
+				insertSignal.run(
+					signal.key,
+					signal.scope,
+					signal.title,
+					signal.description,
+					signal.orderIndex,
+					signal.isActive ? 1 : 0,
+				);
+			}
+
+			const insertSignalRule = db.prepare(
+				`INSERT INTO workflow_signal_rules (
+         key,
+         signal_key,
+         run_kind,
+         run_status,
+         from_status,
+         to_status
+       ) VALUES (?, ?, ?, ?, ?, ?)`,
+			);
+			for (const rule of config.signalRules) {
+				insertSignalRule.run(
+					rule.key,
+					rule.signalKey,
+					rule.runKind,
+					rule.runStatus,
+					rule.fromStatus,
+					rule.toStatus,
+				);
+			}
+		}
 	});
 
 	replaceConfig();
@@ -1134,7 +1973,70 @@ function loadRuntimeConfigFromDb(): WorkflowRuntimeConfig | null {
 		columnTransitions: workflowConfig.columnTransitions,
 		blockedReasonByStatus,
 		closedReasonByStatus,
+		signalByKey: new Map(
+			workflowConfig.signals.map((signal) => [signal.key, signal]),
+		),
+		signalRulesBySignalKey: buildSignalRuleIndex(workflowConfig.signalRules),
 	};
+}
+
+export interface ResolveTaskStatusBySignalInput {
+	signalKey: string;
+	currentStatus: TaskStatus;
+	runKind?: string | null;
+	runStatus?: WorkflowRunStatus | null;
+	scope?: WorkflowSignalScope;
+}
+
+export function resolveTaskStatusBySignal(
+	input: ResolveTaskStatusBySignalInput,
+): TaskStatus | null {
+	const runtime = getRuntimeConfig();
+	const signal = runtime.signalByKey.get(input.signalKey);
+	if (!signal || !signal.isActive) {
+		return null;
+	}
+
+	if (input.scope && signal.scope !== input.scope) {
+		return null;
+	}
+
+	const rules = runtime.signalRulesBySignalKey.get(input.signalKey);
+	if (!rules || rules.length === 0) {
+		return null;
+	}
+
+	const runKind = input.runKind ?? null;
+	const runStatus = input.runStatus ?? null;
+
+	let selectedRule: WorkflowSignalRuleConfig | null = null;
+	let selectedScore = Number.NEGATIVE_INFINITY;
+
+	for (const rule of rules) {
+		if (rule.runKind !== null && rule.runKind !== runKind) {
+			continue;
+		}
+
+		if (rule.runStatus !== null && rule.runStatus !== runStatus) {
+			continue;
+		}
+
+		if (rule.fromStatus !== null && rule.fromStatus !== input.currentStatus) {
+			continue;
+		}
+
+		const score =
+			(rule.fromStatus !== null ? 4 : 0) +
+			(rule.runStatus !== null ? 2 : 0) +
+			(rule.runKind !== null ? 1 : 0);
+
+		if (score > selectedScore) {
+			selectedRule = rule;
+			selectedScore = score;
+		}
+	}
+
+	return selectedRule?.toStatus ?? null;
 }
 
 function getRuntimeConfig(): WorkflowRuntimeConfig {
@@ -1170,6 +2072,16 @@ export function isBlockedReason(value: string): value is BlockedReason {
 
 export function isClosedReason(value: string): value is ClosedReason {
 	return (CLOSED_REASON_VALUES as readonly string[]).includes(value);
+}
+
+export function isWorkflowSignalScope(
+	value: string,
+): value is WorkflowSignalScope {
+	return (WORKFLOW_SIGNAL_SCOPES as readonly string[]).includes(value);
+}
+
+export function isWorkflowRunStatus(value: string): value is WorkflowRunStatus {
+	return (RUN_STATUS_VALUES as readonly string[]).includes(value);
 }
 
 export function getWorkflowColumnSystemKey(

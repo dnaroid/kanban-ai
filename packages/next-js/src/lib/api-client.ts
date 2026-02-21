@@ -42,6 +42,15 @@ export type WorkflowTaskStatus =
 
 export type WorkflowBlockedReason = "question" | "paused" | "failed";
 export type WorkflowClosedReason = "done" | "failed";
+export type WorkflowSignalScope = "run" | "user_action";
+export type WorkflowRunStatus =
+	| "queued"
+	| "running"
+	| "completed"
+	| "failed"
+	| "cancelled"
+	| "timeout"
+	| "paused";
 
 export interface WorkflowStatusConfig {
 	status: WorkflowTaskStatus;
@@ -63,11 +72,31 @@ export interface WorkflowColumnConfig {
 	allowedStatuses: WorkflowTaskStatus[];
 }
 
+export interface WorkflowSignalConfig {
+	key: string;
+	scope: WorkflowSignalScope;
+	title: string;
+	description: string;
+	orderIndex: number;
+	isActive: boolean;
+}
+
+export interface WorkflowSignalRuleConfig {
+	key: string;
+	signalKey: string;
+	runKind: string | null;
+	runStatus: WorkflowRunStatus | null;
+	fromStatus: WorkflowTaskStatus | null;
+	toStatus: WorkflowTaskStatus;
+}
+
 export interface WorkflowConfig {
 	statuses: WorkflowStatusConfig[];
 	columns: WorkflowColumnConfig[];
 	statusTransitions: Record<WorkflowTaskStatus, WorkflowTaskStatus[]>;
 	columnTransitions: Record<WorkflowColumnSystemKey, WorkflowColumnSystemKey[]>;
+	signals: WorkflowSignalConfig[];
+	signalRules: WorkflowSignalRuleConfig[];
 }
 
 // REST API Client for Next.js standalone

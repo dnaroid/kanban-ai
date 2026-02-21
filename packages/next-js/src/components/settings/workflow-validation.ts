@@ -2,6 +2,8 @@ import type {
 	WorkflowConfig,
 	WorkflowTaskStatus,
 	WorkflowColumnSystemKey,
+	WorkflowRunStatus,
+	WorkflowSignalScope,
 } from "@/lib/api-client";
 import { isWorkflowIconKey } from "@/types/workflow";
 
@@ -14,6 +16,19 @@ export function validateWorkflowConfig(
 	config: WorkflowConfig,
 ): WorkflowValidationError[] {
 	const errors: WorkflowValidationError[] = [];
+	const allowedSignalScopes = new Set<WorkflowSignalScope>([
+		"run",
+		"user_action",
+	]);
+	const allowedRunStatuses = new Set<WorkflowRunStatus>([
+		"queued",
+		"running",
+		"completed",
+		"failed",
+		"cancelled",
+		"timeout",
+		"paused",
+	]);
 
 	// Validate Columns
 	const columnSystemKeys = new Set<WorkflowColumnSystemKey>();
@@ -136,6 +151,145 @@ export function validateWorkflowConfig(
 			}
 		});
 	});
+
+	const signalKeys = new Set<string>();
+	const signalOrderIndexes = new Set<number>();
+	const activeSignalScopes = new Set<WorkflowSignalScope>();
+
+	config.signals.forEach((signal, index) => {
+		const path = `signals[${index}]`;
+
+		if (!signal.key.trim()) {
+			errors.push({ path: `${path}.key`, message: "Key is required" });
+		}
+		if (signalKeys.has(signal.key)) {
+			errors.push({
+				path: `${path}.key`,
+				message: `Duplicate signal key: ${signal.key}`,
+			});
+		}
+		signalKeys.add(signal.key);
+
+		if (!allowedSignalScopes.has(signal.scope)) {
+			errors.push({
+				path: `${path}.scope`,
+				message: `Invalid signal scope: ${signal.scope}`,
+			});
+		}
+
+		if (!signal.title.trim()) {
+			errors.push({ path: `${path}.title`, message: "Title is required" });
+		}
+
+		if (signalOrderIndexes.has(signal.orderIndex)) {
+			errors.push({
+				path: `${path}.orderIndex`,
+				message: `Duplicate signal order index: ${signal.orderIndex}`,
+			});
+		}
+		signalOrderIndexes.add(signal.orderIndex);
+
+		if (signal.isActive) {
+			activeSignalScopes.add(signal.scope);
+		}
+	});
+
+	if (config.signals.length === 0) {
+		errors.push({
+			path: "signals",
+			message: "At least one signal is required",
+		});
+	}
+
+	for (const scope of allowedSignalScopes) {
+		if (!activeSignalScopes.has(scope)) {
+			errors.push({
+				path: "signals",
+				message: `At least one active ${scope} signal is required`,
+			});
+		}
+	}
+
+	const signalScopeByKey = new Map(
+		config.signals.map((signal) => [signal.key, signal.scope]),
+	);
+	const ruleKeys = new Set<string>();
+	const selectorKeys = new Set<string>();
+
+	config.signalRules.forEach((rule, index) => {
+		const path = `signalRules[${index}]`;
+
+		if (!rule.key.trim()) {
+			errors.push({ path: `${path}.key`, message: "Key is required" });
+		}
+		if (ruleKeys.has(rule.key)) {
+			errors.push({
+				path: `${path}.key`,
+				message: `Duplicate signal rule key: ${rule.key}`,
+			});
+		}
+		ruleKeys.add(rule.key);
+
+		if (!signalKeys.has(rule.signalKey)) {
+			errors.push({
+				path: `${path}.signalKey`,
+				message: `Unknown signal: ${rule.signalKey}`,
+			});
+		}
+
+		if (rule.runStatus !== null && !allowedRunStatuses.has(rule.runStatus)) {
+			errors.push({
+				path: `${path}.runStatus`,
+				message: `Invalid run status: ${rule.runStatus}`,
+			});
+		}
+
+		if (rule.fromStatus !== null && !statusKeys.has(rule.fromStatus)) {
+			errors.push({
+				path: `${path}.fromStatus`,
+				message: `Invalid source status: ${rule.fromStatus}`,
+			});
+		}
+
+		if (!statusKeys.has(rule.toStatus)) {
+			errors.push({
+				path: `${path}.toStatus`,
+				message: `Invalid target status: ${rule.toStatus}`,
+			});
+		}
+
+		const scope = signalScopeByKey.get(rule.signalKey);
+		if (
+			scope === "user_action" &&
+			(rule.runKind !== null || rule.runStatus !== null)
+		) {
+			errors.push({
+				path,
+				message: "Run selectors are allowed only for run-scoped signals",
+			});
+		}
+
+		const selector = [
+			rule.signalKey,
+			rule.runKind ?? "",
+			rule.runStatus ?? "",
+			rule.fromStatus ?? "",
+		].join("|");
+		if (selectorKeys.has(selector)) {
+			errors.push({
+				path,
+				message: `Duplicate rule selector for signal ${rule.signalKey}`,
+			});
+		}
+		selectorKeys.add(selector);
+	});
+
+	if (config.signalRules.length === 0) {
+		errors.push({
+			path: "signalRules",
+			message: "At least one signal rule is required",
+		});
+	}
 
 	return errors;
 }

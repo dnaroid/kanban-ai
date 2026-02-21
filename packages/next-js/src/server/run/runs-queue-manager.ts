@@ -36,6 +36,11 @@ interface QueuedRunInput {
 	prompt: string;
 }
 
+interface AssistantRunSignal {
+	runStatus: RunStatus;
+	signalKey: string;
+}
+
 export interface ProviderQueueStats {
 	providerKey: string;
 	queued: number;
@@ -49,20 +54,20 @@ export interface QueueStats {
 	providers: ProviderQueueStats[];
 }
 
-function mapOpencodeStatusToRunStatus(text: string): RunStatus | null {
+function resolveAssistantRunSignal(text: string): AssistantRunSignal | null {
 	const parsed = extractOpencodeStatus(text);
 	if (!parsed) {
 		return null;
 	}
 
 	if (parsed.status === "done") {
-		return "completed";
+		return { runStatus: "completed", signalKey: "done" };
 	}
 	if (parsed.status === "fail") {
-		return "failed";
+		return { runStatus: "failed", signalKey: "fail" };
 	}
 	if (parsed.status === "question") {
-		return "paused";
+		return { runStatus: "paused", signalKey: "question" };
 	}
 
 	return null;
@@ -279,7 +284,12 @@ export class RunsQueueManager {
 			payload: { status: "cancelled", message: "Run cancelled" },
 		});
 		publishRunUpdate(cancelled);
-		this.taskProjector.projectRunOutcome(cancelled, "cancelled", "");
+		this.taskProjector.projectRunOutcome(
+			cancelled,
+			"cancelled",
+			"cancelled",
+			"",
+		);
 
 		await this.unsubscribeRunSession(runId);
 	}
@@ -469,7 +479,12 @@ export class RunsQueueManager {
 				},
 			});
 			publishRunUpdate(failedRun);
-			this.taskProjector.projectRunOutcome(failedRun, "failed", message);
+			this.taskProjector.projectRunOutcome(
+				failedRun,
+				"failed",
+				"fail",
+				message,
+			);
 			this.runInputs.delete(runId);
 		}
 	}
@@ -506,21 +521,28 @@ export class RunsQueueManager {
 			return;
 		}
 
-		const nextStatus = mapOpencodeStatusToRunStatus(event.message.content);
-		if (!nextStatus) {
+		const runSignal = resolveAssistantRunSignal(event.message.content);
+		if (!runSignal) {
 			return;
 		}
 
 		log.info("Assistant response received, finalizing run", {
 			runId,
-			status: nextStatus,
+			status: runSignal.runStatus,
+			signalKey: runSignal.signalKey,
 		});
-		await this.finalizeRunFromSession(runId, nextStatus, event.message.content);
+		await this.finalizeRunFromSession(
+			runId,
+			runSignal.runStatus,
+			runSignal.signalKey,
+			event.message.content,
+		);
 	}
 
 	private async finalizeRunFromSession(
 		runId: string,
 		status: RunStatus,
+		signalKey: string,
 		assistantContent: string,
 	): Promise<void> {
 		log.info("Finalizing run", { runId, status });
@@ -563,7 +585,12 @@ export class RunsQueueManager {
 		});
 
 		try {
-			this.taskProjector.projectRunOutcome(nextRun, status, assistantContent);
+			this.taskProjector.projectRunOutcome(
+				nextRun,
+				status,
+				signalKey,
+				assistantContent,
+			);
 			if (status === "completed" && this.isGenerationRun(nextRun)) {
 				await this.enqueueExecutionForGeneratedTask(nextRun.taskId);
 			}
@@ -920,18 +947,24 @@ export class RunsQueueManager {
 				continue;
 			}
 
-			const nextStatus = mapOpencodeStatusToRunStatus(message.content);
-			if (!nextStatus) {
+			const runSignal = resolveAssistantRunSignal(message.content);
+			if (!runSignal) {
 				continue;
 			}
 
 			log.info("Finalizing run from session snapshot", {
 				runId,
 				sessionId,
-				status: nextStatus,
+				status: runSignal.runStatus,
+				signalKey: runSignal.signalKey,
 				messageId: message.id,
 			});
-			await this.finalizeRunFromSession(runId, nextStatus, message.content);
+			await this.finalizeRunFromSession(
+				runId,
+				runSignal.runStatus,
+				runSignal.signalKey,
+				message.content,
+			);
 			return;
 		}
 
