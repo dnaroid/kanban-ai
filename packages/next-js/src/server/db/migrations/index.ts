@@ -3,12 +3,14 @@ import {
 	v018AppMetricsSql,
 	v019TaskBlockedReasonSql,
 	v020TaskClosedReasonSql,
+	v021WorkflowConfigSql,
 } from "./sql";
 export {
 	v017SystemKeySql,
 	v018AppMetricsSql,
 	v019TaskBlockedReasonSql,
 	v020TaskClosedReasonSql,
+	v021WorkflowConfigSql,
 };
 
 export const INIT_DB_SQL = `
@@ -488,6 +490,10 @@ export const migrations = [
 	{
 		version: 20,
 		sql: v020TaskClosedReasonSql,
+	},
+	{
+		version: 21,
+		sql: v021WorkflowConfigSql,
 	},
 ] as const;
 

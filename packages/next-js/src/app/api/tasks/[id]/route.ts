@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { boardRepo, taskRepo } from "@/server/repositories";
 import type { UpdateTaskInput } from "@/server/types";
+import { publishSseEvent } from "@/server/events/sse-broker";
 import {
 	canTransitionColumn,
 	canTransitionStatus,
@@ -233,6 +234,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 			);
 		}
 
+		const eventType =
+			patch.columnId !== undefined || patch.orderInColumn !== undefined
+				? "task:moved"
+				: "task:updated";
+
+		publishSseEvent("task:event", {
+			taskId: task.id,
+			boardId: task.boardId,
+			projectId: task.projectId,
+			eventType,
+			updatedAt: task.updatedAt,
+		});
+
 		return NextResponse.json({ success: true, data: task });
 	} catch (error) {
 		console.error("[API] Error updating task:", error);
@@ -246,6 +260,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 	try {
 		const { id } = await params;
+		const existingTask = taskRepo.getById(id);
+
+		if (!existingTask) {
+			return NextResponse.json(
+				{ success: false, error: "Task not found" },
+				{ status: 404 },
+			);
+		}
+
 		const deleted = taskRepo.delete(id);
 
 		if (!deleted) {
@@ -254,6 +277,14 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 				{ status: 404 },
 			);
 		}
+
+		publishSseEvent("task:event", {
+			taskId: id,
+			boardId: existingTask.boardId,
+			projectId: existingTask.projectId,
+			eventType: "task:deleted",
+			updatedAt: new Date().toISOString(),
+		});
 
 		return NextResponse.json({ success: true });
 	} catch (error) {

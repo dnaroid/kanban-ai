@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import type Database from "better-sqlite3";
 import type { Board, BoardColumn } from "../types";
 import { dbManager } from "../db";
-import { DEFAULT_WORKFLOW_COLUMNS } from "../workflow/task-workflow-manager";
+import { getDefaultWorkflowColumns } from "../workflow/task-workflow-manager";
 
 export interface BoardColumnInput {
 	id?: string;
@@ -26,8 +26,10 @@ export class BoardRepository {
 			)
 			.run(boardId, input.projectId, input.name, now, now);
 
-		for (let i = 0; i < DEFAULT_WORKFLOW_COLUMNS.length; i++) {
-			const col = DEFAULT_WORKFLOW_COLUMNS[i];
+		const defaultColumns = getDefaultWorkflowColumns();
+
+		for (let i = 0; i < defaultColumns.length; i++) {
+			const col = defaultColumns[i];
 			this.db
 				.prepare(
 					`INSERT INTO board_columns (id, board_id, name, system_key, order_index, color, created_at, updated_at)

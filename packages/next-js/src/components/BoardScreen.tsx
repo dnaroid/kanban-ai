@@ -206,7 +206,6 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 							columns={board.columns}
 							tasks={tasks}
 							globalTags={globalTags}
-							onTaskClick={handleTaskClick}
 							onAddTask={handleAddTask}
 							onDeleteTask={handleDeleteTask}
 							expandedColumns={expandedColumns}

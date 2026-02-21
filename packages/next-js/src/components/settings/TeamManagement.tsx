@@ -243,13 +243,13 @@ export function TeamManagement() {
 
 	return (
 		<div className="flex flex-col w-full min-h-screen">
-			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-8 mb-8 shrink-0 flex flex-col md:flex-row md:items-end justify-between gap-6">
-				<div className="flex items-center gap-5">
-					<div className="w-14 h-14 rounded-2xl bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center shadow-2xl shadow-blue-500/10">
-						<Users className="w-7 h-7 text-blue-400" />
+			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 mb-6 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4">
+				<div className="flex items-center gap-3">
+					<div className="w-10 h-10 rounded-xl bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center shadow-lg shadow-blue-500/10">
+						<Users className="w-5 h-5 text-blue-400" />
 					</div>
 					<div>
-						<p className="text-3xl font-black text-white tracking-tight leading-none">
+						<p className="text-xl font-black text-white tracking-tight leading-none">
 							{roles.length}{" "}
 							<span className="text-slate-600 font-medium">Active Agents</span>
 						</p>
@@ -259,22 +259,22 @@ export function TeamManagement() {
 					</div>
 				</div>
 
-				<div className="flex items-center gap-4">
+				<div className="flex items-center gap-3">
 					<div className="relative group min-w-[250px]">
-						<div className="absolute left-4 top-1/2 -translate-y-1/2">
+						<div className="absolute left-3.5 top-1/2 -translate-y-1/2">
 							<Search className="w-4 h-4 text-slate-500 group-focus-within:text-blue-400 transition-colors" />
 						</div>
 						<input
 							value={searchQuery}
 							onChange={(event) => setSearchQuery(event.target.value)}
 							placeholder="Search roles..."
-							className="w-full bg-slate-900/40 border border-slate-800/60 text-sm text-slate-200 rounded-2xl pl-11 pr-10 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/40 transition-all placeholder:text-slate-600 font-medium shadow-inner shadow-black/20"
+							className="w-full bg-slate-900/40 border border-slate-800/60 text-sm text-slate-200 rounded-xl pl-10 pr-10 py-2.5 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all placeholder:text-slate-600 font-medium shadow-sm"
 						/>
 					</div>
 					<button
 						type="button"
 						onClick={handleAddNew}
-						className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20 active:scale-95"
+						className="flex items-center gap-2 h-10 px-5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20 active:scale-95"
 					>
 						<Plus className="w-4 h-4" />
 						New Agent

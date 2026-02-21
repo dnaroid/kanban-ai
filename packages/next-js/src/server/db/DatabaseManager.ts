@@ -7,6 +7,7 @@ import {
 	v017SystemKeySql,
 	v019TaskBlockedReasonSql,
 	v020TaskClosedReasonSql,
+	v021WorkflowConfigSql,
 } from "./migrations";
 
 export class DatabaseManager {
@@ -143,6 +144,20 @@ export class DatabaseManager {
 		return rows.some((row) => row.name === columnName);
 	}
 
+	private hasTable(tableName: string): boolean {
+		if (!this.db) {
+			return false;
+		}
+
+		const row = this.db
+			.prepare(
+				`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`,
+			)
+			.get(tableName) as { name?: string } | undefined;
+
+		return typeof row?.name === "string";
+	}
+
 	private ensureCriticalSchema(): void {
 		if (!this.db) {
 			return;
@@ -172,6 +187,16 @@ export class DatabaseManager {
 			this.db
 				.prepare("INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)")
 				.run(20);
+		}
+
+		if (!this.hasTable("workflow_statuses")) {
+			console.log(
+				"[DB] Repairing schema: creating workflow configuration tables",
+			);
+			this.db.exec(v021WorkflowConfigSql);
+			this.db
+				.prepare("INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)")
+				.run(21);
 		}
 	}
 

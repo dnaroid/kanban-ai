@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { boardRepo, taskRepo } from "@/server/repositories";
 import type { CreateTaskInput } from "@/server/types";
+import { publishSseEvent } from "@/server/events/sse-broker";
 import {
 	getDefaultStatusForWorkflowColumn,
 	getWorkflowColumnSystemKey,
@@ -111,6 +112,14 @@ export async function POST(request: NextRequest) {
 			tags: body.tags,
 			dueDate: body.dueDate,
 			modelName: body.modelName,
+		});
+
+		publishSseEvent("task:event", {
+			taskId: task.id,
+			boardId: task.boardId,
+			projectId: task.projectId,
+			eventType: "task:created",
+			updatedAt: task.updatedAt,
 		});
 
 		return NextResponse.json({ success: true, data: task });

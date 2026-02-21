@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
 import {
 	KeyboardSensor,
@@ -18,6 +18,7 @@ interface UseBoardModelArgs {
 
 export function useBoardModel({ projectId }: UseBoardModelArgs) {
 	const router = useRouter();
+	const pathname = usePathname();
 	const [board, setBoard] = useState<Board | null>(null);
 	const [tasks, setTasks] = useState<KanbanTask[]>([]);
 	const [globalTags, setGlobalTags] = useState<Tag[]>([]);
@@ -90,6 +91,8 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		try {
 			const nextTask = await api.getTask(taskId);
 			if (!nextTask) {
+				setTasks((prev) => prev.filter((task) => task.id !== taskId));
+				setActiveTask((prev) => (prev && prev.id === taskId ? null : prev));
 				return;
 			}
 
@@ -102,6 +105,57 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			console.error("Failed to refresh board task from server:", refreshError);
 		}
 	}, []);
+
+	const refreshBoardTasksFromServer = useCallback(async () => {
+		if (!board) {
+			return;
+		}
+
+		try {
+			const nextTasks = await api.getTasks(board.id);
+			setTasks(nextTasks);
+			setActiveTask((prev) => {
+				if (!prev) {
+					return prev;
+				}
+				return nextTasks.find((task) => task.id === prev.id) ?? null;
+			});
+		} catch (refreshError) {
+			console.error("Failed to refresh board tasks from server:", refreshError);
+		}
+	}, [board]);
+
+	const isBoardRoute = pathname === `/board/${projectId}`;
+
+	useEffect(() => {
+		if (!isBoardRoute) {
+			return;
+		}
+
+		void refreshBoardTasksFromServer();
+	}, [isBoardRoute, refreshBoardTasksFromServer]);
+
+	useEffect(() => {
+		if (!isBoardRoute) {
+			return;
+		}
+
+		const refreshIfVisible = () => {
+			if (document.visibilityState !== "visible") {
+				return;
+			}
+
+			void refreshBoardTasksFromServer();
+		};
+
+		window.addEventListener("focus", refreshIfVisible);
+		document.addEventListener("visibilitychange", refreshIfVisible);
+
+		return () => {
+			window.removeEventListener("focus", refreshIfVisible);
+			document.removeEventListener("visibilitychange", refreshIfVisible);
+		};
+	}, [isBoardRoute, refreshBoardTasksFromServer]);
 
 	useEffect(() => {
 		const token = localStorage.getItem("token");
@@ -119,7 +173,20 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			try {
 				const payload = JSON.parse(event.data) as {
 					taskId?: string;
+					boardId?: string;
+					projectId?: string;
+					eventType?: string;
 				};
+
+				const matchesBoard =
+					(payload.boardId && board && payload.boardId === board.id) ||
+					(payload.projectId && payload.projectId === projectId);
+
+				if (matchesBoard && payload.eventType) {
+					void refreshBoardTasksFromServer();
+					return;
+				}
+
 				if (!payload.taskId) {
 					return;
 				}
@@ -157,7 +224,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			eventSource.removeEventListener("run:event", onRunEvent);
 			eventSource.close();
 		};
-	}, [refreshTaskFromServer]);
+	}, [board, projectId, refreshTaskFromServer, refreshBoardTasksFromServer]);
 
 	const handleDragStart = (event: DragStartEvent) => {
 		if (event.active.data.current?.type === "task") {

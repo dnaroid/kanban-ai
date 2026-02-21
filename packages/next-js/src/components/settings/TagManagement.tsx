@@ -158,21 +158,21 @@ export function TagManagement() {
 
 	return (
 		<div className="flex flex-col w-full">
-			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-8 mb-8 shrink-0 flex flex-col md:flex-row md:items-end justify-between gap-6">
-				<div className="flex items-center gap-5">
-					<div className="w-14 h-14 rounded-2xl bg-indigo-500/10 ring-1 ring-indigo-500/20 flex items-center justify-center shadow-2xl shadow-indigo-500/10">
-						<TagIcon className="w-7 h-7 text-indigo-400" />
+			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 mb-6 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4">
+				<div className="flex items-center gap-3">
+					<div className="w-10 h-10 rounded-xl bg-indigo-500/10 ring-1 ring-indigo-500/20 flex items-center justify-center shadow-lg shadow-indigo-500/10">
+						<TagIcon className="w-5 h-5 text-indigo-400" />
 					</div>
 					<div>
-						<div className="flex items-center gap-2 mb-1">
+						<div className="flex items-center gap-2">
 							<span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] leading-none">
 								Global Taxonomy
 							</span>
-							<div className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-[9px] font-bold text-indigo-300 ring-1 ring-indigo-500/30">
+							<div className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-[8px] font-bold text-indigo-300 ring-1 ring-indigo-500/30">
 								Live Editor
 							</div>
 						</div>
-						<p className="text-3xl font-black text-white tracking-tight leading-none">
+						<p className="text-xl font-black text-white tracking-tight leading-none mt-1">
 							{tags.length}{" "}
 							<span className="text-slate-600 font-medium">Active Tags</span>
 						</p>
@@ -180,19 +180,19 @@ export function TagManagement() {
 				</div>
 
 				<div className="relative group min-w-[300px]">
-					<div className="absolute left-4 top-1/2 -translate-y-1/2">
+					<div className="absolute left-3.5 top-1/2 -translate-y-1/2">
 						<Search className="w-4 h-4 text-slate-500 group-focus-within:text-indigo-400 transition-colors" />
 					</div>
 					<input
 						value={searchQuery}
 						onChange={(e) => setSearchQuery(e.target.value)}
 						placeholder="Filter by label name..."
-						className="w-full bg-slate-900/40 border border-slate-800/60 text-sm text-slate-200 rounded-2xl pl-11 pr-10 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/40 transition-all placeholder:text-slate-600 font-medium shadow-inner shadow-black/20"
+						className="w-full bg-slate-900/40 border border-slate-800/60 text-sm text-slate-200 rounded-xl pl-10 pr-10 py-2.5 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/50 transition-all placeholder:text-slate-600 font-medium shadow-sm"
 					/>
 					{searchQuery && (
 						<button
 							onClick={() => setSearchQuery("")}
-							className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-800 rounded-full transition-colors"
+							className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-800 rounded-full transition-colors"
 						>
 							<X className="w-3 h-3 text-slate-500" />
 						</button>

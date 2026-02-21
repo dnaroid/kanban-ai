@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { boardRepo, taskRepo } from "@/server/repositories";
+import { publishSseEvent } from "@/server/events/sse-broker";
 import {
 	canTransitionColumn,
 	canTransitionStatus,
@@ -138,6 +139,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 				{ status: 404 },
 			);
 		}
+
+		publishSseEvent("task:event", {
+			taskId: task.id,
+			boardId: task.boardId,
+			projectId: task.projectId,
+			eventType: "task:moved",
+			updatedAt: task.updatedAt,
+		});
 
 		return NextResponse.json({ success: true, data: task });
 	} catch (error) {
