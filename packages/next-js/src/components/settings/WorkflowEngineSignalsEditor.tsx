@@ -25,7 +25,6 @@ import type {
 	WorkflowSignalConfig,
 	WorkflowSignalRuleConfig,
 	WorkflowStatusConfig,
-	WorkflowTaskStatus,
 	WorkflowRunStatus,
 	WorkflowSignalScope,
 } from "@/lib/api-client";
@@ -41,16 +40,6 @@ interface WorkflowEngineSignalsEditorProps {
 }
 
 type StatusPillOption = ReturnType<typeof createStatusPillOptions>[string];
-
-const TASK_STATUSES: readonly WorkflowTaskStatus[] = [
-	"queued",
-	"running",
-	"question",
-	"paused",
-	"done",
-	"failed",
-	"generating",
-];
 
 const RUN_STATUSES: readonly WorkflowRunStatus[] = [
 	"queued",
@@ -68,10 +57,6 @@ const KNOWN_RUN_KINDS: readonly string[] = [
 ];
 
 type SignalActiveFilter = "all" | "active" | "inactive";
-
-function isWorkflowTaskStatusValue(value: string): value is WorkflowTaskStatus {
-	return (TASK_STATUSES as readonly string[]).includes(value);
-}
 
 function isWorkflowRunStatusValue(value: string): value is WorkflowRunStatus {
 	return (RUN_STATUSES as readonly string[]).includes(value);
@@ -95,15 +80,19 @@ function toSignalScope(value: string): WorkflowSignalScope {
 	return value === "user_action" ? "user_action" : "run";
 }
 
-function toTaskStatusOrNull(value: string): WorkflowTaskStatus | null {
-	return isWorkflowTaskStatusValue(value) ? value : null;
+function toTaskStatusOrNull(
+	value: string,
+	statusKeySet: ReadonlySet<string>,
+): string | null {
+	return statusKeySet.has(value) ? value : null;
 }
 
 function toTaskStatus(
 	value: string,
-	fallback: WorkflowTaskStatus,
-): WorkflowTaskStatus {
-	return isWorkflowTaskStatusValue(value) ? value : fallback;
+	fallback: string,
+	statusKeySet: ReadonlySet<string>,
+): string {
+	return statusKeySet.has(value) ? value : fallback;
 }
 
 function toRunStatusOrNull(value: string): WorkflowRunStatus | null {
@@ -138,8 +127,8 @@ function hexToRgb(color: string): { r: number; g: number; b: number } | null {
 }
 
 function getStatusBadgeStyle(
-	status: WorkflowTaskStatus,
-	statusColorByKey: Map<WorkflowTaskStatus, string>,
+	status: string,
+	statusColorByKey: Map<string, string>,
 ): CSSProperties | undefined {
 	const color = statusColorByKey.get(status);
 	if (!color) {
@@ -224,6 +213,10 @@ export function WorkflowEngineSignalsEditor({
 	const statusColorByKey = useMemo(
 		() =>
 			new Map(statuses.map((status) => [status.status, status.color] as const)),
+		[statuses],
+	);
+	const statusKeySet = useMemo(
+		() => new Set(statuses.map((status) => status.status)),
 		[statuses],
 	);
 	const statusPillOptions = useMemo(
@@ -408,7 +401,7 @@ export function WorkflowEngineSignalsEditor({
 			runKind: null,
 			runStatus: null,
 			fromStatus: null,
-			toStatus: "queued",
+			toStatus: statuses[0]?.status ?? "pending",
 		});
 		setIsAddingRule(true);
 		setFormErrors({});
@@ -675,7 +668,9 @@ export function WorkflowEngineSignalsEditor({
 													<span
 														className={cn(
 															"text-[10px] font-black uppercase tracking-widest",
-															signal.isActive ? "text-slate-300" : "text-slate-600",
+															signal.isActive
+																? "text-slate-300"
+																: "text-slate-600",
 														)}
 													>
 														{signal.isActive ? "Active" : "Inactive"}
@@ -739,9 +734,7 @@ export function WorkflowEngineSignalsEditor({
 							<Zap className="h-5 w-5" />
 						</div>
 						<div>
-							<h3 className="text-xl font-bold text-slate-100">
-								Signal Rules
-							</h3>
+							<h3 className="text-xl font-bold text-slate-100">Signal Rules</h3>
 							<p className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-widest font-black">
 								How signals map to task status changes
 							</p>
@@ -996,7 +989,9 @@ export function WorkflowEngineSignalsEditor({
 									placeholder="e.g. AI Started Working"
 									className={cn(
 										"w-full rounded-2xl border bg-[#0B0E14] px-4 py-3 text-sm text-slate-200 outline-none transition-all focus:ring-2 focus:ring-blue-500/20",
-										formErrors.title ? "border-red-500/50" : "border-slate-800 focus:border-blue-500/50",
+										formErrors.title
+											? "border-red-500/50"
+											: "border-slate-800 focus:border-blue-500/50",
 									)}
 								/>
 							</div>
@@ -1091,7 +1086,9 @@ export function WorkflowEngineSignalsEditor({
 									<Zap className="h-5 w-5" />
 								</div>
 								<h3 className="text-xl font-bold text-slate-100">
-									{isAddingRule ? "New Transition Rule" : "Edit Transition Rule"}
+									{isAddingRule
+										? "New Transition Rule"
+										: "Edit Transition Rule"}
 								</h3>
 							</div>
 							<button
@@ -1155,7 +1152,7 @@ export function WorkflowEngineSignalsEditor({
 															fromStatus:
 																value === "any_status"
 																	? null
-																	: toTaskStatusOrNull(value),
+																	: toTaskStatusOrNull(value, statusKeySet),
 														})
 													}
 												/>
@@ -1170,7 +1167,11 @@ export function WorkflowEngineSignalsEditor({
 													onChange={(value) =>
 														setRuleForm({
 															...ruleForm,
-															toStatus: toTaskStatus(value, ruleForm.toStatus),
+															toStatus: toTaskStatus(
+																value,
+																ruleForm.toStatus,
+																statusKeySet,
+															),
 														})
 													}
 												/>

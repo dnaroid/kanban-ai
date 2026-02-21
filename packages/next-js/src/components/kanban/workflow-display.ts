@@ -6,7 +6,6 @@ import type {
 	WorkflowColumnConfig,
 	WorkflowConfig,
 	WorkflowStatusConfig,
-	WorkflowTaskStatus,
 } from "@/lib/api-client";
 import {
 	normalizeWorkflowIconKey,
@@ -20,10 +19,10 @@ export type WorkflowVisualOption = {
 };
 
 export const FALLBACK_WORKFLOW_STATUS_VISUALS: Record<
-	WorkflowTaskStatus,
+	string,
 	{ icon: WorkflowIconKey; color: string }
 > = {
-	queued: { icon: "clock", color: "#f59e0b" },
+	pending: { icon: "clock", color: "#f59e0b" },
 	running: { icon: "play", color: "#3b82f6" },
 	question: { icon: "help-circle", color: "#f97316" },
 	paused: { icon: "pause", color: "#eab308" },
@@ -105,12 +104,14 @@ export function getWorkflowIcon(
 
 export function getWorkflowStatusVisual(
 	workflowConfig: WorkflowConfig | null,
-	status: WorkflowTaskStatus,
+	status: string,
 ): WorkflowVisualOption {
 	const statusRow = workflowConfig?.statuses.find(
 		(item) => item.status === status,
 	);
-	const fallback = FALLBACK_WORKFLOW_STATUS_VISUALS[status];
+	const fallback =
+		FALLBACK_WORKFLOW_STATUS_VISUALS[status] ??
+		FALLBACK_WORKFLOW_STATUS_VISUALS.pending;
 	return {
 		icon: getWorkflowIcon(statusRow?.icon ?? fallback.icon),
 		tone: toHexColor(statusRow?.color) ?? fallback.color,

@@ -7,7 +7,10 @@ export class TaskRepository {
 		const db = dbManager.connect();
 		const now = new Date().toISOString();
 		const id = randomUUID();
-		const status = input.status ?? "queued";
+		const status = typeof input.status === "string" ? input.status.trim() : "";
+		if (!status) {
+			throw new Error("Task status is required");
+		}
 		const blockedReason = input.blockedReason ?? null;
 		const closedReason = input.closedReason ?? null;
 		const priority = input.priority ?? "normal";

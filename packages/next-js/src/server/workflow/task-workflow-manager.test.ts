@@ -28,7 +28,7 @@ function createWorkflowDbMock(options: {
 }): FakeDb {
 	const statusRows = [
 		{
-			status: "queued",
+			status: "pending",
 			orderIndex: 0,
 			preferredColumnSystemKey: "ready",
 			blockedReason: null,
@@ -99,7 +99,7 @@ function createWorkflowDbMock(options: {
 			color: "#6366f1",
 			icon: "list",
 			orderIndex: 0,
-			defaultStatus: "queued",
+			defaultStatus: "pending",
 		},
 		{
 			systemKey: "ready",
@@ -107,7 +107,7 @@ function createWorkflowDbMock(options: {
 			color: "#0ea5e9",
 			icon: "check-circle",
 			orderIndex: 1,
-			defaultStatus: "queued",
+			defaultStatus: "pending",
 		},
 		{
 			systemKey: "deferred",
@@ -115,7 +115,7 @@ function createWorkflowDbMock(options: {
 			color: "#6b7280",
 			icon: "clock",
 			orderIndex: 2,
-			defaultStatus: "queued",
+			defaultStatus: "pending",
 		},
 		{
 			systemKey: "in_progress",
@@ -152,9 +152,9 @@ function createWorkflowDbMock(options: {
 	];
 
 	const allowedStatusRows = [
-		{ systemKey: "backlog", status: "queued" },
-		{ systemKey: "ready", status: "queued" },
-		{ systemKey: "deferred", status: "queued" },
+		{ systemKey: "backlog", status: "pending" },
+		{ systemKey: "ready", status: "pending" },
+		{ systemKey: "deferred", status: "pending" },
 		{ systemKey: "in_progress", status: "running" },
 		{ systemKey: "in_progress", status: "generating" },
 		{ systemKey: "blocked", status: "question" },
@@ -166,14 +166,14 @@ function createWorkflowDbMock(options: {
 	];
 
 	const statusTransitionRows = [
-		{ fromStatus: "queued", toStatus: "running" },
-		{ fromStatus: "running", toStatus: "queued" },
+		{ fromStatus: "pending", toStatus: "running" },
+		{ fromStatus: "running", toStatus: "pending" },
 		{ fromStatus: "running", toStatus: "done" },
-		{ fromStatus: "question", toStatus: "queued" },
-		{ fromStatus: "paused", toStatus: "queued" },
+		{ fromStatus: "question", toStatus: "pending" },
+		{ fromStatus: "paused", toStatus: "pending" },
 		{ fromStatus: "done", toStatus: "running" },
-		{ fromStatus: "failed", toStatus: "queued" },
-		{ fromStatus: "generating", toStatus: "queued" },
+		{ fromStatus: "failed", toStatus: "pending" },
+		{ fromStatus: "generating", toStatus: "pending" },
 	];
 
 	const columnTransitionRows = [
@@ -245,8 +245,8 @@ describe("task-workflow-manager runtime config", () => {
 			icon: "list",
 		});
 
-		expect(canTransitionStatus("queued", "running")).toBe(true);
-		expect(canTransitionStatus("queued", "done")).toBe(false);
+		expect(canTransitionStatus("pending", "running")).toBe(true);
+		expect(canTransitionStatus("pending", "done")).toBe(false);
 
 		const board = {
 			id: "b1",
@@ -276,7 +276,7 @@ describe("task-workflow-manager runtime config", () => {
 			],
 		};
 
-		expect(getPreferredColumnIdForStatus(board, "queued")).toBe("c2");
+		expect(getPreferredColumnIdForStatus(board, "pending")).toBe("c2");
 	});
 
 	it("falls back to built-in workflow when tables are missing", () => {
@@ -295,6 +295,6 @@ describe("task-workflow-manager runtime config", () => {
 			icon: "list",
 		});
 
-		expect(canTransitionStatus("queued", "done")).toBe(true);
+		expect(canTransitionStatus("pending", "done")).toBe(true);
 	});
 });

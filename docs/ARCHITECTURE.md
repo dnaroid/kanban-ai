@@ -360,9 +360,72 @@ runMigrations(): void {
 
 **Файл**: `server/workflow/task-workflow-manager.ts`
 
-**Назначение**: State machine для workflow задач на Kanban-доске.
+**Назначение**: State machine для workflow задач на Kanban-доске. Конфигурация workflow **хранится в базе данных** и загружается при инициализации.
 
-#### Workflow колонки
+#### Архитектура хранения workflow
+
+```mermaid
+erDiagram
+    workflow_column_templates ||--o{ workflow_column_allowed_statuses : has
+    workflow_statuses ||--o{ workflow_column_allowed_statuses : "allowed in"
+    workflow_statuses ||--o{ workflow_status_transitions : "from/to"
+    workflow_column_templates ||--o{ workflow_column_transitions : "from/to"
+    workflow_signals ||--o{ workflow_signal_rules : has
+    
+    workflow_column_templates {
+        string system_key PK
+        string name
+        string color
+        string icon
+        int order_index
+        string default_status
+    }
+    
+    workflow_column_allowed_statuses {
+        string system_key FK
+        string status FK
+    }
+    
+    workflow_statuses {
+        string status PK
+        int order_index
+        string preferred_column_system_key
+        string blocked_reason
+        string closed_reason
+        string color
+        string icon
+    }
+    
+    workflow_status_transitions {
+        string from_status FK
+        string to_status FK
+    }
+    
+    workflow_column_transitions {
+        string from_system_key FK
+        string to_system_key FK
+    }
+    
+    workflow_signals {
+        string key PK
+        string scope
+        string title
+        string description
+        int order_index
+        int is_active
+    }
+    
+    workflow_signal_rules {
+        string key PK
+        string signal_key FK
+        string run_kind
+        string run_status
+        string from_status
+        string to_status
+    }
+```
+
+#### Workflow колонки (по умолчанию)
 
 ```mermaid
 graph LR
@@ -380,17 +443,17 @@ graph LR
     Closed --> Ready
 ```
 
-#### Маппинг статус → колонка
+#### Дефолтные статусы
 
-| Task Status | Workflow Column |
-|-------------|-----------------|
-| `queued` | ready |
-| `running` | in_progress |
-| `generating` | in_progress |
-| `question` | blocked |
-| `paused` | blocked |
-| `failed` | blocked |
-| `done` | review |
+| Status | Preferred Column | Blocked Reason | Closed Reason | Color | Icon |
+|--------|------------------|----------------|---------------|-------|------|
+| queued | ready | - | - | 🔵 #3b82f6 | clock |
+| running | in_progress | - | - | 🟡 #eab308 | loader |
+| generating | in_progress | - | - | 🟡 #eab308 | sparkles |
+| question | blocked | question | - | 🔴 #ef4444 | help-circle |
+| paused | blocked | paused | - | 🔴 #ef4444 | pause |
+| failed | blocked | failed | failed | 🔴 #ef4444 | x-circle |
+| done | review | - | done | 🟢 #22c55e | check-circle |
 
 #### Разрешённые статусы по колонкам
 
@@ -404,9 +467,30 @@ graph LR
 | review | done |
 | closed | done, failed |
 
+#### Signals (триггеры автоматических переходов)
+
+Workflow поддерживает сигналы для автоматических переходов статусов:
+
+| Scope | Signals Count | Examples |
+|-------|---------------|----------|
+| run | 11 | run_started, run_completed, run_failed, run_question |
+| user_action | 13 | task_reopened, task_closed, task_moved_to_column |
+
 #### Ключевые функции
 
 ```typescript
+interface WorkflowConfig {
+  statuses: WorkflowStatusConfig[];
+  columns: WorkflowColumnConfig[];
+  statusTransitions: StatusTransition[];
+  columnTransitions: ColumnTransition[];
+  signals: WorkflowSignalConfig[];
+  signalRules: WorkflowSignalRuleConfig[];
+}
+
+// Загрузка конфигурации из БД
+function loadWorkflowConfigFromDb(db: Database): WorkflowConfig
+
 // Проверка возможности перехода
 function canTransitionStatus(from: TaskStatus, to: TaskStatus): boolean
 function canTransitionColumn(from: WorkflowColumnSystemKey, to: WorkflowColumnSystemKey): boolean

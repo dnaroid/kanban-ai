@@ -1,6 +1,6 @@
 import type { Board } from "@/server/types";
 import type { RunStatus } from "@/types/ipc";
-import type { BlockedReason, ClosedReason, TaskStatus } from "@/types/kanban";
+import type { BlockedReason, ClosedReason } from "@/types/kanban";
 import type { WorkflowIconKey } from "@/types/workflow";
 import { normalizeWorkflowIconKey } from "@/types/workflow";
 import type Database from "better-sqlite3";
@@ -25,6 +25,7 @@ export const WORKFLOW_SIGNAL_SCOPES = ["run", "user_action"] as const;
 export type WorkflowSignalScope = (typeof WORKFLOW_SIGNAL_SCOPES)[number];
 
 export type WorkflowRunStatus = RunStatus;
+export type WorkflowTaskStatus = string;
 
 export interface WorkflowColumnTemplate {
 	name: string;
@@ -34,7 +35,7 @@ export interface WorkflowColumnTemplate {
 }
 
 export interface WorkflowStatusConfig {
-	status: TaskStatus;
+	status: WorkflowTaskStatus;
 	orderIndex: number;
 	preferredColumnSystemKey: WorkflowColumnSystemKey;
 	blockedReason: BlockedReason | null;
@@ -49,8 +50,8 @@ export interface WorkflowColumnConfig {
 	color: string;
 	icon: WorkflowIconKey;
 	orderIndex: number;
-	defaultStatus: TaskStatus;
-	allowedStatuses: TaskStatus[];
+	defaultStatus: WorkflowTaskStatus;
+	allowedStatuses: WorkflowTaskStatus[];
 }
 
 export interface WorkflowSignalConfig {
@@ -67,14 +68,14 @@ export interface WorkflowSignalRuleConfig {
 	signalKey: string;
 	runKind: string | null;
 	runStatus: WorkflowRunStatus | null;
-	fromStatus: TaskStatus | null;
-	toStatus: TaskStatus;
+	fromStatus: WorkflowTaskStatus | null;
+	toStatus: WorkflowTaskStatus;
 }
 
 export interface WorkflowConfig {
 	statuses: WorkflowStatusConfig[];
 	columns: WorkflowColumnConfig[];
-	statusTransitions: Record<TaskStatus, TaskStatus[]>;
+	statusTransitions: Record<WorkflowTaskStatus, WorkflowTaskStatus[]>;
 	columnTransitions: Record<WorkflowColumnSystemKey, WorkflowColumnSystemKey[]>;
 	signals: WorkflowSignalConfig[];
 	signalRules: WorkflowSignalRuleConfig[];
@@ -135,8 +136,8 @@ const WORKFLOW_SIGNAL_TABLE_NAMES = [
 	"workflow_signal_rules",
 ] as const;
 
-const TASK_STATUS_VALUES: readonly TaskStatus[] = [
-	"queued",
+const TASK_STATUS_VALUES: readonly WorkflowTaskStatus[] = [
+	"pending",
 	"running",
 	"question",
 	"paused",
@@ -164,10 +165,10 @@ const RUN_STATUS_VALUES: readonly WorkflowRunStatus[] = [
 ];
 
 const BLOCKED_REASON_BY_STATUS_FALLBACK: Record<
-	TaskStatus,
+	WorkflowTaskStatus,
 	BlockedReason | null
 > = {
-	queued: null,
+	pending: null,
 	running: null,
 	question: "question",
 	paused: "paused",
@@ -177,10 +178,10 @@ const BLOCKED_REASON_BY_STATUS_FALLBACK: Record<
 };
 
 const CLOSED_REASON_BY_STATUS_FALLBACK: Record<
-	TaskStatus,
+	WorkflowTaskStatus,
 	ClosedReason | null
 > = {
-	queued: null,
+	pending: null,
 	running: null,
 	question: null,
 	paused: null,
@@ -190,10 +191,10 @@ const CLOSED_REASON_BY_STATUS_FALLBACK: Record<
 };
 
 const STATUS_VISUALS_FALLBACK: Record<
-	TaskStatus,
+	WorkflowTaskStatus,
 	{ color: string; icon: WorkflowIconKey }
 > = {
-	queued: { color: "#f59e0b", icon: "clock" },
+	pending: { color: "#f59e0b", icon: "clock" },
 	running: { color: "#3b82f6", icon: "play" },
 	question: { color: "#f97316", icon: "help-circle" },
 	paused: { color: "#eab308", icon: "pause" },
@@ -203,10 +204,10 @@ const STATUS_VISUALS_FALLBACK: Record<
 };
 
 const STATUS_TO_WORKFLOW_COLUMN_FALLBACK: Record<
-	TaskStatus,
+	WorkflowTaskStatus,
 	WorkflowColumnSystemKey
 > = {
-	queued: "ready",
+	pending: "ready",
 	running: "in_progress",
 	question: "blocked",
 	paused: "blocked",
@@ -217,11 +218,11 @@ const STATUS_TO_WORKFLOW_COLUMN_FALLBACK: Record<
 
 const COLUMN_DEFAULT_STATUS_FALLBACK: Record<
 	WorkflowColumnSystemKey,
-	TaskStatus
+	WorkflowTaskStatus
 > = {
-	backlog: "queued",
-	ready: "queued",
-	deferred: "queued",
+	backlog: "pending",
+	ready: "pending",
+	deferred: "pending",
 	in_progress: "running",
 	blocked: "paused",
 	review: "done",
@@ -230,25 +231,28 @@ const COLUMN_DEFAULT_STATUS_FALLBACK: Record<
 
 const COLUMN_ALLOWED_STATUSES_FALLBACK: Record<
 	WorkflowColumnSystemKey,
-	readonly TaskStatus[]
+	readonly WorkflowTaskStatus[]
 > = {
-	backlog: ["queued"],
-	ready: ["queued"],
-	deferred: ["queued"],
+	backlog: ["pending"],
+	ready: ["pending"],
+	deferred: ["pending"],
 	in_progress: ["running", "generating"],
 	blocked: ["question", "paused", "failed"],
 	review: ["done"],
 	closed: ["done", "failed"],
 };
 
-const STATUS_TRANSITIONS_FALLBACK: Record<TaskStatus, readonly TaskStatus[]> = {
-	queued: ["running", "generating", "done", "failed", "paused", "question"],
-	running: ["queued", "paused", "question", "failed", "done"],
-	question: ["queued", "running", "paused", "failed", "done"],
-	paused: ["queued", "running", "question", "failed", "done"],
-	done: ["queued", "running", "failed"],
-	failed: ["queued", "running", "paused"],
-	generating: ["queued", "paused", "question", "failed", "done"],
+const STATUS_TRANSITIONS_FALLBACK: Record<
+	WorkflowTaskStatus,
+	readonly WorkflowTaskStatus[]
+> = {
+	pending: ["running", "generating", "done", "failed", "paused", "question"],
+	running: ["pending", "paused", "question", "failed", "done"],
+	question: ["pending", "running", "paused", "failed", "done"],
+	paused: ["pending", "running", "question", "failed", "done"],
+	done: ["pending", "running", "failed"],
+	failed: ["pending", "running", "paused"],
+	generating: ["pending", "paused", "question", "failed", "done"],
 };
 
 const COLUMN_TRANSITIONS_FALLBACK: Record<
@@ -474,7 +478,7 @@ const WORKFLOW_SIGNAL_RULES_FALLBACK: readonly WorkflowSignalRuleConfig[] = [
 		runKind: "task-description-improve",
 		runStatus: "completed",
 		fromStatus: null,
-		toStatus: "queued",
+		toStatus: "pending",
 	},
 	{
 		key: "rule-done-generated",
@@ -482,7 +486,7 @@ const WORKFLOW_SIGNAL_RULES_FALLBACK: readonly WorkflowSignalRuleConfig[] = [
 		runKind: "task-description-improve",
 		runStatus: "completed",
 		fromStatus: null,
-		toStatus: "queued",
+		toStatus: "pending",
 	},
 	{
 		key: "rule-done-default",
@@ -546,7 +550,7 @@ const WORKFLOW_SIGNAL_RULES_FALLBACK: readonly WorkflowSignalRuleConfig[] = [
 		runKind: null,
 		runStatus: "cancelled",
 		fromStatus: null,
-		toStatus: "queued",
+		toStatus: "pending",
 	},
 	{
 		key: "rule-user-start-generation",
@@ -586,7 +590,7 @@ const WORKFLOW_SIGNAL_RULES_FALLBACK: readonly WorkflowSignalRuleConfig[] = [
 		runKind: null,
 		runStatus: null,
 		fromStatus: null,
-		toStatus: "queued",
+		toStatus: "pending",
 	},
 	{
 		key: "rule-user-retry-run",
@@ -594,7 +598,7 @@ const WORKFLOW_SIGNAL_RULES_FALLBACK: readonly WorkflowSignalRuleConfig[] = [
 		runKind: null,
 		runStatus: null,
 		fromStatus: null,
-		toStatus: "queued",
+		toStatus: "pending",
 	},
 	{
 		key: "rule-user-approve-generation",
@@ -602,7 +606,7 @@ const WORKFLOW_SIGNAL_RULES_FALLBACK: readonly WorkflowSignalRuleConfig[] = [
 		runKind: null,
 		runStatus: null,
 		fromStatus: null,
-		toStatus: "queued",
+		toStatus: "pending",
 	},
 	{
 		key: "rule-user-reject-generation",
@@ -642,7 +646,7 @@ const WORKFLOW_SIGNAL_RULES_FALLBACK: readonly WorkflowSignalRuleConfig[] = [
 		runKind: null,
 		runStatus: null,
 		fromStatus: null,
-		toStatus: "queued",
+		toStatus: "pending",
 	},
 	{
 		key: "rule-user-reopen-task",
@@ -650,22 +654,25 @@ const WORKFLOW_SIGNAL_RULES_FALLBACK: readonly WorkflowSignalRuleConfig[] = [
 		runKind: null,
 		runStatus: null,
 		fromStatus: null,
-		toStatus: "queued",
+		toStatus: "pending",
 	},
 ];
 
 interface WorkflowRuntimeConfig {
 	defaultColumns: readonly WorkflowColumnTemplate[];
-	statusToColumn: Record<TaskStatus, WorkflowColumnSystemKey>;
-	columnDefaultStatus: Record<WorkflowColumnSystemKey, TaskStatus>;
-	columnAllowedStatuses: Record<WorkflowColumnSystemKey, readonly TaskStatus[]>;
-	statusTransitions: Record<TaskStatus, readonly TaskStatus[]>;
+	statusToColumn: Record<WorkflowTaskStatus, WorkflowColumnSystemKey>;
+	columnDefaultStatus: Record<WorkflowColumnSystemKey, WorkflowTaskStatus>;
+	columnAllowedStatuses: Record<
+		WorkflowColumnSystemKey,
+		readonly WorkflowTaskStatus[]
+	>;
+	statusTransitions: Record<WorkflowTaskStatus, readonly WorkflowTaskStatus[]>;
 	columnTransitions: Record<
 		WorkflowColumnSystemKey,
 		readonly WorkflowColumnSystemKey[]
 	>;
-	blockedReasonByStatus: Record<TaskStatus, BlockedReason | null>;
-	closedReasonByStatus: Record<TaskStatus, ClosedReason | null>;
+	blockedReasonByStatus: Record<WorkflowTaskStatus, BlockedReason | null>;
+	closedReasonByStatus: Record<WorkflowTaskStatus, ClosedReason | null>;
 	signalByKey: ReadonlyMap<string, WorkflowSignalConfig>;
 	signalRulesBySignalKey: ReadonlyMap<
 		string,
@@ -805,7 +812,7 @@ function toWorkflowConfig(
 ): WorkflowConfig | null {
 	const statuses: WorkflowStatusConfig[] = [];
 	for (const row of statusRows) {
-		if (!isTaskStatus(row.status)) {
+		if (typeof row.status !== "string" || !row.status.trim()) {
 			return null;
 		}
 
@@ -841,21 +848,25 @@ function toWorkflowConfig(
 		});
 	}
 
-	const allowedStatusesByColumn: Record<WorkflowColumnSystemKey, TaskStatus[]> =
-		{
-			backlog: [],
-			ready: [],
-			deferred: [],
-			in_progress: [],
-			blocked: [],
-			review: [],
-			closed: [],
-		};
+	const statusKeySet = new Set(statuses.map((row) => row.status));
+
+	const allowedStatusesByColumn: Record<
+		WorkflowColumnSystemKey,
+		WorkflowTaskStatus[]
+	> = {
+		backlog: [],
+		ready: [],
+		deferred: [],
+		in_progress: [],
+		blocked: [],
+		review: [],
+		closed: [],
+	};
 
 	for (const row of allowedStatusRows) {
 		if (
 			!isWorkflowColumnSystemKey(row.systemKey) ||
-			!isTaskStatus(row.status)
+			!statusKeySet.has(row.status)
 		) {
 			return null;
 		}
@@ -867,7 +878,7 @@ function toWorkflowConfig(
 		const columnIcon = normalizeWorkflowIconKey(row.icon);
 		if (
 			!isWorkflowColumnSystemKey(row.systemKey) ||
-			!isTaskStatus(row.defaultStatus) ||
+			!statusKeySet.has(row.defaultStatus) ||
 			!columnIcon
 		) {
 			return null;
@@ -888,18 +899,14 @@ function toWorkflowConfig(
 		});
 	}
 
-	const statusTransitions: Record<TaskStatus, TaskStatus[]> = {
-		queued: [],
-		running: [],
-		question: [],
-		paused: [],
-		done: [],
-		failed: [],
-		generating: [],
-	};
+	const statusTransitions: Record<WorkflowTaskStatus, WorkflowTaskStatus[]> =
+		{};
+	for (const status of statusKeySet) {
+		statusTransitions[status] = [];
+	}
 
 	for (const row of statusTransitionRows) {
-		if (!isTaskStatus(row.fromStatus) || !isTaskStatus(row.toStatus)) {
+		if (!statusKeySet.has(row.fromStatus) || !statusKeySet.has(row.toStatus)) {
 			return null;
 		}
 
@@ -966,11 +973,11 @@ function toWorkflowConfig(
 			return null;
 		}
 
-		if (row.fromStatus !== null && !isTaskStatus(row.fromStatus)) {
+		if (row.fromStatus !== null && !statusKeySet.has(row.fromStatus)) {
 			return null;
 		}
 
-		if (!isTaskStatus(row.toStatus)) {
+		if (!statusKeySet.has(row.toStatus)) {
 			return null;
 		}
 
@@ -1026,15 +1033,11 @@ function buildFallbackWorkflowConfig(): WorkflowConfig {
 		};
 	});
 
-	const statusTransitions: Record<TaskStatus, TaskStatus[]> = {
-		queued: [...STATUS_TRANSITIONS_FALLBACK.queued],
-		running: [...STATUS_TRANSITIONS_FALLBACK.running],
-		question: [...STATUS_TRANSITIONS_FALLBACK.question],
-		paused: [...STATUS_TRANSITIONS_FALLBACK.paused],
-		done: [...STATUS_TRANSITIONS_FALLBACK.done],
-		failed: [...STATUS_TRANSITIONS_FALLBACK.failed],
-		generating: [...STATUS_TRANSITIONS_FALLBACK.generating],
-	};
+	const statusTransitions: Record<WorkflowTaskStatus, WorkflowTaskStatus[]> =
+		{};
+	for (const status of TASK_STATUS_VALUES) {
+		statusTransitions[status] = [...STATUS_TRANSITIONS_FALLBACK[status]];
+	}
 
 	const columnTransitions: Record<
 		WorkflowColumnSystemKey,
@@ -1095,10 +1098,11 @@ function loadWorkflowConfigFromDb(
 		)
 		.all() as WorkflowColumnTemplateRowWithOrder[];
 
-	if (
-		statusRows.length !== TASK_STATUS_VALUES.length ||
-		templateRows.length !== WORKFLOW_COLUMN_SYSTEM_KEYS.length
-	) {
+	if (statusRows.length === 0) {
+		return null;
+	}
+
+	if (templateRows.length !== WORKFLOW_COLUMN_SYSTEM_KEYS.length) {
 		return null;
 	}
 
@@ -1173,19 +1177,19 @@ function loadWorkflowConfigFromDb(
 }
 
 function validateWorkflowConfig(config: WorkflowConfig): void {
-	if (config.statuses.length !== TASK_STATUS_VALUES.length) {
-		throw new Error("Workflow config must include all task statuses");
+	if (config.statuses.length === 0) {
+		throw new Error("Workflow config must include at least one status");
 	}
 
 	if (config.columns.length !== WORKFLOW_COLUMN_SYSTEM_KEYS.length) {
 		throw new Error("Workflow config must include all workflow columns");
 	}
 
-	const seenStatuses = new Set<TaskStatus>();
+	const seenStatuses = new Set<WorkflowTaskStatus>();
 	const statusOrderIndexes = new Set<number>();
 	for (const row of config.statuses) {
 		const statusIcon = normalizeWorkflowIconKey(row.icon);
-		if (!isTaskStatus(row.status)) {
+		if (!row.status.trim()) {
 			throw new Error(`Invalid status: ${String(row.status)}`);
 		}
 		if (!isWorkflowColumnSystemKey(row.preferredColumnSystemKey)) {
@@ -1221,12 +1225,6 @@ function validateWorkflowConfig(config: WorkflowConfig): void {
 		statusOrderIndexes.add(row.orderIndex);
 	}
 
-	for (const status of TASK_STATUS_VALUES) {
-		if (!seenStatuses.has(status)) {
-			throw new Error(`Missing status row: ${status}`);
-		}
-	}
-
 	const seenColumns = new Set<WorkflowColumnSystemKey>();
 	const columnOrderIndexes = new Set<number>();
 	for (const row of config.columns) {
@@ -1244,7 +1242,7 @@ function validateWorkflowConfig(config: WorkflowConfig): void {
 			throw new Error(`Invalid icon for column ${row.systemKey}: ${row.icon}`);
 		}
 		row.icon = columnIcon;
-		if (!isTaskStatus(row.defaultStatus)) {
+		if (!seenStatuses.has(row.defaultStatus)) {
 			throw new Error(`Invalid default status for column ${row.systemKey}`);
 		}
 		if (!Number.isInteger(row.orderIndex) || row.orderIndex < 0) {
@@ -1267,9 +1265,9 @@ function validateWorkflowConfig(config: WorkflowConfig): void {
 		}
 		columnOrderIndexes.add(row.orderIndex);
 
-		const allowedSet = new Set<TaskStatus>();
+		const allowedSet = new Set<WorkflowTaskStatus>();
 		for (const status of row.allowedStatuses) {
-			if (!isTaskStatus(status)) {
+			if (!seenStatuses.has(status)) {
 				throw new Error(
 					`Invalid allowed status '${String(status)}' for column ${row.systemKey}`,
 				);
@@ -1295,14 +1293,22 @@ function validateWorkflowConfig(config: WorkflowConfig): void {
 		}
 	}
 
-	for (const fromStatus of TASK_STATUS_VALUES) {
+	for (const fromStatus of Object.keys(config.statusTransitions)) {
+		if (!seenStatuses.has(fromStatus)) {
+			throw new Error(
+				`Unknown status transition source '${String(fromStatus)}'`,
+			);
+		}
+	}
+
+	for (const fromStatus of seenStatuses) {
 		const nextStatuses = config.statusTransitions[fromStatus];
 		if (!Array.isArray(nextStatuses)) {
 			throw new Error(`Missing status transition row for ${fromStatus}`);
 		}
-		const nextStatusSet = new Set<TaskStatus>();
+		const nextStatusSet = new Set<WorkflowTaskStatus>();
 		for (const toStatus of nextStatuses) {
-			if (!isTaskStatus(toStatus)) {
+			if (!seenStatuses.has(toStatus)) {
 				throw new Error(
 					`Invalid status transition target '${String(toStatus)}' from ${fromStatus}`,
 				);
@@ -1409,11 +1415,11 @@ function validateWorkflowConfig(config: WorkflowConfig): void {
 			throw new Error(`Invalid run status in signal rule ${rule.key}`);
 		}
 
-		if (rule.fromStatus !== null && !isTaskStatus(rule.fromStatus)) {
+		if (rule.fromStatus !== null && !seenStatuses.has(rule.fromStatus)) {
 			throw new Error(`Invalid fromStatus in signal rule ${rule.key}`);
 		}
 
-		if (!isTaskStatus(rule.toStatus)) {
+		if (!seenStatuses.has(rule.toStatus)) {
 			throw new Error(`Invalid toStatus in signal rule ${rule.key}`);
 		}
 
@@ -1441,14 +1447,14 @@ function validateWorkflowConfig(config: WorkflowConfig): void {
 	}
 }
 
-function parseStatusList(value: unknown): TaskStatus[] | null {
+function parseStatusList(value: unknown): WorkflowTaskStatus[] | null {
 	if (!Array.isArray(value)) {
 		return null;
 	}
 
-	const statuses: TaskStatus[] = [];
+	const statuses: WorkflowTaskStatus[] = [];
 	for (const item of value) {
-		if (typeof item !== "string" || !isTaskStatus(item)) {
+		if (typeof item !== "string" || !item.trim()) {
 			return null;
 		}
 		statuses.push(item);
@@ -1518,7 +1524,7 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 
 		if (
 			typeof status !== "string" ||
-			!isTaskStatus(status) ||
+			!status.trim() ||
 			typeof preferredColumnSystemKey !== "string" ||
 			!isWorkflowColumnSystemKey(preferredColumnSystemKey) ||
 			typeof color !== "string" ||
@@ -1564,6 +1570,8 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 		});
 	}
 
+	const statusKeySet = new Set(statuses.map((row) => row.status));
+
 	const columns: WorkflowColumnConfig[] = [];
 	for (const item of columnsValue) {
 		if (!isRecord(item)) {
@@ -1593,7 +1601,7 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 			!Number.isInteger(orderIndex) ||
 			orderIndex < 0 ||
 			typeof defaultStatus !== "string" ||
-			!isTaskStatus(defaultStatus)
+			!statusKeySet.has(defaultStatus)
 		) {
 			return null;
 		}
@@ -1614,20 +1622,18 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 		});
 	}
 
-	const statusTransitions: Record<TaskStatus, TaskStatus[]> = {
-		queued: [],
-		running: [],
-		question: [],
-		paused: [],
-		done: [],
-		failed: [],
-		generating: [],
-	};
+	const statusTransitions: Record<WorkflowTaskStatus, WorkflowTaskStatus[]> =
+		{};
 
-	for (const status of TASK_STATUS_VALUES) {
+	for (const status of statusKeySet) {
 		const parsedStatuses = parseStatusList(statusTransitionsValue[status]);
 		if (!parsedStatuses) {
 			return null;
+		}
+		for (const parsedStatus of parsedStatuses) {
+			if (!statusKeySet.has(parsedStatus)) {
+				return null;
+			}
 		}
 		statusTransitions[status] = parsedStatuses;
 	}
@@ -1721,9 +1727,9 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 					(typeof runStatus !== "string" || !isWorkflowRunStatus(runStatus))) ||
 				(fromStatus !== null &&
 					fromStatus !== undefined &&
-					(typeof fromStatus !== "string" || !isTaskStatus(fromStatus))) ||
+					(typeof fromStatus !== "string" || !statusKeySet.has(fromStatus))) ||
 				typeof toStatus !== "string" ||
-				!isTaskStatus(toStatus)
+				!statusKeySet.has(toStatus)
 			) {
 				return null;
 			}
@@ -1737,7 +1743,7 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 						? runStatus
 						: null,
 				fromStatus:
-					typeof fromStatus === "string" && isTaskStatus(fromStatus)
+					typeof fromStatus === "string" && statusKeySet.has(fromStatus)
 						? fromStatus
 						: null,
 				toStatus,
@@ -1842,8 +1848,10 @@ export function updateWorkflowConfig(config: WorkflowConfig): void {
 			`INSERT INTO workflow_status_transitions (from_status, to_status)
        VALUES (?, ?)`,
 		);
-		for (const fromStatus of TASK_STATUS_VALUES) {
-			for (const toStatus of config.statusTransitions[fromStatus]) {
+		for (const [fromStatus, toStatuses] of Object.entries(
+			config.statusTransitions,
+		)) {
+			for (const toStatus of toStatuses) {
 				insertStatusTransition.run(fromStatus, toStatus);
 			}
 		}
@@ -1920,15 +1928,19 @@ function loadRuntimeConfigFromDb(): WorkflowRuntimeConfig | null {
 		return null;
 	}
 
-	const statusToColumn: Record<TaskStatus, WorkflowColumnSystemKey> = {
+	const statusToColumn: Record<WorkflowTaskStatus, WorkflowColumnSystemKey> = {
 		...STATUS_TO_WORKFLOW_COLUMN_FALLBACK,
 	};
-	const blockedReasonByStatus: Record<TaskStatus, BlockedReason | null> = {
+	const blockedReasonByStatus: Record<
+		WorkflowTaskStatus,
+		BlockedReason | null
+	> = {
 		...BLOCKED_REASON_BY_STATUS_FALLBACK,
 	};
-	const closedReasonByStatus: Record<TaskStatus, ClosedReason | null> = {
-		...CLOSED_REASON_BY_STATUS_FALLBACK,
-	};
+	const closedReasonByStatus: Record<WorkflowTaskStatus, ClosedReason | null> =
+		{
+			...CLOSED_REASON_BY_STATUS_FALLBACK,
+		};
 
 	for (const row of workflowConfig.statuses) {
 		statusToColumn[row.status] = row.preferredColumnSystemKey;
@@ -1937,12 +1949,15 @@ function loadRuntimeConfigFromDb(): WorkflowRuntimeConfig | null {
 	}
 
 	const defaultColumns: WorkflowColumnTemplate[] = [];
-	const columnDefaultStatus: Record<WorkflowColumnSystemKey, TaskStatus> = {
+	const columnDefaultStatus: Record<
+		WorkflowColumnSystemKey,
+		WorkflowTaskStatus
+	> = {
 		...COLUMN_DEFAULT_STATUS_FALLBACK,
 	};
 	const columnAllowedStatuses: Record<
 		WorkflowColumnSystemKey,
-		readonly TaskStatus[]
+		readonly WorkflowTaskStatus[]
 	> = {
 		backlog: [],
 		ready: [],
@@ -1982,7 +1997,7 @@ function loadRuntimeConfigFromDb(): WorkflowRuntimeConfig | null {
 
 export interface ResolveTaskStatusBySignalInput {
 	signalKey: string;
-	currentStatus: TaskStatus;
+	currentStatus: WorkflowTaskStatus;
 	runKind?: string | null;
 	runStatus?: WorkflowRunStatus | null;
 	scope?: WorkflowSignalScope;
@@ -1990,7 +2005,7 @@ export interface ResolveTaskStatusBySignalInput {
 
 export function resolveTaskStatusBySignal(
 	input: ResolveTaskStatusBySignalInput,
-): TaskStatus | null {
+): WorkflowTaskStatus | null {
 	const runtime = getRuntimeConfig();
 	const signal = runtime.signalByKey.get(input.signalKey);
 	if (!signal || !signal.isActive) {
@@ -2062,8 +2077,16 @@ export function isWorkflowColumnSystemKey(
 	return (WORKFLOW_COLUMN_SYSTEM_KEYS as readonly string[]).includes(value);
 }
 
-export function isTaskStatus(value: string): value is TaskStatus {
-	return (TASK_STATUS_VALUES as readonly string[]).includes(value);
+export function isWorkflowTaskStatus(value: string): boolean {
+	const runtime = getRuntimeConfig();
+	return (
+		Object.prototype.hasOwnProperty.call(runtime.statusTransitions, value) ||
+		Object.prototype.hasOwnProperty.call(runtime.statusToColumn, value)
+	);
+}
+
+export function isTaskStatus(value: string): boolean {
+	return isWorkflowTaskStatus(value);
 }
 
 export function isBlockedReason(value: string): value is BlockedReason {
@@ -2104,12 +2127,19 @@ export function getWorkflowColumnIdBySystemKey(
 	return column?.id ?? null;
 }
 
-export function canTransitionStatus(from: TaskStatus, to: TaskStatus): boolean {
+export function canTransitionStatus(
+	from: WorkflowTaskStatus,
+	to: WorkflowTaskStatus,
+): boolean {
+	if (!isWorkflowTaskStatus(from) || !isWorkflowTaskStatus(to)) {
+		return false;
+	}
+
 	if (from === to) {
 		return true;
 	}
 
-	return getRuntimeConfig().statusTransitions[from].includes(to);
+	return (getRuntimeConfig().statusTransitions[from] ?? []).includes(to);
 }
 
 export function canTransitionColumn(
@@ -2124,7 +2154,7 @@ export function canTransitionColumn(
 }
 
 export function isStatusAllowedInWorkflowColumn(
-	status: TaskStatus,
+	status: WorkflowTaskStatus,
 	systemKey: WorkflowColumnSystemKey,
 ): boolean {
 	return getRuntimeConfig().columnAllowedStatuses[systemKey].includes(status);
@@ -2132,8 +2162,8 @@ export function isStatusAllowedInWorkflowColumn(
 
 export function getDefaultStatusForWorkflowColumn(
 	systemKey: WorkflowColumnSystemKey,
-	currentStatus?: TaskStatus,
-): TaskStatus {
+	currentStatus?: WorkflowTaskStatus,
+): WorkflowTaskStatus {
 	const runtime = getRuntimeConfig();
 	if (
 		currentStatus &&
@@ -2147,26 +2177,29 @@ export function getDefaultStatusForWorkflowColumn(
 
 export function getPreferredColumnIdForStatus(
 	board: Board,
-	status: TaskStatus,
+	status: WorkflowTaskStatus,
 ): string | null {
 	const systemKey = getRuntimeConfig().statusToColumn[status];
+	if (!systemKey) {
+		return null;
+	}
 	return getWorkflowColumnIdBySystemKey(board, systemKey);
 }
 
 export function getBlockedReasonForStatus(
-	status: TaskStatus,
+	status: WorkflowTaskStatus,
 ): BlockedReason | null {
-	return getRuntimeConfig().blockedReasonByStatus[status];
+	return getRuntimeConfig().blockedReasonByStatus[status] ?? null;
 }
 
 export function getClosedReasonForStatus(
-	status: TaskStatus,
+	status: WorkflowTaskStatus,
 ): ClosedReason | null {
-	return getRuntimeConfig().closedReasonByStatus[status];
+	return getRuntimeConfig().closedReasonByStatus[status] ?? null;
 }
 
 export function resolveTaskStatusReasons(
-	status: TaskStatus,
+	status: WorkflowTaskStatus,
 	columnSystemKey: WorkflowColumnSystemKey | null,
 ): { blockedReason: BlockedReason | null; closedReason: ClosedReason | null } {
 	if (columnSystemKey === "blocked") {

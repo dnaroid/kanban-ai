@@ -6,7 +6,7 @@ import {
 	getDefaultStatusForWorkflowColumn,
 	getWorkflowColumnSystemKey,
 	isStatusAllowedInWorkflowColumn,
-	isTaskStatus,
+	isWorkflowTaskStatus,
 	resolveTaskStatusReasons,
 } from "@/server/workflow/task-workflow-manager";
 
@@ -65,8 +65,13 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		const initialStatus = body.status ?? "queued";
-		if (!isTaskStatus(initialStatus)) {
+		const targetColumnKey = getWorkflowColumnSystemKey(board, targetColumn.id);
+		const initialStatus =
+			body.status ??
+			(targetColumnKey
+				? getDefaultStatusForWorkflowColumn(targetColumnKey)
+				: getDefaultStatusForWorkflowColumn("ready"));
+		if (!isWorkflowTaskStatus(initialStatus)) {
 			return NextResponse.json(
 				{ success: false, error: "Unsupported task status" },
 				{ status: 400 },
@@ -74,7 +79,6 @@ export async function POST(request: NextRequest) {
 		}
 
 		let resolvedStatus = initialStatus;
-		const targetColumnKey = getWorkflowColumnSystemKey(board, targetColumn.id);
 		if (
 			targetColumnKey &&
 			!isStatusAllowedInWorkflowColumn(resolvedStatus, targetColumnKey)

@@ -100,7 +100,7 @@ export const typeConfig = {
 } as const;
 
 export const statusConfig = {
-	queued: {
+	pending: {
 		icon: Clock,
 		color: "text-amber-400",
 		bg: "bg-amber-400/5",

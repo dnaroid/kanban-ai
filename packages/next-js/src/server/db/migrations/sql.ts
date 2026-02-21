@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS workflow_column_transitions (
 INSERT OR IGNORE INTO workflow_statuses
   (status, order_index, preferred_column_system_key, blocked_reason, closed_reason)
 VALUES
-  ('queued', 0, 'ready', NULL, NULL),
+  ('pending', 0, 'ready', NULL, NULL),
   ('running', 1, 'in_progress', NULL, NULL),
   ('question', 2, 'blocked', 'question', NULL),
   ('paused', 3, 'blocked', 'paused', NULL),
@@ -75,18 +75,18 @@ VALUES
 INSERT OR IGNORE INTO workflow_column_templates
   (system_key, name, color, order_index, default_status)
 VALUES
-  ('backlog', 'Backlog', '#6366f1', 0, 'queued'),
-  ('ready', 'Ready', '#0ea5e9', 1, 'queued'),
-  ('deferred', 'Deferred', '#6b7280', 2, 'queued'),
+  ('backlog', 'Backlog', '#6366f1', 0, 'pending'),
+  ('ready', 'Ready', '#0ea5e9', 1, 'pending'),
+  ('deferred', 'Deferred', '#6b7280', 2, 'pending'),
   ('in_progress', 'In Progress', '#f59e0b', 3, 'running'),
   ('blocked', 'Blocked', '#ef4444', 4, 'paused'),
   ('review', 'Review / QA', '#8b5cf6', 5, 'done'),
   ('closed', 'Closed', '#10b981', 6, 'done');
 
 INSERT OR IGNORE INTO workflow_column_allowed_statuses (system_key, status) VALUES
-  ('backlog', 'queued'),
-  ('ready', 'queued'),
-  ('deferred', 'queued'),
+  ('backlog', 'pending'),
+  ('ready', 'pending'),
+  ('deferred', 'pending'),
   ('in_progress', 'running'),
   ('in_progress', 'generating'),
   ('blocked', 'question'),
@@ -97,34 +97,34 @@ INSERT OR IGNORE INTO workflow_column_allowed_statuses (system_key, status) VALU
   ('closed', 'failed');
 
 INSERT OR IGNORE INTO workflow_status_transitions (from_status, to_status) VALUES
-  ('queued', 'running'),
-  ('queued', 'generating'),
-  ('queued', 'done'),
-  ('queued', 'failed'),
-  ('queued', 'paused'),
-  ('queued', 'question'),
-  ('running', 'queued'),
+  ('pending', 'running'),
+  ('pending', 'generating'),
+  ('pending', 'done'),
+  ('pending', 'failed'),
+  ('pending', 'paused'),
+  ('pending', 'question'),
+  ('running', 'pending'),
   ('running', 'paused'),
   ('running', 'question'),
   ('running', 'failed'),
   ('running', 'done'),
-  ('question', 'queued'),
+  ('question', 'pending'),
   ('question', 'running'),
   ('question', 'paused'),
   ('question', 'failed'),
   ('question', 'done'),
-  ('paused', 'queued'),
+  ('paused', 'pending'),
   ('paused', 'running'),
   ('paused', 'question'),
   ('paused', 'failed'),
   ('paused', 'done'),
-  ('done', 'queued'),
+  ('done', 'pending'),
   ('done', 'running'),
   ('done', 'failed'),
-  ('failed', 'queued'),
+  ('failed', 'pending'),
   ('failed', 'running'),
   ('failed', 'paused'),
-  ('generating', 'queued'),
+  ('generating', 'pending'),
   ('generating', 'paused'),
   ('generating', 'question'),
   ('generating', 'failed'),
@@ -167,7 +167,7 @@ ALTER TABLE workflow_column_templates ADD COLUMN icon TEXT NOT NULL DEFAULT 'lis
 
 UPDATE workflow_statuses
 SET color = CASE status
-  WHEN 'queued' THEN '#f59e0b'
+  WHEN 'pending' THEN '#64748b'
   WHEN 'running' THEN '#3b82f6'
   WHEN 'question' THEN '#f97316'
   WHEN 'paused' THEN '#eab308'
@@ -179,7 +179,7 @@ END;
 
 UPDATE workflow_statuses
 SET icon = CASE status
-  WHEN 'queued' THEN 'clock'
+  WHEN 'pending' THEN 'clock'
   WHEN 'running' THEN 'play'
   WHEN 'question' THEN 'help-circle'
   WHEN 'paused' THEN 'pause'
@@ -262,8 +262,8 @@ INSERT OR IGNORE INTO workflow_signal_rules
 VALUES
   ('rule-run-started-default', 'run_started', NULL, 'running', NULL, 'running'),
   ('rule-generation-started', 'generation_started', 'task-description-improve', 'running', NULL, 'generating'),
-  ('rule-generated-default', 'generated', 'task-description-improve', 'completed', NULL, 'queued'),
-  ('rule-done-generated', 'done', 'task-description-improve', 'completed', NULL, 'queued'),
+  ('rule-generated-default', 'generated', 'task-description-improve', 'completed', NULL, 'pending'),
+  ('rule-done-generated', 'done', 'task-description-improve', 'completed', NULL, 'pending'),
   ('rule-done-default', 'done', NULL, 'completed', NULL, 'done'),
   ('rule-fail-default', 'fail', NULL, 'failed', NULL, 'failed'),
   ('rule-test-ok-default', 'test_ok', NULL, 'completed', NULL, 'done'),
@@ -271,18 +271,18 @@ VALUES
   ('rule-question-generated', 'question', 'task-description-improve', 'paused', NULL, 'question'),
   ('rule-question-default', 'question', NULL, 'paused', NULL, 'paused'),
   ('rule-timeout-default', 'timeout', NULL, 'timeout', NULL, 'failed'),
-  ('rule-cancelled-default', 'cancelled', NULL, 'cancelled', NULL, 'queued'),
+  ('rule-cancelled-default', 'cancelled', NULL, 'cancelled', NULL, 'pending'),
   ('rule-user-start-generation', 'start_generation', NULL, NULL, NULL, 'generating'),
   ('rule-user-start-execution', 'start_execution', NULL, NULL, NULL, 'running'),
   ('rule-user-pause-run', 'pause_run', NULL, NULL, NULL, 'paused'),
   ('rule-user-resume-run', 'resume_run', NULL, NULL, NULL, 'running'),
-  ('rule-user-cancel-run', 'cancel_run', NULL, NULL, NULL, 'queued'),
-  ('rule-user-retry-run', 'retry_run', NULL, NULL, NULL, 'queued'),
-  ('rule-user-approve-generation', 'approve_generation', NULL, NULL, NULL, 'queued'),
+  ('rule-user-cancel-run', 'cancel_run', NULL, NULL, NULL, 'pending'),
+  ('rule-user-retry-run', 'retry_run', NULL, NULL, NULL, 'pending'),
+  ('rule-user-approve-generation', 'approve_generation', NULL, NULL, NULL, 'pending'),
   ('rule-user-reject-generation', 'reject_generation', NULL, NULL, NULL, 'failed'),
   ('rule-user-request-changes', 'request_changes', NULL, NULL, NULL, 'question'),
   ('rule-user-mark-test-ok', 'mark_test_ok', NULL, NULL, NULL, 'done'),
   ('rule-user-mark-test-fail', 'mark_test_fail', NULL, NULL, NULL, 'failed'),
-  ('rule-user-answer-question', 'answer_question', NULL, NULL, NULL, 'queued'),
-  ('rule-user-reopen-task', 'reopen_task', NULL, NULL, NULL, 'queued');
+  ('rule-user-answer-question', 'answer_question', NULL, NULL, NULL, 'pending'),
+  ('rule-user-reopen-task', 'reopen_task', NULL, NULL, NULL, 'pending');
 `;

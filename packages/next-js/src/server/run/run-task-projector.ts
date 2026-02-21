@@ -5,7 +5,7 @@ import type { Task } from "@/server/types";
 import {
 	getPreferredColumnIdForStatus,
 	getWorkflowColumnSystemKey,
-	isTaskStatus,
+	isWorkflowTaskStatus,
 	resolveTaskStatusBySignal,
 	resolveTaskStatusReasons,
 } from "@/server/workflow/task-workflow-manager";
@@ -200,7 +200,7 @@ export class RunTaskProjector {
 		runStatus: RunStatus,
 		signalKey: string,
 	): TaskStatus | null {
-		if (!isTaskStatus(task.status)) {
+		if (!isWorkflowTaskStatus(task.status)) {
 			return null;
 		}
 

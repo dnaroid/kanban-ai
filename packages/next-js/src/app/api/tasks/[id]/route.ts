@@ -11,7 +11,7 @@ import {
 	isStatusAllowedInWorkflowColumn,
 	isBlockedReason,
 	isClosedReason,
-	isTaskStatus,
+	isWorkflowTaskStatus,
 	resolveTaskStatusReasons,
 } from "@/server/workflow/task-workflow-manager";
 
@@ -88,14 +88,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 			);
 		}
 
-		if (requestedStatus !== undefined && !isTaskStatus(requestedStatus)) {
+		if (
+			requestedStatus !== undefined &&
+			!isWorkflowTaskStatus(requestedStatus)
+		) {
 			return NextResponse.json(
 				{ success: false, error: "Unsupported task status" },
 				{ status: 400 },
 			);
 		}
 
-		const currentStatus = isTaskStatus(existingTask.status)
+		const currentStatus = isWorkflowTaskStatus(existingTask.status)
 			? existingTask.status
 			: null;
 

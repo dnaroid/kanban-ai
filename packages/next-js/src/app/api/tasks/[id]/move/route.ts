@@ -7,7 +7,7 @@ import {
 	getDefaultStatusForWorkflowColumn,
 	getWorkflowColumnSystemKey,
 	isStatusAllowedInWorkflowColumn,
-	isTaskStatus,
+	isWorkflowTaskStatus,
 	resolveTaskStatusReasons,
 } from "@/server/workflow/task-workflow-manager";
 
@@ -69,7 +69,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 			);
 		}
 
-		const currentStatus = isTaskStatus(existingTask.status)
+		const currentStatus = isWorkflowTaskStatus(existingTask.status)
 			? existingTask.status
 			: null;
 		let resolvedStatus = currentStatus;
@@ -114,7 +114,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
 		const effectiveStatus =
 			resolvedStatus ??
-			(isTaskStatus(movedTask.status) ? movedTask.status : null);
+			(isWorkflowTaskStatus(movedTask.status) ? movedTask.status : null);
 		if (effectiveStatus !== null) {
 			const reasons = resolveTaskStatusReasons(
 				effectiveStatus,

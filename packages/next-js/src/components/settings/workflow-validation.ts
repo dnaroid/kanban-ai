@@ -1,6 +1,5 @@
 import type {
 	WorkflowConfig,
-	WorkflowTaskStatus,
 	WorkflowColumnSystemKey,
 	WorkflowRunStatus,
 	WorkflowSignalScope,
@@ -86,7 +85,7 @@ export function validateWorkflowConfig(
 	});
 
 	// Validate Statuses
-	const statusKeys = new Set<WorkflowTaskStatus>();
+	const statusKeys = new Set<string>();
 	const statusOrderIndexes = new Set<number>();
 
 	config.statuses.forEach((status, index) => {
@@ -126,8 +125,7 @@ export function validateWorkflowConfig(
 
 	// Validate Transitions (Status)
 	Object.keys(config.statusTransitions).forEach((fromStatus) => {
-		const transitions =
-			config.statusTransitions[fromStatus as WorkflowTaskStatus];
+		const transitions = config.statusTransitions[fromStatus];
 		transitions.forEach((toStatus, idx) => {
 			if (!statusKeys.has(toStatus)) {
 				errors.push({

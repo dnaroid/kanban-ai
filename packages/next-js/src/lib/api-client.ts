@@ -31,14 +31,7 @@ export type WorkflowColumnSystemKey =
 	| "review"
 	| "closed";
 
-export type WorkflowTaskStatus =
-	| "queued"
-	| "running"
-	| "question"
-	| "paused"
-	| "done"
-	| "failed"
-	| "generating";
+export type WorkflowTaskStatus = string;
 
 export type WorkflowBlockedReason = "question" | "paused" | "failed";
 export type WorkflowClosedReason = "done" | "failed";
@@ -93,7 +86,7 @@ export interface WorkflowSignalRuleConfig {
 export interface WorkflowConfig {
 	statuses: WorkflowStatusConfig[];
 	columns: WorkflowColumnConfig[];
-	statusTransitions: Record<WorkflowTaskStatus, WorkflowTaskStatus[]>;
+	statusTransitions: Record<string, WorkflowTaskStatus[]>;
 	columnTransitions: Record<WorkflowColumnSystemKey, WorkflowColumnSystemKey[]>;
 	signals: WorkflowSignalConfig[];
 	signalRules: WorkflowSignalRuleConfig[];

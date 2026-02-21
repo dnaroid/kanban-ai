@@ -1,13 +1,6 @@
 // Kanban-specific types for the board UI
 
-export type TaskStatus =
-	| "queued"
-	| "running"
-	| "question"
-	| "paused"
-	| "done"
-	| "failed"
-	| "generating";
+export type TaskStatus = string;
 
 export type BlockedReason = "question" | "paused" | "failed";
 
