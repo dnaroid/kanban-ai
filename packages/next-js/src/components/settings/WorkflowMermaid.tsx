@@ -34,51 +34,117 @@ interface WorkflowMermaidProps {
 	config: WorkflowConfig;
 }
 
+function escapeMermaidLabel(value: string): string {
+	return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function toMermaidBaseId(value: string, prefix: string): string {
+	const normalized = value
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9_]+/g, "_")
+		.replace(/^_+|_+$/g, "");
+
+	const safeValue = normalized.length > 0 ? normalized : "item";
+	return `${prefix}_${safeValue}`;
+}
+
+function createMermaidIdMap(
+	values: string[],
+	prefix: string,
+): Map<string, string> {
+	const used = new Set<string>();
+	const map = new Map<string, string>();
+
+	values.forEach((value) => {
+		const baseId = toMermaidBaseId(value, prefix);
+		let candidate = baseId;
+		let suffix = 2;
+
+		while (used.has(candidate)) {
+			candidate = `${baseId}_${suffix}`;
+			suffix += 1;
+		}
+
+		used.add(candidate);
+		map.set(value, candidate);
+	});
+
+	return map;
+}
+
 export function WorkflowMermaid({ config }: WorkflowMermaidProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 
 	const diagramCode = useMemo(() => {
-		let code = "graph LR";
+		const lines: string[] = ["graph LR"];
+		const sortedColumns = [...config.columns].sort(
+			(a, b) => a.orderIndex - b.orderIndex,
+		);
+		const statusIdMap = createMermaidIdMap(
+			config.statuses.map((s) => s.status),
+			"status",
+		);
+		const columnIdMap = createMermaidIdMap(
+			sortedColumns.map((col) => col.systemKey),
+			"column",
+		);
 
 		// Add subgraphs for columns
-		config.columns
-			.sort((a, b) => a.orderIndex - b.orderIndex)
-			.forEach((col) => {
-				const statusesInCol = config.statuses.filter(
-					(s) => s.preferredColumnSystemKey === col.systemKey,
-				);
+		sortedColumns.forEach((col) => {
+			const statusesInCol = config.statuses.filter(
+				(s) => s.preferredColumnSystemKey === col.systemKey,
+			);
+			const subgraphId = columnIdMap.get(col.systemKey);
 
-				code += `  subgraph ${col.systemKey} ["${col.name}"]
-`;
-				statusesInCol.forEach((s) => {
-					const isDefault = col.defaultStatus === s.status;
-					const label = isDefault ? `${s.status} (Default)` : s.status;
-					code += `    ${s.status}["${label}"]
-`;
-				});
-				code += "  end";
+			if (!subgraphId) {
+				return;
+			}
+
+			lines.push(`  subgraph ${subgraphId}["${escapeMermaidLabel(col.name)}"]`);
+			statusesInCol.forEach((s) => {
+				const isDefault = col.defaultStatus === s.status;
+				const label = isDefault ? `${s.status} (Default)` : s.status;
+				const statusId = statusIdMap.get(s.status);
+
+				if (!statusId) {
+					return;
+				}
+
+				lines.push(`    ${statusId}["${escapeMermaidLabel(label)}"]`);
 			});
+			lines.push("  end");
+		});
 
 		// Add status transitions
 		Object.entries(config.statusTransitions).forEach(([from, targets]) => {
+			const fromId = statusIdMap.get(from);
+			if (!fromId) {
+				return;
+			}
+
 			targets.forEach((to) => {
-				// Only draw if both statuses exist
-				if (
-					config.statuses.find((s) => s.status === from) &&
-					config.statuses.find((s) => s.status === to)
-				) {
-					code += `  ${from} --> ${to}`;
+				const toId = statusIdMap.get(to);
+
+				if (toId) {
+					lines.push(`  ${fromId} --> ${toId}`);
 				}
 			});
 		});
 
 		// Add column-specific styles
-		config.columns.forEach((col) => {
-			code += `  style ${col.systemKey} fill:rgba(0,0,0,0),stroke:${col.color},stroke-width:2px,stroke-dasharray: 5 5
-`;
+		sortedColumns.forEach((col) => {
+			const subgraphId = columnIdMap.get(col.systemKey);
+			if (!subgraphId) {
+				return;
+			}
+
+			lines.push(
+				`  style ${subgraphId} fill:transparent,stroke:${col.color},stroke-width:2px,stroke-dasharray:5 5`,
+			);
 		});
 
-		return code;
+		return lines.join("\n");
 	}, [config]);
 
 	useEffect(() => {
