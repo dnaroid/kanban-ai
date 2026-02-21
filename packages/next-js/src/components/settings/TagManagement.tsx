@@ -1,73 +1,25 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import {
 	Plus,
 	Trash2,
 	Tag as TagIcon,
-	Palette,
-	Check,
 	Hash,
-	Pencil,
 	X,
 	Search,
 	Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
+import { ColorPalettePicker } from "@/components/settings/ColorPalettePicker";
+import { DEFAULT_PRESET_COLORS } from "@/components/settings/color-palette";
 import type { Tag } from "@/types/kanban";
-
-const PRESET_COLORS = [
-	// Red
-	"#ef4444",
-	"#dc2626",
-	"#b91c1c",
-	// Orange
-	"#f97316",
-	"#ea580c",
-	"#c2410c",
-	// Amber/Yellow
-	"#f59e0b",
-	"#d97706",
-	"#b45309",
-	// Lime/Green
-	"#84cc16",
-	"#65a30d",
-	"#4d7c0f",
-	// Emerald/Teal
-	"#10b981",
-	"#059669",
-	"#047857",
-	// Cyan/Sky
-	"#06b6d4",
-	"#0891b2",
-	"#0e7490",
-	// Blue
-	"#3b82f6",
-	"#2563eb",
-	"#1d4ed8",
-	// Indigo/Violet
-	"#6366f1",
-	"#4f46e5",
-	"#4338ca",
-	// Purple/Fuchsia
-	"#a855f7",
-	"#9333ea",
-	"#7e22ce",
-	// Pink/Rose
-	"#ec4899",
-	"#db2777",
-	"#be185d",
-	// Slate/Zinc
-	"#64748b",
-	"#475569",
-	"#334155",
-];
 
 export function TagManagement() {
 	const [tags, setTags] = useState<Tag[]>([]);
 	const [newTagName, setNewTagName] = useState("");
-	const [selectedColor, setSelectedColor] = useState(PRESET_COLORS[21]); // Indigo
+	const [selectedColor, setSelectedColor] = useState(DEFAULT_PRESET_COLORS[21]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [isSaving, setIsSaving] = useState(false);
 	const [editingTagId, setEditingTagId] = useState<string | null>(null);
@@ -75,11 +27,7 @@ export function TagManagement() {
 	const [editColor, setEditColor] = useState("");
 	const [searchQuery, setSearchQuery] = useState("");
 
-	useEffect(() => {
-		void loadTags();
-	}, []);
-
-	const loadTags = async () => {
+	const loadTags = useCallback(async () => {
 		setIsLoading(true);
 		try {
 			const response = await api.tag.list({});
@@ -89,7 +37,11 @@ export function TagManagement() {
 		} finally {
 			setIsLoading(false);
 		}
-	};
+	}, []);
+
+	useEffect(() => {
+		void loadTags();
+	}, [loadTags]);
 
 	const handleCreateTag = async () => {
 		if (!newTagName.trim() || isSaving) return;
@@ -191,6 +143,7 @@ export function TagManagement() {
 					/>
 					{searchQuery && (
 						<button
+							type="button"
 							onClick={() => setSearchQuery("")}
 							className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-800 rounded-full transition-colors"
 						>
@@ -207,9 +160,9 @@ export function TagManagement() {
 
 						<div className="space-y-5 relative">
 							<div className="space-y-2.5">
-								<label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">
+								<span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">
 									Create New Tag
-								</label>
+								</span>
 								<div className="relative group">
 									<div className="absolute left-4 top-1/2 -translate-y-1/2">
 										<Hash className="w-4 h-4 text-slate-600 group-focus-within:text-indigo-400 transition-colors" />
@@ -226,66 +179,17 @@ export function TagManagement() {
 								</div>
 							</div>
 
-							<div className="space-y-4">
-								<div className="flex items-center justify-between pl-1">
-									<label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-										<Palette className="w-3.5 h-3.5" /> Color Signature
-									</label>
-									<div className="flex items-center gap-2">
-										<input
-											type="text"
-											value={selectedColor}
-											onChange={(e) => setSelectedColor(e.target.value)}
-											className="bg-transparent border-none text-[10px] font-mono text-slate-500 uppercase focus:outline-none w-16 text-right"
-										/>
-										<div className="relative">
-											<input
-												type="color"
-												value={selectedColor}
-												onChange={(e) => setSelectedColor(e.target.value)}
-												className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-											/>
-											<div
-												className="w-4 h-4 rounded-full ring-1 ring-white/20 shadow-sm"
-												style={{ backgroundColor: selectedColor }}
-											/>
-										</div>
-									</div>
-								</div>
-								<div className="grid grid-cols-6 gap-2.5 p-4 bg-slate-900/40 border border-slate-800/60 rounded-2xl">
-									{PRESET_COLORS.map((color) => (
-										<button
-											key={color}
-											type="button"
-											onClick={() => setSelectedColor(color)}
-											className={cn(
-												"aspect-square rounded-xl transition-all duration-500 relative group flex items-center justify-center",
-												selectedColor === color
-													? "scale-110 shadow-[0_0_25px_rgba(0,0,0,0.4)] ring-2 ring-white/30"
-													: "hover:scale-110 shadow-sm",
-											)}
-											style={{
-												backgroundColor: color,
-												boxShadow:
-													selectedColor === color
-														? `0 0 20px ${color}50`
-														: "none",
-											}}
-										>
-											{selectedColor === color && (
-												<Check className="w-4 h-4 text-white animate-in zoom-in-50 duration-500 drop-shadow-md" />
-											)}
-										</button>
-									))}
-								</div>
-							</div>
+							<ColorPalettePicker
+								value={selectedColor}
+								onChange={setSelectedColor}
+							/>
 						</div>
 
 						{newTagName && (
 							<div className="space-y-3 animate-in fade-in slide-in-from-top-4 duration-500 relative">
-								<label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">
+								<span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">
 									Preview Identity
-								</label>
+								</span>
 								<div className="flex items-center justify-center p-8 bg-slate-900/60 border border-dashed border-slate-800/80 rounded-2xl relative overflow-hidden">
 									<div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent pointer-events-none" />
 									<div
@@ -366,10 +270,9 @@ export function TagManagement() {
 													if (e.key === "Enter") void handleUpdateTag(tag.id);
 													if (e.key === "Escape") cancelEditing();
 												}}
-												autoFocus
 											/>
 											<div className="flex flex-wrap gap-1.5 p-2 bg-black/20 rounded-xl">
-												{PRESET_COLORS.map((color) => (
+												{DEFAULT_PRESET_COLORS.map((color) => (
 													<button
 														key={color}
 														type="button"
@@ -441,6 +344,7 @@ export function TagManagement() {
 												/>
 											</div>
 											<button
+												type="button"
 												className="absolute inset-0 z-0 cursor-pointer"
 												onClick={() => startEditing(tag)}
 												aria-label="Edit tag"

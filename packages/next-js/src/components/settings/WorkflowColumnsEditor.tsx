@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronUp, Palette } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import type {
 	WorkflowColumnConfig,
 	WorkflowStatusConfig,
@@ -9,6 +9,7 @@ import type {
 } from "@/lib/api-client";
 import { PillSelect } from "@/components/common/PillSelect";
 import { createStatusPillOptions } from "@/components/kanban/workflow-display";
+import { ColorPalettePicker } from "@/components/settings/ColorPalettePicker";
 import { cn } from "@/lib/utils";
 
 interface WorkflowColumnsEditorProps {
@@ -111,28 +112,12 @@ export function WorkflowColumnsEditor({
 							</div>
 						</div>
 
-						<div className="flex items-center gap-4">
-							<div className="flex items-center gap-2">
-								<div className="relative">
-									<input
-										type="color"
-										value={col.color}
-										onChange={(e) =>
-											updateColumn(col.systemKey, { color: e.target.value })
-										}
-										className="absolute inset-0 h-7 w-7 cursor-pointer opacity-0"
-									/>
-									<div
-										className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-700 ring-1 ring-white/10"
-										style={{ backgroundColor: col.color }}
-									>
-										<Palette className="h-3.5 w-3.5 text-white/80" />
-									</div>
-								</div>
-								<span className="text-[10px] font-mono text-slate-500 uppercase">
-									{col.color}
-								</span>
-							</div>
+						<div className="w-full max-w-sm">
+							<ColorPalettePicker
+								label="Column Color"
+								value={col.color}
+								onChange={(color) => updateColumn(col.systemKey, { color })}
+							/>
 						</div>
 					</div>
 
