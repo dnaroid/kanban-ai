@@ -11,7 +11,7 @@ import {
 	LayoutGrid,
 	ListTodo,
 	GitCompare,
-	Code2,
+	Map,
 	type LucideIcon,
 } from "lucide-react";
 
@@ -23,24 +23,25 @@ import { cn } from "@/lib/utils";
 import { WorkflowColumnsEditor } from "./WorkflowColumnsEditor";
 import { WorkflowStatusesEditor } from "./WorkflowStatusesEditor";
 import { WorkflowTransitionsEditor } from "./WorkflowTransitionsEditor";
-import { WorkflowAdvancedJsonEditor } from "./WorkflowAdvancedJsonEditor";
+import { WorkflowVisualizer } from "./WorkflowVisualizer";
+import { WorkflowMermaid } from "./WorkflowMermaid";
 import {
 	validateWorkflowConfig,
 	isWorkflowConfigDirty,
 } from "./workflow-validation";
 
-type EditorTab = "columns" | "statuses" | "transitions" | "json";
+type EditorTab = "visual" | "columns" | "statuses" | "transitions";
 
 const tabs: { id: EditorTab; label: string; icon: LucideIcon }[] = [
+	{ id: "visual", label: "Workflow Map", icon: Map },
 	{ id: "columns", label: "Columns", icon: LayoutGrid },
 	{ id: "statuses", label: "Statuses", icon: ListTodo },
 	{ id: "transitions", label: "Transitions", icon: GitCompare },
-	{ id: "json", label: "Advanced (JSON)", icon: Code2 },
 ];
 
 export function WorkflowSettingsEditor() {
 	const { setStatus } = useSettingsStatus();
-	const [activeTab, setActiveTab] = useState<EditorTab>("columns");
+	const [activeTab, setActiveTab] = useState<EditorTab>("visual");
 	const [isLoading, setIsLoading] = useState(true);
 	const [isSaving, setIsSaving] = useState(false);
 
@@ -276,6 +277,14 @@ export function WorkflowSettingsEditor() {
 
 			{/* Tab Content */}
 			<div className="min-h-[400px]">
+				{activeTab === "visual" && (
+					<div className="space-y-8">
+						<WorkflowVisualizer config={draftConfig} />
+						<div className="h-px bg-slate-800/50 mx-4" />
+						<WorkflowMermaid config={draftConfig} />
+					</div>
+				)}
+
 				{activeTab === "columns" && (
 					<WorkflowColumnsEditor
 						columns={draftConfig.columns}
@@ -304,14 +313,6 @@ export function WorkflowSettingsEditor() {
 						onColumnTransitionsChange={(ct) =>
 							updateDraft({ columnTransitions: ct })
 						}
-					/>
-				)}
-
-				{activeTab === "json" && (
-					<WorkflowAdvancedJsonEditor
-						config={draftConfig}
-						onChange={(config) => setDraftConfig(config)}
-						onError={(err) => setJsonError(err)}
 					/>
 				)}
 			</div>
