@@ -8,7 +8,10 @@ import type { QueueStats } from "@/server/run/runs-queue-manager";
 import { getRunsQueueManager } from "@/server/run/runs-queue-manager";
 import { contextSnapshotRepo } from "@/server/repositories/context-snapshot";
 import { projectRepo } from "@/server/repositories/project";
-import type { AgentRolePreset } from "@/server/repositories/role";
+import type {
+	AgentRoleBehavior,
+	AgentRolePreset,
+} from "@/server/repositories/role";
 import { roleRepo } from "@/server/repositories/role";
 import { runEventRepo } from "@/server/repositories/run-event";
 import { runRepo } from "@/server/repositories/run";
@@ -30,6 +33,10 @@ const agentRoleTagPrefix = "agent:";
 const generationRunKind = "task-description-improve";
 const qaTestingRunKind = "task-qa-testing";
 const activeSpecializedRunStatuses = new Set(["queued", "running", "paused"]);
+const behaviorSkillsFallback = {
+	preferredForStoryGeneration: "business-analyst",
+	preferredForQaTesting: "qa-expert",
+} as const;
 
 export class RunService {
 	private readonly queueManager = getRunsQueueManager();
@@ -154,8 +161,7 @@ export class RunService {
 			return { runId: activeGenerationRun.id };
 		}
 
-		const selectedRoleId = roleRepo.list().find((role) => role.id === "ba")?.id;
-		const roleId = selectedRoleId ?? roleRepo.list()[0]?.id;
+		const roleId = this.resolveRoleIdByBehavior("preferredForStoryGeneration");
 		if (!roleId) {
 			log.error("No agent roles configured");
 			throw new Error("No agent roles configured");
@@ -275,8 +281,7 @@ export class RunService {
 			return { runId: activeQaTestingRun.id };
 		}
 
-		const selectedRoleId = roleRepo.list().find((role) => role.id === "qa")?.id;
-		const roleId = selectedRoleId ?? roleRepo.list()[0]?.id;
+		const roleId = this.resolveRoleIdByBehavior("preferredForQaTesting");
 		if (!roleId) {
 			log.error("No agent roles configured");
 			throw new Error("No agent roles configured");
@@ -433,6 +438,7 @@ export class RunService {
 
 		try {
 			const parsed = JSON.parse(rawPreset) as Partial<AgentRolePreset>;
+			const behavior = this.parseRoleBehavior(parsed.behavior);
 			return {
 				version: parsed.version ?? "1.0",
 				provider: parsed.provider ?? "",
@@ -454,10 +460,68 @@ export class RunService {
 							(item): item is string => typeof item === "string",
 						)
 					: [],
+				behavior,
 			};
 		} catch {
 			return null;
 		}
+	}
+
+	private parseRoleBehavior(rawBehavior: unknown): AgentRoleBehavior {
+		if (!rawBehavior || typeof rawBehavior !== "object") {
+			return {};
+		}
+
+		const source = rawBehavior as Record<string, unknown>;
+		return {
+			preferredForStoryGeneration: source.preferredForStoryGeneration === true,
+			preferredForQaTesting: source.preferredForQaTesting === true,
+			recommended: source.recommended === true,
+			optional: source.optional === true,
+			quickSelect: source.quickSelect === true,
+		};
+	}
+
+	private resolveRoleIdByBehavior(
+		behaviorKey: keyof typeof behaviorSkillsFallback,
+	): string | null {
+		const roleRepository = roleRepo as {
+			list: () => Array<{ id: string; name: string; description: string }>;
+			listWithPresets?: () => Array<{
+				id: string;
+				name: string;
+				description: string;
+				preset_json: string;
+			}>;
+		};
+
+		const rolesWithPresets =
+			typeof roleRepository.listWithPresets === "function"
+				? roleRepository.listWithPresets()
+				: roleRepository.list().map((role) => ({
+						...role,
+						preset_json: "",
+					}));
+		if (rolesWithPresets.length === 0) {
+			return null;
+		}
+
+		for (const role of rolesWithPresets) {
+			const preset = this.parseRolePreset(role.preset_json);
+			if (preset?.behavior?.[behaviorKey] === true) {
+				return role.id;
+			}
+		}
+
+		const fallbackSkill = behaviorSkillsFallback[behaviorKey];
+		for (const role of rolesWithPresets) {
+			const preset = this.parseRolePreset(role.preset_json);
+			if (preset?.skills.includes(fallbackSkill)) {
+				return role.id;
+			}
+		}
+
+		return rolesWithPresets[0]?.id ?? null;
 	}
 }
 

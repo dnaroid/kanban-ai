@@ -14,6 +14,15 @@ export interface AgentRolePreset {
 	systemPrompt: string;
 	mustDo: string[];
 	outputContract: string[];
+	behavior?: AgentRoleBehavior;
+}
+
+export interface AgentRoleBehavior {
+	preferredForStoryGeneration?: boolean;
+	preferredForQaTesting?: boolean;
+	recommended?: boolean;
+	optional?: boolean;
+	quickSelect?: boolean;
 }
 
 interface AgentRolePresetRow {
@@ -64,14 +73,7 @@ export class RoleRepository {
 				description = excluded.description,
 				preset_json = excluded.preset_json,
 				updated_at = excluded.updated_at`,
-		).run(
-			role.id,
-			role.name,
-			role.description,
-			role.preset_json,
-			now,
-			now,
-		);
+		).run(role.id, role.name, role.description, role.preset_json, now, now);
 	}
 
 	public delete(id: string): void {

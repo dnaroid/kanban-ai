@@ -40,6 +40,7 @@ export class DatabaseManager {
 		}
 		this.ensureCriticalSchema();
 		this.seedAgentRoles();
+		this.backfillRoleBehaviorMetadata();
 
 		console.log("[DB] Connected to database:", this.dbPath);
 
@@ -233,6 +234,11 @@ export class DatabaseManager {
 						"Out of scope",
 						"Risks",
 					],
+					behavior: {
+						preferredForStoryGeneration: true,
+						recommended: true,
+						quickSelect: true,
+					},
 				}),
 			},
 			{
@@ -262,6 +268,9 @@ export class DatabaseManager {
 						"Risks/mitigations",
 						"DoD",
 					],
+					behavior: {
+						recommended: true,
+					},
 				}),
 			},
 			{
@@ -292,6 +301,10 @@ export class DatabaseManager {
 						"A11y checks",
 						"Test coverage",
 					],
+					behavior: {
+						recommended: true,
+						quickSelect: true,
+					},
 				}),
 			},
 			{
@@ -322,6 +335,10 @@ export class DatabaseManager {
 						"Failure handling",
 						"Tests",
 					],
+					behavior: {
+						recommended: true,
+						quickSelect: true,
+					},
 				}),
 			},
 			{
@@ -347,6 +364,11 @@ export class DatabaseManager {
 						"Defects",
 						"Release recommendation",
 					],
+					behavior: {
+						preferredForQaTesting: true,
+						recommended: true,
+						quickSelect: true,
+					},
 				}),
 			},
 			{
@@ -377,6 +399,9 @@ export class DatabaseManager {
 						"Deploy/rollback plan",
 						"Runbook updates",
 					],
+					behavior: {
+						optional: true,
+					},
 				}),
 			},
 			{
@@ -402,6 +427,9 @@ export class DatabaseManager {
 						"Prioritize vulnerabilities by impact and likelihood",
 					],
 					outputContract: ["Threats", "Findings", "Severity", "Fix plan"],
+					behavior: {
+						optional: true,
+					},
 				}),
 			},
 			{
@@ -459,6 +487,83 @@ export class DatabaseManager {
 			"[DB] Ensured agent roles:",
 			missingRoles.map((role) => role.id).join(", "),
 		);
+	}
+
+	private backfillRoleBehaviorMetadata(): void {
+		if (!this.db) return;
+
+		const rows = this.db
+			.prepare("SELECT id, preset_json FROM agent_roles")
+			.all() as Array<{ id: string; preset_json: string }>;
+		if (rows.length === 0) {
+			return;
+		}
+
+		const updatePreset = this.db.prepare(
+			"UPDATE agent_roles SET preset_json = ?, updated_at = ? WHERE id = ?",
+		);
+		const now = new Date().toISOString();
+		let updatedCount = 0;
+
+		const tx = this.db.transaction(() => {
+			for (const row of rows) {
+				let parsed: Record<string, unknown>;
+				try {
+					const json = JSON.parse(row.preset_json) as unknown;
+					if (!json || typeof json !== "object") {
+						continue;
+					}
+					parsed = json as Record<string, unknown>;
+				} catch {
+					continue;
+				}
+
+				const skills = Array.isArray(parsed.skills)
+					? parsed.skills.filter(
+							(skill): skill is string => typeof skill === "string",
+						)
+					: [];
+				const existingBehavior =
+					parsed.behavior && typeof parsed.behavior === "object"
+						? (parsed.behavior as Record<string, unknown>)
+						: {};
+
+				const preferredForStoryGeneration =
+					existingBehavior.preferredForStoryGeneration === true ||
+					skills.includes("business-analyst");
+				const preferredForQaTesting =
+					existingBehavior.preferredForQaTesting === true ||
+					skills.includes("qa-expert") ||
+					skills.includes("test-automator");
+
+				const nextBehavior = {
+					...existingBehavior,
+					preferredForStoryGeneration,
+					preferredForQaTesting,
+				};
+
+				if (
+					existingBehavior.preferredForStoryGeneration ===
+						nextBehavior.preferredForStoryGeneration &&
+					existingBehavior.preferredForQaTesting ===
+						nextBehavior.preferredForQaTesting
+				) {
+					continue;
+				}
+
+				const nextPreset = {
+					...parsed,
+					behavior: nextBehavior,
+				};
+				updatePreset.run(JSON.stringify(nextPreset), now, row.id);
+				updatedCount += 1;
+			}
+		});
+		tx();
+
+		if (updatedCount > 0) {
+			console.log("[DB] Backfilled role behavior metadata:", updatedCount);
+		}
 	}
 
 	// Query helpers

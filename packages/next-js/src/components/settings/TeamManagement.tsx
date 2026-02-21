@@ -31,6 +31,15 @@ interface AgentRolePreset {
 	systemPrompt: string;
 	mustDo: string[];
 	outputContract: string[];
+	behavior?: AgentRoleBehavior;
+}
+
+interface AgentRoleBehavior {
+	preferredForStoryGeneration: boolean;
+	preferredForQaTesting: boolean;
+	recommended: boolean;
+	optional: boolean;
+	quickSelect: boolean;
 }
 
 interface FullRole {
@@ -40,8 +49,13 @@ interface FullRole {
 	preset_json: string;
 }
 
-const RECOMMENDED_ROLE_IDS = new Set(["executor", "ba", "qa", "dev"]);
-const OPTIONAL_ROLE_IDS = new Set(["sec", "sre"]);
+const DEFAULT_BEHAVIOR: AgentRoleBehavior = {
+	preferredForStoryGeneration: false,
+	preferredForQaTesting: false,
+	recommended: false,
+	optional: false,
+	quickSelect: false,
+};
 
 const DEFAULT_PRESET: AgentRolePreset = {
 	version: "1.0",
@@ -51,7 +65,35 @@ const DEFAULT_PRESET: AgentRolePreset = {
 	systemPrompt: "You are a specialized AI agent.",
 	mustDo: [],
 	outputContract: [],
+	behavior: DEFAULT_BEHAVIOR,
 };
+
+function parseRolePreset(rawPreset: string): AgentRolePreset {
+	try {
+		const parsed = JSON.parse(rawPreset) as Partial<AgentRolePreset> & {
+			behavior?: Partial<AgentRoleBehavior>;
+		};
+		const behaviorSource =
+			parsed.behavior && typeof parsed.behavior === "object"
+				? (parsed.behavior as Record<string, unknown>)
+				: {};
+		return {
+			...DEFAULT_PRESET,
+			...parsed,
+			behavior: {
+				...DEFAULT_BEHAVIOR,
+				preferredForStoryGeneration:
+					behaviorSource.preferredForStoryGeneration === true,
+				preferredForQaTesting: behaviorSource.preferredForQaTesting === true,
+				recommended: behaviorSource.recommended === true,
+				optional: behaviorSource.optional === true,
+				quickSelect: behaviorSource.quickSelect === true,
+			},
+		};
+	} catch {
+		return DEFAULT_PRESET;
+	}
+}
 
 function normalizeSkills(skills: string[]): string[] {
 	return [...new Set(skills.map((skill) => skill.trim()).filter(Boolean))];
@@ -78,12 +120,7 @@ export function TeamManagement() {
 		setFormId(role.id);
 		setFormName(role.name);
 		setFormDescription(role.description);
-		try {
-			const parsed = JSON.parse(role.preset_json);
-			setFormPreset({ ...DEFAULT_PRESET, ...parsed });
-		} catch {
-			setFormPreset(DEFAULT_PRESET);
-		}
+		setFormPreset(parseRolePreset(role.preset_json));
 		setSkillQuery("");
 		setIsNew(false);
 	}, []);
@@ -137,10 +174,15 @@ export function TeamManagement() {
 
 		setIsSaving(true);
 		try {
+			const behavior = {
+				...DEFAULT_BEHAVIOR,
+				...(formPreset.behavior ?? {}),
+			};
 			const preset_json = JSON.stringify({
 				...formPreset,
 				skills: normalizeSkills(formPreset.skills),
 				systemPrompt: formPreset.systemPrompt.trim(),
+				behavior,
 			});
 			await api.roles.save({
 				id: formId.trim(),
@@ -190,19 +232,31 @@ export function TeamManagement() {
 		);
 	}, [roles, searchQuery]);
 
+	const roleBehaviorById = useMemo(() => {
+		const behaviorMap = new Map<string, AgentRoleBehavior>();
+		for (const role of roles) {
+			behaviorMap.set(
+				role.id,
+				parseRolePreset(role.preset_json).behavior ?? DEFAULT_BEHAVIOR,
+			);
+		}
+		return behaviorMap;
+	}, [roles]);
+
 	const sortedFilteredRoles = useMemo(() => {
-		const rank = (roleId: string) => {
-			if (RECOMMENDED_ROLE_IDS.has(roleId)) return 0;
-			if (OPTIONAL_ROLE_IDS.has(roleId)) return 1;
+		const rank = (role: FullRole) => {
+			const behavior = roleBehaviorById.get(role.id) ?? DEFAULT_BEHAVIOR;
+			if (behavior.recommended) return 0;
+			if (behavior.optional) return 1;
 			return 2;
 		};
 
 		return [...filteredRoles].sort((a, b) => {
-			const rankDiff = rank(a.id) - rank(b.id);
+			const rankDiff = rank(a) - rank(b);
 			if (rankDiff !== 0) return rankDiff;
 			return a.name.localeCompare(b.name);
 		});
-	}, [filteredRoles]);
+	}, [filteredRoles, roleBehaviorById]);
 
 	const filteredSkills = useMemo(() => {
 		const q = skillQuery.trim().toLowerCase();
@@ -310,7 +364,8 @@ export function TeamManagement() {
 											<h3 className="font-black text-sm tracking-tight text-slate-200">
 												{role.name}
 											</h3>
-											{RECOMMENDED_ROLE_IDS.has(role.id) ? (
+											{(roleBehaviorById.get(role.id) ?? DEFAULT_BEHAVIOR)
+												.recommended ? (
 												<span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-[8px] font-black uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-500/30">
 													Recommended
 												</span>
@@ -338,9 +393,6 @@ export function TeamManagement() {
 									<h2 className="text-2xl font-black text-white tracking-tight">
 										{isNew ? "Create Agent" : `Agent: ${formId}`}
 									</h2>
-									<p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
-										Only what BA needs: prompt + skills.
-									</p>
 								</div>
 							</div>
 							<div className="flex items-center gap-3">

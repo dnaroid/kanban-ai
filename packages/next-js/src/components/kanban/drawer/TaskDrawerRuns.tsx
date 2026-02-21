@@ -36,10 +36,21 @@ interface AgentRole {
 	id: string;
 	name: string;
 	description: string;
+	quickSelect: boolean;
 }
 
-const QUICK_SELECT_ROLE_IDS = new Set(["executor", "ba", "qa", "dev"]);
 const AGENT_ROLE_TAG_PREFIX = "agent:";
+
+function parseQuickSelectFlag(rawPresetJson: string): boolean {
+	try {
+		const parsed = JSON.parse(rawPresetJson) as {
+			behavior?: { quickSelect?: unknown };
+		};
+		return parsed.behavior?.quickSelect === true;
+	} catch {
+		return false;
+	}
+}
 
 function resolveAssignedRoleId(
 	tags: string[] | null | undefined,
@@ -96,9 +107,7 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 	const [isLoadingRoles, setIsLoadingRoles] = useState(false);
 	const [selectedRoleId, setSelectedRoleId] = useState<string>("");
 
-	const quickSelectRoles = roles.filter((role) =>
-		QUICK_SELECT_ROLE_IDS.has(role.id),
-	);
+	const quickSelectRoles = roles.filter((role) => role.quickSelect);
 	const assignedRoleId = resolveAssignedRoleId(task.tags);
 	const assignedRole = assignedRoleId
 		? (roles.find((role) => role.id === assignedRoleId) ?? null)
@@ -247,14 +256,17 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 		const fetchRoles = async () => {
 			setIsLoadingRoles(true);
 			try {
-				const response = await api.roles.list();
-				const fetchedRoles = response.roles;
+				const response = await api.roles.listFull();
+				const fetchedRoles = response.roles.map((role) => ({
+					id: role.id,
+					name: role.name,
+					description: role.description,
+					quickSelect: parseQuickSelectFlag(role.preset_json),
+				}));
 				setRoles(fetchedRoles);
 				if (fetchedRoles.length === 0) return;
 
-				const dailyRoles = fetchedRoles.filter((role) =>
-					QUICK_SELECT_ROLE_IDS.has(role.id),
-				);
+				const dailyRoles = fetchedRoles.filter((role) => role.quickSelect);
 				const assignedRoleFromTask = resolveAssignedRoleId(task.tags);
 				const assignedRoleExists = assignedRoleFromTask
 					? fetchedRoles.some((role) => role.id === assignedRoleFromTask)
