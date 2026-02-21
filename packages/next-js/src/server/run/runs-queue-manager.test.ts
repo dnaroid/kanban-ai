@@ -393,7 +393,7 @@ describe("RunsQueueManager scheduling", () => {
 			{
 				id: "msg-1",
 				role: "assistant",
-				content: buildOpencodeStatusLine("done"),
+				content: buildOpencodeStatusLine("generated"),
 			},
 		]);
 
@@ -412,6 +412,88 @@ describe("RunsQueueManager scheduling", () => {
 				taskId: "task-generated",
 				mode: "execute",
 			}),
+		);
+		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "run-generation" }),
+			"completed",
+			"generated",
+			buildOpencodeStatusLine("generated"),
+		);
+	});
+
+	it("maps QA success marker to test_ok signal", async () => {
+		taskMap.set("task-qa-ok", buildTask("task-qa-ok", "normal", "running"));
+		runMap.set(
+			"run-qa-ok",
+			buildRun(
+				"run-qa-ok",
+				"task-qa-ok",
+				"execution",
+				"2026-01-01T00:00:00.000Z",
+			),
+		);
+
+		mockSessionManager.getMessages.mockImplementation(async () => [
+			{
+				id: "msg-qa-ok",
+				role: "assistant",
+				content: buildOpencodeStatusLine("test_ok"),
+			},
+		]);
+
+		const manager = new RunsQueueManager();
+		manager.enqueue("run-qa-ok", {
+			projectPath: "/tmp/project",
+			sessionTitle: "qa-ok",
+			prompt: "prompt",
+		});
+
+		await waitForDrain();
+		await waitForDrain();
+
+		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "run-qa-ok" }),
+			"completed",
+			"test_ok",
+			buildOpencodeStatusLine("test_ok"),
+		);
+	});
+
+	it("maps QA failure marker to test_fail signal", async () => {
+		taskMap.set("task-qa-fail", buildTask("task-qa-fail", "normal", "running"));
+		runMap.set(
+			"run-qa-fail",
+			buildRun(
+				"run-qa-fail",
+				"task-qa-fail",
+				"execution",
+				"2026-01-01T00:00:00.000Z",
+			),
+		);
+
+		mockSessionManager.getMessages.mockImplementation(async () => [
+			{
+				id: "msg-qa-fail",
+				role: "assistant",
+				content: buildOpencodeStatusLine("test_fail"),
+			},
+		]);
+
+		const manager = new RunsQueueManager();
+		manager.enqueue("run-qa-fail", {
+			projectPath: "/tmp/project",
+			sessionTitle: "qa-fail",
+			prompt: "prompt",
+		});
+
+		await waitForDrain();
+		await waitForDrain();
+
+		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "run-qa-fail" }),
+			"failed",
+			"test_fail",
+			buildOpencodeStatusLine("test_fail"),
 		);
 	});
 });

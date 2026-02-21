@@ -42,7 +42,7 @@ export function buildTaskPrompt(
 		"",
 		"Требования:",
 		"1. Выполни задачу в директории проекта.",
-		`2. В конце ответа обязательно выведи одну итоговую строку статуса: ${buildOpencodeStatusLine("done")} или ${buildOpencodeStatusLine("fail")} или ${buildOpencodeStatusLine("question")}`,
+		`2. В конце ответа обязательно выведи одну итоговую строку статуса: ${buildOpencodeStatusLine("done")} или ${buildOpencodeStatusLine("fail")} или ${buildOpencodeStatusLine("question")} или ${buildOpencodeStatusLine("test_ok")} или ${buildOpencodeStatusLine("test_fail")}`,
 		"3. Если не удалось выполнить, укажи причину перед итоговой строкой со статусом fail.",
 		"4. Если нужен ответ пользователя, задай конкретный вопрос перед итоговой строкой со статусом question.",
 	].join("\n");

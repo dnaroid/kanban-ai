@@ -1,7 +1,14 @@
 export const OPENCODE_STATUS_TOKEN =
 	"__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::";
 
-export const OPENCODE_STATUS_VALUES = ["done", "fail", "question"] as const;
+export const OPENCODE_STATUS_VALUES = [
+	"done",
+	"generated",
+	"fail",
+	"question",
+	"test_ok",
+	"test_fail",
+] as const;
 
 export type OpencodeStatus = (typeof OPENCODE_STATUS_VALUES)[number];
 

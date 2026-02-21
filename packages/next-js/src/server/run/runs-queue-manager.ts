@@ -63,11 +63,20 @@ function resolveAssistantRunSignal(text: string): AssistantRunSignal | null {
 	if (parsed.status === "done") {
 		return { runStatus: "completed", signalKey: "done" };
 	}
+	if (parsed.status === "generated") {
+		return { runStatus: "completed", signalKey: "generated" };
+	}
 	if (parsed.status === "fail") {
 		return { runStatus: "failed", signalKey: "fail" };
 	}
 	if (parsed.status === "question") {
 		return { runStatus: "paused", signalKey: "question" };
+	}
+	if (parsed.status === "test_ok") {
+		return { runStatus: "completed", signalKey: "test_ok" };
+	}
+	if (parsed.status === "test_fail") {
+		return { runStatus: "failed", signalKey: "test_fail" };
 	}
 
 	return null;

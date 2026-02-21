@@ -117,7 +117,7 @@ export function buildUserStoryPrompt(
 4) В <META> не используй markdown-код-блок, только JSON.
 5) В поле agentRoleId укажи один id из списка доступных ролей. Выбирай роль по смыслу задачи (кто должен исполнять).
 6) Последняя строка ответа должна быть marker-статусом:
-   - успех: ${buildOpencodeStatusLine("done")}
+   - успех: ${buildOpencodeStatusLine("generated")}
    - ошибка: ${buildOpencodeStatusLine("fail")}
    - нужен ответ пользователя: ${buildOpencodeStatusLine("question")}`;
 }
