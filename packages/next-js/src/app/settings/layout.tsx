@@ -8,6 +8,7 @@ import {
 	CheckCircle2,
 	Settings2,
 	Users,
+	GitBranch,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -20,6 +21,7 @@ type Tab =
 	| "my-models"
 	| "team"
 	| "oh-my-opencode"
+	| "workflow"
 	| "tags"
 	| "danger";
 
@@ -32,6 +34,7 @@ const tabs: {
 	{ id: "my-models", label: "My Models", icon: CheckCircle2 },
 	{ id: "team", label: "Team", icon: Users },
 	{ id: "oh-my-opencode", label: "Oh-My-Opencode", icon: Settings2 },
+	{ id: "workflow", label: "Workflow", icon: GitBranch },
 	{ id: "tags", label: "Tags", icon: TagIcon },
 	{ id: "danger", label: "Danger Zone", icon: Trash2 },
 ];

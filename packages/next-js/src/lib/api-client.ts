@@ -21,6 +21,51 @@ import type {
 	QueueStatsResponse,
 } from "@/types/ipc";
 
+export type WorkflowColumnSystemKey =
+	| "backlog"
+	| "ready"
+	| "deferred"
+	| "in_progress"
+	| "blocked"
+	| "review"
+	| "closed";
+
+export type WorkflowTaskStatus =
+	| "queued"
+	| "running"
+	| "question"
+	| "paused"
+	| "done"
+	| "failed"
+	| "generating";
+
+export type WorkflowBlockedReason = "question" | "paused" | "failed";
+export type WorkflowClosedReason = "done" | "failed";
+
+export interface WorkflowStatusConfig {
+	status: WorkflowTaskStatus;
+	orderIndex: number;
+	preferredColumnSystemKey: WorkflowColumnSystemKey;
+	blockedReason: WorkflowBlockedReason | null;
+	closedReason: WorkflowClosedReason | null;
+}
+
+export interface WorkflowColumnConfig {
+	systemKey: WorkflowColumnSystemKey;
+	name: string;
+	color: string;
+	orderIndex: number;
+	defaultStatus: WorkflowTaskStatus;
+	allowedStatuses: WorkflowTaskStatus[];
+}
+
+export interface WorkflowConfig {
+	statuses: WorkflowStatusConfig[];
+	columns: WorkflowColumnConfig[];
+	statusTransitions: Record<WorkflowTaskStatus, WorkflowTaskStatus[]>;
+	columnTransitions: Record<WorkflowColumnSystemKey, WorkflowColumnSystemKey[]>;
+}
+
 // REST API Client for Next.js standalone
 // Uses relative paths to avoid CORS issues
 
@@ -923,6 +968,40 @@ class ApiClient {
 		}): Promise<{ ok: boolean }> => ({
 			ok: await this.setAppSetting("ohMyOpencodePath", path),
 		}),
+	};
+
+	readonly workflow = {
+		getConfig: async (): Promise<WorkflowConfig> => {
+			const response = await fetch(`${this.baseUrl}/api/settings/workflow`);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to load workflow configuration",
+				);
+				throw new Error(message);
+			}
+
+			const payload = await response.json();
+			return this.unwrapApiData<WorkflowConfig>(payload);
+		},
+		updateConfig: async (config: WorkflowConfig): Promise<WorkflowConfig> => {
+			const response = await fetch(`${this.baseUrl}/api/settings/workflow`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(config),
+			});
+
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to update workflow configuration",
+				);
+				throw new Error(message);
+			}
+
+			const payload = await response.json();
+			return this.unwrapApiData<WorkflowConfig>(payload);
+		},
 	};
 
 	readonly artifact = {

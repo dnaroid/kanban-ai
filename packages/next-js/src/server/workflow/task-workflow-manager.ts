@@ -23,6 +23,30 @@ export interface WorkflowColumnTemplate {
 	color: string;
 }
 
+export interface WorkflowStatusConfig {
+	status: TaskStatus;
+	orderIndex: number;
+	preferredColumnSystemKey: WorkflowColumnSystemKey;
+	blockedReason: BlockedReason | null;
+	closedReason: ClosedReason | null;
+}
+
+export interface WorkflowColumnConfig {
+	systemKey: WorkflowColumnSystemKey;
+	name: string;
+	color: string;
+	orderIndex: number;
+	defaultStatus: TaskStatus;
+	allowedStatuses: TaskStatus[];
+}
+
+export interface WorkflowConfig {
+	statuses: WorkflowStatusConfig[];
+	columns: WorkflowColumnConfig[];
+	statusTransitions: Record<TaskStatus, TaskStatus[]>;
+	columnTransitions: Record<WorkflowColumnSystemKey, WorkflowColumnSystemKey[]>;
+}
+
 const DEFAULT_WORKFLOW_COLUMNS_FALLBACK: readonly WorkflowColumnTemplate[] = [
 	{ name: "Backlog", systemKey: "backlog", color: "#6366f1" },
 	{ name: "Ready", systemKey: "ready", color: "#0ea5e9" },
@@ -219,14 +243,205 @@ type WorkflowColumnTransitionRow = {
 	toSystemKey: string;
 };
 
-function loadRuntimeConfigFromDb(): WorkflowRuntimeConfig | null {
-	let db: Database.Database;
-	try {
-		db = dbManager.connect();
-	} catch {
-		return null;
+type WorkflowStatusRowWithOrder = WorkflowStatusRow & {
+	orderIndex: number;
+};
+
+type WorkflowColumnTemplateRowWithOrder = WorkflowColumnTemplateRow & {
+	orderIndex: number;
+};
+
+function toWorkflowConfig(
+	statusRows: WorkflowStatusRowWithOrder[],
+	templateRows: WorkflowColumnTemplateRowWithOrder[],
+	allowedStatusRows: WorkflowAllowedStatusRow[],
+	statusTransitionRows: WorkflowStatusTransitionRow[],
+	columnTransitionRows: WorkflowColumnTransitionRow[],
+): WorkflowConfig | null {
+	const statuses: WorkflowStatusConfig[] = [];
+	for (const row of statusRows) {
+		if (!isTaskStatus(row.status)) {
+			return null;
+		}
+
+		if (!isWorkflowColumnSystemKey(row.preferredColumnSystemKey)) {
+			return null;
+		}
+
+		if (!Number.isInteger(row.orderIndex) || row.orderIndex < 0) {
+			return null;
+		}
+
+		const blockedReason =
+			row.blockedReason && isBlockedReason(row.blockedReason)
+				? row.blockedReason
+				: null;
+		const closedReason =
+			row.closedReason && isClosedReason(row.closedReason)
+				? row.closedReason
+				: null;
+
+		statuses.push({
+			status: row.status,
+			orderIndex: row.orderIndex,
+			preferredColumnSystemKey: row.preferredColumnSystemKey,
+			blockedReason,
+			closedReason,
+		});
 	}
 
+	const allowedStatusesByColumn: Record<WorkflowColumnSystemKey, TaskStatus[]> =
+		{
+			backlog: [],
+			ready: [],
+			deferred: [],
+			in_progress: [],
+			blocked: [],
+			review: [],
+			closed: [],
+		};
+
+	for (const row of allowedStatusRows) {
+		if (
+			!isWorkflowColumnSystemKey(row.systemKey) ||
+			!isTaskStatus(row.status)
+		) {
+			return null;
+		}
+		allowedStatusesByColumn[row.systemKey].push(row.status);
+	}
+
+	const columns: WorkflowColumnConfig[] = [];
+	for (const row of templateRows) {
+		if (
+			!isWorkflowColumnSystemKey(row.systemKey) ||
+			!isTaskStatus(row.defaultStatus)
+		) {
+			return null;
+		}
+
+		if (!Number.isInteger(row.orderIndex) || row.orderIndex < 0) {
+			return null;
+		}
+
+		columns.push({
+			systemKey: row.systemKey,
+			name: row.name,
+			color: row.color,
+			orderIndex: row.orderIndex,
+			defaultStatus: row.defaultStatus,
+			allowedStatuses: [...allowedStatusesByColumn[row.systemKey]],
+		});
+	}
+
+	const statusTransitions: Record<TaskStatus, TaskStatus[]> = {
+		queued: [],
+		running: [],
+		question: [],
+		paused: [],
+		done: [],
+		failed: [],
+		generating: [],
+	};
+
+	for (const row of statusTransitionRows) {
+		if (!isTaskStatus(row.fromStatus) || !isTaskStatus(row.toStatus)) {
+			return null;
+		}
+
+		statusTransitions[row.fromStatus].push(row.toStatus);
+	}
+
+	const columnTransitions: Record<
+		WorkflowColumnSystemKey,
+		WorkflowColumnSystemKey[]
+	> = {
+		backlog: [],
+		ready: [],
+		deferred: [],
+		in_progress: [],
+		blocked: [],
+		review: [],
+		closed: [],
+	};
+
+	for (const row of columnTransitionRows) {
+		if (
+			!isWorkflowColumnSystemKey(row.fromSystemKey) ||
+			!isWorkflowColumnSystemKey(row.toSystemKey)
+		) {
+			return null;
+		}
+
+		columnTransitions[row.fromSystemKey].push(row.toSystemKey);
+	}
+
+	return {
+		statuses,
+		columns,
+		statusTransitions,
+		columnTransitions,
+	};
+}
+
+function buildFallbackWorkflowConfig(): WorkflowConfig {
+	const statuses = TASK_STATUS_VALUES.map((status, orderIndex) => ({
+		status,
+		orderIndex,
+		preferredColumnSystemKey: STATUS_TO_WORKFLOW_COLUMN_FALLBACK[status],
+		blockedReason: BLOCKED_REASON_BY_STATUS_FALLBACK[status],
+		closedReason: CLOSED_REASON_BY_STATUS_FALLBACK[status],
+	}));
+
+	const columns = WORKFLOW_COLUMN_SYSTEM_KEYS.map((systemKey, orderIndex) => ({
+		systemKey,
+		name:
+			DEFAULT_WORKFLOW_COLUMNS_FALLBACK.find(
+				(item) => item.systemKey === systemKey,
+			)?.name ?? systemKey,
+		color:
+			DEFAULT_WORKFLOW_COLUMNS_FALLBACK.find(
+				(item) => item.systemKey === systemKey,
+			)?.color ?? "#6b7280",
+		orderIndex,
+		defaultStatus: COLUMN_DEFAULT_STATUS_FALLBACK[systemKey],
+		allowedStatuses: [...COLUMN_ALLOWED_STATUSES_FALLBACK[systemKey]],
+	}));
+
+	const statusTransitions: Record<TaskStatus, TaskStatus[]> = {
+		queued: [...STATUS_TRANSITIONS_FALLBACK.queued],
+		running: [...STATUS_TRANSITIONS_FALLBACK.running],
+		question: [...STATUS_TRANSITIONS_FALLBACK.question],
+		paused: [...STATUS_TRANSITIONS_FALLBACK.paused],
+		done: [...STATUS_TRANSITIONS_FALLBACK.done],
+		failed: [...STATUS_TRANSITIONS_FALLBACK.failed],
+		generating: [...STATUS_TRANSITIONS_FALLBACK.generating],
+	};
+
+	const columnTransitions: Record<
+		WorkflowColumnSystemKey,
+		WorkflowColumnSystemKey[]
+	> = {
+		backlog: [...COLUMN_TRANSITIONS_FALLBACK.backlog],
+		ready: [...COLUMN_TRANSITIONS_FALLBACK.ready],
+		deferred: [...COLUMN_TRANSITIONS_FALLBACK.deferred],
+		in_progress: [...COLUMN_TRANSITIONS_FALLBACK.in_progress],
+		blocked: [...COLUMN_TRANSITIONS_FALLBACK.blocked],
+		review: [...COLUMN_TRANSITIONS_FALLBACK.review],
+		closed: [...COLUMN_TRANSITIONS_FALLBACK.closed],
+	};
+
+	return {
+		statuses,
+		columns,
+		statusTransitions,
+		columnTransitions,
+	};
+}
+
+function loadWorkflowConfigFromDb(
+	db: Database.Database,
+): WorkflowConfig | null {
 	if (!hasWorkflowConfigTables(db)) {
 		return null;
 	}
@@ -235,13 +450,14 @@ function loadRuntimeConfigFromDb(): WorkflowRuntimeConfig | null {
 		.prepare(
 			`SELECT
          status,
+         order_index AS orderIndex,
          preferred_column_system_key AS preferredColumnSystemKey,
          blocked_reason AS blockedReason,
          closed_reason AS closedReason
        FROM workflow_statuses
        ORDER BY order_index ASC`,
 		)
-		.all() as WorkflowStatusRow[];
+		.all() as WorkflowStatusRowWithOrder[];
 
 	const templateRows = db
 		.prepare(
@@ -249,16 +465,518 @@ function loadRuntimeConfigFromDb(): WorkflowRuntimeConfig | null {
          system_key AS systemKey,
          name,
          color,
+         order_index AS orderIndex,
          default_status AS defaultStatus
        FROM workflow_column_templates
        ORDER BY order_index ASC`,
 		)
-		.all() as WorkflowColumnTemplateRow[];
+		.all() as WorkflowColumnTemplateRowWithOrder[];
 
 	if (
 		statusRows.length !== TASK_STATUS_VALUES.length ||
 		templateRows.length !== WORKFLOW_COLUMN_SYSTEM_KEYS.length
 	) {
+		return null;
+	}
+
+	const allowedStatusRows = db
+		.prepare(
+			`SELECT
+         system_key AS systemKey,
+         status
+       FROM workflow_column_allowed_statuses`,
+		)
+		.all() as WorkflowAllowedStatusRow[];
+
+	const statusTransitionRows = db
+		.prepare(
+			`SELECT
+         from_status AS fromStatus,
+         to_status AS toStatus
+       FROM workflow_status_transitions`,
+		)
+		.all() as WorkflowStatusTransitionRow[];
+
+	const columnTransitionRows = db
+		.prepare(
+			`SELECT
+         from_system_key AS fromSystemKey,
+         to_system_key AS toSystemKey
+       FROM workflow_column_transitions`,
+		)
+		.all() as WorkflowColumnTransitionRow[];
+
+	return toWorkflowConfig(
+		statusRows,
+		templateRows,
+		allowedStatusRows,
+		statusTransitionRows,
+		columnTransitionRows,
+	);
+}
+
+function validateWorkflowConfig(config: WorkflowConfig): void {
+	if (config.statuses.length !== TASK_STATUS_VALUES.length) {
+		throw new Error("Workflow config must include all task statuses");
+	}
+
+	if (config.columns.length !== WORKFLOW_COLUMN_SYSTEM_KEYS.length) {
+		throw new Error("Workflow config must include all workflow columns");
+	}
+
+	const seenStatuses = new Set<TaskStatus>();
+	const statusOrderIndexes = new Set<number>();
+	for (const row of config.statuses) {
+		if (!isTaskStatus(row.status)) {
+			throw new Error(`Invalid status: ${String(row.status)}`);
+		}
+		if (!isWorkflowColumnSystemKey(row.preferredColumnSystemKey)) {
+			throw new Error(
+				`Invalid preferred column for status ${row.status}: ${row.preferredColumnSystemKey}`,
+			);
+		}
+		if (row.blockedReason && !isBlockedReason(row.blockedReason)) {
+			throw new Error(`Invalid blocked reason for status ${row.status}`);
+		}
+		if (row.closedReason && !isClosedReason(row.closedReason)) {
+			throw new Error(`Invalid closed reason for status ${row.status}`);
+		}
+		if (!Number.isInteger(row.orderIndex) || row.orderIndex < 0) {
+			throw new Error(`Invalid status order index for status ${row.status}`);
+		}
+
+		if (seenStatuses.has(row.status)) {
+			throw new Error(`Duplicate status row: ${row.status}`);
+		}
+		seenStatuses.add(row.status);
+
+		if (statusOrderIndexes.has(row.orderIndex)) {
+			throw new Error(`Duplicate status order index: ${row.orderIndex}`);
+		}
+		statusOrderIndexes.add(row.orderIndex);
+	}
+
+	for (const status of TASK_STATUS_VALUES) {
+		if (!seenStatuses.has(status)) {
+			throw new Error(`Missing status row: ${status}`);
+		}
+	}
+
+	const seenColumns = new Set<WorkflowColumnSystemKey>();
+	const columnOrderIndexes = new Set<number>();
+	for (const row of config.columns) {
+		if (!isWorkflowColumnSystemKey(row.systemKey)) {
+			throw new Error(`Invalid column system key: ${String(row.systemKey)}`);
+		}
+		if (!row.name.trim()) {
+			throw new Error(`Column ${row.systemKey} name cannot be empty`);
+		}
+		if (!row.color.trim()) {
+			throw new Error(`Column ${row.systemKey} color cannot be empty`);
+		}
+		if (!isTaskStatus(row.defaultStatus)) {
+			throw new Error(`Invalid default status for column ${row.systemKey}`);
+		}
+		if (!Number.isInteger(row.orderIndex) || row.orderIndex < 0) {
+			throw new Error(`Invalid column order index for ${row.systemKey}`);
+		}
+		if (
+			!Array.isArray(row.allowedStatuses) ||
+			row.allowedStatuses.length === 0
+		) {
+			throw new Error(`Column ${row.systemKey} must include allowed statuses`);
+		}
+
+		if (seenColumns.has(row.systemKey)) {
+			throw new Error(`Duplicate column row: ${row.systemKey}`);
+		}
+		seenColumns.add(row.systemKey);
+
+		if (columnOrderIndexes.has(row.orderIndex)) {
+			throw new Error(`Duplicate column order index: ${row.orderIndex}`);
+		}
+		columnOrderIndexes.add(row.orderIndex);
+
+		const allowedSet = new Set<TaskStatus>();
+		for (const status of row.allowedStatuses) {
+			if (!isTaskStatus(status)) {
+				throw new Error(
+					`Invalid allowed status '${String(status)}' for column ${row.systemKey}`,
+				);
+			}
+			if (allowedSet.has(status)) {
+				throw new Error(
+					`Duplicate allowed status '${status}' for column ${row.systemKey}`,
+				);
+			}
+			allowedSet.add(status);
+		}
+
+		if (!allowedSet.has(row.defaultStatus)) {
+			throw new Error(
+				`Default status '${row.defaultStatus}' is not allowed in column ${row.systemKey}`,
+			);
+		}
+	}
+
+	for (const systemKey of WORKFLOW_COLUMN_SYSTEM_KEYS) {
+		if (!seenColumns.has(systemKey)) {
+			throw new Error(`Missing column row: ${systemKey}`);
+		}
+	}
+
+	for (const fromStatus of TASK_STATUS_VALUES) {
+		const nextStatuses = config.statusTransitions[fromStatus];
+		if (!Array.isArray(nextStatuses)) {
+			throw new Error(`Missing status transition row for ${fromStatus}`);
+		}
+		const nextStatusSet = new Set<TaskStatus>();
+		for (const toStatus of nextStatuses) {
+			if (!isTaskStatus(toStatus)) {
+				throw new Error(
+					`Invalid status transition target '${String(toStatus)}' from ${fromStatus}`,
+				);
+			}
+			if (nextStatusSet.has(toStatus)) {
+				throw new Error(
+					`Duplicate status transition ${fromStatus} -> ${toStatus}`,
+				);
+			}
+			nextStatusSet.add(toStatus);
+		}
+	}
+
+	for (const fromKey of WORKFLOW_COLUMN_SYSTEM_KEYS) {
+		const nextKeys = config.columnTransitions[fromKey];
+		if (!Array.isArray(nextKeys)) {
+			throw new Error(`Missing column transition row for ${fromKey}`);
+		}
+		const nextKeySet = new Set<WorkflowColumnSystemKey>();
+		for (const toKey of nextKeys) {
+			if (!isWorkflowColumnSystemKey(toKey)) {
+				throw new Error(
+					`Invalid column transition target '${String(toKey)}' from ${fromKey}`,
+				);
+			}
+			if (nextKeySet.has(toKey)) {
+				throw new Error(`Duplicate column transition ${fromKey} -> ${toKey}`);
+			}
+			nextKeySet.add(toKey);
+		}
+	}
+}
+
+function parseStatusList(value: unknown): TaskStatus[] | null {
+	if (!Array.isArray(value)) {
+		return null;
+	}
+
+	const statuses: TaskStatus[] = [];
+	for (const item of value) {
+		if (typeof item !== "string" || !isTaskStatus(item)) {
+			return null;
+		}
+		statuses.push(item);
+	}
+
+	return statuses;
+}
+
+function parseColumnKeyList(value: unknown): WorkflowColumnSystemKey[] | null {
+	if (!Array.isArray(value)) {
+		return null;
+	}
+
+	const systemKeys: WorkflowColumnSystemKey[] = [];
+	for (const item of value) {
+		if (typeof item !== "string" || !isWorkflowColumnSystemKey(item)) {
+			return null;
+		}
+		systemKeys.push(item);
+	}
+
+	return systemKeys;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
+	if (!isRecord(value)) {
+		return null;
+	}
+
+	const statusesValue = value.statuses;
+	const columnsValue = value.columns;
+	const statusTransitionsValue = value.statusTransitions;
+	const columnTransitionsValue = value.columnTransitions;
+
+	if (
+		!Array.isArray(statusesValue) ||
+		!Array.isArray(columnsValue) ||
+		!isRecord(statusTransitionsValue) ||
+		!isRecord(columnTransitionsValue)
+	) {
+		return null;
+	}
+
+	const statuses: WorkflowStatusConfig[] = [];
+	for (const item of statusesValue) {
+		if (!isRecord(item)) {
+			return null;
+		}
+
+		const {
+			status,
+			orderIndex,
+			preferredColumnSystemKey,
+			blockedReason,
+			closedReason,
+		} = item;
+
+		if (
+			typeof status !== "string" ||
+			!isTaskStatus(status) ||
+			typeof preferredColumnSystemKey !== "string" ||
+			!isWorkflowColumnSystemKey(preferredColumnSystemKey) ||
+			typeof orderIndex !== "number" ||
+			!Number.isInteger(orderIndex) ||
+			orderIndex < 0
+		) {
+			return null;
+		}
+
+		if (
+			blockedReason !== null &&
+			blockedReason !== undefined &&
+			(typeof blockedReason !== "string" || !isBlockedReason(blockedReason))
+		) {
+			return null;
+		}
+
+		if (
+			closedReason !== null &&
+			closedReason !== undefined &&
+			(typeof closedReason !== "string" || !isClosedReason(closedReason))
+		) {
+			return null;
+		}
+
+		statuses.push({
+			status,
+			orderIndex,
+			preferredColumnSystemKey,
+			blockedReason:
+				typeof blockedReason === "string" && isBlockedReason(blockedReason)
+					? blockedReason
+					: null,
+			closedReason:
+				typeof closedReason === "string" && isClosedReason(closedReason)
+					? closedReason
+					: null,
+		});
+	}
+
+	const columns: WorkflowColumnConfig[] = [];
+	for (const item of columnsValue) {
+		if (!isRecord(item)) {
+			return null;
+		}
+
+		const {
+			systemKey,
+			name,
+			color,
+			orderIndex,
+			defaultStatus,
+			allowedStatuses,
+		} = item;
+
+		if (
+			typeof systemKey !== "string" ||
+			!isWorkflowColumnSystemKey(systemKey) ||
+			typeof name !== "string" ||
+			typeof color !== "string" ||
+			typeof orderIndex !== "number" ||
+			!Number.isInteger(orderIndex) ||
+			orderIndex < 0 ||
+			typeof defaultStatus !== "string" ||
+			!isTaskStatus(defaultStatus)
+		) {
+			return null;
+		}
+
+		const parsedAllowedStatuses = parseStatusList(allowedStatuses);
+		if (!parsedAllowedStatuses) {
+			return null;
+		}
+
+		columns.push({
+			systemKey,
+			name,
+			color,
+			orderIndex,
+			defaultStatus,
+			allowedStatuses: parsedAllowedStatuses,
+		});
+	}
+
+	const statusTransitions: Record<TaskStatus, TaskStatus[]> = {
+		queued: [],
+		running: [],
+		question: [],
+		paused: [],
+		done: [],
+		failed: [],
+		generating: [],
+	};
+
+	for (const status of TASK_STATUS_VALUES) {
+		const parsedStatuses = parseStatusList(statusTransitionsValue[status]);
+		if (!parsedStatuses) {
+			return null;
+		}
+		statusTransitions[status] = parsedStatuses;
+	}
+
+	const columnTransitions: Record<
+		WorkflowColumnSystemKey,
+		WorkflowColumnSystemKey[]
+	> = {
+		backlog: [],
+		ready: [],
+		deferred: [],
+		in_progress: [],
+		blocked: [],
+		review: [],
+		closed: [],
+	};
+
+	for (const systemKey of WORKFLOW_COLUMN_SYSTEM_KEYS) {
+		const parsedSystemKeys = parseColumnKeyList(
+			columnTransitionsValue[systemKey],
+		);
+		if (!parsedSystemKeys) {
+			return null;
+		}
+		columnTransitions[systemKey] = parsedSystemKeys;
+	}
+
+	return {
+		statuses,
+		columns,
+		statusTransitions,
+		columnTransitions,
+	};
+}
+
+export function getWorkflowConfig(): WorkflowConfig {
+	let db: Database.Database;
+	try {
+		db = dbManager.connect();
+	} catch {
+		return buildFallbackWorkflowConfig();
+	}
+
+	return loadWorkflowConfigFromDb(db) ?? buildFallbackWorkflowConfig();
+}
+
+export function updateWorkflowConfig(config: WorkflowConfig): void {
+	validateWorkflowConfig(config);
+
+	const db = dbManager.connect();
+
+	const replaceConfig = db.transaction(() => {
+		db.prepare(`DELETE FROM workflow_column_allowed_statuses`).run();
+		db.prepare(`DELETE FROM workflow_status_transitions`).run();
+		db.prepare(`DELETE FROM workflow_column_transitions`).run();
+		db.prepare(`DELETE FROM workflow_statuses`).run();
+		db.prepare(`DELETE FROM workflow_column_templates`).run();
+
+		const insertStatus = db.prepare(
+			`INSERT INTO workflow_statuses (
+         status,
+         order_index,
+         preferred_column_system_key,
+         blocked_reason,
+         closed_reason
+       ) VALUES (?, ?, ?, ?, ?)`,
+		);
+		for (const row of config.statuses) {
+			insertStatus.run(
+				row.status,
+				row.orderIndex,
+				row.preferredColumnSystemKey,
+				row.blockedReason,
+				row.closedReason,
+			);
+		}
+
+		const insertTemplate = db.prepare(
+			`INSERT INTO workflow_column_templates (
+         system_key,
+         name,
+         color,
+         order_index,
+         default_status
+       ) VALUES (?, ?, ?, ?, ?)`,
+		);
+		for (const row of config.columns) {
+			insertTemplate.run(
+				row.systemKey,
+				row.name,
+				row.color,
+				row.orderIndex,
+				row.defaultStatus,
+			);
+		}
+
+		const insertAllowedStatus = db.prepare(
+			`INSERT INTO workflow_column_allowed_statuses (system_key, status)
+       VALUES (?, ?)`,
+		);
+		for (const row of config.columns) {
+			for (const status of row.allowedStatuses) {
+				insertAllowedStatus.run(row.systemKey, status);
+			}
+		}
+
+		const insertStatusTransition = db.prepare(
+			`INSERT INTO workflow_status_transitions (from_status, to_status)
+       VALUES (?, ?)`,
+		);
+		for (const fromStatus of TASK_STATUS_VALUES) {
+			for (const toStatus of config.statusTransitions[fromStatus]) {
+				insertStatusTransition.run(fromStatus, toStatus);
+			}
+		}
+
+		const insertColumnTransition = db.prepare(
+			`INSERT INTO workflow_column_transitions (from_system_key, to_system_key)
+       VALUES (?, ?)`,
+		);
+		for (const fromSystemKey of WORKFLOW_COLUMN_SYSTEM_KEYS) {
+			for (const toSystemKey of config.columnTransitions[fromSystemKey]) {
+				insertColumnTransition.run(fromSystemKey, toSystemKey);
+			}
+		}
+	});
+
+	replaceConfig();
+	runtimeConfig = null;
+}
+
+function loadRuntimeConfigFromDb(): WorkflowRuntimeConfig | null {
+	let db: Database.Database;
+	try {
+		db = dbManager.connect();
+	} catch {
+		return null;
+	}
+
+	const workflowConfig = loadWorkflowConfigFromDb(db);
+	if (!workflowConfig) {
 		return null;
 	}
 
@@ -272,186 +990,46 @@ function loadRuntimeConfigFromDb(): WorkflowRuntimeConfig | null {
 		...CLOSED_REASON_BY_STATUS_FALLBACK,
 	};
 
-	for (const row of statusRows) {
-		if (!isTaskStatus(row.status)) {
-			return null;
-		}
-
-		if (!isWorkflowColumnSystemKey(row.preferredColumnSystemKey)) {
-			return null;
-		}
-
-		const blockedReason =
-			row.blockedReason && isBlockedReason(row.blockedReason)
-				? row.blockedReason
-				: null;
-		const closedReason =
-			row.closedReason && isClosedReason(row.closedReason)
-				? row.closedReason
-				: null;
-
+	for (const row of workflowConfig.statuses) {
 		statusToColumn[row.status] = row.preferredColumnSystemKey;
-		blockedReasonByStatus[row.status] = blockedReason;
-		closedReasonByStatus[row.status] = closedReason;
+		blockedReasonByStatus[row.status] = row.blockedReason;
+		closedReasonByStatus[row.status] = row.closedReason;
 	}
 
 	const defaultColumns: WorkflowColumnTemplate[] = [];
 	const columnDefaultStatus: Record<WorkflowColumnSystemKey, TaskStatus> = {
 		...COLUMN_DEFAULT_STATUS_FALLBACK,
 	};
+	const columnAllowedStatuses: Record<
+		WorkflowColumnSystemKey,
+		readonly TaskStatus[]
+	> = {
+		backlog: [],
+		ready: [],
+		deferred: [],
+		in_progress: [],
+		blocked: [],
+		review: [],
+		closed: [],
+	};
 
-	for (const row of templateRows) {
-		if (
-			!isWorkflowColumnSystemKey(row.systemKey) ||
-			!isTaskStatus(row.defaultStatus)
-		) {
-			return null;
-		}
-
+	for (const row of workflowConfig.columns) {
 		defaultColumns.push({
 			name: row.name,
 			systemKey: row.systemKey,
 			color: row.color,
 		});
 		columnDefaultStatus[row.systemKey] = row.defaultStatus;
+		columnAllowedStatuses[row.systemKey] = row.allowedStatuses;
 	}
-
-	const columnAllowedStatusesMutable: Record<
-		WorkflowColumnSystemKey,
-		TaskStatus[]
-	> = {
-		backlog: [],
-		ready: [],
-		deferred: [],
-		in_progress: [],
-		blocked: [],
-		review: [],
-		closed: [],
-	};
-
-	const allowedStatusRows = db
-		.prepare(
-			`SELECT
-         system_key AS systemKey,
-         status
-       FROM workflow_column_allowed_statuses`,
-		)
-		.all() as WorkflowAllowedStatusRow[];
-
-	for (const row of allowedStatusRows) {
-		if (
-			!isWorkflowColumnSystemKey(row.systemKey) ||
-			!isTaskStatus(row.status)
-		) {
-			return null;
-		}
-
-		columnAllowedStatusesMutable[row.systemKey].push(row.status);
-	}
-
-	const statusTransitionsMutable: Record<TaskStatus, TaskStatus[]> = {
-		queued: [],
-		running: [],
-		question: [],
-		paused: [],
-		done: [],
-		failed: [],
-		generating: [],
-	};
-
-	const statusTransitionRows = db
-		.prepare(
-			`SELECT
-         from_status AS fromStatus,
-         to_status AS toStatus
-       FROM workflow_status_transitions`,
-		)
-		.all() as WorkflowStatusTransitionRow[];
-
-	for (const row of statusTransitionRows) {
-		if (!isTaskStatus(row.fromStatus) || !isTaskStatus(row.toStatus)) {
-			return null;
-		}
-
-		statusTransitionsMutable[row.fromStatus].push(row.toStatus);
-	}
-
-	const columnTransitionsMutable: Record<
-		WorkflowColumnSystemKey,
-		WorkflowColumnSystemKey[]
-	> = {
-		backlog: [],
-		ready: [],
-		deferred: [],
-		in_progress: [],
-		blocked: [],
-		review: [],
-		closed: [],
-	};
-
-	const columnTransitionRows = db
-		.prepare(
-			`SELECT
-         from_system_key AS fromSystemKey,
-         to_system_key AS toSystemKey
-       FROM workflow_column_transitions`,
-		)
-		.all() as WorkflowColumnTransitionRow[];
-
-	for (const row of columnTransitionRows) {
-		if (
-			!isWorkflowColumnSystemKey(row.fromSystemKey) ||
-			!isWorkflowColumnSystemKey(row.toSystemKey)
-		) {
-			return null;
-		}
-
-		columnTransitionsMutable[row.fromSystemKey].push(row.toSystemKey);
-	}
-
-	const columnAllowedStatuses: Record<
-		WorkflowColumnSystemKey,
-		readonly TaskStatus[]
-	> = {
-		backlog: columnAllowedStatusesMutable.backlog,
-		ready: columnAllowedStatusesMutable.ready,
-		deferred: columnAllowedStatusesMutable.deferred,
-		in_progress: columnAllowedStatusesMutable.in_progress,
-		blocked: columnAllowedStatusesMutable.blocked,
-		review: columnAllowedStatusesMutable.review,
-		closed: columnAllowedStatusesMutable.closed,
-	};
-
-	const statusTransitions: Record<TaskStatus, readonly TaskStatus[]> = {
-		queued: statusTransitionsMutable.queued,
-		running: statusTransitionsMutable.running,
-		question: statusTransitionsMutable.question,
-		paused: statusTransitionsMutable.paused,
-		done: statusTransitionsMutable.done,
-		failed: statusTransitionsMutable.failed,
-		generating: statusTransitionsMutable.generating,
-	};
-
-	const columnTransitions: Record<
-		WorkflowColumnSystemKey,
-		readonly WorkflowColumnSystemKey[]
-	> = {
-		backlog: columnTransitionsMutable.backlog,
-		ready: columnTransitionsMutable.ready,
-		deferred: columnTransitionsMutable.deferred,
-		in_progress: columnTransitionsMutable.in_progress,
-		blocked: columnTransitionsMutable.blocked,
-		review: columnTransitionsMutable.review,
-		closed: columnTransitionsMutable.closed,
-	};
 
 	return {
 		defaultColumns,
 		statusToColumn,
 		columnDefaultStatus,
 		columnAllowedStatuses,
-		statusTransitions,
-		columnTransitions,
+		statusTransitions: workflowConfig.statusTransitions,
+		columnTransitions: workflowConfig.columnTransitions,
 		blockedReasonByStatus,
 		closedReasonByStatus,
 	};
