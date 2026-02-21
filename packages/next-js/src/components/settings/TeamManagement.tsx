@@ -12,6 +12,7 @@ import {
 	ChevronRight,
 	Loader2,
 	Plus,
+	RefreshCw,
 	Save,
 	Search,
 	Terminal,
@@ -73,9 +74,9 @@ function parseRolePreset(rawPreset: string): AgentRolePreset {
 		const parsed = JSON.parse(rawPreset) as Partial<AgentRolePreset> & {
 			behavior?: Partial<AgentRoleBehavior>;
 		};
-		const behaviorSource =
+		const behaviorSource: Partial<AgentRoleBehavior> =
 			parsed.behavior && typeof parsed.behavior === "object"
-				? (parsed.behavior as Record<string, unknown>)
+				? parsed.behavior
 				: {};
 		return {
 			...DEFAULT_PRESET,
@@ -106,6 +107,7 @@ export function TeamManagement() {
 	const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [isSaving, setIsSaving] = useState(false);
+	const [isRefreshingSkills, setIsRefreshingSkills] = useState(false);
 	const [skillQuery, setSkillQuery] = useState("");
 	const { setStatus } = useSettingsStatus();
 
@@ -150,6 +152,26 @@ export function TeamManagement() {
 			setSkillsCatalog([]);
 		}
 	}, []);
+
+	const handleRefreshSkills = useCallback(async () => {
+		setIsRefreshingSkills(true);
+		try {
+			const result = await api.opencode.refreshSkillAssignments();
+			await loadRoles();
+			setStatus({
+				message: `Skills refreshed for ${result.updatedRoles}/${result.consideredRoles} agents`,
+				type: "success",
+			});
+		} catch (error) {
+			console.error("Failed to refresh skill assignments:", error);
+			setStatus({
+				message: "Failed to refresh skill assignments",
+				type: "error",
+			});
+		} finally {
+			setIsRefreshingSkills(false);
+		}
+	}, [loadRoles, setStatus]);
 
 	useEffect(() => {
 		void loadRoles();
@@ -325,6 +347,19 @@ export function TeamManagement() {
 							className="w-full bg-slate-900/40 border border-slate-800/60 text-sm text-slate-200 rounded-xl pl-10 pr-10 py-2.5 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all placeholder:text-slate-600 font-medium shadow-sm"
 						/>
 					</div>
+					<button
+						type="button"
+						onClick={handleRefreshSkills}
+						disabled={isRefreshingSkills || isLoading}
+						className="flex items-center gap-2 h-10 px-4 bg-slate-900/50 hover:bg-slate-800/70 disabled:bg-slate-900/30 disabled:text-slate-500 text-slate-200 border border-slate-700/70 rounded-xl font-bold text-xs uppercase tracking-widest transition-all active:scale-95"
+					>
+						{isRefreshingSkills ? (
+							<Loader2 className="w-4 h-4 animate-spin" />
+						) : (
+							<RefreshCw className="w-4 h-4" />
+						)}
+						Refresh Skill
+					</button>
 					<button
 						type="button"
 						onClick={handleAddNew}

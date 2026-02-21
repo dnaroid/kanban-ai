@@ -550,6 +550,29 @@ class ApiClient {
 			const data = this.unwrapApiData<{ skills?: string[] }>(payload);
 			return { skills: data.skills ?? [] };
 		},
+		refreshSkillAssignments: async (): Promise<{
+			sessionId: string;
+			updatedRoles: number;
+			consideredRoles: number;
+		}> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/skills/refresh-assignments`,
+				{ method: "POST" },
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to refresh skill assignments",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{
+				sessionId: string;
+				updatedRoles: number;
+				consideredRoles: number;
+			}>(payload);
+		},
 		listEnabledModels: async (): Promise<{ models: OpencodeModel[] }> => {
 			const response = await fetch(
 				`${this.baseUrl}/api/opencode/models/enabled`,
