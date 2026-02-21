@@ -84,54 +84,59 @@ export function WorkflowTransitionsEditor({
 	};
 
 	return (
-		<div className="space-y-12">
+		<div className="space-y-16 pb-20">
 			{/* Status Transitions */}
-			<section className="space-y-5">
-				<div className="flex items-center justify-between">
-					<div>
-						<h3 className="text-lg font-bold text-slate-100">
-							Status Transitions
-						</h3>
-						<p className="text-xs text-slate-500 mt-1 uppercase tracking-widest font-bold">
-							Define allowed movements between task statuses
-						</p>
+			<section className="space-y-6">
+				<div className="flex items-center justify-between border-b border-slate-800/60 pb-4">
+					<div className="flex items-center gap-4">
+						<div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+							<GitCompare className="h-5 w-5" />
+						</div>
+						<div>
+							<h3 className="text-xl font-bold text-slate-100">
+								Status Transitions
+							</h3>
+							<p className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-widest font-black">
+								Define allowed movements between task statuses
+							</p>
+						</div>
 					</div>
 				</div>
 
-				<div className="overflow-x-auto rounded-2xl border border-slate-800/60 bg-[#0B0E14]/30">
+				<div className="overflow-x-auto rounded-2xl border border-slate-800/60 bg-[#0B0E14]/30 shadow-2xl">
 					<table className="w-full border-collapse">
 						<thead>
 							<tr className="border-b border-slate-800/60">
-								<th className="p-4 text-left text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-[#0B0E14]/40">
+								<th className="p-5 text-left text-[10px] font-black uppercase tracking-widest text-slate-500 bg-[#0B0E14]/60 backdrop-blur-sm sticky left-0 z-10 border-r border-slate-800/40">
 									From \ To
 								</th>
 								{availableStatuses.map((s) => (
 									<th
 										key={s}
-										className="p-4 text-center text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-[#0B0E14]/40 whitespace-nowrap"
+										className="p-5 text-center text-[10px] font-black uppercase tracking-widest text-slate-500 bg-[#0B0E14]/40 whitespace-nowrap"
 									>
-										<div className="flex flex-col items-center gap-1">
+										<div className="flex flex-col items-center gap-2">
 											{statusOptions[s] && (
 												<div
-													className="rounded-lg border p-1.5"
+													className="rounded-xl border p-2 transition-transform hover:scale-110"
 													style={statusOptions[s].style}
 												>
 													{(() => {
 														const Icon = statusOptions[s].icon;
 														return (
 															<Icon
-																className="h-3.5 w-3.5"
+																className="h-4 w-4"
 																style={statusOptions[s].iconStyle}
 															/>
 														);
 													})()}
 												</div>
 											)}
-											<span>{s}</span>
+											<span className="mt-1">{s.replace(/_/g, " ")}</span>
 										</div>
 									</th>
 								))}
-								<th className="p-4 bg-[#0B0E14]/40"></th>
+								<th className="p-5 bg-[#0B0E14]/40"></th>
 							</tr>
 						</thead>
 						<tbody>
@@ -142,61 +147,61 @@ export function WorkflowTransitionsEditor({
 								return (
 									<tr
 										key={from}
-										className="border-b border-slate-800/60 transition-colors hover:bg-slate-800/20"
+										className="border-b border-slate-800/60 transition-colors hover:bg-slate-800/10 group"
 									>
-										<td className="p-4">
-											<div className="flex items-center gap-3">
+										<td className="p-5 sticky left-0 z-10 bg-[#0B0E14]/80 backdrop-blur-md border-r border-slate-800/40">
+											<div className="flex items-center gap-4">
 												{statusOptions[from] && (
 													<div
-														className="rounded-lg border p-1.5"
+														className="rounded-xl border p-2 shadow-inner"
 														style={statusOptions[from].style}
 													>
 														{(() => {
 															const Icon = statusOptions[from].icon;
 															return (
 																<Icon
-																	className="h-3.5 w-3.5"
+																	className="h-4 w-4"
 																	style={statusOptions[from].iconStyle}
 																/>
 															);
 														})()}
 													</div>
 												)}
-												<span className="text-sm font-bold text-slate-200">
-													{from}
+												<span className="text-sm font-bold text-slate-200 uppercase tracking-tight">
+													{from.replace(/_/g, " ")}
 												</span>
 											</div>
 										</td>
 										{availableStatuses.map((to) => {
 											const isAllowed = current.includes(to);
 											return (
-												<td key={to} className="p-2 text-center">
+												<td key={to} className="p-3 text-center">
 													<button
 														type="button"
 														onClick={() => toggleStatusTransition(from, to)}
 														className={cn(
-															"group mx-auto flex h-8 w-8 items-center justify-center rounded-lg border transition-all",
+															"group/btn mx-auto flex h-10 w-10 items-center justify-center rounded-xl border transition-all duration-300",
 															isAllowed
-																? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-[0_0_15px_-5px_rgba(16,185,129,0.3)]"
-																: "border-slate-800 bg-slate-900/50 text-slate-600 hover:border-slate-600 hover:text-slate-400",
+																? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-[0_0_20px_-5px_rgba(16,185,129,0.3)] scale-105"
+																: "border-slate-800 bg-slate-900/40 text-slate-600 hover:border-slate-600 hover:text-slate-400 hover:scale-105",
 														)}
 													>
 														{isAllowed ? (
-															<Check className="h-4 w-4" />
+															<Check className="h-5 w-5" />
 														) : (
-															<Square className="h-4 w-4 opacity-30 group-hover:opacity-100" />
+															<Square className="h-4 w-4 opacity-10 group-hover/btn:opacity-100" />
 														)}
 													</button>
 												</td>
 											);
 										})}
-										<td className="p-4 text-center">
+										<td className="p-5 text-center">
 											<button
 												type="button"
 												onClick={() => toggleAllStatusTransitions(from, !isAll)}
-												className="text-[10px] font-bold uppercase tracking-widest text-blue-500 hover:text-blue-400 transition-colors"
+												className="text-[10px] font-black uppercase tracking-widest text-blue-500 hover:text-blue-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-blue-500/10 border border-transparent hover:border-blue-500/20"
 											>
-												{isAll ? "None" : "All"}
+												{isAll ? "Clear" : "All"}
 											</button>
 										</td>
 									</tr>
@@ -208,50 +213,59 @@ export function WorkflowTransitionsEditor({
 			</section>
 
 			{/* Column Transitions */}
-			<section className="space-y-5">
-				<div>
-					<h3 className="text-lg font-bold text-slate-100">
-						Column Transitions
-					</h3>
-					<p className="text-xs text-slate-500 mt-1 uppercase tracking-widest font-bold">
-						Define allowed movements between columns on the board
-					</p>
+			<section className="space-y-6">
+				<div className="flex items-center justify-between border-b border-slate-800/60 pb-4">
+					<div className="flex items-center gap-4">
+						<div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
+							<LayoutGrid className="h-5 w-5" />
+						</div>
+						<div>
+							<h3 className="text-xl font-bold text-slate-100">
+								Column Transitions
+							</h3>
+							<p className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-widest font-black">
+								Define allowed movements between columns on the board
+							</p>
+						</div>
+					</div>
 				</div>
 
-				<div className="overflow-x-auto rounded-2xl border border-slate-800/60 bg-[#0B0E14]/30">
+				<div className="overflow-x-auto rounded-2xl border border-slate-800/60 bg-[#0B0E14]/30 shadow-2xl">
 					<table className="w-full border-collapse">
 						<thead>
 							<tr className="border-b border-slate-800/60">
-								<th className="p-4 text-left text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-[#0B0E14]/40">
+								<th className="p-5 text-left text-[10px] font-black uppercase tracking-widest text-slate-500 bg-[#0B0E14]/60 backdrop-blur-sm sticky left-0 z-10 border-r border-slate-800/40">
 									From \ To
 								</th>
 								{availableColumns.map((c) => (
 									<th
 										key={c}
-										className="p-4 text-center text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-[#0B0E14]/40"
+										className="p-5 text-center text-[10px] font-black uppercase tracking-widest text-slate-500 bg-[#0B0E14]/40"
 									>
-										<div className="flex flex-col items-center gap-1">
+										<div className="flex flex-col items-center gap-2">
 											{columnOptions[c] ? (
 												<div
-													className="rounded-lg border p-1.5"
+													className="rounded-xl border p-2 transition-transform hover:scale-110"
 													style={columnOptions[c].style}
 												>
 													{(() => {
 														const Icon = columnOptions[c].icon;
 														return (
 															<Icon
-																className="h-3.5 w-3.5"
+																className="h-4 w-4"
 																style={columnOptions[c].iconStyle}
 															/>
 														);
 													})()}
 												</div>
 											) : null}
-											<span>{columnOptions[c]?.label ?? c}</span>
+											<span className="mt-1">
+												{columnOptions[c]?.label ?? c}
+											</span>
 										</div>
 									</th>
 								))}
-								<th className="p-4 bg-[#0B0E14]/40"></th>
+								<th className="p-5 bg-[#0B0E14]/40"></th>
 							</tr>
 						</thead>
 						<tbody>
@@ -262,20 +276,20 @@ export function WorkflowTransitionsEditor({
 								return (
 									<tr
 										key={from}
-										className="border-b border-slate-800/60 transition-colors hover:bg-slate-800/20"
+										className="border-b border-slate-800/60 transition-colors hover:bg-slate-800/10 group"
 									>
-										<td className="p-4">
-											<div className="flex items-center gap-3">
+										<td className="p-5 sticky left-0 z-10 bg-[#0B0E14]/80 backdrop-blur-md border-r border-slate-800/40">
+											<div className="flex items-center gap-4">
 												{columnOptions[from] ? (
 													<div
-														className="rounded-lg border p-1.5"
+														className="rounded-xl border p-2 shadow-inner"
 														style={columnOptions[from].style}
 													>
 														{(() => {
 															const Icon = columnOptions[from].icon;
 															return (
 																<Icon
-																	className="h-3.5 w-3.5"
+																	className="h-4 w-4"
 																	style={columnOptions[from].iconStyle}
 																/>
 															);
@@ -290,33 +304,33 @@ export function WorkflowTransitionsEditor({
 										{availableColumns.map((to) => {
 											const isAllowed = current.includes(to);
 											return (
-												<td key={to} className="p-2 text-center">
+												<td key={to} className="p-3 text-center">
 													<button
 														type="button"
 														onClick={() => toggleColumnTransition(from, to)}
 														className={cn(
-															"group mx-auto flex h-8 w-8 items-center justify-center rounded-lg border transition-all",
+															"group/btn mx-auto flex h-10 w-10 items-center justify-center rounded-xl border transition-all duration-300",
 															isAllowed
-																? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-[0_0_15px_-5px_rgba(16,185,129,0.3)]"
-																: "border-slate-800 bg-slate-900/50 text-slate-600 hover:border-slate-600 hover:text-slate-400",
+																? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-[0_0_20px_-5px_rgba(16,185,129,0.3)] scale-105"
+																: "border-slate-800 bg-slate-900/40 text-slate-600 hover:border-slate-600 hover:text-slate-400 hover:scale-105",
 														)}
 													>
 														{isAllowed ? (
-															<Check className="h-4 w-4" />
+															<Check className="h-5 w-5" />
 														) : (
-															<Square className="h-4 w-4 opacity-30 group-hover:opacity-100" />
+															<Square className="h-4 w-4 opacity-10 group-hover/btn:opacity-100" />
 														)}
 													</button>
 												</td>
 											);
 										})}
-										<td className="p-4 text-center">
+										<td className="p-5 text-center">
 											<button
 												type="button"
 												onClick={() => toggleAllColumnTransitions(from, !isAll)}
-												className="text-[10px] font-bold uppercase tracking-widest text-blue-500 hover:text-blue-400 transition-colors"
+												className="text-[10px] font-black uppercase tracking-widest text-blue-500 hover:text-blue-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-blue-500/10 border border-transparent hover:border-blue-500/20"
 											>
-												{isAll ? "None" : "All"}
+												{isAll ? "Clear" : "All"}
 											</button>
 										</td>
 									</tr>

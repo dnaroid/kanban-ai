@@ -26,17 +26,6 @@ UX
 - звуковые эффекты
 
 
-маркеры выполнения Run:
-- generated
-- done
-- fail
-- question
-- test_ok
-- test_fail
-
-
-
-
 BUGS:
 
 - danger zone: после вайпа показывает неправильное количество проектов
