@@ -54,6 +54,10 @@ vi.mock("@/server/run/prompts/user-story", () => ({
 	buildUserStoryPrompt: vi.fn(() => "user-story-prompt"),
 }));
 
+vi.mock("@/server/run/prompts/qa-testing", () => ({
+	buildQaTestingPrompt: vi.fn(() => "qa-testing-prompt"),
+}));
+
 vi.mock("@/server/run/runs-queue-manager", () => ({
 	getRunsQueueManager: () => mockQueueManager,
 }));
@@ -121,7 +125,11 @@ function buildTask() {
 	};
 }
 
-function buildRun(status: string, id = "run-1") {
+function buildRun(
+	status: string,
+	id = "run-1",
+	kind = "task-description-improve",
+) {
 	const now = new Date().toISOString();
 	return {
 		id,
@@ -130,7 +138,7 @@ function buildRun(status: string, id = "run-1") {
 		status,
 		createdAt: now,
 		updatedAt: now,
-		metadata: { kind: "task-description-improve" },
+		metadata: { kind },
 	};
 }
 
@@ -192,6 +200,78 @@ describe("RunService.generateUserStory", () => {
 			expect.objectContaining({
 				projectPath: "/tmp/kanban",
 				sessionTitle: expect.stringContaining("User Story:"),
+			}),
+		);
+	});
+});
+
+describe("RunService.startQaTesting", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockTaskRepo.getById.mockReturnValue(buildTask());
+		mockRunRepo.listByTask.mockReturnValue([]);
+		mockRunRepo.create.mockReturnValue(
+			buildRun("queued", "run-qa-new", "task-qa-testing"),
+		);
+		mockRoleRepo.list.mockReturnValue([
+			{ id: "qa", name: "QA" },
+			{ id: "dev", name: "Developer" },
+		]);
+		mockProjectRepo.getById.mockReturnValue({
+			id: "project-1",
+			name: "Kanban",
+			path: "/tmp/kanban",
+			color: "#111111",
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		});
+		mockContextSnapshotRepo.create.mockReturnValue("snapshot-qa");
+	});
+
+	it("returns active QA run instead of creating duplicate", async () => {
+		mockRunRepo.listByTask.mockReturnValue([
+			buildRun("running", "run-qa-active", "task-qa-testing"),
+		]);
+
+		const service = new RunService();
+		const result = await service.startQaTesting("task-1");
+
+		expect(result).toEqual({ runId: "run-qa-active" });
+		expect(mockRunRepo.create).not.toHaveBeenCalled();
+		expect(mockQueueManager.enqueue).not.toHaveBeenCalled();
+		expect(mockRunEventRepo.create).not.toHaveBeenCalled();
+	});
+
+	it("creates and enqueues QA testing run when no active run exists", async () => {
+		const service = new RunService();
+		const result = await service.startQaTesting("task-1");
+
+		expect(result).toEqual({ runId: "run-qa-new" });
+		expect(mockContextSnapshotRepo.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "task-1",
+				kind: "qa-testing",
+			}),
+		);
+		expect(mockRunRepo.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "task-1",
+				roleId: "qa",
+				kind: "task-qa-testing",
+			}),
+		);
+		expect(mockRunEventRepo.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				eventType: "status",
+				payload: expect.objectContaining({ message: "QA testing queued" }),
+			}),
+		);
+		expect(mockQueueManager.enqueue).toHaveBeenCalledWith(
+			"run-qa-new",
+			expect.objectContaining({
+				projectPath: "/tmp/kanban",
+				sessionTitle: expect.stringContaining("QA Testing:"),
+				prompt: "qa-testing-prompt",
 			}),
 		);
 	});

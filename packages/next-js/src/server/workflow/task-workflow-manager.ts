@@ -286,11 +286,19 @@ const WORKFLOW_SIGNALS_FALLBACK: readonly WorkflowSignalConfig[] = [
 		isActive: true,
 	},
 	{
+		key: "testing_started",
+		scope: "run",
+		title: "Testing Started",
+		description: "QA testing run started",
+		orderIndex: 2,
+		isActive: true,
+	},
+	{
 		key: "generated",
 		scope: "run",
 		title: "Generated",
 		description: "Generation output produced",
-		orderIndex: 2,
+		orderIndex: 3,
 		isActive: true,
 	},
 	{
@@ -298,7 +306,7 @@ const WORKFLOW_SIGNALS_FALLBACK: readonly WorkflowSignalConfig[] = [
 		scope: "run",
 		title: "Done",
 		description: "Run completed successfully",
-		orderIndex: 3,
+		orderIndex: 4,
 		isActive: true,
 	},
 	{
@@ -306,7 +314,7 @@ const WORKFLOW_SIGNALS_FALLBACK: readonly WorkflowSignalConfig[] = [
 		scope: "run",
 		title: "Fail",
 		description: "Run failed",
-		orderIndex: 4,
+		orderIndex: 5,
 		isActive: true,
 	},
 	{
@@ -314,7 +322,7 @@ const WORKFLOW_SIGNALS_FALLBACK: readonly WorkflowSignalConfig[] = [
 		scope: "run",
 		title: "Question",
 		description: "Run paused waiting for user input",
-		orderIndex: 5,
+		orderIndex: 6,
 		isActive: true,
 	},
 	{
@@ -322,7 +330,7 @@ const WORKFLOW_SIGNALS_FALLBACK: readonly WorkflowSignalConfig[] = [
 		scope: "run",
 		title: "Test OK",
 		description: "Tests passed",
-		orderIndex: 6,
+		orderIndex: 7,
 		isActive: true,
 	},
 	{
@@ -330,7 +338,7 @@ const WORKFLOW_SIGNALS_FALLBACK: readonly WorkflowSignalConfig[] = [
 		scope: "run",
 		title: "Test Fail",
 		description: "Tests failed",
-		orderIndex: 7,
+		orderIndex: 8,
 		isActive: true,
 	},
 	{
@@ -338,7 +346,7 @@ const WORKFLOW_SIGNALS_FALLBACK: readonly WorkflowSignalConfig[] = [
 		scope: "run",
 		title: "Timeout",
 		description: "Run timed out",
-		orderIndex: 8,
+		orderIndex: 9,
 		isActive: true,
 	},
 	{
@@ -346,7 +354,7 @@ const WORKFLOW_SIGNALS_FALLBACK: readonly WorkflowSignalConfig[] = [
 		scope: "run",
 		title: "Cancelled",
 		description: "Run cancelled",
-		orderIndex: 9,
+		orderIndex: 10,
 		isActive: true,
 	},
 	{
@@ -471,6 +479,14 @@ const WORKFLOW_SIGNAL_RULES_FALLBACK: readonly WorkflowSignalRuleConfig[] = [
 		runStatus: "running",
 		fromStatus: null,
 		toStatus: "generating",
+	},
+	{
+		key: "rule-testing-started",
+		signalKey: "testing_started",
+		runKind: "task-qa-testing",
+		runStatus: "running",
+		fromStatus: null,
+		toStatus: "running",
 	},
 	{
 		key: "rule-generated-default",

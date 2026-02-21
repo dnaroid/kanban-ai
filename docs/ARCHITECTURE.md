@@ -445,23 +445,25 @@ graph LR
 
 #### Дефолтные статусы
 
+> **Важно**: `WorkflowTaskStatus = string` — динамический тип, статусы определяются конфигурацией в БД.
+
 | Status | Preferred Column | Blocked Reason | Closed Reason | Color | Icon |
 |--------|------------------|----------------|---------------|-------|------|
-| queued | ready | - | - | 🔵 #3b82f6 | clock |
-| running | in_progress | - | - | 🟡 #eab308 | loader |
-| generating | in_progress | - | - | 🟡 #eab308 | sparkles |
-| question | blocked | question | - | 🔴 #ef4444 | help-circle |
-| paused | blocked | paused | - | 🔴 #ef4444 | pause |
+| pending | ready | - | - | 🔵 #64748b | clock |
+| running | in_progress | - | - | 🔵 #3b82f6 | play |
+| generating | in_progress | - | - | 🟣 #8b5cf6 | sparkles |
+| question | blocked | question | - | 🟠 #f97316 | help-circle |
+| paused | blocked | paused | - | 🟡 #eab308 | pause |
 | failed | blocked | failed | failed | 🔴 #ef4444 | x-circle |
-| done | review | - | done | 🟢 #22c55e | check-circle |
+| done | review | - | done | 🟢 #10b981 | check-circle |
 
 #### Разрешённые статусы по колонкам
 
 | Column | Allowed Statuses |
 |--------|-----------------|
-| backlog | queued |
-| ready | queued |
-| deferred | queued |
+| backlog | pending |
+| ready | pending |
+| deferred | pending |
 | in_progress | running, generating |
 | blocked | question, paused, failed |
 | review | done |
@@ -901,54 +903,54 @@ Response: {
 
 ```mermaid
 stateDiagram-v2
-    [*] --> queued: Create
+    [*] --> pending: Create
     
-    queued --> running: start run
-    queued --> generating: generate user story
+    pending --> running: start run
+    pending --> generating: generate user story
     
     running --> done: complete
     running --> failed: error
     running --> paused: question
-    running --> queued: cancel
+    running --> pending: cancel
     
-    generating --> queued: complete
+    generating --> pending: complete
     generating --> failed: error
     generating --> question: question
-    generating --> queued: cancel
+    generating --> pending: cancel
     
     paused --> running: resume
     paused --> failed: fail
-    paused --> queued: cancel
+    paused --> pending: cancel
     
-    done --> queued: reopen
+    done --> pending: reopen
     done --> failed: fail
     
     failed --> running: retry
-    failed --> queued: cancel
+    failed --> pending: cancel
     failed --> paused: question
     
     question --> running: answer
-    question --> queued: cancel
+    question --> pending: cancel
 ```
 
 ### 10.2 Таблица переходов статусов
 
 | From | To | Trigger |
 |------|-----|---------|
-| queued | running | RunService.start() |
-| queued | generating | RunService.generateUserStory() |
+| pending | running | RunService.start() |
+| pending | generating | RunService.generateUserStory() |
 | running | done | OpenCode completes |
 | running | failed | OpenCode errors |
 | running | paused | OpenCode asks question |
 | paused | running | Resume from pause |
-| done | queued | Reopen task |
+| done | pending | Reopen task |
 | failed | running | Retry |
 
 ### 10.3 Маппинг статус → UI колонка
 
 | Status | Column | UI Color | Icon |
 |--------|--------|----------|------|
-| queued | Ready | 🔵 Blue | Clock |
+| pending | Ready | 🔵 Blue | Clock |
 | running | In Progress | 🟡 Yellow | Loader |
 | generating | In Progress | 🟡 Yellow | Sparkles |
 | question | Blocked | 🔴 Red | HelpCircle |

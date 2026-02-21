@@ -1,7 +1,7 @@
 import { randomUUID, createHash } from "crypto";
 import { dbManager } from "@/server/db";
 
-type SnapshotKind = "run-start" | "user-story";
+type SnapshotKind = "run-start" | "user-story" | "qa-testing";
 
 interface CreateContextSnapshotInput {
 	taskId: string;

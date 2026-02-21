@@ -490,6 +490,29 @@ class ApiClient {
 			const payload = await response.json();
 			return this.unwrapApiData<{ runId: string }>(payload);
 		},
+		startQaTesting: async ({
+			taskId,
+		}: {
+			taskId: string;
+		}): Promise<{ runId: string }> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/start-qa-testing`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ taskId }),
+				},
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to start QA testing",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ runId: string }>(payload);
+		},
 		generateUserStories: async ({
 			taskIds,
 		}: {

@@ -91,6 +91,7 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 	const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 	const [isLoadingRuns, setIsLoadingRuns] = useState(false);
 	const [isStartingRun, setIsStartingRun] = useState(false);
+	const [isStartingQaRun, setIsStartingQaRun] = useState(false);
 	const [roles, setRoles] = useState<AgentRole[]>([]);
 	const [isLoadingRoles, setIsLoadingRoles] = useState(false);
 	const [selectedRoleId, setSelectedRoleId] = useState<string>("");
@@ -181,6 +182,20 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 			console.error("Failed to start run:", error);
 		} finally {
 			setIsStartingRun(false);
+		}
+	};
+
+	const handleStartQaRun = async () => {
+		if (isStartingQaRun) return;
+		setIsStartingQaRun(true);
+		try {
+			const response = await api.opencode.startQaTesting({ taskId: task.id });
+			await fetchRuns();
+			setSelectedRunId(response.runId);
+		} catch (error) {
+			console.error("Failed to start QA testing run:", error);
+		} finally {
+			setIsStartingQaRun(false);
 		}
 	};
 
@@ -327,7 +342,7 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 					<button
 						type="button"
 						onClick={handleStartRun}
-						disabled={isStartingRun || isLoadingRoles}
+						disabled={isStartingRun || isStartingQaRun || isLoadingRoles}
 						className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
 					>
 						{isStartingRun ? (
@@ -336,6 +351,19 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 							<Play className="w-3.5 h-3.5 fill-current" />
 						)}
 						New Run
+					</button>
+					<button
+						type="button"
+						onClick={handleStartQaRun}
+						disabled={isStartingRun || isStartingQaRun || isLoadingRoles}
+						className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
+					>
+						{isStartingQaRun ? (
+							<RefreshCw className="w-3.5 h-3.5 animate-spin" />
+						) : (
+							<Play className="w-3.5 h-3.5 fill-current" />
+						)}
+						QA Test
 					</button>
 				</div>
 			</div>

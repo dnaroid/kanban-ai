@@ -151,6 +151,10 @@ export interface OpenCodeGenerateUserStoryResponse {
 	runId: string;
 }
 
+export interface OpenCodeStartQaTestingResponse {
+	runId: string;
+}
+
 export interface OpenCodeSessionMessagesResponse {
 	sessionId: string;
 	messages: OpenCodeMessage[];

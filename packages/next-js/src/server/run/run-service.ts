@@ -1,5 +1,6 @@
 import { createLogger } from "@/lib/logger";
 import { buildTaskPrompt } from "@/server/run/prompts/task";
+import { buildQaTestingPrompt } from "@/server/run/prompts/qa-testing";
 import { buildUserStoryPrompt } from "@/server/run/prompts/user-story";
 import { publishSseEvent } from "@/server/events/sse-broker";
 import { publishRunUpdate } from "@/server/run/run-publisher";
@@ -26,7 +27,9 @@ export interface StartRunInput {
 const allowedTaskTypes = ["feature", "bug", "chore", "improvement"] as const;
 const allowedDifficulties = ["easy", "medium", "hard", "epic"] as const;
 const agentRoleTagPrefix = "agent:";
-const activeGenerationRunStatuses = new Set(["queued", "running", "paused"]);
+const generationRunKind = "task-description-improve";
+const qaTestingRunKind = "task-qa-testing";
+const activeSpecializedRunStatuses = new Set(["queued", "running", "paused"]);
 
 export class RunService {
 	private readonly queueManager = getRunsQueueManager();
@@ -139,8 +142,8 @@ export class RunService {
 			.listByTask(task.id)
 			.find(
 				(run) =>
-					run.metadata?.kind === "task-description-improve" &&
-					activeGenerationRunStatuses.has(run.status),
+					run.metadata?.kind === generationRunKind &&
+					activeSpecializedRunStatuses.has(run.status),
 			);
 		if (activeGenerationRun) {
 			log.info("User story generation already active for task", {
@@ -184,7 +187,7 @@ export class RunService {
 			taskId: task.id,
 			roleId,
 			mode: "execute",
-			kind: "task-description-improve",
+			kind: generationRunKind,
 			contextSnapshotId: snapshotId,
 		});
 
@@ -244,6 +247,118 @@ export class RunService {
 		});
 
 		log.info("User story run enqueued", { runId: run.id });
+		return { runId: run.id };
+	}
+
+	public async startQaTesting(taskId: string): Promise<{ runId: string }> {
+		log.info("Starting QA testing run", { taskId });
+
+		const task = taskRepo.getById(taskId);
+		if (!task) {
+			log.error("Task not found", { taskId });
+			throw new Error(`Task not found: ${taskId}`);
+		}
+
+		const activeQaTestingRun = runRepo
+			.listByTask(task.id)
+			.find(
+				(run) =>
+					run.metadata?.kind === qaTestingRunKind &&
+					activeSpecializedRunStatuses.has(run.status),
+			);
+		if (activeQaTestingRun) {
+			log.info("QA testing run already active for task", {
+				taskId: task.id,
+				runId: activeQaTestingRun.id,
+				status: activeQaTestingRun.status,
+			});
+			return { runId: activeQaTestingRun.id };
+		}
+
+		const selectedRoleId = roleRepo.list().find((role) => role.id === "qa")?.id;
+		const roleId = selectedRoleId ?? roleRepo.list()[0]?.id;
+		if (!roleId) {
+			log.error("No agent roles configured");
+			throw new Error("No agent roles configured");
+		}
+
+		const project = projectRepo.getById(task.projectId);
+		if (!project) {
+			log.error("Project not found for task", {
+				taskId,
+				projectId: task.projectId,
+			});
+			throw new Error(`Project not found for task: ${task.id}`);
+		}
+
+		log.debug("Creating context snapshot for QA testing", { taskId: task.id });
+		const snapshotId = contextSnapshotRepo.create({
+			taskId: task.id,
+			kind: "qa-testing",
+			summary: `QA testing started for ${task.title}`,
+			payload: {
+				taskId: task.id,
+				title: task.title,
+				description: task.description,
+				roleId,
+			},
+		});
+
+		const run = runRepo.create({
+			taskId: task.id,
+			roleId,
+			mode: "execute",
+			kind: qaTestingRunKind,
+			contextSnapshotId: snapshotId,
+		});
+
+		log.info("QA testing run created", {
+			runId: run.id,
+			taskId: task.id,
+			roleId,
+		});
+
+		runEventRepo.create({
+			runId: run.id,
+			eventType: "status",
+			payload: { status: run.status, message: "QA testing queued" },
+		});
+		publishRunUpdate(run);
+
+		const taskTags = this.parseTaskTags(task.tags);
+		const availableRoles = roleRepo.list();
+		const availableTags = tagRepo.listNames();
+
+		log.debug("Enqueueing QA testing run", {
+			runId: run.id,
+			projectPath: project.path,
+		});
+		this.queueManager.enqueue(run.id, {
+			projectPath: project.path,
+			sessionTitle: `QA Testing: ${task.title}`.slice(0, 120),
+			prompt: buildQaTestingPrompt(
+				{
+					title: task.title,
+					description: task.description,
+					tags: taskTags,
+					type: task.type,
+					difficulty: task.difficulty,
+				},
+				{
+					id: project.id,
+					name: project.name,
+					path: project.path,
+				},
+				{
+					availableTags,
+					availableTypes: [...allowedTaskTypes],
+					availableDifficulties: [...allowedDifficulties],
+					availableRoles,
+				},
+			),
+		});
+
+		log.info("QA testing run enqueued", { runId: run.id });
 		return { runId: run.id };
 	}
 

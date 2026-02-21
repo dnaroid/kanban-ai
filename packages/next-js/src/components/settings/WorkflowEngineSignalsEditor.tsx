@@ -53,6 +53,7 @@ const RUN_STATUSES: readonly WorkflowRunStatus[] = [
 
 const KNOWN_RUN_KINDS: readonly string[] = [
 	"task-description-improve",
+	"task-qa-testing",
 	"task-run",
 ];
 

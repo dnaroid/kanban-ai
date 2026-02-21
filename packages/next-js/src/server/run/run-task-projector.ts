@@ -154,6 +154,10 @@ function isTaskDescriptionImproveRun(run: Run): boolean {
 	return run.metadata?.kind === "task-description-improve";
 }
 
+function isQaTestingRun(run: Run): boolean {
+	return run.metadata?.kind === "task-qa-testing";
+}
+
 export class RunTaskProjector {
 	private updateTaskAndPublish(
 		taskId: string,
@@ -224,7 +228,9 @@ export class RunTaskProjector {
 
 		const signalKey = isTaskDescriptionImproveRun(run)
 			? "generation_started"
-			: "run_started";
+			: isQaTestingRun(run)
+				? "testing_started"
+				: "run_started";
 		const nextStatus = this.resolveStatusBySignal(
 			task,
 			run,
