@@ -18,6 +18,8 @@ import {
 	Zap,
 	Activity,
 } from "lucide-react";
+import { PillSelect } from "@/components/common/PillSelect";
+import { createStatusPillOptions } from "@/components/kanban/workflow-display";
 
 import type {
 	WorkflowSignalConfig,
@@ -37,6 +39,8 @@ interface WorkflowEngineSignalsEditorProps {
 	onSignalRulesChange: (rules: WorkflowSignalRuleConfig[]) => void;
 	onErrorChange: (message: string | null) => void;
 }
+
+type StatusPillOption = ReturnType<typeof createStatusPillOptions>[string];
 
 const TASK_STATUSES: readonly WorkflowTaskStatus[] = [
 	"queued",
@@ -146,13 +150,10 @@ function getStatusBadgeStyle(
 		};
 	}
 
-	const luminance = (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) / 255;
-	const textColor = luminance > 0.62 ? "#111827" : "#f8fafc";
-
 	return {
 		borderColor: color,
 		backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.22)`,
-		color: textColor,
+		color: "#ffffff",
 	};
 }
 
@@ -220,10 +221,25 @@ export function WorkflowEngineSignalsEditor({
 			new Map(statuses.map((status) => [status.status, status.color] as const)),
 		[statuses],
 	);
-
-	const statusKeys = useMemo(() => statuses.map((s) => s.status), [statuses]);
-	const targetStatuses = statusKeys.filter((status) =>
-		isWorkflowTaskStatusValue(status),
+	const statusPillOptions = useMemo(
+		() => createStatusPillOptions(statuses),
+		[statuses],
+	);
+	const fromStatusPillOptions = useMemo<Record<string, StatusPillOption>>(
+		() => ({
+			any_status: {
+				icon: Filter,
+				label: "Any status",
+				style: {
+					color: "#60a5fa",
+					backgroundColor: "rgba(59, 130, 246, 0.12)",
+					borderColor: "rgba(59, 130, 246, 0.3)",
+				},
+				iconStyle: { color: "#60a5fa" },
+			},
+			...statusPillOptions,
+		}),
+		[statusPillOptions],
 	);
 
 	// Filtered Signals
@@ -1001,73 +1017,74 @@ export function WorkflowEngineSignalsEditor({
 							</button>
 						</div>
 						<div className="p-6 space-y-6">
-							<div className="space-y-1.5">
-								<div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-									Signal Trigger
-								</div>
-								<select
-									value={ruleForm.signalKey}
-									onChange={(e) =>
-										setRuleForm({ ...ruleForm, signalKey: e.target.value })
-									}
-									className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-blue-500"
-								>
-									{signals.map((s) => (
-										<option key={s.key} value={s.key}>
-											{s.title} ({s.key})
-										</option>
-									))}
-								</select>
-							</div>
+							{(() => {
+								const fromStatusValue = ruleForm.fromStatus ?? "any_status";
+								const toStatusValue = ruleForm.toStatus;
+								const fromStatusDisplay =
+									fromStatusPillOptions[fromStatusValue]?.label ?? "Any status";
+								const toStatusDisplay =
+									statusPillOptions[toStatusValue]?.label ?? toStatusValue;
 
-							<div className="grid gap-4 sm:grid-cols-2">
-								<div className="space-y-1.5">
-									<div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-										From Status
-									</div>
-									<select
-										value={ruleForm.fromStatus || ""}
-										onChange={(e) =>
-											setRuleForm({
-												...ruleForm,
-												fromStatus: toTaskStatusOrNull(e.target.value),
-											})
-										}
-										className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-blue-500"
-									>
-										<option value="">Any Status</option>
-										{targetStatuses.map((s) => (
-											<option key={s} value={s}>
-												{s.toUpperCase()}
-											</option>
-										))}
-									</select>
-								</div>
-								<div className="space-y-1.5">
-									<div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-										To Status
-									</div>
-									<select
-										value={ruleForm.toStatus}
-										onChange={(e) =>
-											setRuleForm({
-												...ruleForm,
-												toStatus: toTaskStatus(
-													e.target.value,
-													ruleForm.toStatus,
-												),
-											})
-										}
-										className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-blue-500"
-									>
-										{targetStatuses.map((s) => (
-											<option key={s} value={s}>
-												{s.toUpperCase()}
-											</option>
-										))}
-									</select>
-								</div>
-							</div>
+								return (
+									<>
+										<div className="space-y-1.5">
+											<div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+												Signal Trigger
+											</div>
+											<select
+												value={ruleForm.signalKey}
+												onChange={(e) =>
+													setRuleForm({
+														...ruleForm,
+														signalKey: e.target.value,
+													})
+												}
+												className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-blue-500"
+											>
+												{signals.map((s) => (
+													<option key={s.key} value={s.key}>
+														{s.title} ({s.key})
+													</option>
+												))}
+											</select>
+										</div>
+
+										<div className="grid gap-4 sm:grid-cols-2">
+											<div className="space-y-1.5">
+												<PillSelect
+													label="From Status"
+													value={fromStatusValue}
+													options={fromStatusPillOptions}
+													displayValue={fromStatusDisplay}
+													onChange={(value) =>
+														setRuleForm({
+															...ruleForm,
+															fromStatus:
+																value === "any_status"
+																	? null
+																	: toTaskStatusOrNull(value),
+														})
+													}
+												/>
+											</div>
+											<div className="space-y-1.5">
+												<PillSelect
+													label="To Status"
+													value={toStatusValue}
+													options={statusPillOptions}
+													displayValue={toStatusDisplay}
+													onChange={(value) =>
+														setRuleForm({
+															...ruleForm,
+															toStatus: toTaskStatus(value, ruleForm.toStatus),
+														})
+													}
+												/>
+											</div>
+										</div>
+									</>
+								);
+							})()}
 
 							<div className="space-y-4 rounded-2xl bg-slate-950/40 p-4 border border-slate-800/50">
 								<div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase">
