@@ -62,6 +62,11 @@ const RUN_STATUSES: readonly WorkflowRunStatus[] = [
 	"paused",
 ];
 
+const KNOWN_RUN_KINDS: readonly string[] = [
+	"task-description-improve",
+	"task-run",
+];
+
 type SignalActiveFilter = "all" | "active" | "inactive";
 
 function isWorkflowTaskStatusValue(value: string): value is WorkflowTaskStatus {
@@ -241,6 +246,18 @@ export function WorkflowEngineSignalsEditor({
 		}),
 		[statusPillOptions],
 	);
+	const runKindOptions = useMemo(() => {
+		const values = new Set<string>(KNOWN_RUN_KINDS);
+		for (const rule of signalRules) {
+			if (rule.runKind) {
+				values.add(rule.runKind);
+			}
+		}
+		if (ruleForm?.runKind) {
+			values.add(ruleForm.runKind);
+		}
+		return [...values].sort((a, b) => a.localeCompare(b));
+	}, [signalRules, ruleForm?.runKind]);
 
 	// Filtered Signals
 	const filteredSignals = useMemo(() => {
@@ -1097,8 +1114,7 @@ export function WorkflowEngineSignalsEditor({
 										<div className="text-[10px] font-bold text-slate-500 uppercase">
 											Run Kind
 										</div>
-										<input
-											type="text"
+										<select
 											value={ruleForm.runKind || ""}
 											onChange={(e) =>
 												setRuleForm({
@@ -1106,13 +1122,19 @@ export function WorkflowEngineSignalsEditor({
 													runKind: e.target.value || null,
 												})
 											}
-											placeholder="Optional kind filter"
 											disabled={
 												signals.find((s) => s.key === ruleForm.signalKey)
 													?.scope === "user_action"
 											}
 											className="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-200 outline-none focus:border-blue-500 disabled:opacity-30"
-										/>
+										>
+											<option value="">Any Run Kind</option>
+											{runKindOptions.map((kind) => (
+												<option key={kind} value={kind}>
+													{kind}
+												</option>
+											))}
+										</select>
 									</div>
 									<div className="space-y-1.5">
 										<div className="text-[10px] font-bold text-slate-500 uppercase">
