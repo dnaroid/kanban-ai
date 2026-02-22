@@ -32,7 +32,14 @@ Thumbs.db
 # Testing
 coverage/
 
+# Database
+data/
+*.db-*
+packages/server/dist/
+*.db
+
 # TypeScript
 *.tsbuildinfo
 /.opencode/
 /.gemini-clipboard/
+/.playwright-cli/

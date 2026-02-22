@@ -1,0 +1,275 @@
+import { randomUUID } from "crypto";
+import { dbManager } from "../db";
+import type { Task, CreateTaskInput, UpdateTaskInput } from "../types";
+
+export class TaskRepository {
+	create(input: CreateTaskInput): Task {
+		const db = dbManager.connect();
+		const now = new Date().toISOString();
+		const id = randomUUID();
+		const status = typeof input.status === "string" ? input.status.trim() : "";
+		if (!status) {
+			throw new Error("Task status is required");
+		}
+		const blockedReason = input.blockedReason ?? null;
+		const closedReason = input.closedReason ?? null;
+		const priority = input.priority ?? "normal";
+		const difficulty = input.difficulty ?? "medium";
+		const type = input.type ?? "chore";
+		const tags = input.tags ? JSON.stringify(input.tags) : "[]";
+
+		// Get the max order_in_column for this column
+		const maxOrderStmt = db.prepare(`
+			SELECT COALESCE(MAX(order_in_column), -1) as maxOrder
+			FROM tasks
+			WHERE board_id = ? AND column_id = ?
+		`);
+		const result = maxOrderStmt.get(input.boardId, input.columnId) as {
+			maxOrder: number;
+		};
+		const orderInColumn = result.maxOrder + 1;
+
+		const stmt = db.prepare(`
+      INSERT INTO tasks (
+				id, project_id, board_id, column_id, title, description, description_md,
+				status, blocked_reason, closed_reason, priority, difficulty, type, order_in_column, tags_json,
+				start_date, due_date, estimate_points, estimate_hours, assignee, model_name,
+				created_at, updated_at
+			)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+		stmt.run(
+			id,
+			input.projectId,
+			input.boardId,
+			input.columnId,
+			input.title,
+			input.description ?? null,
+			null, // description_md
+			status,
+			blockedReason,
+			closedReason,
+			priority,
+			difficulty,
+			type,
+			orderInColumn,
+			tags,
+			null, // start_date
+			input.dueDate ?? null,
+			null, // estimate_points
+			null, // estimate_hours
+			null, // assignee
+			input.modelName ?? null,
+			now,
+			now,
+		);
+
+		return this.getById(id)!;
+	}
+
+	listByBoard(boardId: string): Task[] {
+		const db = dbManager.connect();
+		const stmt = db.prepare(`
+      SELECT
+        id,
+        project_id as projectId,
+        board_id as boardId,
+        column_id as columnId,
+        title,
+        description,
+        description_md as descriptionMd,
+        status,
+        blocked_reason as blockedReason,
+        closed_reason as closedReason,
+        priority,
+        difficulty,
+        type,
+        order_in_column as orderInColumn,
+        tags_json as tags,
+        start_date as startDate,
+        due_date as dueDate,
+        estimate_points as estimatePoints,
+        estimate_hours as estimateHours,
+        assignee,
+        model_name as modelName,
+        created_at as createdAt,
+        updated_at as updatedAt
+      FROM tasks
+      WHERE board_id = ?
+      ORDER BY column_id, order_in_column ASC
+    `);
+
+		return stmt.all(boardId) as Task[];
+	}
+
+	getById(id: string): Task | null {
+		const db = dbManager.connect();
+		const stmt = db.prepare(`
+      SELECT
+        id,
+        project_id as projectId,
+        board_id as boardId,
+        column_id as columnId,
+        title,
+        description,
+        description_md as descriptionMd,
+        status,
+        blocked_reason as blockedReason,
+        closed_reason as closedReason,
+        priority,
+        difficulty,
+        type,
+        order_in_column as orderInColumn,
+        tags_json as tags,
+        start_date as startDate,
+        due_date as dueDate,
+        estimate_points as estimatePoints,
+        estimate_hours as estimateHours,
+        assignee,
+        model_name as modelName,
+        created_at as createdAt,
+        updated_at as updatedAt
+      FROM tasks
+      WHERE id = ?
+    `);
+
+		return stmt.get(id) as Task | null;
+	}
+
+	update(id: string, updates: UpdateTaskInput): Task | null {
+		const db = dbManager.connect();
+		const now = new Date().toISOString();
+
+		const sets: string[] = [];
+		const values: unknown[] = [];
+
+		if (updates.columnId !== undefined) {
+			sets.push("column_id = ?");
+			values.push(updates.columnId);
+		}
+		if (updates.title !== undefined) {
+			sets.push("title = ?");
+			values.push(updates.title);
+		}
+		if (updates.description !== undefined) {
+			sets.push("description = ?");
+			values.push(updates.description);
+		}
+		if (updates.descriptionMd !== undefined) {
+			sets.push("description_md = ?");
+			values.push(updates.descriptionMd);
+		}
+		if (updates.status !== undefined) {
+			sets.push("status = ?");
+			values.push(updates.status);
+		}
+		if (updates.blockedReason !== undefined) {
+			sets.push("blocked_reason = ?");
+			values.push(updates.blockedReason);
+		}
+		if (updates.closedReason !== undefined) {
+			sets.push("closed_reason = ?");
+			values.push(updates.closedReason);
+		}
+		if (updates.priority !== undefined) {
+			sets.push("priority = ?");
+			values.push(updates.priority);
+		}
+		if (updates.difficulty !== undefined) {
+			sets.push("difficulty = ?");
+			values.push(updates.difficulty);
+		}
+		if (updates.type !== undefined) {
+			sets.push("type = ?");
+			values.push(updates.type);
+		}
+		if (updates.orderInColumn !== undefined) {
+			sets.push("order_in_column = ?");
+			values.push(updates.orderInColumn);
+		}
+		if (updates.tags !== undefined) {
+			sets.push("tags_json = ?");
+			values.push(updates.tags);
+		}
+		if (updates.startDate !== undefined) {
+			sets.push("start_date = ?");
+			values.push(updates.startDate);
+		}
+		if (updates.dueDate !== undefined) {
+			sets.push("due_date = ?");
+			values.push(updates.dueDate);
+		}
+		if (updates.estimatePoints !== undefined) {
+			sets.push("estimate_points = ?");
+			values.push(updates.estimatePoints);
+		}
+		if (updates.estimateHours !== undefined) {
+			sets.push("estimate_hours = ?");
+			values.push(updates.estimateHours);
+		}
+		if (updates.assignee !== undefined) {
+			sets.push("assignee = ?");
+			values.push(updates.assignee);
+		}
+		if (updates.modelName !== undefined) {
+			sets.push("model_name = ?");
+			values.push(updates.modelName);
+		}
+
+		if (sets.length === 0) return this.getById(id);
+
+		values.push(now, id);
+
+		const stmt = db.prepare(`
+      UPDATE tasks
+      SET ${sets.join(", ")}, updated_at = ?
+      WHERE id = ?
+    `);
+
+		stmt.run(...values);
+
+		return this.getById(id);
+	}
+
+	move(id: string, columnId: string, toIndex?: number): Task | null {
+		const db = dbManager.connect();
+		const now = new Date().toISOString();
+
+		// Get the task to move
+		const task = this.getById(id);
+		if (!task) return null;
+
+		// If no index provided, move to end of column
+		if (toIndex === undefined) {
+			const maxOrderStmt = db.prepare(`
+				SELECT COALESCE(MAX(order_in_column), -1) as maxOrder
+				FROM tasks
+				WHERE board_id = ? AND column_id = ?
+			`);
+			const result = maxOrderStmt.get(task.boardId, columnId) as {
+				maxOrder: number;
+			};
+			toIndex = result.maxOrder + 1;
+		}
+
+		const stmt = db.prepare(`
+      UPDATE tasks
+      SET column_id = ?, order_in_column = ?, updated_at = ?
+      WHERE id = ?
+    `);
+
+		stmt.run(columnId, toIndex, now, id);
+
+		return this.getById(id);
+	}
+
+	delete(id: string): boolean {
+		const db = dbManager.connect();
+		const stmt = db.prepare("DELETE FROM tasks WHERE id = ?");
+		const result = stmt.run(id);
+		return result.changes > 0;
+	}
+}
+
+export const taskRepo = new TaskRepository();

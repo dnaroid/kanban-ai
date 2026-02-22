@@ -2,8 +2,7 @@
 
 ## Технологический стек
 
-- **React 18+** с TypeScript
-- **Electron** - десктопное приложение
+- **React 19+** с TypeScript
 - **Vite** - сборщик проекта
 - **Tailwind CSS** - CSS фреймворк
 - **@dnd-kit** - Drag & Drop функциональность
