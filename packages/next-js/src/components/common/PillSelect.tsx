@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { LucideIcon, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -37,12 +38,62 @@ export function PillSelect({
 }: PillSelectProps) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+	const [popupPosition, setPopupPosition] = useState<{
+		top: number;
+		left: number;
+	} | null>(null);
+	const triggerRef = useRef<HTMLButtonElement | null>(null);
+	const popupRef = useRef<HTMLDivElement | null>(null);
 	const entries = Object.entries(options);
 	const currentOption = options[value] ?? entries[0]?.[1];
 
 	if (!currentOption) {
 		return null;
 	}
+
+	const updatePosition = useCallback(() => {
+		const trigger = triggerRef.current;
+		if (!trigger) {
+			return;
+		}
+
+		const rect = trigger.getBoundingClientRect();
+		const popupWidth = 140;
+		const popupHeight = popupRef.current?.offsetHeight ?? 200;
+		const viewportPadding = 8;
+
+		const left = Math.min(
+			Math.max(viewportPadding, rect.left),
+			window.innerWidth - popupWidth - viewportPadding,
+		);
+
+		const defaultTop = rect.bottom + 8;
+		const flippedTop = rect.top - popupHeight - 8;
+		const top =
+			defaultTop + popupHeight <= window.innerHeight - viewportPadding
+				? defaultTop
+				: Math.max(viewportPadding, flippedTop);
+
+		setPopupPosition({ top, left });
+	}, []);
+
+	useLayoutEffect(() => {
+		if (!isOpen) {
+			return;
+		}
+
+		updatePosition();
+		const frame = window.requestAnimationFrame(updatePosition);
+
+		window.addEventListener("resize", updatePosition);
+		window.addEventListener("scroll", updatePosition, true);
+
+		return () => {
+			window.cancelAnimationFrame(frame);
+			window.removeEventListener("resize", updatePosition);
+			window.removeEventListener("scroll", updatePosition, true);
+		};
+	}, [isOpen, updatePosition]);
 
 	return (
 		<div className={cn("flex flex-col gap-1.5", className)}>
@@ -51,8 +102,16 @@ export function PillSelect({
 			</span>
 			<div className="relative">
 				<button
+					ref={triggerRef}
 					type="button"
-					onClick={() => setIsOpen(!isOpen)}
+					onClick={() => {
+						if (isOpen) {
+							setIsOpen(false);
+							return;
+						}
+						setPopupPosition(null);
+						setIsOpen(true);
+					}}
 					className={cn(
 						"flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border whitespace-nowrap transition-all cursor-pointer hover:brightness-110",
 						currentOption.bg,
@@ -93,71 +152,81 @@ export function PillSelect({
 					/>
 				</button>
 
-				{isOpen && (
-					<>
-						<button
-							type="button"
-							className="fixed inset-0 z-10"
-							onClick={() => setIsOpen(false)}
-							onKeyDown={(e) => {
-								if (e.key === "Escape") setIsOpen(false);
-							}}
-							aria-label="Close select"
-						/>
-						<div className="absolute left-0 top-full mt-2 min-w-[140px] bg-[#161B26] border border-slate-800 rounded-xl shadow-2xl z-20 py-1.5 animate-in fade-in zoom-in-95 duration-200">
-							{Object.entries(options).map(([key, opt]) => {
-								const isSelected = key === value;
-								const isHovered = hoveredKey === key;
-								return (
-									<button
-										key={key}
-										type="button"
-										onClick={() => {
-											onChange(key);
-											setIsOpen(false);
-										}}
-										onMouseEnter={() => setHoveredKey(key)}
-										onMouseLeave={() => setHoveredKey(null)}
-										className={cn(
-											"w-full flex items-center gap-2 px-3 py-2 text-[11px] font-medium whitespace-nowrap transition-all text-left rounded-lg",
-											isSelected || isHovered
-												? cn(opt.bg, opt.color)
-												: cn(opt.color, "opacity-70"),
-										)}
-										style={isSelected || isHovered ? opt.style : undefined}
-									>
-										<opt.icon
-											className={cn(
-												"w-3.5 h-3.5",
-												isSelected || isHovered ? opt.color : "text-slate-500",
-											)}
-											style={
-												isSelected || isHovered
-													? (opt.iconStyle ??
-														(opt.style?.color
-															? { color: opt.style.color }
-															: undefined))
-													: undefined
-											}
-										/>
-										<span
-											className="uppercase tracking-wider whitespace-nowrap"
-											style={
-												isSelected || isHovered
-													? opt.style?.color
-														? { color: opt.style.color }
-														: undefined
-													: undefined
-											}
-										>
-											{opt.label || key.replace("_", " ")}
-										</span>
-									</button>
-								);
-							})}
-						</div>
-					</>
-				)}
+				{isOpen && popupPosition
+					? createPortal(
+							<>
+								<button
+									type="button"
+									className="fixed inset-0 z-40 cursor-default"
+									onClick={() => {
+										setPopupPosition(null);
+										setIsOpen(false);
+									}}
+									aria-label="Close select"
+								/>
+								<div
+									ref={popupRef}
+									className="fixed z-50 min-w-[140px] bg-[#161B26] border border-slate-800 rounded-xl shadow-2xl py-1.5 animate-in fade-in zoom-in-95 duration-200"
+									style={{ top: popupPosition.top, left: popupPosition.left }}
+								>
+									{Object.entries(options).map(([key, opt]) => {
+										const isSelected = key === value;
+										const isHovered = hoveredKey === key;
+										return (
+											<button
+												key={key}
+												type="button"
+												onClick={() => {
+													onChange(key);
+													setPopupPosition(null);
+													setIsOpen(false);
+												}}
+												onMouseEnter={() => setHoveredKey(key)}
+												onMouseLeave={() => setHoveredKey(null)}
+												className={cn(
+													"w-full flex items-center gap-2 px-3 py-2 text-[11px] font-medium whitespace-nowrap transition-all text-left rounded-lg",
+													isSelected || isHovered
+														? cn(opt.bg, opt.color)
+														: cn(opt.color, "opacity-70"),
+												)}
+												style={isSelected || isHovered ? opt.style : undefined}
+											>
+												<opt.icon
+													className={cn(
+														"w-3.5 h-3.5",
+														isSelected || isHovered
+															? opt.color
+															: "text-slate-500",
+													)}
+													style={
+														isSelected || isHovered
+															? (opt.iconStyle ??
+																(opt.style?.color
+																	? { color: opt.style.color }
+																	: undefined))
+															: undefined
+													}
+												/>
+												<span
+													className="uppercase tracking-wider whitespace-nowrap"
+													style={
+														isSelected || isHovered
+															? opt.style?.color
+																? { color: opt.style.color }
+																: undefined
+															: undefined
+													}
+												>
+													{opt.label || key.replace("_", " ")}
+												</span>
+											</button>
+										);
+									})}
+								</div>
+							</>,
+							document.body,
+						)
+					: null}
 			</div>
 		</div>
 	);

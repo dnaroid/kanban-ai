@@ -12,11 +12,13 @@ import {
 	List,
 	ChevronDown,
 	ChevronUp,
+	Plus,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { SortableColumn } from "./kanban/board/SortableColumn";
 import { SortableTask } from "./kanban/board/SortableTask";
 import { ListView, ListItemView } from "./kanban/board/ListView";
+import { QuickCreateModal } from "./kanban/board/QuickCreateModal";
 import { useBoardModel } from "@/features/board/model/use-board-model";
 import { cn } from "@/lib/utils";
 
@@ -56,6 +58,7 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 	const [expandedColumns, setExpandedColumns] = useState<
 		Record<string, boolean>
 	>({});
+	const [isQuickCreateModalOpen, setIsQuickCreateModalOpen] = useState(false);
 
 	useEffect(() => {
 		localStorage.setItem("boardViewMode", viewMode);
@@ -89,6 +92,8 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 				<AlertCircle className="w-8 h-8 mr-2" /> {error || "Board not found"}
 			</div>
 		);
+
+	const firstColumnId = columns[0]?.id;
 
 	return (
 		<div className="flex flex-col h-full overflow-hidden">
@@ -174,8 +179,6 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 												.filter((t) => t.columnId === column.id)
 												.sort((a, b) => a.orderInColumn - b.orderInColumn)}
 											onTaskClick={handleTaskClick}
-											onAddTask={() => handleAddTask(column.id)}
-											onQuickGenerateStory={handleQuickGenerateStory}
 											onDeleteTask={handleDeleteTask}
 										/>
 									))}
@@ -232,6 +235,25 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 						) : null}
 					</DragOverlay>
 				</DndContext>
+
+				{/* Floating Action Button */}
+				<button
+					onClick={() => setIsQuickCreateModalOpen(true)}
+					className="fixed bottom-8 right-8 w-16 h-16 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-2xl shadow-blue-600/40 flex items-center justify-center transition-all hover:scale-110 active:scale-95 group z-40"
+					title="Quick Create Story"
+				>
+					<Plus className="w-8 h-8 group-hover:rotate-90 transition-transform duration-300" />
+				</button>
+
+				<QuickCreateModal
+					isOpen={isQuickCreateModalOpen}
+					onClose={() => setIsQuickCreateModalOpen(false)}
+					onGenerate={async (prompt) => {
+						if (firstColumnId) {
+							await handleQuickGenerateStory(firstColumnId, prompt);
+						}
+					}}
+				/>
 			</main>
 		</div>
 	);

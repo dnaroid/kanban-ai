@@ -74,37 +74,36 @@ export function ColorPalettePicker({
 	}, [isOpen, updatePosition]);
 
 	return (
-		<div className={cn("space-y-3", className)}>
-			<div className="flex items-center justify-between pl-1">
-				<span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-					<Palette className="h-3.5 w-3.5" />
-					{label}
-				</span>
-				<div className="relative">
-					<button
-						ref={triggerRef}
-						type="button"
-						onClick={() => {
-							if (isOpen) {
-								setIsOpen(false);
-								return;
-							}
-							setPopupPosition(null);
-							setIsOpen(true);
-						}}
-						className={cn(
-							"flex items-center gap-2 rounded-lg border px-2.5 py-1 text-[10px] font-mono uppercase transition-colors",
-							isOpen
-								? "border-slate-600 bg-slate-900 text-slate-200"
-								: "border-slate-800 bg-slate-950 text-slate-500 hover:border-slate-700 hover:text-slate-300",
-						)}
-					>
-						<div
-							className="h-4 w-4 rounded-full ring-1 ring-white/20 shadow-sm"
-							style={{ backgroundColor: value }}
-						/>
-						<span>{value}</span>
-					</button>
+		<div className={cn("flex flex-col gap-1.5", className)}>
+			<span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+				<Palette className="h-3 w-3" />
+				{label}
+			</span>
+			<div className="relative">
+				<button
+					ref={triggerRef}
+					type="button"
+					onClick={() => {
+						if (isOpen) {
+							setIsOpen(false);
+							return;
+						}
+						setPopupPosition(null);
+						setIsOpen(true);
+					}}
+					className={cn(
+						"flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[10px] font-mono uppercase transition-all hover:brightness-110",
+						isOpen
+							? "border-slate-600 bg-slate-900 text-slate-200 ring-1 ring-offset-1 ring-offset-[#0B0E14] ring-slate-700"
+							: "border-slate-800 bg-slate-950 text-slate-500 hover:border-slate-700 hover:text-slate-300",
+					)}
+				>
+					<div
+						className="h-3.5 w-3.5 rounded-full ring-1 ring-white/20 shadow-sm"
+						style={{ backgroundColor: value }}
+					/>
+					<span>{value}</span>
+				</button>
 
 					{isOpen && popupPosition
 						? createPortal(
@@ -179,6 +178,5 @@ export function ColorPalettePicker({
 						: null}
 				</div>
 			</div>
-		</div>
 	);
 }

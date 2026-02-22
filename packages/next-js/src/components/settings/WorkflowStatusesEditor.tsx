@@ -88,7 +88,7 @@ export function WorkflowStatusesEditor({
 	} as const;
 
 	return (
-		<div className="space-y-4">
+		<div className="space-y-6">
 			{sortedStatuses.map((s, idx) => {
 				const currentStatusOption = statusOptions[s.status];
 				const StatusIcon = currentStatusOption?.icon || Clock;
@@ -96,41 +96,20 @@ export function WorkflowStatusesEditor({
 				return (
 					<div
 						key={s.status}
-						className="group relative overflow-hidden flex flex-col gap-6 rounded-2xl border border-slate-800/60 bg-[#0B0E14]/30 p-6 transition-all hover:border-slate-700/60 hover:bg-[#0B0E14]/50"
+						className="group relative flex flex-col rounded-2xl border border-slate-800/60 bg-[#0B0E14]/30 transition-all hover:border-slate-700/60 hover:bg-[#0B0E14]/50 overflow-hidden"
 					>
 						{/* Background accent */}
 						<div
-							className="absolute left-0 top-0 h-full w-1 opacity-[0.05] group-hover:opacity-[0.1]"
+							className="absolute left-0 top-0 h-full w-1 opacity-[0.15] group-hover:opacity-[0.3] transition-opacity"
 							style={currentStatusOption?.style}
 						/>
 
-						<div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-							{/* Left: Identity & Order */}
+						{/* Card Header */}
+						<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/60 bg-slate-900/20 px-6 py-4">
 							<div className="flex items-center gap-5">
-								<div className="flex flex-col gap-1.5 p-1 rounded-lg bg-slate-800/20 border border-slate-800/40">
-									<button
-										type="button"
-										onClick={() => moveStatus(idx, "up")}
-										disabled={idx === 0}
-										className="p-1 rounded text-slate-600 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-20 transition-all"
-										title="Move Up"
-									>
-										<ChevronUp className="h-4 w-4" />
-									</button>
-									<button
-										type="button"
-										onClick={() => moveStatus(idx, "down")}
-										disabled={idx === sortedStatuses.length - 1}
-										className="p-1 rounded text-slate-600 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-20 transition-all"
-										title="Move Down"
-									>
-										<ChevronDown className="h-4 w-4" />
-									</button>
-								</div>
-
 								<div className="flex items-center gap-4">
 									<div
-										className="flex h-12 w-12 items-center justify-center rounded-xl border bg-slate-900/40 transition-transform group-hover:scale-110"
+										className="flex h-12 w-12 items-center justify-center rounded-xl border bg-slate-900/40 transition-transform group-hover:scale-105 shadow-inner"
 										style={currentStatusOption?.style}
 									>
 										<StatusIcon
@@ -139,11 +118,11 @@ export function WorkflowStatusesEditor({
 										/>
 									</div>
 									<div className="space-y-1">
-										<h4 className="text-base font-bold text-slate-100 uppercase tracking-tight">
+										<h4 className="text-base font-black text-slate-100 uppercase tracking-tight">
 											{s.status.replace(/_/g, " ")}
 										</h4>
 										<div className="flex items-center gap-2">
-											<span className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1.5 py-0.5 rounded bg-slate-800/40 border border-slate-800/40">
+											<span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1.5 py-0.5 rounded bg-slate-800/40 border border-slate-800/40">
 												ID: {s.status}
 											</span>
 											<span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
@@ -154,9 +133,55 @@ export function WorkflowStatusesEditor({
 								</div>
 							</div>
 
-							{/* Right: Visual Config */}
-							<div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:w-[60%]">
-								<div className="flex flex-col gap-2">
+							<div className="flex items-center gap-3 ml-auto sm:ml-0">
+								<span className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em] mr-2">Reorder</span>
+								<div className="flex items-center gap-1 p-1 rounded-lg bg-slate-800/20 border border-slate-800/40">
+									<button
+										type="button"
+										onClick={() => moveStatus(idx, "up")}
+										disabled={idx === 0}
+										className="p-1.5 rounded-md text-slate-500 hover:text-slate-100 hover:bg-slate-700/60 disabled:opacity-10 transition-all"
+										title="Move Up"
+									>
+										<ChevronUp className="h-4 w-4" />
+									</button>
+									<div className="w-[1px] h-4 bg-slate-800/60 mx-0.5" />
+									<button
+										type="button"
+										onClick={() => moveStatus(idx, "down")}
+										disabled={idx === sortedStatuses.length - 1}
+										className="p-1.5 rounded-md text-slate-500 hover:text-slate-100 hover:bg-slate-700/60 disabled:opacity-10 transition-all"
+										title="Move Down"
+									>
+										<ChevronDown className="h-4 w-4" />
+									</button>
+								</div>
+							</div>
+						</div>
+
+						{/* Card Body */}
+						<div className="p-6">
+							<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+								{/* Section: Appearance */}
+								<div className="space-y-5">
+									<div className="flex items-center gap-2 mb-1">
+										<div className="h-px flex-1 bg-slate-800/60" />
+										<h5 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] whitespace-nowrap">
+											Visual Appearance
+										</h5>
+										<div className="h-px flex-1 bg-slate-800/60" />
+									</div>
+									<IconPicker
+										label="Status Icon"
+										value={s.icon}
+										tone={s.color}
+										onChange={(icon) => updateStatus(s.status, { icon })}
+									/>
+									<ColorPalettePicker
+										label="Color Signature"
+										value={s.color}
+										onChange={(color) => updateStatus(s.status, { color })}
+									/>
 									<PillSelect
 										label="Preferred Column"
 										value={s.preferredColumnSystemKey}
@@ -168,58 +193,55 @@ export function WorkflowStatusesEditor({
 										}
 									/>
 								</div>
-								<div className="flex flex-col gap-2">
-									<IconPicker
-										label="Icon"
-										value={s.icon}
-										tone={s.color}
-										onChange={(icon) => updateStatus(s.status, { icon })}
-									/>
-								</div>
-								<div className="flex flex-col gap-2">
-									<ColorPalettePicker
-										label="Status Color"
-										value={s.color}
-										onChange={(color) => updateStatus(s.status, { color })}
-									/>
-								</div>
-							</div>
-						</div>
 
-						{/* Bottom: Mappings */}
-						<div className="grid grid-cols-1 gap-4 border-t border-slate-800/60 pt-6 sm:grid-cols-2 lg:grid-cols-3">
-							<div className="sm:col-span-1 lg:col-span-1">
-								<PillSelect
-									label="Blocked Mapping"
-									value={s.blockedReason || "none"}
-									options={blockedReasonOptions}
-									onChange={(val) =>
-										updateStatus(s.status, {
-											blockedReason:
-												val === "none" ? null : (val as WorkflowBlockedReason),
-										})
-									}
-								/>
-							</div>
-							<div className="sm:col-span-1 lg:col-span-1">
-								<PillSelect
-									label="Closed Mapping"
-									value={s.closedReason || "none"}
-									options={closedReasonOptions}
-									onChange={(val) =>
-										updateStatus(s.status, {
-											closedReason:
-												val === "none" ? null : (val as WorkflowClosedReason),
-										})
-									}
-								/>
-							</div>
-							<div className="sm:col-span-2 lg:col-span-1 flex items-end">
-								<div className="w-full rounded-xl bg-slate-900/40 border border-slate-800/40 p-3">
-									<p className="text-[10px] font-medium text-slate-500 italic">
-										Mappings define how this status affects task logic (blocking
-										or completion).
-									</p>
+								{/* Section: Logic */}
+								<div className="space-y-5">
+									<div className="flex items-center gap-2 mb-1">
+										<div className="h-px flex-1 bg-slate-800/60" />
+										<h5 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] whitespace-nowrap">
+											Behavioral Logic
+										</h5>
+										<div className="h-px flex-1 bg-slate-800/60" />
+									</div>
+									<PillSelect
+										label="Blocked Mapping"
+										value={s.blockedReason || "none"}
+										options={blockedReasonOptions}
+										onChange={(val) =>
+											updateStatus(s.status, {
+												blockedReason:
+													val === "none" ? null : (val as WorkflowBlockedReason),
+											})
+										}
+									/>
+									<PillSelect
+										label="Closed Mapping"
+										value={s.closedReason || "none"}
+										options={closedReasonOptions}
+										onChange={(val) =>
+											updateStatus(s.status, {
+												closedReason:
+													val === "none" ? null : (val as WorkflowClosedReason),
+											})
+										}
+									/>
+								</div>
+
+								{/* Section: Guidance */}
+								<div className="flex flex-col justify-end lg:pl-6">
+									<div className="rounded-2xl bg-slate-900/40 border border-slate-800/40 p-5 space-y-3">
+										<div className="flex items-center gap-2 text-slate-400">
+											<Clock className="h-3.5 w-3.5" />
+											<span className="text-[10px] font-bold uppercase tracking-widest">Guidance</span>
+										</div>
+										<p className="text-[11px] leading-relaxed text-slate-500 italic">
+											Mappings define how this status affects task lifecycle logic.
+											<br /><br />
+											<span className="text-slate-400 not-italic font-medium">Blocked:</span> Prevents task from progressing and adds a warning indicator.
+											<br />
+											<span className="text-slate-400 not-italic font-medium">Closed:</span> Marks the task as completed and removes it from active counts.
+										</p>
+									</div>
 								</div>
 							</div>
 						</div>

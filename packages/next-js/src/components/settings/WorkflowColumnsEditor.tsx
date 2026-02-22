@@ -155,104 +155,109 @@ export function WorkflowColumnsEditor({
 	};
 
 	return (
-		<div className="space-y-4">
-			<div className="flex items-center justify-between rounded-2xl border border-slate-800/50 bg-slate-900/20 p-4">
+		<div className="space-y-6">
+			<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-slate-800/60 bg-slate-900/20 p-6 shadow-sm">
 				<div>
-					<p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-						Columns
+					<p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+						Workflow Columns
 					</p>
 					<p className="mt-1 text-xs text-slate-400">
-						Add or remove workflow columns from board settings.
+						Define the vertical lanes of your board and their behavior.
 					</p>
 				</div>
-				<div className="flex items-center gap-2">
+				<div className="flex items-center gap-3">
 					<input
 						type="text"
 						value={newColumnName}
 						onChange={(event) => setNewColumnName(event.target.value)}
-						placeholder="New column name"
-						className="w-44 rounded-xl border border-slate-700/80 bg-[#0B0E14]/70 px-3 py-2 text-xs text-slate-100 outline-none transition focus:border-blue-500/60"
+						placeholder="New column name..."
+						className="w-48 rounded-xl border border-slate-700/80 bg-[#0B0E14]/70 px-4 py-2.5 text-xs text-slate-100 outline-none transition focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/20"
 					/>
 					<button
 						type="button"
 						onClick={addColumn}
 						disabled={!canAddColumn}
 						title={addDisabledReason ?? "Add column"}
-						className="inline-flex items-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-blue-300 transition-colors hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+						className="inline-flex items-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-blue-300 transition-all hover:bg-blue-500/20 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
 					>
-						<Plus className="h-3.5 w-3.5" />
+						<Plus className="h-4 w-4" />
 						Add Column
 					</button>
 				</div>
 			</div>
-			{addDisabledReason ? (
-				<p className="text-xs text-slate-500">{addDisabledReason}.</p>
+
+			{addDisabledReason && newColumnName.trim() ? (
+				<p className="text-xs text-red-400/80 px-2">{addDisabledReason}.</p>
 			) : null}
-			{sortedColumns.map((col, idx) => (
-				<div
-					key={col.systemKey}
-					className="group relative overflow-hidden flex flex-col gap-6 rounded-2xl border border-slate-800/60 bg-[#0B0E14]/30 p-6 transition-all hover:border-slate-700/60 hover:bg-[#0B0E14]/50"
-					style={{ borderColor: col.color }}
-				>
-					{/* Background accent */}
+
+			<div className="space-y-6">
+				{sortedColumns.map((col, idx) => (
 					<div
-						className="absolute left-0 top-0 h-full w-1 opacity-[0.05] group-hover:opacity-[0.1]"
-						style={{ backgroundColor: col.color }}
-					/>
+						key={col.systemKey}
+						className="group relative flex flex-col rounded-2xl border border-slate-800/60 bg-[#0B0E14]/30 transition-all hover:border-slate-700/60 hover:bg-[#0B0E14]/50 overflow-hidden"
+					>
+						{/* Background accent */}
+						<div
+							className="absolute left-0 top-0 h-full w-1 opacity-[0.15]"
+							style={{ backgroundColor: col.color }}
+						/>
 
-					<div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-						{/* Left: Identity & Order */}
-						<div className="flex items-center gap-5">
-							<div className="flex flex-col gap-1.5 p-1 rounded-lg bg-slate-800/20 border border-slate-800/40">
-								<button
-									type="button"
-									onClick={() => moveColumn(idx, "up")}
-									disabled={idx === 0}
-									className="p-1 rounded text-slate-600 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-20 transition-all"
-									title="Move Up"
-								>
-									<ChevronUp className="h-4 w-4" />
-								</button>
-								<button
-									type="button"
-									onClick={() => moveColumn(idx, "down")}
-									disabled={idx === sortedColumns.length - 1}
-									className="p-1 rounded text-slate-600 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-20 transition-all"
-									title="Move Down"
-								>
-									<ChevronDown className="h-4 w-4" />
-								</button>
-							</div>
+						{/* Card Header */}
+						<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/60 bg-slate-900/20 px-6 py-4">
+							<div className="flex items-center gap-5">
+								<div className="flex items-center gap-4">
+									<div className="flex items-center gap-1 p-1 rounded-lg bg-slate-800/20 border border-slate-800/40">
+										<button
+											type="button"
+											onClick={() => moveColumn(idx, "up")}
+											disabled={idx === 0}
+											className="p-1.5 rounded-md text-slate-500 hover:text-slate-100 hover:bg-slate-700/60 disabled:opacity-10 transition-all"
+											title="Move Up"
+										>
+											<ChevronUp className="h-4 w-4" />
+										</button>
+										<div className="w-[1px] h-4 bg-slate-800/60 mx-0.5" />
+										<button
+											type="button"
+											onClick={() => moveColumn(idx, "down")}
+											disabled={idx === sortedColumns.length - 1}
+											className="p-1.5 rounded-md text-slate-500 hover:text-slate-100 hover:bg-slate-700/60 disabled:opacity-10 transition-all"
+											title="Move Down"
+										>
+											<ChevronDown className="h-4 w-4" />
+										</button>
+									</div>
 
-							<div className="space-y-1">
-								<h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
-									System Key:{" "}
-									<span className="text-slate-400 font-mono">
-										{col.systemKey}
-									</span>
-								</h4>
-								<div className="relative group/input">
-									<input
-										type="text"
-										value={col.name}
-										onChange={(e) =>
-											updateColumn(col.systemKey, { name: e.target.value })
-										}
-										className="bg-transparent text-xl font-bold text-slate-100 outline-none border-b-2 border-transparent focus:border-blue-500/50 transition-all w-full max-w-md"
-										placeholder="Column Name"
-									/>
+									<div className="space-y-1">
+										<div className="flex items-center gap-2">
+											<input
+												type="text"
+												value={col.name}
+												onChange={(e) =>
+													updateColumn(col.systemKey, { name: e.target.value })
+												}
+												className="bg-transparent text-lg font-black text-slate-100 outline-none border-b-2 border-transparent focus:border-blue-500/50 transition-all w-full min-w-[200px]"
+												placeholder="Column Name"
+											/>
+										</div>
+										<div className="flex items-center gap-2">
+											<span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1.5 py-0.5 rounded bg-slate-800/40 border border-slate-800/40">
+												KEY: {col.systemKey}
+											</span>
+											<span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
+												Index: {col.orderIndex}
+											</span>
+										</div>
+									</div>
 								</div>
 							</div>
-						</div>
 
-						{/* Right: Color Config */}
-						<div className="w-full lg:max-w-xs lg:ml-auto">
-							<div className="flex items-start justify-end gap-3">
+							<div className="flex items-center gap-3 ml-auto sm:ml-0">
 								<button
 									type="button"
 									onClick={() => removeColumn(col.systemKey)}
 									disabled={sortedColumns.length <= 1}
-									className="inline-flex h-9 items-center gap-2 rounded-lg border border-red-500/20 px-3 text-[10px] font-black uppercase tracking-widest text-red-300 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+									className="inline-flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-red-400/80 transition-all hover:bg-red-500/10 active:scale-95 disabled:cursor-not-allowed disabled:opacity-20"
 									title={
 										sortedColumns.length <= 1
 											? "At least one column is required"
@@ -260,91 +265,111 @@ export function WorkflowColumnsEditor({
 									}
 								>
 									<Trash2 className="h-3.5 w-3.5" />
-									Delete
+									Delete Column
 								</button>
 							</div>
-							<div className="mt-3">
-								<ColorPalettePicker
-									label="Column Accent Color"
-									value={col.color}
-									onChange={(color) => updateColumn(col.systemKey, { color })}
-								/>
-							</div>
-						</div>
-					</div>
-
-					<div className="grid grid-cols-1 gap-8 border-t border-slate-800/60 pt-6 md:grid-cols-2">
-						{/* Default Status */}
-						<div className="space-y-4">
-							<div className="flex flex-col gap-1">
-								<PillSelect
-									label="Default Task Status"
-									value={col.defaultStatus}
-									options={statusOptions}
-									onChange={(val) =>
-										updateColumn(col.systemKey, {
-											defaultStatus: val as WorkflowTaskStatus,
-										})
-									}
-								/>
-								<p className="text-[10px] text-slate-500 italic mt-1">
-									Tasks created in or moved to this column will receive this
-									status if not specified.
-								</p>
-							</div>
 						</div>
 
-						{/* Allowed Statuses */}
-						<div className="space-y-4">
-							<div className="flex items-center justify-between">
-								<span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-									Allowed Statuses in Column
-								</span>
-							</div>
-							<div className="flex flex-wrap gap-2">
-								{availableStatuses.map((status) => {
-									const isAllowed = col.allowedStatuses.includes(status);
-									const option = statusOptions[status];
-									const Icon = option.icon;
-									const isDefault = col.defaultStatus === status;
+						{/* Card Body */}
+						<div className="p-6">
+							<div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+								{/* Left Side: Basic Config */}
+								<div className="space-y-8">
+									<div className="space-y-6">
+										<div className="flex items-center gap-2">
+											<div className="h-px flex-1 bg-slate-800/60" />
+											<h5 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] whitespace-nowrap">
+												Column configuration
+											</h5>
+											<div className="h-px flex-1 bg-slate-800/60" />
+										</div>
 
-									return (
-										<button
-											key={status}
-											type="button"
-											onClick={() => toggleStatus(col.systemKey, status)}
-											disabled={isDefault}
-											className={cn(
-												"flex items-center gap-2 rounded-xl border px-3 py-2 transition-all hover:scale-105 active:scale-95",
-												isAllowed
-													? "shadow-sm"
-													: "border-slate-800 bg-slate-900/30 text-slate-600 grayscale opacity-40 hover:grayscale-0 hover:opacity-100",
-												isDefault &&
-													"ring-2 ring-blue-500/40 ring-offset-2 ring-offset-[#0B0E14] cursor-default opacity-100 grayscale-0",
-											)}
-											style={isAllowed ? option.style : undefined}
-											title={
-												isDefault ? "Default status cannot be removed" : ""
-											}
-										>
-											<Icon
-												className="h-3.5 w-3.5"
-												style={isAllowed ? option.iconStyle : undefined}
+										<div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+											<ColorPalettePicker
+												label="Accent Color"
+												value={col.color}
+												onChange={(color) =>
+													updateColumn(col.systemKey, { color })
+												}
 											/>
-											<span className="text-[10px] font-black uppercase tracking-widest">
-												{status.replace(/_/g, " ")}
-											</span>
-											{isDefault && (
-												<div className="ml-1 h-1.5 w-1.5 rounded-full bg-blue-500" />
-											)}
-										</button>
-									);
-								})}
+											<PillSelect
+												label="Default Status"
+												value={col.defaultStatus}
+												options={statusOptions}
+												onChange={(val) =>
+													updateColumn(col.systemKey, {
+														defaultStatus: val as WorkflowTaskStatus,
+													})
+												}
+											/>
+										</div>
+
+										<div className="rounded-xl bg-slate-900/40 border border-slate-800/40 p-4">
+											<p className="text-[11px] leading-relaxed text-slate-500 italic">
+												<span className="text-slate-400 not-italic font-bold uppercase tracking-tight mr-1">Note:</span>
+												Tasks created in or moved to this column will automatically 
+												receive the default status if not explicitly set.
+											</p>
+										</div>
+									</div>
+								</div>
+
+								{/* Right Side: Status Mapping */}
+								<div className="space-y-6">
+									<div className="flex items-center gap-2">
+										<div className="h-px flex-1 bg-slate-800/60" />
+										<h5 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] whitespace-nowrap">
+											Allowed Statuses
+										</h5>
+										<div className="h-px flex-1 bg-slate-800/60" />
+									</div>
+
+									<div className="flex flex-wrap gap-2.5">
+										{availableStatuses.map((status) => {
+											const isAllowed = col.allowedStatuses.includes(status);
+											const option = statusOptions[status];
+											const Icon = option.icon;
+											const isDefault = col.defaultStatus === status;
+
+											return (
+												<button
+													key={status}
+													type="button"
+													onClick={() => toggleStatus(col.systemKey, status)}
+													disabled={isDefault}
+													className={cn(
+														"flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 transition-all hover:scale-105 active:scale-95",
+														isAllowed
+															? "shadow-lg"
+															: "border-slate-800 bg-slate-900/30 text-slate-600 grayscale opacity-40 hover:grayscale-0 hover:opacity-100",
+														isDefault &&
+															"ring-2 ring-blue-500/40 ring-offset-2 ring-offset-[#0B0E14] cursor-default opacity-100 grayscale-0",
+													)}
+													style={isAllowed ? option.style : undefined}
+													title={
+														isDefault ? "Default status cannot be removed" : ""
+													}
+												>
+													<Icon
+														className="h-4 w-4"
+														style={isAllowed ? option.iconStyle : undefined}
+													/>
+													<span className="text-[10px] font-black uppercase tracking-widest">
+														{status.replace(/_/g, " ")}
+													</span>
+													{isDefault && (
+														<div className="ml-1 h-1.5 w-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
+													)}
+												</button>
+											);
+										})}
+									</div>
+								</div>
 							</div>
 						</div>
 					</div>
-				</div>
-			))}
+				))}
+			</div>
 		</div>
 	);
 }
