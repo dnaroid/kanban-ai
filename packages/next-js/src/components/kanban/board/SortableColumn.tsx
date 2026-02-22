@@ -272,19 +272,27 @@ export function SortableColumn({
 			onMouseLeave={() => setIsHovered(false)}
 			style={{
 				...style,
-				borderColor: color ? `${color}40` : undefined,
-				boxShadow: color ? `0 0 25px -10px ${color}20` : undefined,
+				borderColor: color 
+					? (isHovered || isOver ? color : `${color}40`) 
+					: undefined,
+				boxShadow: color 
+					? (isHovered || isOver 
+						? `0 0 30px -5px ${color}40, inset 0 0 10px ${color}10` 
+						: `0 0 25px -10px ${color}20`)
+					: undefined,
 				backgroundColor: color
-					? `color-mix(in srgb, ${color} 3%, #0B0E14)`
+					? (isHovered || isOver 
+						? `color-mix(in srgb, ${color} 6%, #0B0E14)` 
+						: `color-mix(in srgb, ${color} 3%, #0B0E14)`)
 					: "#0B0E14",
 			}}
 			className={cn(
 				"flex-shrink-0 rounded-2xl border flex flex-col h-full relative group/column overflow-hidden",
 				"transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
 				getColumnWidth(),
-				!color && "border-slate-800/50",
+				!color && (isHovered || isOver ? "border-slate-600" : "border-slate-800/50"),
 				isDragging && "opacity-50 scale-95",
-				isOver && "border-blue-500 ring-4 ring-blue-500/20 bg-blue-500/10 shadow-lg shadow-blue-500/20 scale-[1.02] z-10",
+				isOver && "ring-4 ring-blue-500/20 scale-[1.02] z-10",
 			)}
 		>
 			<div
