@@ -17,8 +17,7 @@ export const WORKFLOW_COLUMN_SYSTEM_KEYS = [
 	"closed",
 ] as const;
 
-export type WorkflowColumnSystemKey =
-	(typeof WORKFLOW_COLUMN_SYSTEM_KEYS)[number];
+export type WorkflowColumnSystemKey = string;
 
 export const WORKFLOW_SIGNAL_SCOPES = ["run", "user_action"] as const;
 
@@ -76,10 +75,12 @@ export interface WorkflowConfig {
 	statuses: WorkflowStatusConfig[];
 	columns: WorkflowColumnConfig[];
 	statusTransitions: Record<WorkflowTaskStatus, WorkflowTaskStatus[]>;
-	columnTransitions: Record<WorkflowColumnSystemKey, WorkflowColumnSystemKey[]>;
+	columnTransitions: Record<string, string[]>;
 	signals: WorkflowSignalConfig[];
 	signalRules: WorkflowSignalRuleConfig[];
 }
+
+const WORKFLOW_COLUMN_SYSTEM_KEY_PATTERN = /^[a-z][a-z0-9_-]*$/;
 
 const DEFAULT_WORKFLOW_COLUMNS_FALLBACK: readonly WorkflowColumnTemplate[] = [
 	{ name: "Backlog", systemKey: "backlog", color: "#6366f1", icon: "list" },
@@ -866,22 +867,23 @@ function toWorkflowConfig(
 
 	const statusKeySet = new Set(statuses.map((row) => row.status));
 
-	const allowedStatusesByColumn: Record<
-		WorkflowColumnSystemKey,
-		WorkflowTaskStatus[]
-	> = {
-		backlog: [],
-		ready: [],
-		deferred: [],
-		in_progress: [],
-		blocked: [],
-		review: [],
-		closed: [],
-	};
+	const templateSystemKeySet = new Set<string>();
+	for (const row of templateRows) {
+		if (!isWorkflowColumnSystemKey(row.systemKey)) {
+			return null;
+		}
+		templateSystemKeySet.add(row.systemKey);
+	}
+
+	const allowedStatusesByColumn: Record<string, WorkflowTaskStatus[]> = {};
+	for (const systemKey of templateSystemKeySet) {
+		allowedStatusesByColumn[systemKey] = [];
+	}
 
 	for (const row of allowedStatusRows) {
 		if (
 			!isWorkflowColumnSystemKey(row.systemKey) ||
+			!templateSystemKeySet.has(row.systemKey) ||
 			!statusKeySet.has(row.status)
 		) {
 			return null;
@@ -929,23 +931,17 @@ function toWorkflowConfig(
 		statusTransitions[row.fromStatus].push(row.toStatus);
 	}
 
-	const columnTransitions: Record<
-		WorkflowColumnSystemKey,
-		WorkflowColumnSystemKey[]
-	> = {
-		backlog: [],
-		ready: [],
-		deferred: [],
-		in_progress: [],
-		blocked: [],
-		review: [],
-		closed: [],
-	};
+	const columnTransitions: Record<string, string[]> = {};
+	for (const systemKey of templateSystemKeySet) {
+		columnTransitions[systemKey] = [];
+	}
 
 	for (const row of columnTransitionRows) {
 		if (
 			!isWorkflowColumnSystemKey(row.fromSystemKey) ||
-			!isWorkflowColumnSystemKey(row.toSystemKey)
+			!isWorkflowColumnSystemKey(row.toSystemKey) ||
+			!templateSystemKeySet.has(row.fromSystemKey) ||
+			!templateSystemKeySet.has(row.toSystemKey)
 		) {
 			return null;
 		}
@@ -1055,18 +1051,10 @@ function buildFallbackWorkflowConfig(): WorkflowConfig {
 		statusTransitions[status] = [...STATUS_TRANSITIONS_FALLBACK[status]];
 	}
 
-	const columnTransitions: Record<
-		WorkflowColumnSystemKey,
-		WorkflowColumnSystemKey[]
-	> = {
-		backlog: [...COLUMN_TRANSITIONS_FALLBACK.backlog],
-		ready: [...COLUMN_TRANSITIONS_FALLBACK.ready],
-		deferred: [...COLUMN_TRANSITIONS_FALLBACK.deferred],
-		in_progress: [...COLUMN_TRANSITIONS_FALLBACK.in_progress],
-		blocked: [...COLUMN_TRANSITIONS_FALLBACK.blocked],
-		review: [...COLUMN_TRANSITIONS_FALLBACK.review],
-		closed: [...COLUMN_TRANSITIONS_FALLBACK.closed],
-	};
+	const columnTransitions: Record<string, string[]> = {};
+	for (const [fromKey, toKeys] of Object.entries(COLUMN_TRANSITIONS_FALLBACK)) {
+		columnTransitions[fromKey] = [...toKeys];
+	}
 
 	return {
 		statuses,
@@ -1118,7 +1106,7 @@ function loadWorkflowConfigFromDb(
 		return null;
 	}
 
-	if (templateRows.length !== WORKFLOW_COLUMN_SYSTEM_KEYS.length) {
+	if (templateRows.length === 0) {
 		return null;
 	}
 
@@ -1197,8 +1185,10 @@ function validateWorkflowConfig(config: WorkflowConfig): void {
 		throw new Error("Workflow config must include at least one status");
 	}
 
-	if (config.columns.length !== WORKFLOW_COLUMN_SYSTEM_KEYS.length) {
-		throw new Error("Workflow config must include all workflow columns");
+	if (config.columns.length === 0) {
+		throw new Error(
+			"Workflow config must include at least one workflow column",
+		);
 	}
 
 	const seenStatuses = new Set<WorkflowTaskStatus>();
@@ -1241,7 +1231,7 @@ function validateWorkflowConfig(config: WorkflowConfig): void {
 		statusOrderIndexes.add(row.orderIndex);
 	}
 
-	const seenColumns = new Set<WorkflowColumnSystemKey>();
+	const seenColumns = new Set<string>();
 	const columnOrderIndexes = new Set<number>();
 	for (const row of config.columns) {
 		const columnIcon = normalizeWorkflowIconKey(row.icon);
@@ -1303,9 +1293,11 @@ function validateWorkflowConfig(config: WorkflowConfig): void {
 		}
 	}
 
-	for (const systemKey of WORKFLOW_COLUMN_SYSTEM_KEYS) {
-		if (!seenColumns.has(systemKey)) {
-			throw new Error(`Missing column row: ${systemKey}`);
+	for (const row of config.statuses) {
+		if (!seenColumns.has(row.preferredColumnSystemKey)) {
+			throw new Error(
+				`Invalid preferred column for status ${row.status}: ${row.preferredColumnSystemKey}`,
+			);
 		}
 	}
 
@@ -1338,14 +1330,26 @@ function validateWorkflowConfig(config: WorkflowConfig): void {
 		}
 	}
 
-	for (const fromKey of WORKFLOW_COLUMN_SYSTEM_KEYS) {
+	for (const fromKey of Object.keys(config.columnTransitions)) {
+		if (
+			!seenColumns.has(fromKey) &&
+			config.columnTransitions[fromKey].length > 0
+		) {
+			throw new Error(
+				`Column transition row for inactive column '${fromKey}' must be empty`,
+			);
+		}
+	}
+
+	for (const fromKey of seenColumns) {
 		const nextKeys = config.columnTransitions[fromKey];
 		if (!Array.isArray(nextKeys)) {
 			throw new Error(`Missing column transition row for ${fromKey}`);
 		}
-		const nextKeySet = new Set<WorkflowColumnSystemKey>();
+
+		const nextKeySet = new Set<string>();
 		for (const toKey of nextKeys) {
-			if (!isWorkflowColumnSystemKey(toKey)) {
+			if (!isWorkflowColumnSystemKey(toKey) || !seenColumns.has(toKey)) {
 				throw new Error(
 					`Invalid column transition target '${String(toKey)}' from ${fromKey}`,
 				);
@@ -1654,23 +1658,16 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 		statusTransitions[status] = parsedStatuses;
 	}
 
-	const columnTransitions: Record<
-		WorkflowColumnSystemKey,
-		WorkflowColumnSystemKey[]
-	> = {
-		backlog: [],
-		ready: [],
-		deferred: [],
-		in_progress: [],
-		blocked: [],
-		review: [],
-		closed: [],
-	};
+	const columnTransitions: Record<string, string[]> = {};
 
-	for (const systemKey of WORKFLOW_COLUMN_SYSTEM_KEYS) {
-		const parsedSystemKeys = parseColumnKeyList(
-			columnTransitionsValue[systemKey],
-		);
+	for (const [systemKey, rawTargets] of Object.entries(
+		columnTransitionsValue,
+	)) {
+		if (!isWorkflowColumnSystemKey(systemKey)) {
+			return null;
+		}
+
+		const parsedSystemKeys = parseColumnKeyList(rawTargets);
 		if (!parsedSystemKeys) {
 			return null;
 		}
@@ -1876,9 +1873,9 @@ export function updateWorkflowConfig(config: WorkflowConfig): void {
 			`INSERT INTO workflow_column_transitions (from_system_key, to_system_key)
        VALUES (?, ?)`,
 		);
-		for (const fromSystemKey of WORKFLOW_COLUMN_SYSTEM_KEYS) {
-			for (const toSystemKey of config.columnTransitions[fromSystemKey]) {
-				insertColumnTransition.run(fromSystemKey, toSystemKey);
+		for (const row of config.columns) {
+			for (const toSystemKey of config.columnTransitions[row.systemKey]) {
+				insertColumnTransition.run(row.systemKey, toSystemKey);
 			}
 		}
 
@@ -1974,15 +1971,20 @@ function loadRuntimeConfigFromDb(): WorkflowRuntimeConfig | null {
 	const columnAllowedStatuses: Record<
 		WorkflowColumnSystemKey,
 		readonly WorkflowTaskStatus[]
-	> = {
-		backlog: [],
-		ready: [],
-		deferred: [],
-		in_progress: [],
-		blocked: [],
-		review: [],
-		closed: [],
-	};
+	> = {};
+	const columnTransitions: Record<
+		WorkflowColumnSystemKey,
+		readonly WorkflowColumnSystemKey[]
+	> = {};
+
+	for (const [systemKey, statuses] of Object.entries(
+		COLUMN_ALLOWED_STATUSES_FALLBACK,
+	)) {
+		columnAllowedStatuses[systemKey] = [...statuses];
+	}
+	for (const [fromKey, toKeys] of Object.entries(COLUMN_TRANSITIONS_FALLBACK)) {
+		columnTransitions[fromKey] = [...toKeys];
+	}
 
 	for (const row of workflowConfig.columns) {
 		defaultColumns.push({
@@ -1993,6 +1995,15 @@ function loadRuntimeConfigFromDb(): WorkflowRuntimeConfig | null {
 		});
 		columnDefaultStatus[row.systemKey] = row.defaultStatus;
 		columnAllowedStatuses[row.systemKey] = row.allowedStatuses;
+		if (!columnTransitions[row.systemKey]) {
+			columnTransitions[row.systemKey] = [row.systemKey];
+		}
+	}
+
+	for (const [fromSystemKey, toSystemKeys] of Object.entries(
+		workflowConfig.columnTransitions,
+	)) {
+		columnTransitions[fromSystemKey] = toSystemKeys;
 	}
 
 	return {
@@ -2001,7 +2012,7 @@ function loadRuntimeConfigFromDb(): WorkflowRuntimeConfig | null {
 		columnDefaultStatus,
 		columnAllowedStatuses,
 		statusTransitions: workflowConfig.statusTransitions,
-		columnTransitions: workflowConfig.columnTransitions,
+		columnTransitions,
 		blockedReasonByStatus,
 		closedReasonByStatus,
 		signalByKey: new Map(
@@ -2090,7 +2101,7 @@ export function resetWorkflowRuntimeConfigForTests(): void {
 export function isWorkflowColumnSystemKey(
 	value: string,
 ): value is WorkflowColumnSystemKey {
-	return (WORKFLOW_COLUMN_SYSTEM_KEYS as readonly string[]).includes(value);
+	return WORKFLOW_COLUMN_SYSTEM_KEY_PATTERN.test(value);
 }
 
 export function isWorkflowTaskStatus(value: string): boolean {
@@ -2166,14 +2177,16 @@ export function canTransitionColumn(
 		return true;
 	}
 
-	return getRuntimeConfig().columnTransitions[from].includes(to);
+	return (getRuntimeConfig().columnTransitions[from] ?? []).includes(to);
 }
 
 export function isStatusAllowedInWorkflowColumn(
 	status: WorkflowTaskStatus,
 	systemKey: WorkflowColumnSystemKey,
 ): boolean {
-	return getRuntimeConfig().columnAllowedStatuses[systemKey].includes(status);
+	return (getRuntimeConfig().columnAllowedStatuses[systemKey] ?? []).includes(
+		status,
+	);
 }
 
 export function getDefaultStatusForWorkflowColumn(
@@ -2183,12 +2196,12 @@ export function getDefaultStatusForWorkflowColumn(
 	const runtime = getRuntimeConfig();
 	if (
 		currentStatus &&
-		runtime.columnAllowedStatuses[systemKey].includes(currentStatus)
+		(runtime.columnAllowedStatuses[systemKey] ?? []).includes(currentStatus)
 	) {
 		return currentStatus;
 	}
 
-	return runtime.columnDefaultStatus[systemKey];
+	return runtime.columnDefaultStatus[systemKey] ?? "pending";
 }
 
 export function getPreferredColumnIdForStatus(

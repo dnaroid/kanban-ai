@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 import { api } from "@/lib/api-client";
-import type { WorkflowConfig } from "@/lib/api-client";
+import type { WorkflowColumnConfig, WorkflowConfig } from "@/lib/api-client";
 import { useSettingsStatus } from "@/components/settings/SettingsStatusContext";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +40,66 @@ const tabs: { id: EditorTab; label: string; icon: LucideIcon }[] = [
 	{ id: "transitions", label: "Transitions", icon: GitCompare },
 	{ id: "visual", label: "Workflow Map", icon: MapIcon },
 ];
+
+function normalizeColumns(
+	columns: WorkflowColumnConfig[],
+): WorkflowColumnConfig[] {
+	return [...columns]
+		.sort((a, b) => a.orderIndex - b.orderIndex)
+		.map((column, index) => ({ ...column, orderIndex: index }));
+}
+
+function reconcileConfigAfterColumnsChange(
+	config: WorkflowConfig,
+	nextColumnsInput: WorkflowColumnConfig[],
+): Pick<WorkflowConfig, "columns" | "statuses" | "columnTransitions"> {
+	const nextColumns = normalizeColumns(nextColumnsInput);
+	const nextColumnKeys = nextColumns.map((column) => column.systemKey);
+	const nextColumnKeySet = new Set(nextColumnKeys);
+
+	if (nextColumns.length === 0) {
+		return {
+			columns: nextColumns,
+			statuses: config.statuses,
+			columnTransitions: config.columnTransitions,
+		};
+	}
+
+	const preferredFallbackColumn = nextColumnKeySet.has("backlog")
+		? "backlog"
+		: nextColumns[0].systemKey;
+
+	const statuses = config.statuses.map((status) =>
+		nextColumnKeySet.has(status.preferredColumnSystemKey)
+			? status
+			: { ...status, preferredColumnSystemKey: preferredFallbackColumn },
+	);
+
+	const columnTransitions: Record<string, string[]> = {};
+
+	for (const [fromKey, targetKeys] of Object.entries(
+		config.columnTransitions,
+	)) {
+		if (!nextColumnKeySet.has(fromKey)) {
+			continue;
+		}
+		columnTransitions[fromKey] = targetKeys.filter((targetKey) =>
+			nextColumnKeySet.has(targetKey),
+		);
+	}
+
+	for (const column of nextColumns) {
+		const existingTargets = columnTransitions[column.systemKey] ?? [];
+		columnTransitions[column.systemKey] =
+			existingTargets.length === 0 ? [column.systemKey] : existingTargets;
+	}
+
+	return {
+		columns: nextColumns,
+		statuses,
+		columnTransitions,
+	};
+}
 
 export function WorkflowSettingsEditor() {
 	const { setStatus } = useSettingsStatus();
@@ -139,6 +199,23 @@ export function WorkflowSettingsEditor() {
 		setJsonError(null);
 		setDraftConfig((prev) => (prev ? { ...prev, ...updates } : null));
 	};
+
+	const handleColumnsChange = useCallback(
+		(nextColumns: WorkflowColumnConfig[]) => {
+			setJsonError(null);
+			setDraftConfig((prev) => {
+				if (!prev) {
+					return null;
+				}
+
+				return {
+					...prev,
+					...reconcileConfigAfterColumnsChange(prev, nextColumns),
+				};
+			});
+		},
+		[],
+	);
 
 	if (isLoading && !draftConfig) {
 		return (
@@ -286,7 +363,9 @@ export function WorkflowSettingsEditor() {
 									: "border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-800",
 							)}
 						>
-							<Icon className={cn("h-4 w-4", isActive ? "animate-pulse" : "")} />
+							<Icon
+								className={cn("h-4 w-4", isActive ? "animate-pulse" : "")}
+							/>
 							{tab.label}
 							{isActive && (
 								<div className="absolute inset-0 bg-blue-500/5 blur-xl -z-10 rounded-full" />
@@ -308,7 +387,7 @@ export function WorkflowSettingsEditor() {
 					<WorkflowColumnsEditor
 						columns={draftConfig.columns}
 						statuses={draftConfig.statuses}
-						onChange={(cols) => updateDraft({ columns: cols })}
+						onChange={handleColumnsChange}
 					/>
 				)}
 

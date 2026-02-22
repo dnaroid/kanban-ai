@@ -1,11 +1,10 @@
 "use client";
 
-import {Check, GitCompare, LayoutGrid, Square} from "lucide-react"
+import { Check, GitCompare, LayoutGrid, Square } from "lucide-react";
 import type {
 	WorkflowColumnConfig,
 	WorkflowStatusConfig,
 	WorkflowTaskStatus,
-	WorkflowColumnSystemKey,
 } from "@/lib/api-client";
 import {
 	createColumnPillOptions,
@@ -15,15 +14,13 @@ import { cn } from "@/lib/utils";
 
 interface WorkflowTransitionsEditorProps {
 	statusTransitions: Record<WorkflowTaskStatus, WorkflowTaskStatus[]>;
-	columnTransitions: Record<WorkflowColumnSystemKey, WorkflowColumnSystemKey[]>;
+	columnTransitions: Record<string, string[]>;
 	statuses: WorkflowStatusConfig[];
 	columns: WorkflowColumnConfig[];
 	onStatusTransitionsChange: (
 		transitions: Record<WorkflowTaskStatus, WorkflowTaskStatus[]>,
 	) => void;
-	onColumnTransitionsChange: (
-		transitions: Record<WorkflowColumnSystemKey, WorkflowColumnSystemKey[]>,
-	) => void;
+	onColumnTransitionsChange: (transitions: Record<string, string[]>) => void;
 }
 
 export function WorkflowTransitionsEditor({
@@ -61,10 +58,7 @@ export function WorkflowTransitionsEditor({
 		});
 	};
 
-	const toggleColumnTransition = (
-		from: WorkflowColumnSystemKey,
-		to: WorkflowColumnSystemKey,
-	) => {
+	const toggleColumnTransition = (from: string, to: string) => {
 		const current = columnTransitions[from] || [];
 		const next = current.includes(to)
 			? current.filter((s) => s !== to)
@@ -73,10 +67,7 @@ export function WorkflowTransitionsEditor({
 		onColumnTransitionsChange({ ...columnTransitions, [from]: next });
 	};
 
-	const toggleAllColumnTransitions = (
-		from: WorkflowColumnSystemKey,
-		enabled: boolean,
-	) => {
+	const toggleAllColumnTransitions = (from: string, enabled: boolean) => {
 		onColumnTransitionsChange({
 			...columnTransitions,
 			[from]: enabled ? [...availableColumns].sort() : [],

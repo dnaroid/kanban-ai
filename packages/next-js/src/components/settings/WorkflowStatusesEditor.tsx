@@ -11,7 +11,6 @@ import type {
 	WorkflowColumnConfig,
 	WorkflowStatusConfig,
 	WorkflowTaskStatus,
-	WorkflowColumnSystemKey,
 	WorkflowBlockedReason,
 	WorkflowClosedReason,
 } from "@/lib/api-client";
@@ -164,7 +163,7 @@ export function WorkflowStatusesEditor({
 										options={columnOptions}
 										onChange={(val) =>
 											updateStatus(s.status, {
-												preferredColumnSystemKey: val as WorkflowColumnSystemKey,
+												preferredColumnSystemKey: val,
 											})
 										}
 									/>

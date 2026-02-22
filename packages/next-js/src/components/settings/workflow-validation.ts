@@ -1,6 +1,5 @@
 import type {
 	WorkflowConfig,
-	WorkflowColumnSystemKey,
 	WorkflowRunStatus,
 	WorkflowSignalScope,
 } from "@/lib/api-client";
@@ -30,7 +29,7 @@ export function validateWorkflowConfig(
 	]);
 
 	// Validate Columns
-	const columnSystemKeys = new Set<WorkflowColumnSystemKey>();
+	const columnSystemKeys = new Set<string>();
 	const columnOrderIndexes = new Set<number>();
 	const columnNames = new Set<string>();
 
@@ -138,8 +137,7 @@ export function validateWorkflowConfig(
 
 	// Validate Transitions (Column)
 	Object.keys(config.columnTransitions).forEach((fromCol) => {
-		const transitions =
-			config.columnTransitions[fromCol as WorkflowColumnSystemKey];
+		const transitions = config.columnTransitions[fromCol] ?? [];
 		transitions.forEach((toCol, idx) => {
 			if (!columnSystemKeys.has(toCol)) {
 				errors.push({

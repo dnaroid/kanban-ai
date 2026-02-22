@@ -22,14 +22,7 @@ import type {
 	QueueStatsResponse,
 } from "@/types/ipc";
 
-export type WorkflowColumnSystemKey =
-	| "backlog"
-	| "ready"
-	| "deferred"
-	| "in_progress"
-	| "blocked"
-	| "review"
-	| "closed";
+export type WorkflowColumnSystemKey = string;
 
 export type WorkflowTaskStatus = string;
 
