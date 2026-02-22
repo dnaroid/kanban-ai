@@ -1,6 +1,6 @@
 "use client";
 
-import { closestCorners, DndContext, DragOverlay } from "@dnd-kit/core";
+import { closestCenter, DndContext, DragOverlay } from "@dnd-kit/core";
 import {
 	horizontalListSortingStrategy,
 	SortableContext,
@@ -152,7 +152,7 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 			<main className="flex-1 overflow-hidden relative">
 				<DndContext
 					sensors={sensors}
-					collisionDetection={closestCorners}
+					collisionDetection={closestCenter}
 					onDragStart={handleDragStart}
 					onDragEnd={handleDragEnd}
 				>

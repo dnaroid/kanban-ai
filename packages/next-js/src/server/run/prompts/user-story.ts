@@ -60,7 +60,7 @@ export function buildUserStoryPrompt(
 	const roleSkillsLine =
 		roleSkills.length > 0 ? roleSkills.join(", ") : "(не заданы)";
 
-	return `Промпт роли: ${rolePromptLine}
+	return `${rolePromptLine}
 Можешь использовать скиллы: ${roleSkillsLine}
 
 Твоя задача: переписать описание задачи в формат user story для AI-агента (код-исполнителя), чтобы по нему можно было сразу запускать работу.

@@ -274,12 +274,12 @@ export function SortableColumn({
 					? isOver
 						? "w-80"
 						: isDraggingAnyTask
-							? "w-24 bg-blue-500/5 border-blue-500/20"
+							? "w-32 bg-blue-500/5 border-blue-500/20"
 							: "w-14 hover:w-80"
 					: "w-80",
 				!color && "border-slate-800/50",
 				isDragging && "opacity-50",
-				isOver && "border-blue-500/50 ring-2 ring-blue-500/10",
+				isOver && "border-blue-500 ring-4 ring-blue-500/20 bg-blue-500/10 shadow-lg shadow-blue-500/20 scale-[1.02] z-10",
 			)}
 		>
 			<div

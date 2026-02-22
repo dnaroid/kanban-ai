@@ -32,24 +32,6 @@ export function buildQaTestingPrompt(
 	project: QaTestingPromptProject,
 	options: QaTestingPromptOptions = {},
 ): string {
-	const tagsLine =
-		options.availableTags && options.availableTags.length > 0
-			? options.availableTags.join(", ")
-			: "(нет доступных тегов)";
-	const typesLine =
-		options.availableTypes && options.availableTypes.length > 0
-			? options.availableTypes.join(", ")
-			: "feature, bug, chore, improvement";
-	const difficultiesLine =
-		options.availableDifficulties && options.availableDifficulties.length > 0
-			? options.availableDifficulties.join(", ")
-			: "easy, medium, hard, epic";
-	const rolesLine =
-		options.availableRoles && options.availableRoles.length > 0
-			? options.availableRoles
-					.map((role) => `${role.id} (${role.name})`)
-					.join(", ")
-			: "(нет доступных ролей)";
 	const rolePrompt = options.role?.systemPrompt?.trim() ?? "";
 	const roleSkills = (options.role?.skills ?? [])
 		.map((skill) => skill.trim())
@@ -58,10 +40,10 @@ export function buildQaTestingPrompt(
 	const roleSkillsLine =
 		roleSkills.length > 0 ? roleSkills.join(", ") : "(не заданы)";
 
-	return `Промпт роли: ${rolePromptLine}
+	return `${rolePromptLine}
 Можешь использовать скиллы: ${roleSkillsLine}
 
-Ты QA-агент. Проведи проверку задачи и результата реализации в текущем проекте.
+Проведи проверку задачи и результата реализации в текущем проекте.
 
 Контекст задачи:
 - Название: ${task.title}
@@ -74,12 +56,6 @@ export function buildQaTestingPrompt(
 - Путь проекта: ${project.path}
 - Название проекта: ${project.name}
 - ID проекта: ${project.id}
-
-Доступные значения:
-- Теги: ${tagsLine}
-- Типы: ${typesLine}
-- Сложности: ${difficultiesLine}
-- Роли: ${rolesLine}
 
 Что нужно сделать:
 1) Проверить, что задача реализована в коде согласно описанию и критериям приемки.
