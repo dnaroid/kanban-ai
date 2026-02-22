@@ -1,11 +1,14 @@
 "use client";
 
-import { WorkflowSettingsEditor } from "@/components/settings/WorkflowSettingsEditor";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-export default function WorkflowSettingsPage() {
-	return (
-		<div className="flex-1 overflow-y-auto pb-20 custom-scrollbar">
-			<WorkflowSettingsEditor />
-		</div>
-	);
+export default function WorkflowSettingsRootPage() {
+	const router = useRouter();
+
+	useEffect(() => {
+		router.replace("/settings/workflow/events");
+	}, [router]);
+
+	return null;
 }
