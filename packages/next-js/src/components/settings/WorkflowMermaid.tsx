@@ -27,6 +27,7 @@ mermaid.initialize({
 		clusterBkg: "rgba(15, 23, 42, 0.4)",
 		clusterBorder: "#334155",
 		labelStyle: "font-family: inherit; font-size: 12px; font-weight: bold;",
+		edgeLabelBackground: "transparent",
 	},
 });
 
@@ -147,7 +148,8 @@ export function WorkflowMermaid({ config }: WorkflowMermaidProps) {
 			}
 
 			const edgeLabel =
-				selectorParts.length > 0 ? selectorParts.join(" | ") : "default";
+
+				selectorParts.length > 0 ? selectorParts.join("<br/>") : "default";
 			lines.push(
 				`  ${signalId} -. "${escapeMermaidLabel(edgeLabel)}" .-> ${statusId}`,
 			);
