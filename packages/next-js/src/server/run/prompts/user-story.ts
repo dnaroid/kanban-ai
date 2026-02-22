@@ -83,7 +83,7 @@ export function buildUserStoryPrompt(
 - Теги: ${tagsLine}
 - Тип: ${types.join(", ")}
 - Сложность: ${difficulties.join(", ")}
-- Агент (id): ${rolesLine}
+- Допустимые агенты для выполнения (ids): ${rolesLine}
 
 Верни ответ строго в формате:
 

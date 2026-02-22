@@ -1,35 +1,48 @@
 "use client";
 
 import { useEffect, useRef, useMemo, useState } from "react";
-import mermaid from "mermaid";
 import { WorkflowConfig } from "@/lib/api-client";
+// Lazy-load mermaid to avoid 2-3MB bundle on every page
+let mermaidPromise: Promise<typeof import("mermaid").default> | null = null;
+let mermaidInitialized = false;
 
-// Initialize mermaid with dark theme
-mermaid.initialize({
-	startOnLoad: false,
-	theme: "dark",
-	securityLevel: "loose",
-	flowchart: {
-		useMaxWidth: true,
-		htmlLabels: true,
-		curve: "basis",
-	},
-	themeVariables: {
-		primaryColor: "#3b82f6",
-		primaryTextColor: "#f1f5f9",
-		primaryBorderColor: "#1e293b",
-		lineColor: "#64748b",
-		secondaryColor: "#0f172a",
-		tertiaryColor: "#0f172a",
-		mainBkg: "#0f172a",
-		nodeBkg: "#1e293b",
-		nodeBorder: "#334155",
-		clusterBkg: "rgba(15, 23, 42, 0.4)",
-		clusterBorder: "#334155",
-		labelStyle: "font-family: inherit; font-size: 12px; font-weight: bold;",
-		edgeLabelBackground: "transparent",
-	},
-});
+async function getMermaid() {
+	if (!mermaidPromise) {
+		mermaidPromise = import("mermaid").then((mod) => {
+			const mermaid = mod.default;
+			if (!mermaidInitialized) {
+				mermaid.initialize({
+					startOnLoad: false,
+					theme: "dark",
+					securityLevel: "loose",
+					flowchart: {
+						useMaxWidth: true,
+						htmlLabels: true,
+						curve: "basis",
+					},
+					themeVariables: {
+						primaryColor: "#3b82f6",
+						primaryTextColor: "#f1f5f9",
+						primaryBorderColor: "#1e293b",
+						lineColor: "#64748b",
+						secondaryColor: "#0f172a",
+						tertiaryColor: "#0f172a",
+						mainBkg: "#0f172a",
+						nodeBkg: "#1e293b",
+						nodeBorder: "#334155",
+						clusterBkg: "rgba(15, 23, 42, 0.4)",
+						clusterBorder: "#334155",
+						labelStyle: "font-family: inherit; font-size: 12px; font-weight: bold;",
+						edgeLabelBackground: "transparent",
+					},
+				});
+				mermaidInitialized = true;
+			}
+			return mermaid;
+		});
+	}
+	return mermaidPromise;
+}
 
 interface WorkflowMermaidProps {
 	config: WorkflowConfig;
@@ -301,6 +314,7 @@ export function WorkflowMermaid({ config }: WorkflowMermaidProps) {
 
 			try {
 				container.innerHTML = "";
+				const mermaid = await getMermaid();
 				const id = `mermaid-${Math.random().toString(36).slice(2, 11)}`;
 				const { svg } = await mermaid.render(id, diagramCode);
 				container.innerHTML = svg;
