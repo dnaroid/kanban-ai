@@ -31,6 +31,17 @@ interface SessionInfo {
 	directory: string;
 }
 
+interface PromptModelSelection {
+	providerID: string;
+	modelID: string;
+}
+
+interface PromptSessionPreferences {
+	model?: PromptModelSelection;
+	agent?: string;
+	variant?: string;
+}
+
 function getData<T>(value: unknown): T {
 	if (typeof value === "object" && value !== null && "data" in value) {
 		return (value as { data: T }).data;
@@ -89,22 +100,9 @@ export class OpencodeSessionManager {
 	public async createSession(
 		title: string,
 		directory: string,
-		preferences?: SessionStartPreferences,
 	): Promise<string> {
 		const client = this.getDirectoryClient(directory);
-		const payload: Record<string, unknown> = { title, directory };
-		if (preferences?.preferredModelName) {
-			payload.model = preferences.preferredModelName;
-			payload.modelName = preferences.preferredModelName;
-		}
-		if (preferences?.preferredModelVariant) {
-			payload.variant = preferences.preferredModelVariant;
-			payload.modelVariant = preferences.preferredModelVariant;
-		}
-		if (preferences?.preferredLlmAgent) {
-			payload.agent = preferences.preferredLlmAgent;
-		}
-		const response = await client.session.create(payload);
+		const response = await client.session.create({ title, directory });
 		const data = getData<unknown>(response);
 		const sessionRecord = asRecord(data);
 		const sessionId =
@@ -127,12 +125,46 @@ export class OpencodeSessionManager {
 		await client.session.abort({ sessionID: sessionId });
 	}
 
-	public async sendPrompt(sessionId: string, prompt: string): Promise<void> {
+	public async sendPrompt(
+		sessionId: string,
+		prompt: string,
+		preferences?: SessionStartPreferences,
+	): Promise<void> {
 		const client = await this.getSessionClient(sessionId);
+		const promptPreferences = this.toPromptPreferences(preferences);
 		await client.session.prompt({
 			sessionID: sessionId,
 			parts: [{ type: "text", text: prompt }],
+			...(promptPreferences.model ? { model: promptPreferences.model } : {}),
+			...(promptPreferences.agent ? { agent: promptPreferences.agent } : {}),
+			...(promptPreferences.variant
+				? { variant: promptPreferences.variant }
+				: {}),
 		});
+	}
+
+	private toPromptPreferences(
+		preferences?: SessionStartPreferences,
+	): PromptSessionPreferences {
+		const modelName = preferences?.preferredModelName?.trim() || "";
+		const agent = preferences?.preferredLlmAgent?.trim() || "";
+		const variant = preferences?.preferredModelVariant?.trim() || "";
+
+		let model: PromptModelSelection | undefined;
+		const delimiterIndex = modelName.indexOf("/");
+		if (delimiterIndex > 0 && delimiterIndex < modelName.length - 1) {
+			const providerID = modelName.slice(0, delimiterIndex).trim();
+			const modelID = modelName.slice(delimiterIndex + 1).trim();
+			if (providerID && modelID) {
+				model = { providerID, modelID };
+			}
+		}
+
+		return {
+			...(model ? { model } : {}),
+			...(agent ? { agent } : {}),
+			...(variant ? { variant } : {}),
+		};
 	}
 
 	public async getMessages(

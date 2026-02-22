@@ -108,11 +108,19 @@ export function SortableColumn({
 		transition,
 	};
 
+	const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
+	const [isHovered, setIsHovered] = useState(false);
 	const isEmpty = tasks.length === 0;
 	const isOver = isColumnOver || isTaskOverThisColumn;
-	const isCurrentlyExpanded = !isEmpty || isOver;
+	const isMinimized = isEmpty && !isQuickCreateOpen;
 
-	const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
+	const getColumnWidth = () => {
+		if (!isMinimized) return "w-80";
+		if (isOver || isHovered) return "w-80";
+		if (isDraggingAnyTask) return "w-32";
+		return "w-14";
+	};
+
 	const [prompt, setPrompt] = useState("");
 	const [liveTranscript, setLiveTranscript] = useState("");
 	const [isListening, setIsListening] = useState(false);
@@ -260,6 +268,8 @@ export function SortableColumn({
 	return (
 		<div
 			ref={setNodeRef}
+			onMouseEnter={() => setIsHovered(true)}
+			onMouseLeave={() => setIsHovered(false)}
 			style={{
 				...style,
 				borderColor: color ? `${color}40` : undefined,
@@ -269,33 +279,29 @@ export function SortableColumn({
 					: "#0B0E14",
 			}}
 			className={cn(
-				"flex-shrink-0 rounded-2xl border flex flex-col h-full transition-all duration-300 group/column relative",
-				isEmpty
-					? isOver
-						? "w-80"
-						: isDraggingAnyTask
-							? "w-32 bg-blue-500/5 border-blue-500/20"
-							: "w-14 hover:w-80"
-					: "w-80",
+				"flex-shrink-0 rounded-2xl border flex flex-col h-full relative group/column overflow-hidden",
+				"transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+				getColumnWidth(),
 				!color && "border-slate-800/50",
-				isDragging && "opacity-50",
+				isDragging && "opacity-50 scale-95",
 				isOver && "border-blue-500 ring-4 ring-blue-500/20 bg-blue-500/10 shadow-lg shadow-blue-500/20 scale-[1.02] z-10",
 			)}
 		>
 			<div
 				{...attributes}
 				{...listeners}
-				className="p-4 border-b border-slate-800/50 cursor-grab active:cursor-grabbing select-none"
-				title={isEmpty && !isOver ? name : undefined}
+				className="p-4 border-b border-slate-800/50 cursor-grab active:cursor-grabbing select-none shrink-0"
+				title={isMinimized && !isOver && !isHovered ? name : undefined}
 			>
 				<div className="flex items-center justify-between relative min-h-[32px]">
 					<div
 						className={cn(
-							"flex items-center gap-2 flex-1 min-w-0 transition-opacity duration-300",
-							isEmpty &&
+							"flex items-center gap-2 flex-1 min-w-0 transition-all duration-500 ease-in-out",
+							isMinimized &&
 								!isOver &&
+								!isHovered &&
 								!isDraggingAnyTask &&
-								"opacity-0 group-hover/column:opacity-100",
+								"opacity-0 translate-x-4 pointer-events-none group-hover/column:opacity-100 group-hover/column:translate-x-0 group-hover/column:pointer-events-auto",
 						)}
 					>
 						<span className="text-sm font-bold text-slate-200 truncate px-1">
@@ -306,9 +312,9 @@ export function SortableColumn({
 						</span>
 					</div>
 
-					{isEmpty && !isOver && !isDraggingAnyTask && (
-						<div className="absolute inset-0 flex items-center justify-center group-hover/column:hidden pointer-events-none">
-							<span className="text-lg font-black text-slate-500/50 uppercase">
+					{isMinimized && !isOver && !isHovered && !isDraggingAnyTask && (
+						<div className="absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-500 ease-in-out group-hover/column:opacity-0 group-hover/column:scale-150">
+							<span className="text-lg font-black text-slate-500/50 uppercase tracking-tighter">
 								{name.charAt(0)}
 							</span>
 						</div>
@@ -316,11 +322,11 @@ export function SortableColumn({
 
 					<div
 						className={cn(
-							"flex items-center gap-1 shrink-0 transition-all duration-300",
-							isEmpty
-								? isOver || isDraggingAnyTask
-									? "ml-2"
-									: "opacity-0 group-hover/column:opacity-100 group-hover/column:ml-2"
+							"flex items-center gap-1 shrink-0 transition-all duration-500 ease-in-out",
+							isMinimized
+								? isOver || isHovered || isDraggingAnyTask
+									? "ml-2 opacity-100 scale-100"
+									: "opacity-0 scale-50 pointer-events-none group-hover/column:opacity-100 group-hover/column:scale-100 group-hover/column:pointer-events-auto group-hover/column:ml-2"
 								: "ml-2",
 						)}
 					>
@@ -447,10 +453,10 @@ export function SortableColumn({
 
 			<div
 				className={cn(
-					"flex-1 overflow-y-auto custom-scrollbar p-3 transition-opacity duration-300",
-					isEmpty &&
-						!isOver &&
-						"opacity-0 group-hover/column:opacity-100",
+					"flex-1 overflow-y-auto custom-scrollbar p-3 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+					isMinimized && !isOver && !isHovered
+						? "opacity-0 translate-y-8 pointer-events-none"
+						: "opacity-100 translate-y-0",
 				)}
 			>
 				<SortableContext

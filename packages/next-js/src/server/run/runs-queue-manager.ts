@@ -499,7 +499,6 @@ export class RunsQueueManager {
 			const sessionId = await this.sessionManager.createSession(
 				runInput.sessionTitle,
 				runInput.projectPath,
-				runInput.sessionPreferences,
 			);
 			log.info("OpenCode session created", { runId, sessionId });
 
@@ -520,7 +519,11 @@ export class RunsQueueManager {
 			await this.subscribeRunSession(runId, sessionId);
 
 			log.debug("Sending prompt to OpenCode", { runId, sessionId });
-			await this.sessionManager.sendPrompt(sessionId, runInput.prompt);
+			await this.sessionManager.sendPrompt(
+				sessionId,
+				runInput.prompt,
+				runInput.sessionPreferences,
+			);
 			log.info("Prompt request completed", { runId, sessionId });
 
 			runEventRepo.create({

@@ -290,6 +290,42 @@ describe("RunsQueueManager scheduling", () => {
 		);
 	});
 
+	it("forwards session preferences to first prompt, not session.create", async () => {
+		taskMap.set("task-1", buildTask("task-1", "normal"));
+		runMap.set(
+			"run-1",
+			buildRun("run-1", "task-1", "execution", "2026-01-01T00:00:10.000Z"),
+		);
+
+		const manager = new RunsQueueManager();
+		manager.enqueue("run-1", {
+			projectPath: "/tmp/project",
+			sessionTitle: "task-1",
+			prompt: "prompt",
+			sessionPreferences: {
+				preferredModelName: "zai-coding-plan/glm-4.7",
+				preferredModelVariant: "high",
+				preferredLlmAgent: "build",
+			},
+		});
+
+		await waitForDrain();
+
+		expect(mockSessionManager.createSession).toHaveBeenCalledWith(
+			"task-1",
+			"/tmp/project",
+		);
+		expect(mockSessionManager.sendPrompt).toHaveBeenCalledWith(
+			"session-1",
+			"prompt",
+			{
+				preferredModelName: "zai-coding-plan/glm-4.7",
+				preferredModelVariant: "high",
+				preferredLlmAgent: "build",
+			},
+		);
+	});
+
 	it("does not start postponed execution runs", async () => {
 		taskMap.set("task-postpone", buildTask("task-postpone", "postpone"));
 		runMap.set(
