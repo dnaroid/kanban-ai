@@ -6,10 +6,10 @@ import {
 	SortableContext,
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { useDndContext } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import {
 	AlertCircle,
-	GripVertical,
 	Loader2,
 	Mic,
 	MicOff,
@@ -78,6 +78,16 @@ export function SortableColumn({
 	onDeleteTask,
 	onTaskClick,
 }: SortableColumnProps) {
+	const { active, over } = useDndContext();
+	const isDraggingAnyTask = active?.data.current?.type === "task";
+
+	// Determine if a task is being dragged over this specific column
+	const isTaskOverThisColumn =
+		isDraggingAnyTask &&
+		(over?.id === id ||
+			over?.data.current?.task?.columnId === id ||
+			(over?.data.current?.type === "column" && over.id === id));
+
 	const {
 		attributes,
 		listeners,
@@ -85,6 +95,7 @@ export function SortableColumn({
 		transform,
 		transition,
 		isDragging,
+		isOver: isColumnOver,
 	} = useSortable({
 		id: id,
 		data: {
@@ -96,6 +107,10 @@ export function SortableColumn({
 		transform: CSS.Transform.toString(transform),
 		transition,
 	};
+
+	const isEmpty = tasks.length === 0;
+	const isOver = isColumnOver || isTaskOverThisColumn;
+	const isCurrentlyExpanded = !isEmpty || isOver;
 
 	const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
 	const [prompt, setPrompt] = useState("");
@@ -254,22 +269,35 @@ export function SortableColumn({
 					: "#0B0E14",
 			}}
 			className={cn(
-				"flex-shrink-0 w-80 rounded-2xl border flex flex-col h-full transition-all duration-300",
+				"flex-shrink-0 rounded-2xl border flex flex-col h-full transition-all duration-300 group/column relative",
+				isEmpty
+					? isOver
+						? "w-80"
+						: isDraggingAnyTask
+							? "w-24 bg-blue-500/5 border-blue-500/20"
+							: "w-14 hover:w-80"
+					: "w-80",
 				!color && "border-slate-800/50",
 				isDragging && "opacity-50",
+				isOver && "border-blue-500/50 ring-2 ring-blue-500/10",
 			)}
 		>
-			<div className="p-4 border-b border-slate-800/50">
-				<div className="flex items-center justify-between">
-					<div className="flex items-center gap-2 flex-1 min-w-0">
-						<button
-							type="button"
-							{...attributes}
-							{...listeners}
-							className="text-slate-600 hover:text-slate-300 transition-colors shrink-0 p-2 hover:bg-slate-800/50 rounded-lg -ml-1"
-						>
-							<GripVertical className="w-5 h-5" />
-						</button>
+			<div
+				{...attributes}
+				{...listeners}
+				className="p-4 border-b border-slate-800/50 cursor-grab active:cursor-grabbing select-none"
+				title={isEmpty && !isOver ? name : undefined}
+			>
+				<div className="flex items-center justify-between relative min-h-[32px]">
+					<div
+						className={cn(
+							"flex items-center gap-2 flex-1 min-w-0 transition-opacity duration-300",
+							isEmpty &&
+								!isOver &&
+								!isDraggingAnyTask &&
+								"opacity-0 group-hover/column:opacity-100",
+						)}
+					>
 						<span className="text-sm font-bold text-slate-200 truncate px-1">
 							{name}
 						</span>
@@ -277,10 +305,29 @@ export function SortableColumn({
 							{tasks.length}
 						</span>
 					</div>
-					<div className="flex items-center gap-1 shrink-0 ml-2">
+
+					{isEmpty && !isOver && !isDraggingAnyTask && (
+						<div className="absolute inset-0 flex items-center justify-center group-hover/column:hidden pointer-events-none">
+							<span className="text-lg font-black text-slate-500/50 uppercase">
+								{name.charAt(0)}
+							</span>
+						</div>
+					)}
+
+					<div
+						className={cn(
+							"flex items-center gap-1 shrink-0 transition-all duration-300",
+							isEmpty
+								? isOver || isDraggingAnyTask
+									? "ml-2"
+									: "opacity-0 group-hover/column:opacity-100 group-hover/column:ml-2"
+								: "ml-2",
+						)}
+					>
 						<button
 							type="button"
-							onClick={() => {
+							onClick={(e) => {
+								e.stopPropagation();
 								setIsQuickCreateOpen((prev) => !prev);
 								setQuickCreateError(null);
 								if (isListening) {
@@ -297,7 +344,10 @@ export function SortableColumn({
 						</button>
 						<button
 							type="button"
-							onClick={onAddTask}
+							onClick={(e) => {
+								e.stopPropagation();
+								onAddTask();
+							}}
 							className="text-slate-600 hover:text-blue-400 hover:bg-blue-400/10 transition-colors p-1"
 							title="Add Task"
 						>
@@ -395,7 +445,14 @@ export function SortableColumn({
 				</div>
 			)}
 
-			<div className="flex-1 overflow-y-auto custom-scrollbar p-3">
+			<div
+				className={cn(
+					"flex-1 overflow-y-auto custom-scrollbar p-3 transition-opacity duration-300",
+					isEmpty &&
+						!isOver &&
+						"opacity-0 group-hover/column:opacity-100",
+				)}
+			>
 				<SortableContext
 					items={tasks.map((t) => t.id)}
 					strategy={verticalListSortingStrategy}

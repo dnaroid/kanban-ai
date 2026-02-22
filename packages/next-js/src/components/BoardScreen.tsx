@@ -211,10 +211,23 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 								</div>
 							)
 						) : activeColumn ? (
-							<div className="bg-[#11151C]/40 border-2 border-blue-500 rounded-2xl w-80 shadow-2xl rotate-2 opacity-90 p-4 pointer-events-none backdrop-blur-md">
-								<h3 className="text-sm font-bold text-white">
-									{columns.find((c) => c.id === activeColumn)?.name}
-								</h3>
+							<div className="bg-[#11151C]/80 border-2 border-blue-500 rounded-2xl w-80 shadow-2xl rotate-2 opacity-90 p-4 pointer-events-none backdrop-blur-md h-[calc(100vh-180px)] flex flex-col">
+								<div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-800/50">
+									<h3 className="text-sm font-bold text-white">
+										{columns.find((c) => c.id === activeColumn)?.name}
+									</h3>
+									<span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-0.5 rounded-full shrink-0">
+										{tasks.filter((t) => t.columnId === activeColumn).length}
+									</span>
+								</div>
+								<div className="flex-1 space-y-3">
+									{[1, 2, 3].map((i) => (
+										<div
+											key={i}
+											className="w-full h-24 bg-slate-800/20 rounded-xl border border-slate-700/50 animate-pulse"
+										/>
+									))}
+								</div>
 							</div>
 						) : null}
 					</DragOverlay>
