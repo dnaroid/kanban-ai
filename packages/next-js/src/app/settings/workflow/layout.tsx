@@ -46,16 +46,16 @@ function WorkflowSettingsHeader() {
 	return (
 		<div className="space-y-6">
 			{/* Top Bar / Actions */}
-			<div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-800/60">
+			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4">
 				<div className="flex items-center gap-4">
 					<div className="w-10 h-10 rounded-xl bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center shadow-lg shadow-blue-500/10">
 						<GitBranch className="w-5 h-5 text-blue-400" />
 					</div>
 					<div>
 						<div className="flex items-center gap-2">
-							<h2 className="text-xl font-black text-white tracking-tight leading-none">
+							<p className="text-xl font-black text-white tracking-tight leading-none">
 								Workflow Engine
-							</h2>
+							</p>
 							{isDirty ? (
 								<div className="flex items-center gap-1.5 text-[8px] font-black text-amber-500 uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20">
 									<AlertCircle className="h-2.5 w-2.5" />
@@ -160,7 +160,7 @@ function WorkflowSettingsNav() {
 	const router = useRouter();
 
 	return (
-		<div className="flex items-center gap-1 border-b border-slate-800/40 px-2">
+		<div className="flex items-center gap-1 border-b border-slate-800/40 px-2 mb-6">
 			{tabs.map((tab) => {
 				const Icon = tab.icon;
 				const isActive = pathname === tab.path;
@@ -209,10 +209,10 @@ function WorkflowSettingsContent({ children }: { children: React.ReactNode }) {
 	if (!draftConfig) return null;
 
 	return (
-		<div className="space-y-8 pb-10">
+		<div className="flex flex-col w-full h-full">
 			<WorkflowSettingsHeader />
 			<WorkflowSettingsNav />
-			<div className="min-h-[500px] animate-in fade-in duration-500">
+			<div className="flex-1 animate-in fade-in duration-500">
 				{children}
 			</div>
 		</div>
@@ -226,10 +226,8 @@ export default function WorkflowSettingsLayout({
 }) {
 	return (
 		<WorkflowSettingsProvider>
-			<div className="flex-1 overflow-y-auto pb-20 custom-scrollbar">
-				<div className="p-8">
-					<WorkflowSettingsContent>{children}</WorkflowSettingsContent>
-				</div>
+			<div className="flex flex-col w-full h-full">
+				<WorkflowSettingsContent>{children}</WorkflowSettingsContent>
 			</div>
 		</WorkflowSettingsProvider>
 	);
