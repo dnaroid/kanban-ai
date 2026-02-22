@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Square } from "lucide-react";
+import {Check, GitCompare, LayoutGrid, Square} from "lucide-react"
 import type {
 	WorkflowColumnConfig,
 	WorkflowStatusConfig,

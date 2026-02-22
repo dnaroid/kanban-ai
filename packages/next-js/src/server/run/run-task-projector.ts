@@ -3,8 +3,10 @@ import { publishSseEvent } from "@/server/events/sse-broker";
 import { taskRepo } from "@/server/repositories/task";
 import type { Task } from "@/server/types";
 import {
+	canTransitionColumn,
 	getPreferredColumnIdForStatus,
 	getWorkflowColumnSystemKey,
+	isStatusAllowedInWorkflowColumn,
 	isWorkflowTaskStatus,
 	resolveTaskStatusBySignal,
 	resolveTaskStatusReasons,
@@ -159,6 +161,56 @@ function isQaTestingRun(run: Run): boolean {
 }
 
 export class RunTaskProjector {
+	private resolveColumnIdForStatus(task: Task, status: TaskStatus): string {
+		const board = boardRepo.getById(task.boardId);
+		if (!board) {
+			return task.columnId;
+		}
+
+		const currentColumnId = task.columnId;
+		const currentColumnKey = getWorkflowColumnSystemKey(board, currentColumnId);
+
+		const preferredColumnId = getPreferredColumnIdForStatus(board, status);
+		if (currentColumnKey && preferredColumnId) {
+			const preferredColumnKey = getWorkflowColumnSystemKey(
+				board,
+				preferredColumnId,
+			);
+			if (
+				preferredColumnKey &&
+				canTransitionColumn(currentColumnKey, preferredColumnKey)
+			) {
+				return preferredColumnId;
+			}
+
+			for (const column of board.columns) {
+				const targetColumnKey = getWorkflowColumnSystemKey(board, column.id);
+				if (!targetColumnKey) {
+					continue;
+				}
+				if (
+					canTransitionColumn(currentColumnKey, targetColumnKey) &&
+					isStatusAllowedInWorkflowColumn(status, targetColumnKey)
+				) {
+					return column.id;
+				}
+			}
+		}
+
+		if (
+			currentColumnKey &&
+			isStatusAllowedInWorkflowColumn(status, currentColumnKey)
+		) {
+			return currentColumnId;
+		}
+
+		if (preferredColumnId) {
+			return preferredColumnId;
+		}
+
+		return currentColumnId;
+	}
+
 	private updateTaskAndPublish(
 		taskId: string,
 		patch: Parameters<typeof taskRepo.update>[1],
@@ -181,10 +233,7 @@ export class RunTaskProjector {
 		status: TaskStatus,
 	): Parameters<typeof taskRepo.update>[1] {
 		const board = boardRepo.getById(task.boardId);
-		const preferredColumnId = board
-			? getPreferredColumnIdForStatus(board, status)
-			: null;
-		const nextColumnId = preferredColumnId ?? task.columnId;
+		const nextColumnId = this.resolveColumnIdForStatus(task, status);
 		const nextColumnKey = board
 			? getWorkflowColumnSystemKey(board, nextColumnId)
 			: null;

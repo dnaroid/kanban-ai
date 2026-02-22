@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import mermaid from "mermaid";
 import { WorkflowConfig } from "@/lib/api-client";
 
@@ -77,11 +77,18 @@ export function WorkflowMermaid({ config }: WorkflowMermaidProps) {
 	const signalStatusRef = useRef<HTMLDivElement>(null);
 	const columnStatusRef = useRef<HTMLDivElement>(null);
 
+	const [signalScopeFilter, setSignalScopeFilter] = useState<"all" | "run" | "user_action">("all");
+
 	const signalStatusDiagramCode = useMemo(() => {
 		const lines: string[] = ["graph LR"];
-		const sortedSignals = [...config.signals].sort(
+		const filteredSignals = config.signals.filter((signal) => {
+			if (signalScopeFilter === "all") return true;
+			return signal.scope === signalScopeFilter;
+		});
+		const sortedSignals = [...filteredSignals].sort(
 			(a, b) => a.orderIndex - b.orderIndex,
 		);
+		const filteredSignalKeys = new Set(filteredSignals.map((s) => s.key));
 		const statusIdMap = createMermaidIdMap(
 			config.statuses.map((s) => s.status),
 			"status",
@@ -117,7 +124,11 @@ export function WorkflowMermaid({ config }: WorkflowMermaidProps) {
 		});
 		lines.push("  end");
 
-		config.signalRules.forEach((rule) => {
+		const filteredSignalRules = config.signalRules.filter((rule) =>
+			filteredSignalKeys.has(rule.signalKey),
+		);
+
+		filteredSignalRules.forEach((rule) => {
 			const signalId = signalIdMap.get(rule.signalKey);
 			const statusId = statusIdMap.get(rule.toStatus);
 			if (!signalId || !statusId) {
@@ -185,7 +196,7 @@ export function WorkflowMermaid({ config }: WorkflowMermaidProps) {
 		});
 
 		return lines.join("\n");
-	}, [config]);
+	}, [config, signalScopeFilter]);
 
 	const columnStatusDiagramCode = useMemo(() => {
 		const lines: string[] = ["graph LR"];
@@ -280,7 +291,7 @@ export function WorkflowMermaid({ config }: WorkflowMermaidProps) {
 		}
 
 		return lines.join("\n");
-	}, [config]);
+	}, [config, signalScopeFilter]);
 
 	useEffect(() => {
 		const renderDiagram = async (
@@ -317,9 +328,22 @@ export function WorkflowMermaid({ config }: WorkflowMermaidProps) {
 			</div>
 			<div className="flex flex-col gap-4">
 				<div className="flex flex-col gap-2">
-					<p className="px-1 text-xs font-semibold tracking-wide text-slate-400 uppercase">
-						Status Transitions by Signals
-					</p>
+					<div className="flex items-center justify-between px-1">
+						<p className="text-xs font-semibold tracking-wide text-slate-400 uppercase">
+							Status Transitions by Signals
+						</p>
+						<select
+							value={signalScopeFilter}
+							onChange={(e) =>
+								setSignalScopeFilter(e.target.value as "all" | "run" | "user_action")
+							}
+							className="px-2 py-1 text-xs font-medium bg-slate-800/50 border border-slate-700/50 rounded-md text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+						>
+							<option value="all">All Scopes</option>
+							<option value="run">Run Only</option>
+							<option value="user_action">User Action Only</option>
+						</select>
+					</div>
 					<div
 						className="w-full min-h-[420px] rounded-2xl border border-slate-800/60 bg-[#0B0E14]/30 p-6 overflow-auto flex items-center justify-center custom-scrollbar"
 						ref={signalStatusRef}
