@@ -8,7 +8,6 @@ import {
 import {
 	AlertCircle,
 	Clock,
-	Plus,
 	LayoutGrid,
 	List,
 	ChevronDown,
@@ -17,7 +16,6 @@ import {
 import { useState, useEffect } from "react";
 import { SortableColumn } from "./kanban/board/SortableColumn";
 import { SortableTask } from "./kanban/board/SortableTask";
-import { ColumnModal } from "./kanban/board/ColumnModal";
 import { ListView, ListItemView } from "./kanban/board/ListView";
 import { useBoardModel } from "@/features/board/model/use-board-model";
 import { cn } from "@/lib/utils";
@@ -45,8 +43,6 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 		error,
 		activeTask,
 		activeColumn,
-		isColumnModalOpen,
-		editingColumnId,
 		sensors,
 		columns,
 		handleDragStart,
@@ -54,11 +50,6 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 		handleTaskClick,
 		handleAddTask,
 		handleDeleteTask,
-		handleColumnSubmit,
-		handleDeleteColumn,
-		closeColumnModal,
-		openEditColumnModal,
-		openCreateColumnModal,
 	} = useBoardModel({ projectId });
 
 	const [expandedColumns, setExpandedColumns] = useState<
@@ -155,15 +146,6 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 						</div>
 					)}
 				</div>
-
-				<button
-					type="button"
-					onClick={openCreateColumnModal}
-					className="flex items-center gap-2 px-4 py-1.5 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 rounded-xl text-sm font-semibold text-slate-200 transition-all"
-				>
-					<Plus className="w-4 h-4" />
-					Add Column
-				</button>
 			</div>
 
 			<main className="flex-1 overflow-hidden relative">
@@ -192,8 +174,6 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 												.sort((a, b) => a.orderInColumn - b.orderInColumn)}
 											onTaskClick={handleTaskClick}
 											onAddTask={() => handleAddTask(column.id)}
-											onEdit={() => openEditColumnModal(column.id)}
-											onDelete={() => handleDeleteColumn(column.id)}
 											onDeleteTask={handleDeleteTask}
 										/>
 									))}
@@ -238,19 +218,6 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 					</DragOverlay>
 				</DndContext>
 			</main>
-
-			<ColumnModal
-				key={`${editingColumnId ?? "new"}-${isColumnModalOpen ? "open" : "closed"}`}
-				isOpen={isColumnModalOpen}
-				onClose={closeColumnModal}
-				onSubmit={handleColumnSubmit}
-				initialData={
-					editingColumnId
-						? columns.find((c) => c.id === editingColumnId)
-						: undefined
-				}
-				title={editingColumnId ? "Edit Column" : "Add New Column"}
-			/>
 		</div>
 	);
 }

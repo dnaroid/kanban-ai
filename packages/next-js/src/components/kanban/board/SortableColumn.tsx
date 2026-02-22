@@ -6,7 +6,7 @@ import {
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { AlertCircle, Edit2, GripVertical, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, GripVertical, Plus } from "lucide-react";
 import type { KanbanTask, Tag } from "@/types/kanban";
 import { cn } from "@/lib/utils";
 import { SortableTask } from "./SortableTask";
@@ -20,8 +20,6 @@ export interface SortableColumnProps {
 	onAddTask: () => void;
 	onDeleteTask: (id: string) => void;
 	onTaskClick?: (task: KanbanTask) => void;
-	onEdit: () => void;
-	onDelete: () => void;
 }
 
 export function SortableColumn({
@@ -33,8 +31,6 @@ export function SortableColumn({
 	onAddTask,
 	onDeleteTask,
 	onTaskClick,
-	onEdit,
-	onDelete,
 }: SortableColumnProps) {
 	const {
 		attributes,
@@ -83,34 +79,14 @@ export function SortableColumn({
 						>
 							<GripVertical className="w-5 h-5" />
 						</button>
-						<button
-							type="button"
-							className="text-sm font-bold text-slate-200 truncate cursor-pointer hover:text-blue-400 transition-colors px-1"
-							onClick={onEdit}
-						>
+						<span className="text-sm font-bold text-slate-200 truncate px-1">
 							{name}
-						</button>
+						</span>
 						<span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-0.5 rounded-full shrink-0">
 							{tasks.length}
 						</span>
 					</div>
 					<div className="flex items-center gap-1 shrink-0 ml-2">
-						<button
-							type="button"
-							onClick={onEdit}
-							className="text-slate-600 hover:text-blue-400 transition-colors p-1"
-							title="Edit Column"
-						>
-							<Edit2 className="w-4 h-4" />
-						</button>
-						<button
-							type="button"
-							onClick={onDelete}
-							className="text-slate-600 hover:text-red-400 transition-colors p-1"
-							title="Delete Column"
-						>
-							<Trash2 className="w-4 h-4" />
-						</button>
 						<button
 							type="button"
 							onClick={onAddTask}
