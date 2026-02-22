@@ -64,6 +64,7 @@ interface TaskDrawerContentProps {
 	isExpanded?: boolean;
 	onToggleExpand?: () => void;
 	showExpandButton?: boolean;
+	defaultTab?: "details" | "runs" | "vcs" | "properties";
 }
 
 export function TaskDrawerContent({
@@ -74,10 +75,11 @@ export function TaskDrawerContent({
 	isExpanded = false,
 	onToggleExpand,
 	showExpandButton = false,
+	defaultTab = "details",
 }: TaskDrawerContentProps) {
 	const [activeTab, setActiveTab] = useState<
 		"details" | "runs" | "vcs" | "properties"
-	>("details");
+	>(defaultTab);
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
 	const [editedTitle, setEditedTitle] = useState(task.title || "");
 	const titleInputRef = useRef<HTMLInputElement>(null);

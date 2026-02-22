@@ -1,20 +1,27 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
-import {
-	Loader2,
-} from "lucide-react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { useTaskModel } from "@/features/task/model/use-task-model";
-import {TaskDrawerContent} from "@/components/kanban/drawer/TaskDrawer"
+import { TaskDrawerContent } from "@/components/kanban/drawer/TaskDrawer";
 
 export default function StandaloneTaskPage() {
 	const params = useParams();
 	const router = useRouter();
+	const searchParams = useSearchParams();
 	const projectId = params.projectId as string;
 	const taskId = params.taskId as string;
+	const tabParam = searchParams.get("tab") as
+		| "details"
+		| "runs"
+		| "vcs"
+		| "properties"
+		| null;
 
-	const { task, columnName, loading, error, handleUpdate } =
-		useTaskModel(projectId, taskId);
+	const { task, columnName, loading, error, handleUpdate } = useTaskModel(
+		projectId,
+		taskId,
+	);
 
 	if (loading) {
 		return (
@@ -54,6 +61,7 @@ export default function StandaloneTaskPage() {
 					columnName={columnName}
 					onUpdate={handleUpdate}
 					onClose={() => router.push(`/board/${projectId}`)}
+					defaultTab={tabParam ?? "details"}
 				/>
 			</main>
 		</div>

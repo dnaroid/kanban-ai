@@ -237,6 +237,67 @@ export class RunsQueueManager {
 	private blockedRetryTimer: ReturnType<typeof setTimeout> | null = null;
 	private draining = false;
 
+	private extractSessionPreferencesFromPreset(
+		presetJson: string | null | undefined,
+	): SessionStartPreferences | undefined {
+		if (!presetJson || presetJson.trim().length === 0) {
+			return undefined;
+		}
+
+		try {
+			const parsed = JSON.parse(presetJson) as Record<string, unknown>;
+			const nestedModel =
+				typeof parsed.model === "object" && parsed.model
+					? (parsed.model as Record<string, unknown>)
+					: null;
+			const nestedLlm =
+				typeof parsed.llm === "object" && parsed.llm
+					? (parsed.llm as Record<string, unknown>)
+					: null;
+
+			const rawModelName =
+				(typeof parsed.modelName === "string" && parsed.modelName.trim()) ||
+				(typeof parsed.model === "string" && parsed.model.trim()) ||
+				(typeof nestedModel?.name === "string" && nestedModel.name.trim()) ||
+				(typeof nestedModel?.id === "string" && nestedModel.id.trim()) ||
+				undefined;
+
+			const explicitVariant =
+				(typeof parsed.modelVariant === "string" &&
+					parsed.modelVariant.trim()) ||
+				(typeof parsed.variant === "string" && parsed.variant.trim()) ||
+				(typeof nestedModel?.variant === "string" &&
+					nestedModel.variant.trim()) ||
+				undefined;
+
+			const [modelWithoutVariant, modelVariantFromName] = rawModelName
+				? rawModelName.split("#", 2)
+				: [undefined, undefined];
+
+			const preferredModelName = modelWithoutVariant?.trim() || undefined;
+			const preferredModelVariant =
+				explicitVariant || modelVariantFromName?.trim() || undefined;
+
+			const preferredLlmAgent =
+				(typeof parsed.agent === "string" && parsed.agent.trim()) ||
+				(typeof parsed.llmAgent === "string" && parsed.llmAgent.trim()) ||
+				(typeof nestedLlm?.agent === "string" && nestedLlm.agent.trim()) ||
+				undefined;
+
+			if (!preferredModelName && !preferredModelVariant && !preferredLlmAgent) {
+				return undefined;
+			}
+
+			return {
+				preferredModelName,
+				preferredModelVariant,
+				preferredLlmAgent,
+			};
+		} catch {
+			return undefined;
+		}
+	}
+
 	public enqueue(runId: string, input: QueuedRunInput): void {
 		if (this.providerByRunId.has(runId)) {
 			log.warn("Run already queued", { runId });
@@ -855,7 +916,10 @@ export class RunsQueueManager {
 		this.enqueue(executionRun.id, {
 			projectPath: project.path,
 			sessionTitle: task.title.slice(0, 120),
-			sessionPreferences: this.toSessionPreferences(selectedRole),
+			sessionPreferences: this.toSessionPreferences(
+				selectedRole,
+				selectedRole?.preset_json,
+			),
 			prompt: buildTaskPrompt(
 				{ title: task.title, description: task.description },
 				{
@@ -881,10 +945,17 @@ export class RunsQueueManager {
 			  }
 			| null
 			| undefined,
+		presetJson?: string | null,
 	): SessionStartPreferences | undefined {
-		const modelName = role?.preferred_model_name?.trim();
-		const modelVariant = role?.preferred_model_variant?.trim();
-		const llmAgent = role?.preferred_llm_agent?.trim();
+		const fromPreset = this.extractSessionPreferencesFromPreset(presetJson);
+
+		const modelName =
+			role?.preferred_model_name?.trim() || fromPreset?.preferredModelName;
+		const modelVariant =
+			role?.preferred_model_variant?.trim() ||
+			fromPreset?.preferredModelVariant;
+		const llmAgent =
+			role?.preferred_llm_agent?.trim() || fromPreset?.preferredLlmAgent;
 
 		if (!modelName && !modelVariant && !llmAgent) {
 			return undefined;

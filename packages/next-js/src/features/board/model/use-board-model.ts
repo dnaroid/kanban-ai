@@ -323,7 +323,8 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 	};
 
 	const handleTaskClick = (task: KanbanTask) => {
-		router.push(`/board/${projectId}/task/${task.id}`);
+		const tab = task.status === "question" ? "?tab=runs" : "";
+		router.push(`/board/${projectId}/task/${task.id}${tab}`);
 	};
 
 	const handleAddTask = async (columnId: string) => {

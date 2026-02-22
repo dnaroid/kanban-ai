@@ -97,7 +97,14 @@ vi.mock("@/server/events/sse-broker", () => ({
 
 import { RunService } from "@/server/run/run-service";
 
-function buildTask() {
+function buildTask(overrides: Partial<ReturnType<typeof buildTaskBase>> = {}) {
+	return {
+		...buildTaskBase(),
+		...overrides,
+	};
+}
+
+function buildTaskBase() {
 	const now = new Date().toISOString();
 	return {
 		id: "task-1",
@@ -204,6 +211,57 @@ describe("RunService.generateUserStory", () => {
 				projectPath: "/tmp/kanban",
 				sessionTitle: expect.stringContaining("User Story:"),
 			}),
+		);
+	});
+
+	it("uses BA preset model and agent for session preferences when preferred fields are empty", async () => {
+		mockRoleRepo.listWithPresets.mockReturnValue([
+			{
+				id: "ba",
+				name: "Business Analyst",
+				preferred_model_name: null,
+				preferred_model_variant: null,
+				preferred_llm_agent: null,
+				preset_json: JSON.stringify({
+					modelName: "gpt-5.3-codex#high",
+					agent: "ba-agent",
+				}),
+			},
+		]);
+
+		const service = new RunService();
+		await service.generateUserStory("task-1");
+
+		expect(mockQueueManager.enqueue).toHaveBeenCalledWith(
+			"run-new",
+			expect.objectContaining({
+				sessionPreferences: {
+					preferredModelName: "gpt-5.3-codex",
+					preferredModelVariant: "high",
+					preferredLlmAgent: "ba-agent",
+				},
+			}),
+		);
+	});
+
+	it("uses assigned task executor role for generation when agent tag is present", async () => {
+		mockTaskRepo.getById.mockReturnValue(
+			buildTask({ tags: JSON.stringify(["agent:qa"]) }),
+		);
+		mockRoleRepo.list.mockReturnValue([
+			{ id: "ba", name: "Business Analyst" },
+			{ id: "qa", name: "QA Engineer" },
+		]);
+		mockRoleRepo.listWithPresets.mockReturnValue([
+			{ id: "ba", name: "Business Analyst", preset_json: "{}" },
+			{ id: "qa", name: "QA Engineer", preset_json: "{}" },
+		]);
+
+		const service = new RunService();
+		await service.generateUserStory("task-1");
+
+		expect(mockRunRepo.create).toHaveBeenCalledWith(
+			expect.objectContaining({ roleId: "qa" }),
 		);
 	});
 });

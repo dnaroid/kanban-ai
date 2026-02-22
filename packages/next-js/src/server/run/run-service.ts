@@ -42,6 +42,67 @@ const behaviorSkillsFallback = {
 export class RunService {
 	private readonly queueManager = getRunsQueueManager();
 
+	private extractSessionPreferencesFromPreset(
+		presetJson: string | null | undefined,
+	): SessionStartPreferences | undefined {
+		if (!presetJson || presetJson.trim().length === 0) {
+			return undefined;
+		}
+
+		try {
+			const parsed = JSON.parse(presetJson) as Record<string, unknown>;
+			const nestedModel =
+				typeof parsed.model === "object" && parsed.model
+					? (parsed.model as Record<string, unknown>)
+					: null;
+			const nestedLlm =
+				typeof parsed.llm === "object" && parsed.llm
+					? (parsed.llm as Record<string, unknown>)
+					: null;
+
+			const rawModelName =
+				(typeof parsed.modelName === "string" && parsed.modelName.trim()) ||
+				(typeof parsed.model === "string" && parsed.model.trim()) ||
+				(typeof nestedModel?.name === "string" && nestedModel.name.trim()) ||
+				(typeof nestedModel?.id === "string" && nestedModel.id.trim()) ||
+				undefined;
+
+			const explicitVariant =
+				(typeof parsed.modelVariant === "string" &&
+					parsed.modelVariant.trim()) ||
+				(typeof parsed.variant === "string" && parsed.variant.trim()) ||
+				(typeof nestedModel?.variant === "string" &&
+					nestedModel.variant.trim()) ||
+				undefined;
+
+			const [modelWithoutVariant, modelVariantFromName] = rawModelName
+				? rawModelName.split("#", 2)
+				: [undefined, undefined];
+
+			const preferredModelName = modelWithoutVariant?.trim() || undefined;
+			const preferredModelVariant =
+				explicitVariant || modelVariantFromName?.trim() || undefined;
+
+			const preferredLlmAgent =
+				(typeof parsed.agent === "string" && parsed.agent.trim()) ||
+				(typeof parsed.llmAgent === "string" && parsed.llmAgent.trim()) ||
+				(typeof nestedLlm?.agent === "string" && nestedLlm.agent.trim()) ||
+				undefined;
+
+			if (!preferredModelName && !preferredModelVariant && !preferredLlmAgent) {
+				return undefined;
+			}
+
+			return {
+				preferredModelName,
+				preferredModelVariant,
+				preferredLlmAgent,
+			};
+		} catch {
+			return undefined;
+		}
+	}
+
 	public async start(input: StartRunInput): Promise<{ runId: string }> {
 		log.info("Starting run", {
 			taskId: input.taskId,
@@ -118,7 +179,10 @@ export class RunService {
 		this.queueManager.enqueue(run.id, {
 			projectPath: project.path,
 			sessionTitle: task.title.slice(0, 120),
-			sessionPreferences: this.toSessionPreferences(selectedRole),
+			sessionPreferences: this.toSessionPreferences(
+				selectedRole,
+				selectedRole?.preset_json,
+			),
 			prompt: buildTaskPrompt(
 				{ title: task.title, description: task.description },
 				{
@@ -163,7 +227,10 @@ export class RunService {
 			return { runId: activeGenerationRun.id };
 		}
 
-		const roleId = this.resolveRoleIdByBehavior("preferredForStoryGeneration");
+		const roleId = this.resolveSpecializedRoleId(
+			task,
+			"preferredForStoryGeneration",
+		);
 		if (!roleId) {
 			log.error("No agent roles configured");
 			throw new Error("No agent roles configured");
@@ -237,7 +304,10 @@ export class RunService {
 		this.queueManager.enqueue(run.id, {
 			projectPath: project.path,
 			sessionTitle: `User Story: ${task.title}`.slice(0, 120),
-			sessionPreferences: this.toSessionPreferences(selectedRole),
+			sessionPreferences: this.toSessionPreferences(
+				selectedRole,
+				selectedRole?.preset_json,
+			),
 			prompt: buildUserStoryPrompt(
 				{
 					title: task.title,
@@ -295,7 +365,7 @@ export class RunService {
 			return { runId: activeQaTestingRun.id };
 		}
 
-		const roleId = this.resolveRoleIdByBehavior("preferredForQaTesting");
+		const roleId = this.resolveSpecializedRoleId(task, "preferredForQaTesting");
 		if (!roleId) {
 			log.error("No agent roles configured");
 			throw new Error("No agent roles configured");
@@ -360,7 +430,10 @@ export class RunService {
 		this.queueManager.enqueue(run.id, {
 			projectPath: project.path,
 			sessionTitle: `QA Testing: ${task.title}`.slice(0, 120),
-			sessionPreferences: this.toSessionPreferences(selectedRole),
+			sessionPreferences: this.toSessionPreferences(
+				selectedRole,
+				selectedRole?.preset_json,
+			),
 			prompt: buildQaTestingPrompt(
 				{
 					title: task.title,
@@ -514,15 +587,17 @@ export class RunService {
 			preferred_model_variant?: string | null;
 			preferred_llm_agent?: string | null;
 		} | null,
+		presetJson?: string | null,
 	): SessionStartPreferences | undefined {
-		if (!role) {
-			return undefined;
-		}
+		const fromPreset = this.extractSessionPreferencesFromPreset(presetJson);
 
-		const preferredModelName = role.preferred_model_name?.trim() || undefined;
+		const preferredModelName =
+			role?.preferred_model_name?.trim() || fromPreset?.preferredModelName;
 		const preferredModelVariant =
-			role.preferred_model_variant?.trim() || undefined;
-		const preferredLlmAgent = role.preferred_llm_agent?.trim() || undefined;
+			role?.preferred_model_variant?.trim() ||
+			fromPreset?.preferredModelVariant;
+		const preferredLlmAgent =
+			role?.preferred_llm_agent?.trim() || fromPreset?.preferredLlmAgent;
 
 		if (!preferredModelName && !preferredModelVariant && !preferredLlmAgent) {
 			return undefined;
@@ -533,6 +608,20 @@ export class RunService {
 			preferredModelVariant,
 			preferredLlmAgent,
 		};
+	}
+
+	private resolveSpecializedRoleId(
+		task: { tags: string | null },
+		behaviorKey: keyof typeof behaviorSkillsFallback,
+	): string | null {
+		const assignedRoleId = this.resolveAssignedRoleIdFromTags(
+			this.parseTaskTags(task.tags),
+		);
+		if (assignedRoleId) {
+			return assignedRoleId;
+		}
+
+		return this.resolveRoleIdByBehavior(behaviorKey);
 	}
 
 	private resolveRoleIdByBehavior(
