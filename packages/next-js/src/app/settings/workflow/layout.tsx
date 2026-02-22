@@ -232,7 +232,7 @@ export default function WorkflowSettingsLayout({
 	return (
 		<WorkflowSettingsProvider>
 			<div className="flex-1 overflow-y-auto pb-20 custom-scrollbar">
-				<div className="max-w-[1400px] mx-auto p-8">
+				<div className="p-8">
 					<WorkflowSettingsContent>{children}</WorkflowSettingsContent>
 				</div>
 			</div>

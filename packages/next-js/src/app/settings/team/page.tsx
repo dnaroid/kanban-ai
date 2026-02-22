@@ -4,7 +4,7 @@ import { TeamManagement } from "@/components/settings/TeamManagement";
 
 export default function TeamSettingsPage() {
 	return (
-		<div className="max-w-7xl mx-auto w-full">
+		<div className="w-full">
 			<TeamManagement />
 		</div>
 	);
