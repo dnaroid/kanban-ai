@@ -204,6 +204,7 @@ CREATE TABLE IF NOT EXISTS workflow_signal_rules (
   signal_key TEXT NOT NULL,
   run_kind TEXT,
   run_status TEXT,
+  from_column_system_key TEXT,
   from_status TEXT,
   to_status TEXT NOT NULL,
   FOREIGN KEY (signal_key) REFERENCES workflow_signals(key) ON DELETE CASCADE
@@ -214,6 +215,7 @@ ON workflow_signal_rules (
   signal_key,
   COALESCE(run_kind, ''),
   COALESCE(run_status, ''),
+  COALESCE(from_column_system_key, ''),
   COALESCE(from_status, '')
 );
 
@@ -243,7 +245,8 @@ VALUES
   ('mark_test_ok', 'user_action', 'Mark Test OK', 'User marks tests as passed', 29, 1),
   ('mark_test_fail', 'user_action', 'Mark Test Fail', 'User marks tests as failed', 30, 1),
   ('answer_question', 'user_action', 'Answer Question', 'User answers run question', 31, 1),
-  ('reopen_task', 'user_action', 'Reopen Task', 'User reopens task', 32, 1);
+  ('reopen_task', 'user_action', 'Reopen Task', 'User reopens task', 32, 1),
+  ('queue_ready_pending', 'user_action', 'Queue Ready Pending', 'User queues tasks for execution using rule selectors', 33, 1);
 
 INSERT OR IGNORE INTO workflow_signal_rules
   (key, signal_key, run_kind, run_status, from_status, to_status)
@@ -284,6 +287,11 @@ VALUES
   ('rule-user-answer-question-question', 'answer_question', NULL, NULL, 'question', 'pending'),
   ('rule-user-reopen-task-done', 'reopen_task', NULL, NULL, 'done', 'pending'),
   ('rule-user-reopen-task-failed', 'reopen_task', NULL, NULL, 'failed', 'pending');
+
+INSERT OR IGNORE INTO workflow_signal_rules
+  (key, signal_key, run_kind, run_status, from_column_system_key, from_status, to_status)
+VALUES
+  ('rule-user-queue-ready-pending', 'queue_ready_pending', NULL, NULL, 'ready', 'pending', 'running');
 `;
 
 export const v024AgentRoleSessionPreferencesSql = `

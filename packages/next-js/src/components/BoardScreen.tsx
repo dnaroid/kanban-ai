@@ -13,6 +13,7 @@ import {
 	ChevronDown,
 	ChevronUp,
 	Plus,
+	Play,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { SortableColumn } from "./kanban/board/SortableColumn";
@@ -53,6 +54,8 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 		handleAddTask,
 		handleQuickGenerateStory,
 		handleDeleteTask,
+		handleStartSignalRuns,
+		isQueueingSignalRuns,
 	} = useBoardModel({ projectId });
 
 	const [expandedColumns, setExpandedColumns] = useState<
@@ -151,6 +154,32 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 							</button>
 						</div>
 					)}
+				</div>
+
+				<div className="flex items-center gap-2">
+					<button
+						type="button"
+						onClick={() => {
+							void handleStartSignalRuns().catch((startError) => {
+								const message =
+									startError instanceof Error
+										? startError.message
+										: "Failed to queue tasks by signal";
+								alert(message);
+							});
+						}}
+						disabled={isQueueingSignalRuns}
+						className={cn(
+							"flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all",
+							isQueueingSignalRuns
+								? "bg-slate-800 text-slate-500 cursor-not-allowed"
+								: "bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-900/20",
+						)}
+						title="Queue tasks by workflow signal selectors"
+					>
+						<Play className="w-4 h-4" />
+						{isQueueingSignalRuns ? "Queueing..." : "Queue by Signal"}
+					</button>
 				</div>
 			</div>
 

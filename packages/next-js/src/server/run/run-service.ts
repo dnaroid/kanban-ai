@@ -9,6 +9,7 @@ import type { QueueStats } from "@/server/run/runs-queue-manager";
 import { getRunsQueueManager } from "@/server/run/runs-queue-manager";
 import { contextSnapshotRepo } from "@/server/repositories/context-snapshot";
 import { projectRepo } from "@/server/repositories/project";
+import { boardRepo } from "@/server/repositories/board";
 import type {
 	AgentRoleBehavior,
 	AgentRolePreset,
@@ -18,6 +19,7 @@ import { runEventRepo } from "@/server/repositories/run-event";
 import { runRepo } from "@/server/repositories/run";
 import { tagRepo } from "@/server/repositories/tag";
 import { taskRepo } from "@/server/repositories/task";
+import { resolveTaskStatusBySignal } from "@/server/workflow/task-workflow-manager";
 import type { Run } from "@/types/ipc";
 
 const log = createLogger("run-service");
@@ -34,10 +36,19 @@ const agentRoleTagPrefix = "agent:";
 const generationRunKind = "task-description-improve";
 const qaTestingRunKind = "task-qa-testing";
 const activeSpecializedRunStatuses = new Set(["queued", "running", "paused"]);
+const activeExecutionRunStatuses = new Set(["queued", "running", "paused"]);
 const behaviorSkillsFallback = {
 	preferredForStoryGeneration: "business-analyst",
 	preferredForQaTesting: "qa-expert",
 } as const;
+
+interface StartRunsBySignalResult {
+	startedCount: number;
+	skippedNoRuleCount: number;
+	skippedActiveRunCount: number;
+	taskIds: string[];
+	runIds: string[];
+}
 
 export class RunService {
 	private readonly queueManager = getRunsQueueManager();
@@ -464,6 +475,76 @@ export class RunService {
 
 		log.info("QA testing run enqueued", { runId: run.id });
 		return { runId: run.id };
+	}
+
+	public async startRunsBySignal(
+		projectId: string,
+		signalKey: string,
+	): Promise<StartRunsBySignalResult> {
+		const board = boardRepo.getByProjectId(projectId);
+		if (!board) {
+			throw new Error(`Board not found for project: ${projectId}`);
+		}
+
+		const columnSystemKeyById = new Map(
+			board.columns.map((column) => [column.id, column.systemKey] as const),
+		);
+		const columnOrderById = new Map(
+			board.columns.map((column, index) => [column.id, index] as const),
+		);
+
+		const candidateTasks = [...taskRepo.listByBoard(board.id)].sort((a, b) => {
+			const leftColumnOrder =
+				columnOrderById.get(a.columnId) ?? Number.MAX_SAFE_INTEGER;
+			const rightColumnOrder =
+				columnOrderById.get(b.columnId) ?? Number.MAX_SAFE_INTEGER;
+			if (leftColumnOrder !== rightColumnOrder) {
+				return leftColumnOrder - rightColumnOrder;
+			}
+			return a.orderInColumn - b.orderInColumn;
+		});
+
+		let skippedNoRuleCount = 0;
+		let skippedActiveRunCount = 0;
+		const taskIds: string[] = [];
+		const runIds: string[] = [];
+
+		for (const task of candidateTasks) {
+			const currentColumnSystemKey =
+				columnSystemKeyById.get(task.columnId) ?? null;
+			const nextStatus = resolveTaskStatusBySignal({
+				scope: "user_action",
+				signalKey,
+				runKind: null,
+				runStatus: null,
+				currentStatus: task.status,
+				currentColumnSystemKey,
+			});
+			if (!nextStatus) {
+				skippedNoRuleCount += 1;
+				continue;
+			}
+
+			const hasActiveRun = runRepo
+				.listByTask(task.id)
+				.some((run) => activeExecutionRunStatuses.has(run.status));
+			if (hasActiveRun) {
+				skippedActiveRunCount += 1;
+				continue;
+			}
+
+			const started = await this.start({ taskId: task.id });
+			taskIds.push(task.id);
+			runIds.push(started.runId);
+		}
+
+		return {
+			startedCount: runIds.length,
+			skippedNoRuleCount,
+			skippedActiveRunCount,
+			taskIds,
+			runIds,
+		};
 	}
 
 	public listByTask(taskId: string): Run[] {

@@ -247,6 +247,17 @@ export function validateWorkflowConfig(
 			});
 		}
 
+		if (
+			rule.fromColumnSystemKey !== null &&
+			rule.fromColumnSystemKey !== undefined &&
+			!columnSystemKeys.has(rule.fromColumnSystemKey)
+		) {
+			errors.push({
+				path: `${path}.fromColumnSystemKey`,
+				message: `Invalid source column: ${rule.fromColumnSystemKey}`,
+			});
+		}
+
 		if (!statusKeys.has(rule.toStatus)) {
 			errors.push({
 				path: `${path}.toStatus`,
@@ -269,6 +280,7 @@ export function validateWorkflowConfig(
 			rule.signalKey,
 			rule.runKind ?? "",
 			rule.runStatus ?? "",
+			rule.fromColumnSystemKey ?? "",
 			rule.fromStatus ?? "",
 		].join("|");
 		if (selectorKeys.has(selector)) {

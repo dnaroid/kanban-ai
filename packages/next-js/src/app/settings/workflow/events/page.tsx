@@ -13,6 +13,7 @@ export default function WorkflowEventsPage() {
 			signals={draftConfig.signals}
 			signalRules={draftConfig.signalRules}
 			statuses={draftConfig.statuses}
+			columns={draftConfig.columns}
 			onSignalsChange={(signals) => updateDraft({ signals })}
 			onSignalRulesChange={(signalRules) => updateDraft({ signalRules })}
 			onErrorChange={setJsonError}

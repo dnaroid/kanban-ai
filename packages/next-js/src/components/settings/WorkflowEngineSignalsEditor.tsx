@@ -22,6 +22,8 @@ import { PillSelect } from "@/components/common/PillSelect";
 import { createStatusPillOptions } from "@/components/kanban/workflow-display";
 
 import type {
+	WorkflowColumnConfig,
+	WorkflowColumnSystemKey,
 	WorkflowSignalConfig,
 	WorkflowSignalRuleConfig,
 	WorkflowStatusConfig,
@@ -34,6 +36,7 @@ interface WorkflowEngineSignalsEditorProps {
 	signals: WorkflowSignalConfig[];
 	signalRules: WorkflowSignalRuleConfig[];
 	statuses: WorkflowStatusConfig[];
+	columns: WorkflowColumnConfig[];
 	onSignalsChange: (signals: WorkflowSignalConfig[]) => void;
 	onSignalRulesChange: (rules: WorkflowSignalRuleConfig[]) => void;
 	onErrorChange: (message: string | null) => void;
@@ -86,6 +89,13 @@ function toTaskStatusOrNull(
 	statusKeySet: ReadonlySet<string>,
 ): string | null {
 	return statusKeySet.has(value) ? value : null;
+}
+
+function toColumnSystemKeyOrNull(
+	value: string,
+	columnKeySet: ReadonlySet<string>,
+): WorkflowColumnSystemKey | null {
+	return columnKeySet.has(value) ? value : null;
 }
 
 function toTaskStatus(
@@ -156,6 +166,7 @@ export function WorkflowEngineSignalsEditor({
 	signals,
 	signalRules,
 	statuses,
+	columns,
 	onSignalsChange,
 	onSignalRulesChange,
 	onErrorChange,
@@ -219,6 +230,30 @@ export function WorkflowEngineSignalsEditor({
 	const statusKeySet = useMemo(
 		() => new Set(statuses.map((status) => status.status)),
 		[statuses],
+	);
+	const columnKeySet = useMemo(
+		() => new Set(columns.map((column) => column.systemKey)),
+		[columns],
+	);
+	const columnLabelByKey = useMemo(
+		() =>
+			new Map(
+				columns.map((column) => [
+					column.systemKey,
+					column.name || column.systemKey,
+				]),
+			),
+		[columns],
+	);
+	const fromColumnOptions = useMemo(
+		() => [
+			{ value: "any_column", label: "Any column" },
+			...columns.map((column) => ({
+				value: column.systemKey,
+				label: column.name || column.systemKey,
+			})),
+		],
+		[columns],
 	);
 	const statusPillOptions = useMemo(
 		() => createStatusPillOptions(statuses),
@@ -312,7 +347,8 @@ export function WorkflowEngineSignalsEditor({
 				r.signalKey === rule.signalKey &&
 				r.runKind === rule.runKind &&
 				r.runStatus === rule.runStatus &&
-				r.fromStatus === rule.fromStatus,
+				r.fromStatus === rule.fromStatus &&
+				r.fromColumnSystemKey === rule.fromColumnSystemKey,
 		);
 		if (isDuplicateSelector) {
 			errors.selector = "A rule with this identical selector already exists";
@@ -401,6 +437,7 @@ export function WorkflowEngineSignalsEditor({
 			signalKey: signals[0]?.key || "",
 			runKind: null,
 			runStatus: null,
+			fromColumnSystemKey: null,
 			fromStatus: null,
 			toStatus: statuses[0]?.status ?? "pending",
 		});
@@ -409,13 +446,20 @@ export function WorkflowEngineSignalsEditor({
 	};
 
 	const handleEditRule = (rule: WorkflowSignalRuleConfig) => {
-		setRuleForm({ ...rule });
+		setRuleForm({
+			...rule,
+			fromColumnSystemKey: rule.fromColumnSystemKey ?? null,
+		});
 		setEditingRuleKey(rule.key);
 		setFormErrors({});
 	};
 
 	const handleDuplicateRule = (rule: WorkflowSignalRuleConfig) => {
-		const newRule = { ...rule, key: `${rule.key}_copy_${Date.now()}` };
+		const newRule = {
+			...rule,
+			key: `${rule.key}_copy_${Date.now()}`,
+			fromColumnSystemKey: rule.fromColumnSystemKey ?? null,
+		};
 		onSignalRulesChange([...signalRules, newRule]);
 	};
 
@@ -776,6 +820,10 @@ export function WorkflowEngineSignalsEditor({
 					) : (
 						signalRules.map((rule) => {
 							const signal = signals.find((s) => s.key === rule.signalKey);
+							const fromColumnLabel = rule.fromColumnSystemKey
+								? (columnLabelByKey.get(rule.fromColumnSystemKey) ??
+									rule.fromColumnSystemKey)
+								: null;
 							const fromStatusStyle = rule.fromStatus
 								? getStatusBadgeStyle(rule.fromStatus, statusColorByKey)
 								: undefined;
@@ -869,13 +917,23 @@ export function WorkflowEngineSignalsEditor({
 										</div>
 
 										{/* Bottom: Conditions/Selectors */}
-										{(rule.runKind || rule.runStatus) && (
+										{(rule.fromColumnSystemKey ||
+											rule.runKind ||
+											rule.runStatus) && (
 											<div className="space-y-2">
 												<div className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
 													<Filter className="h-2.5 w-2.5" />
 													Execution Conditions
 												</div>
 												<div className="flex flex-wrap gap-2">
+													{fromColumnLabel && (
+														<span className="rounded-lg bg-slate-800/60 border border-slate-700/40 px-2.5 py-1 text-[10px] font-bold text-slate-300">
+															<span className="text-slate-500 mr-1 font-black">
+																COLUMN:
+															</span>
+															{fromColumnLabel}
+														</span>
+													)}
 													{rule.runKind && (
 														<span className="rounded-lg bg-slate-800/60 border border-slate-700/40 px-2.5 py-1 text-[10px] font-bold text-slate-300">
 															<span className="text-slate-500 mr-1 font-black">
@@ -1106,9 +1164,15 @@ export function WorkflowEngineSignalsEditor({
 						<div className="p-8 space-y-6">
 							{(() => {
 								const fromStatusValue = ruleForm.fromStatus ?? "any_status";
+								const fromColumnValue =
+									ruleForm.fromColumnSystemKey ?? "any_column";
 								const toStatusValue = ruleForm.toStatus;
 								const fromStatusDisplay =
 									fromStatusPillOptions[fromStatusValue]?.label ?? "Any status";
+								const fromColumnDisplay =
+									fromColumnOptions.find(
+										(option) => option.value === fromColumnValue,
+									)?.label ?? "Any column";
 								const toStatusDisplay =
 									statusPillOptions[toStatusValue]?.label ?? toStatusValue;
 
@@ -1139,7 +1203,7 @@ export function WorkflowEngineSignalsEditor({
 											</div>
 										</div>
 
-										<div className="grid gap-6 sm:grid-cols-2">
+										<div className="grid gap-6 sm:grid-cols-3">
 											<div className="space-y-1.5">
 												<PillSelect
 													label="From Status"
@@ -1157,6 +1221,39 @@ export function WorkflowEngineSignalsEditor({
 														})
 													}
 												/>
+											</div>
+											<div className="space-y-2">
+												<label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
+													From Column
+												</label>
+												<div className="relative">
+													<select
+														value={fromColumnValue}
+														onChange={(e) =>
+															setRuleForm({
+																...ruleForm,
+																fromColumnSystemKey:
+																	e.target.value === "any_column"
+																		? null
+																		: toColumnSystemKeyOrNull(
+																				e.target.value,
+																				columnKeySet,
+																			),
+															})
+														}
+														className="w-full appearance-none rounded-2xl border border-slate-800 bg-[#0B0E14] px-4 py-3 text-sm text-slate-200 outline-none focus:border-cyan-500/50 transition-all focus:ring-2 focus:ring-cyan-500/20"
+													>
+														{fromColumnOptions.map((option) => (
+															<option key={option.value} value={option.value}>
+																{option.label}
+															</option>
+														))}
+													</select>
+													<ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600 pointer-events-none" />
+												</div>
+												<p className="text-[10px] font-bold text-slate-500 ml-1 uppercase tracking-tight">
+													{fromColumnDisplay}
+												</p>
 											</div>
 											<div className="space-y-1.5">
 												<PillSelect

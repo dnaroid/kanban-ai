@@ -67,6 +67,7 @@ export interface WorkflowSignalRuleConfig {
 	signalKey: string;
 	runKind: string | null;
 	runStatus: WorkflowRunStatus | null;
+	fromColumnSystemKey?: WorkflowColumnSystemKey | null;
 	fromStatus: WorkflowTaskStatus | null;
 	toStatus: WorkflowTaskStatus;
 }
@@ -462,6 +463,14 @@ const WORKFLOW_SIGNALS_FALLBACK: readonly WorkflowSignalConfig[] = [
 		orderIndex: 32,
 		isActive: true,
 	},
+	{
+		key: "queue_ready_pending",
+		scope: "user_action",
+		title: "Queue Ready Pending",
+		description: "User queues tasks for execution using rule selectors",
+		orderIndex: 33,
+		isActive: true,
+	},
 ];
 
 const WORKFLOW_SIGNAL_RULES_FALLBACK: readonly WorkflowSignalRuleConfig[] = [
@@ -673,6 +682,15 @@ const WORKFLOW_SIGNAL_RULES_FALLBACK: readonly WorkflowSignalRuleConfig[] = [
 		fromStatus: null,
 		toStatus: "pending",
 	},
+	{
+		key: "rule-user-queue-ready-pending",
+		signalKey: "queue_ready_pending",
+		runKind: null,
+		runStatus: null,
+		fromColumnSystemKey: "ready",
+		fromStatus: "pending",
+		toStatus: "running",
+	},
 ];
 
 interface WorkflowRuntimeConfig {
@@ -814,6 +832,7 @@ type WorkflowSignalRuleRow = {
 	signalKey: string;
 	runKind: string | null;
 	runStatus: string | null;
+	fromColumnSystemKey: string | null;
 	fromStatus: string | null;
 	toStatus: string;
 };
@@ -985,6 +1004,14 @@ function toWorkflowConfig(
 			return null;
 		}
 
+		if (
+			row.fromColumnSystemKey !== null &&
+			(!isWorkflowColumnSystemKey(row.fromColumnSystemKey) ||
+				!templateSystemKeySet.has(row.fromColumnSystemKey))
+		) {
+			return null;
+		}
+
 		if (row.fromStatus !== null && !statusKeySet.has(row.fromStatus)) {
 			return null;
 		}
@@ -998,6 +1025,7 @@ function toWorkflowConfig(
 			signalKey: row.signalKey,
 			runKind: row.runKind,
 			runStatus: row.runStatus,
+			fromColumnSystemKey: row.fromColumnSystemKey,
 			fromStatus: row.fromStatus,
 			toStatus: row.toStatus,
 		});
@@ -1161,6 +1189,7 @@ function loadWorkflowConfigFromDb(
          signal_key AS signalKey,
          run_kind AS runKind,
          run_status AS runStatus,
+         from_column_system_key AS fromColumnSystemKey,
          from_status AS fromStatus,
          to_status AS toStatus
        FROM workflow_signal_rules
@@ -1439,6 +1468,14 @@ function validateWorkflowConfig(config: WorkflowConfig): void {
 			throw new Error(`Invalid fromStatus in signal rule ${rule.key}`);
 		}
 
+		if (
+			rule.fromColumnSystemKey !== null &&
+			rule.fromColumnSystemKey !== undefined &&
+			!seenColumns.has(rule.fromColumnSystemKey)
+		) {
+			throw new Error(`Invalid fromColumnSystemKey in signal rule ${rule.key}`);
+		}
+
 		if (!seenStatuses.has(rule.toStatus)) {
 			throw new Error(`Invalid toStatus in signal rule ${rule.key}`);
 		}
@@ -1456,6 +1493,7 @@ function validateWorkflowConfig(config: WorkflowConfig): void {
 			rule.signalKey,
 			rule.runKind ?? "",
 			rule.runStatus ?? "",
+			rule.fromColumnSystemKey ?? "",
 			rule.fromStatus ?? "",
 		].join("|");
 		if (seenRuleSelectors.has(selectorKey)) {
@@ -1642,6 +1680,8 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 		});
 	}
 
+	const columnSystemKeySet = new Set(columns.map((row) => row.systemKey));
+
 	const statusTransitions: Record<WorkflowTaskStatus, WorkflowTaskStatus[]> =
 		{};
 
@@ -1726,7 +1766,15 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 				return null;
 			}
 
-			const { key, signalKey, runKind, runStatus, fromStatus, toStatus } = item;
+			const {
+				key,
+				signalKey,
+				runKind,
+				runStatus,
+				fromColumnSystemKey,
+				fromStatus,
+				toStatus,
+			} = item;
 			if (
 				typeof key !== "string" ||
 				!key.trim() ||
@@ -1738,6 +1786,11 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 				(runStatus !== null &&
 					runStatus !== undefined &&
 					(typeof runStatus !== "string" || !isWorkflowRunStatus(runStatus))) ||
+				(fromColumnSystemKey !== null &&
+					fromColumnSystemKey !== undefined &&
+					(typeof fromColumnSystemKey !== "string" ||
+						!isWorkflowColumnSystemKey(fromColumnSystemKey) ||
+						!columnSystemKeySet.has(fromColumnSystemKey))) ||
 				(fromStatus !== null &&
 					fromStatus !== undefined &&
 					(typeof fromStatus !== "string" || !statusKeySet.has(fromStatus))) ||
@@ -1754,6 +1807,12 @@ export function parseWorkflowConfig(value: unknown): WorkflowConfig | null {
 				runStatus:
 					typeof runStatus === "string" && isWorkflowRunStatus(runStatus)
 						? runStatus
+						: null,
+				fromColumnSystemKey:
+					typeof fromColumnSystemKey === "string" &&
+					isWorkflowColumnSystemKey(fromColumnSystemKey) &&
+					columnSystemKeySet.has(fromColumnSystemKey)
+						? fromColumnSystemKey
 						: null,
 				fromStatus:
 					typeof fromStatus === "string" && statusKeySet.has(fromStatus)
@@ -1907,9 +1966,10 @@ export function updateWorkflowConfig(config: WorkflowConfig): void {
          signal_key,
          run_kind,
          run_status,
+         from_column_system_key,
          from_status,
          to_status
-       ) VALUES (?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 			);
 			for (const rule of config.signalRules) {
 				insertSignalRule.run(
@@ -1917,6 +1977,7 @@ export function updateWorkflowConfig(config: WorkflowConfig): void {
 					rule.signalKey,
 					rule.runKind,
 					rule.runStatus,
+					rule.fromColumnSystemKey ?? null,
 					rule.fromStatus,
 					rule.toStatus,
 				);
@@ -2027,6 +2088,7 @@ export interface ResolveTaskStatusBySignalInput {
 	currentStatus: WorkflowTaskStatus;
 	runKind?: string | null;
 	runStatus?: WorkflowRunStatus | null;
+	currentColumnSystemKey?: WorkflowColumnSystemKey | null;
 	scope?: WorkflowSignalScope;
 }
 
@@ -2050,11 +2112,20 @@ export function resolveTaskStatusBySignal(
 
 	const runKind = input.runKind ?? null;
 	const runStatus = input.runStatus ?? null;
+	const currentColumnSystemKey = input.currentColumnSystemKey ?? null;
 
 	let selectedRule: WorkflowSignalRuleConfig | null = null;
 	let selectedScore = Number.NEGATIVE_INFINITY;
 
 	for (const rule of rules) {
+		const ruleFromColumnSystemKey = rule.fromColumnSystemKey ?? null;
+		if (
+			ruleFromColumnSystemKey !== null &&
+			ruleFromColumnSystemKey !== currentColumnSystemKey
+		) {
+			continue;
+		}
+
 		if (rule.runKind !== null && rule.runKind !== runKind) {
 			continue;
 		}
@@ -2068,6 +2139,7 @@ export function resolveTaskStatusBySignal(
 		}
 
 		const score =
+			(ruleFromColumnSystemKey !== null ? 8 : 0) +
 			(rule.fromStatus !== null ? 4 : 0) +
 			(rule.runStatus !== null ? 2 : 0) +
 			(rule.runKind !== null ? 1 : 0);

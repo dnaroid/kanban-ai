@@ -73,6 +73,7 @@ export interface WorkflowSignalRuleConfig {
 	signalKey: string;
 	runKind: string | null;
 	runStatus: WorkflowRunStatus | null;
+	fromColumnSystemKey?: WorkflowColumnSystemKey | null;
 	fromStatus: WorkflowTaskStatus | null;
 	toStatus: WorkflowTaskStatus;
 }
@@ -263,6 +264,40 @@ class ApiClient {
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<QueueStatsResponse>(payload);
+		},
+		startBySignal: async ({
+			projectId,
+			signalKey,
+		}: {
+			projectId: string;
+			signalKey: string;
+		}): Promise<{
+			startedCount: number;
+			skippedNoRuleCount: number;
+			skippedActiveRunCount: number;
+			taskIds: string[];
+			runIds: string[];
+		}> => {
+			const response = await fetch(`${this.baseUrl}/api/run/startBySignal`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ projectId, signalKey }),
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to start runs by signal",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{
+				startedCount: number;
+				skippedNoRuleCount: number;
+				skippedActiveRunCount: number;
+				taskIds: string[];
+				runIds: string[];
+			}>(payload);
 		},
 	};
 

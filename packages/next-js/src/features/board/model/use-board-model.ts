@@ -28,6 +28,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 	const [activeColumn, setActiveColumn] = useState<string | null>(null);
 	const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
 	const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
+	const [isQueueingSignalRuns, setIsQueueingSignalRuns] = useState(false);
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -405,6 +406,27 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		}
 	};
 
+	const handleStartSignalRuns = async () => {
+		setIsQueueingSignalRuns(true);
+		try {
+			const result = await api.run.startBySignal({
+				projectId,
+				signalKey: "queue_ready_pending",
+			});
+			await refreshBoardTasksFromServer();
+			return result;
+		} catch (startError) {
+			console.error("Failed to queue runs by signal:", startError);
+			throw new Error(
+				startError instanceof Error
+					? startError.message
+					: "Failed to queue runs by signal",
+			);
+		} finally {
+			setIsQueueingSignalRuns(false);
+		}
+	};
+
 	const handleColumnSubmit = async (name: string, color: string) => {
 		if (!board) {
 			return;
@@ -585,5 +607,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		closeColumnModal,
 		openEditColumnModal,
 		openCreateColumnModal,
+		handleStartSignalRuns,
+		isQueueingSignalRuns,
 	};
 }
