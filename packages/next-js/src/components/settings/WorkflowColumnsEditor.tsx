@@ -190,181 +190,155 @@ export function WorkflowColumnsEditor({
 				<p className="text-xs text-red-400/80 px-2">{addDisabledReason}.</p>
 			) : null}
 
-			<div className="space-y-6">
+			<div className="flex gap-6 overflow-x-auto pb-8 snap-x scroll-smooth outline-none">
 				{sortedColumns.map((col, idx) => (
 					<div
 						key={col.systemKey}
-						className="group relative flex flex-col rounded-2xl border border-slate-800/60 bg-[#0B0E14]/30 transition-all hover:border-slate-700/60 hover:bg-[#0B0E14]/50 overflow-hidden"
+						className="group relative flex flex-col w-[400px] flex-shrink-0 rounded-2xl border bg-[#0B0E14]/30 transition-all hover:border-slate-700/60 hover:bg-[#0B0E14]/50 snap-start shadow-xl"
+						style={{ borderColor: `${col.color}80` }}
 					>
-						{/* Background accent */}
-						<div
-							className="absolute left-0 top-0 h-full w-1 opacity-[0.15]"
-							style={{ backgroundColor: col.color }}
-						/>
-
 						{/* Card Header */}
-						<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/60 bg-slate-900/20 px-6 py-4">
-							<div className="flex items-center gap-5">
-								<div className="flex items-center gap-4">
-									<div className="flex items-center gap-1 p-1 rounded-lg bg-slate-800/20 border border-slate-800/40">
-										<button
-											type="button"
-											onClick={() => moveColumn(idx, "up")}
-											disabled={idx === 0}
-											className="p-1.5 rounded-md text-slate-500 hover:text-slate-100 hover:bg-slate-700/60 disabled:opacity-10 transition-all"
-											title="Move Up"
-										>
-											<ChevronUp className="h-4 w-4" />
-										</button>
-										<div className="w-[1px] h-4 bg-slate-800/60 mx-0.5" />
-										<button
-											type="button"
-											onClick={() => moveColumn(idx, "down")}
-											disabled={idx === sortedColumns.length - 1}
-											className="p-1.5 rounded-md text-slate-500 hover:text-slate-100 hover:bg-slate-700/60 disabled:opacity-10 transition-all"
-											title="Move Down"
-										>
-											<ChevronDown className="h-4 w-4" />
-										</button>
-									</div>
-
-									<div className="space-y-1">
-										<div className="flex items-center gap-2">
-											<input
-												type="text"
-												value={col.name}
-												onChange={(e) =>
-													updateColumn(col.systemKey, { name: e.target.value })
-												}
-												className="bg-transparent text-lg font-black text-slate-100 outline-none border-b-2 border-transparent focus:border-blue-500/50 transition-all w-full min-w-[200px]"
-												placeholder="Column Name"
-											/>
-										</div>
-										<div className="flex items-center gap-2">
-											<span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1.5 py-0.5 rounded bg-slate-800/40 border border-slate-800/40">
-												KEY: {col.systemKey}
-											</span>
-											<span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
-												Index: {col.orderIndex}
-											</span>
-										</div>
-									</div>
+						<div className="flex flex-col gap-4 border-b border-slate-800/60 bg-slate-900/20 px-6 py-5">
+							<div className="flex items-center justify-between">
+								<div className="flex items-center gap-1 p-1 rounded-lg bg-slate-800/20 border border-slate-800/40">
+									<button
+										type="button"
+										onClick={() => moveColumn(idx, "up")}
+										disabled={idx === 0}
+										className="p-1.5 rounded-md text-slate-500 hover:text-slate-100 hover:bg-slate-700/60 disabled:opacity-10 transition-all"
+										title="Move Left"
+									>
+										<ChevronUp className="h-4 w-4 -rotate-90" />
+									</button>
+									<div className="w-[1px] h-4 bg-slate-800/60 mx-0.5" />
+									<button
+										type="button"
+										onClick={() => moveColumn(idx, "down")}
+										disabled={idx === sortedColumns.length - 1}
+										className="p-1.5 rounded-md text-slate-500 hover:text-slate-100 hover:bg-slate-700/60 disabled:opacity-10 transition-all"
+										title="Move Right"
+									>
+										<ChevronDown className="h-4 w-4 -rotate-90" />
+									</button>
 								</div>
-							</div>
 
-							<div className="flex items-center gap-3 ml-auto sm:ml-0">
 								<button
 									type="button"
 									onClick={() => removeColumn(col.systemKey)}
 									disabled={sortedColumns.length <= 1}
-									className="inline-flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-red-400/80 transition-all hover:bg-red-500/10 active:scale-95 disabled:cursor-not-allowed disabled:opacity-20"
-									title={
-										sortedColumns.length <= 1
-											? "At least one column is required"
-											: "Delete column"
-									}
+									className="p-2 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-400/10 transition-all disabled:opacity-20"
+									title="Delete Column"
 								>
-									<Trash2 className="h-3.5 w-3.5" />
-									Delete Column
+									<Trash2 className="h-4 w-4" />
 								</button>
+							</div>
+
+							<div className="space-y-2">
+								<input
+									type="text"
+									value={col.name}
+									onChange={(e) =>
+										updateColumn(col.systemKey, { name: e.target.value })
+									}
+									className="bg-transparent text-xl font-black text-slate-100 outline-none border-b-2 border-transparent focus:border-blue-500/50 transition-all w-full"
+									placeholder="Column Name"
+								/>
+								<div className="flex items-center gap-2">
+									<span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1.5 py-0.5 rounded bg-slate-800/40 border border-slate-800/40">
+										KEY: {col.systemKey}
+									</span>
+									<span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">
+										POS: {col.orderIndex + 1}
+									</span>
+								</div>
 							</div>
 						</div>
 
 						{/* Card Body */}
-						<div className="p-6">
-							<div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-								{/* Left Side: Basic Config */}
-								<div className="space-y-8">
-									<div className="space-y-6">
-										<div className="flex items-center gap-2">
-											<div className="h-px flex-1 bg-slate-800/60" />
-											<h5 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] whitespace-nowrap">
-												Column configuration
-											</h5>
-											<div className="h-px flex-1 bg-slate-800/60" />
-										</div>
-
-										<div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-											<ColorPalettePicker
-												label="Accent Color"
-												value={col.color}
-												onChange={(color) =>
-													updateColumn(col.systemKey, { color })
-												}
-											/>
-											<PillSelect
-												label="Default Status"
-												value={col.defaultStatus}
-												options={statusOptions}
-												onChange={(val) =>
-													updateColumn(col.systemKey, {
-														defaultStatus: val as WorkflowTaskStatus,
-													})
-												}
-											/>
-										</div>
-
-										<div className="rounded-xl bg-slate-900/40 border border-slate-800/40 p-4">
-											<p className="text-[11px] leading-relaxed text-slate-500 italic">
-												<span className="text-slate-400 not-italic font-bold uppercase tracking-tight mr-1">Note:</span>
-												Tasks created in or moved to this column will automatically 
-												receive the default status if not explicitly set.
-											</p>
-										</div>
-									</div>
+						<div className="p-6 flex flex-col gap-8">
+							{/* Section: Config */}
+							<div className="space-y-5">
+								<div className="flex items-center gap-2">
+									<h5 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] whitespace-nowrap">
+										Configuration
+									</h5>
+									<div className="h-px flex-1 bg-slate-800/60" />
 								</div>
 
-								{/* Right Side: Status Mapping */}
-								<div className="space-y-6">
-									<div className="flex items-center gap-2">
-										<div className="h-px flex-1 bg-slate-800/60" />
-										<h5 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] whitespace-nowrap">
-											Allowed Statuses
-										</h5>
-										<div className="h-px flex-1 bg-slate-800/60" />
-									</div>
-
-									<div className="flex flex-wrap gap-2.5">
-										{availableStatuses.map((status) => {
-											const isAllowed = col.allowedStatuses.includes(status);
-											const option = statusOptions[status];
-											const Icon = option.icon;
-											const isDefault = col.defaultStatus === status;
-
-											return (
-												<button
-													key={status}
-													type="button"
-													onClick={() => toggleStatus(col.systemKey, status)}
-													disabled={isDefault}
-													className={cn(
-														"flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 transition-all hover:scale-105 active:scale-95",
-														isAllowed
-															? "shadow-lg"
-															: "border-slate-800 bg-slate-900/30 text-slate-600 grayscale opacity-40 hover:grayscale-0 hover:opacity-100",
-														isDefault &&
-															"ring-2 ring-blue-500/40 ring-offset-2 ring-offset-[#0B0E14] cursor-default opacity-100 grayscale-0",
-													)}
-													style={isAllowed ? option.style : undefined}
-													title={
-														isDefault ? "Default status cannot be removed" : ""
-													}
-												>
-													<Icon
-														className="h-4 w-4"
-														style={isAllowed ? option.iconStyle : undefined}
-													/>
-													<span className="text-[10px] font-black uppercase tracking-widest">
-														{status.replace(/_/g, " ")}
-													</span>
-													{isDefault && (
-														<div className="ml-1 h-1.5 w-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
-													)}
-												</button>
-											);
-										})}
-									</div>
+								<div className="grid grid-cols-2 gap-4">
+									<ColorPalettePicker
+										label="Accent"
+										value={col.color}
+										onChange={(color) =>
+											updateColumn(col.systemKey, { color })
+										}
+									/>
+									<PillSelect
+										label="Default"
+										value={col.defaultStatus}
+										options={statusOptions}
+										onChange={(val) =>
+											updateColumn(col.systemKey, {
+												defaultStatus: val as WorkflowTaskStatus,
+											})
+										}
+									/>
 								</div>
+							</div>
+
+							{/* Section: Allowed Statuses */}
+							<div className="space-y-4">
+								<div className="flex items-center gap-2">
+									<h5 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] whitespace-nowrap">
+										Allowed Statuses
+									</h5>
+									<div className="h-px flex-1 bg-slate-800/60" />
+								</div>
+
+								<div className="flex flex-wrap gap-2">
+									{availableStatuses.map((status) => {
+										const isAllowed = col.allowedStatuses.includes(status);
+										const option = statusOptions[status];
+										const Icon = option.icon;
+										const isDefault = col.defaultStatus === status;
+
+										return (
+											<button
+												key={status}
+												type="button"
+												onClick={() => toggleStatus(col.systemKey, status)}
+												disabled={isDefault}
+												className={cn(
+													"flex items-center gap-2 rounded-xl border px-3 py-2 transition-all hover:scale-105 active:scale-95",
+													isAllowed
+														? "shadow-md bg-slate-900/40"
+														: "border-slate-800/60 bg-slate-950/20 text-slate-600 grayscale opacity-40 hover:grayscale-0 hover:opacity-100",
+													isDefault &&
+														"ring-1 ring-blue-500/40 ring-offset-1 ring-offset-[#0B0E14] cursor-default opacity-100 grayscale-0",
+												)}
+												style={isAllowed ? option.style : undefined}
+												title={
+													isDefault ? "Default status cannot be removed" : ""
+												}
+											>
+												<Icon
+													className="h-3.5 w-3.5"
+													style={isAllowed ? option.iconStyle : undefined}
+												/>
+												<span className="text-[10px] font-black uppercase tracking-tight">
+													{status.replace(/_/g, " ")}
+												</span>
+											</button>
+										);
+									})}
+								</div>
+							</div>
+
+							{/* Guidance */}
+							<div className="mt-auto rounded-xl bg-slate-900/60 border border-slate-800/40 p-4">
+								<p className="text-[10px] leading-relaxed text-slate-500 italic">
+									Tasks in this column default to <span className="text-slate-400 not-italic font-bold">{col.defaultStatus.replace("_", " ")}</span>.
+								</p>
 							</div>
 						</div>
 					</div>
