@@ -75,7 +75,7 @@ function buildTask(columnId: string, status: string) {
 	};
 }
 
-function buildRun(): Run {
+function buildRun(kind = "task-run"): Run {
 	const now = new Date().toISOString();
 	return {
 		id: "run-1",
@@ -84,7 +84,7 @@ function buildRun(): Run {
 		status: "running",
 		createdAt: now,
 		updatedAt: now,
-		metadata: { kind: "task-run" },
+		metadata: { kind },
 	};
 }
 
@@ -162,6 +162,84 @@ describe("RunTaskProjector column selection on status change", () => {
 		expect(mockTaskRepo.update).toHaveBeenCalledWith(
 			"task-1",
 			expect.objectContaining({ status: "done", columnId: "col-review" }),
+		);
+	});
+});
+
+describe("RunTaskProjector user-story projection", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockBoardRepo.getById.mockReturnValue({ id: "board-1", columns: [] });
+		mockWorkflow.isWorkflowTaskStatus.mockReturnValue(true);
+		mockWorkflow.resolveTaskStatusBySignal.mockReturnValue("pending");
+		mockWorkflow.resolveTaskStatusReasons.mockReturnValue({
+			blockedReason: null,
+			closedReason: null,
+		});
+		mockWorkflow.canTransitionColumn.mockReturnValue(true);
+		mockWorkflow.getPreferredColumnIdForStatus.mockReturnValue("col-ready");
+		mockWorkflow.getWorkflowColumnSystemKey.mockImplementation(
+			(_board: unknown, columnId: string) => {
+				if (columnId === "col-in-progress") return "in_progress";
+				if (columnId === "col-ready") return "ready";
+				return null;
+			},
+		);
+	});
+
+	it("updates task and publishes task:event for test_ok generation signal", () => {
+		const task = buildTask("col-in-progress", "running");
+		task.tags = JSON.stringify(["legacy", "agent:old-role"]);
+		mockTaskRepo.getById.mockReturnValue(task);
+		mockTaskRepo.update.mockImplementation(
+			(_taskId: string, patch: Record<string, unknown>) => ({
+				...task,
+				...patch,
+				updatedAt: "2026-01-01T00:00:00.000Z",
+			}),
+		);
+
+		const assistantContent = [
+			'<META>{"tags":["new-tag"],"type":"improvement","difficulty":"hard","agentRoleId":"architect"}</META>',
+			"<STORY>",
+			"## Название",
+			"Улучшить обновление карточки",
+			"",
+			"## User story",
+			"Как пользователь, я хочу видеть обновленные данные задачи сразу после генерации.",
+			"</STORY>",
+		].join("\n");
+
+		const projector = new RunTaskProjector();
+		projector.projectRunOutcome(
+			buildRun("task-description-improve"),
+			"completed",
+			"test_ok",
+			assistantContent,
+		);
+
+		expect(mockTaskRepo.update).toHaveBeenCalledTimes(1);
+		const patch = mockTaskRepo.update.mock.calls[0]?.[1] as Record<
+			string,
+			unknown
+		>;
+		expect(patch).toMatchObject({
+			status: "pending",
+			description: expect.stringContaining("## User story"),
+			descriptionMd: expect.stringContaining("## User story"),
+			title: "Улучшить обновление карточки",
+			type: "improvement",
+			difficulty: "hard",
+		});
+		expect(patch.tags).toBe(JSON.stringify(["new-tag", "agent:architect"]));
+
+		expect(mockPublishSseEvent).toHaveBeenCalledWith(
+			"task:event",
+			expect.objectContaining({
+				taskId: "task-1",
+				boardId: "board-1",
+				projectId: "project-1",
+			}),
 		);
 	});
 });

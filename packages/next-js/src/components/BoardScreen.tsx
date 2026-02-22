@@ -49,6 +49,7 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 		handleDragEnd,
 		handleTaskClick,
 		handleAddTask,
+		handleQuickGenerateStory,
 		handleDeleteTask,
 	} = useBoardModel({ projectId });
 
@@ -174,6 +175,7 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 												.sort((a, b) => a.orderInColumn - b.orderInColumn)}
 											onTaskClick={handleTaskClick}
 											onAddTask={() => handleAddTask(column.id)}
+											onQuickGenerateStory={handleQuickGenerateStory}
 											onDeleteTask={handleDeleteTask}
 										/>
 									))}

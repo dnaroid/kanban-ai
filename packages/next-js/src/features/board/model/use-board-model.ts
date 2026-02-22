@@ -350,6 +350,47 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		}
 	};
 
+	const handleQuickGenerateStory = async (columnId: string, prompt: string) => {
+		if (!board) {
+			throw new Error("Board not found");
+		}
+
+		const cleanPrompt = prompt.trim();
+		if (!cleanPrompt) {
+			throw new Error("Prompt cannot be empty");
+		}
+
+		const firstLine = cleanPrompt.split(/\r?\n/)[0]?.trim() ?? "";
+		const title = (firstLine.length > 0 ? firstLine : cleanPrompt).slice(
+			0,
+			120,
+		);
+
+		try {
+			const createdTask = await api.createTask({
+				boardId: board.id,
+				columnId,
+				title,
+				description: cleanPrompt,
+				priority: "normal",
+				difficulty: "medium",
+				type: "feature",
+				projectId,
+				tags: [],
+			});
+
+			await api.opencode.generateUserStory({ taskId: createdTask.id });
+			await loadBoard();
+		} catch (generateError) {
+			console.error("Failed to quick-create generated story:", generateError);
+			throw new Error(
+				generateError instanceof Error
+					? generateError.message
+					: "Failed to create and generate story",
+			);
+		}
+	};
+
 	const handleDeleteTask = async (taskId: string) => {
 		if (!confirm("Are you sure you want to delete this task?")) {
 			return;
@@ -535,6 +576,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		handleDragEnd,
 		handleTaskClick,
 		handleAddTask,
+		handleQuickGenerateStory,
 		handleDeleteTask,
 		handleColumnSubmit,
 		handleDeleteColumn,

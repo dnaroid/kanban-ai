@@ -312,7 +312,9 @@ export class RunTaskProjector {
 
 		if (
 			isTaskDescriptionImproveRun(run) &&
-			(signalKey === "generated" || signalKey === "done")
+			(signalKey === "generated" ||
+				signalKey === "done" ||
+				signalKey === "test_ok")
 		) {
 			const parsed = parseUserStoryResponse(assistantContent);
 			const currentTags = parseTaskTags(task.tags);
