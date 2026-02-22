@@ -140,6 +140,12 @@ export function MyModelsTab({
 		const file = e.target.files?.[0];
 		if (!file) return;
 		try {
+			onStatusChangeAction({
+				message: "Refreshing models before import...",
+				type: "info",
+			});
+			await api.opencode.refreshModels();
+
 			const text = await file.text();
 			const data = JSON.parse(text);
 			const result = await api.opencode.importModelsConfig(data);
