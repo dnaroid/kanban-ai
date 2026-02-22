@@ -163,7 +163,7 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 				>
 					{viewMode === "board" ? (
 						<div className="h-full overflow-x-auto custom-scrollbar">
-							<div className="inline-flex h-full items-stretch gap-6 pl-8 pt-8 pb-8">
+							<div className="inline-flex h-full items-stretch gap-0 pl-5 pr-5 pt-8 pb-8">
 								<SortableContext
 									items={columns.map((c) => c.id)}
 									strategy={horizontalListSortingStrategy}

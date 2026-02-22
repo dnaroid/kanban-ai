@@ -110,10 +110,10 @@ export function SortableColumn({
 	const isMinimized = isEmpty;
 
 	const getColumnWidth = () => {
-		if (!isMinimized) return "w-80";
-		if (isOver || isHovered) return "w-80";
-		if (isDraggingAnyTask) return "w-32";
-		return "w-14";
+		if (!isMinimized) return "w-[344px]";
+		if (isOver || isHovered) return "w-[344px]";
+		if (isDraggingAnyTask) return "w-[152px]";
+		return "w-[80px]";
 	};
 
 	return (
@@ -121,97 +121,105 @@ export function SortableColumn({
 			ref={setNodeRef}
 			onMouseEnter={() => setIsHovered(true)}
 			onMouseLeave={() => setIsHovered(false)}
-			style={{
-				...style,
-				borderColor: color 
-					? (isHovered || isOver ? color : `${color}40`) 
-					: undefined,
-				boxShadow: color 
-					? (isHovered || isOver 
-						? `0 0 30px -5px ${color}40, inset 0 0 10px ${color}10` 
-						: `0 0 25px -10px ${color}20`)
-					: undefined,
-				backgroundColor: color
-					? (isHovered || isOver 
-						? `color-mix(in srgb, ${color} 6%, #0B0E14)` 
-						: `color-mix(in srgb, ${color} 3%, #0B0E14)`)
-					: "#0B0E14",
-			}}
+			style={style}
 			className={cn(
-				"flex-shrink-0 rounded-2xl border flex flex-col h-full relative group/column overflow-hidden",
-				"transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+				"flex-shrink-0 h-full px-3 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
 				getColumnWidth(),
-				!color && (isHovered || isOver ? "border-slate-600" : "border-slate-800/50"),
 				isDragging && "opacity-50 scale-95",
-				isOver && "ring-4 ring-blue-500/20 scale-[1.02] z-10",
 			)}
 		>
 			<div
-				{...attributes}
-				{...listeners}
-				className="p-4 border-b border-slate-800/50 cursor-grab active:cursor-grabbing select-none shrink-0"
-				title={isMinimized && !isOver && !isHovered ? name : undefined}
+				style={{
+					borderColor: color 
+						? (isHovered || isOver ? color : `${color}40`) 
+						: undefined,
+					boxShadow: color 
+						? (isHovered || isOver 
+							? `0 0 30px -5px ${color}40, inset 0 0 10px ${color}10` 
+							: `0 0 25px -10px ${color}20`)
+						: undefined,
+					backgroundColor: color
+						? (isHovered || isOver 
+							? `color-mix(in srgb, ${color} 6%, #0B0E14)` 
+							: `color-mix(in srgb, ${color} 3%, #0B0E14)`)
+						: "#0B0E14",
+				}}
+				className={cn(
+					"flex flex-col h-full w-full relative group/column overflow-hidden rounded-2xl border",
+					!color && (isHovered || isOver ? "border-slate-600" : "border-slate-800/50"),
+					isOver && "ring-4 ring-blue-500/20 scale-[1.02] z-10",
+				)}
 			>
-				<div className="flex items-center justify-between relative min-h-[32px]">
-					<div
-						className={cn(
-							"flex items-center gap-2 flex-1 min-w-0 transition-all duration-500 ease-in-out",
-							isMinimized &&
-								!isOver &&
-								!isHovered &&
-								!isDraggingAnyTask &&
-								"opacity-0 translate-x-4 pointer-events-none group-hover/column:opacity-100 group-hover/column:translate-x-0 group-hover/column:pointer-events-auto",
-						)}
-					>
-						<span className="text-sm font-bold text-slate-200 truncate px-1">
-							{name}
-						</span>
-						<span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-0.5 rounded-full shrink-0">
-							{tasks.length}
-						</span>
-					</div>
+				<div
+					{...attributes}
+					{...listeners}
+					className="p-4 border-b border-slate-800/50 cursor-grab active:cursor-grabbing select-none shrink-0"
+					title={isMinimized && !isOver && !isHovered ? name : undefined}
+				>
+					<div className="flex items-center justify-between relative min-h-[32px]">
+						<div
+							className={cn(
+								"flex items-center gap-2 flex-1 min-w-0 transition-all duration-500 ease-in-out",
+								isMinimized && !isOver && !isHovered && !isDraggingAnyTask
+									? "opacity-0 translate-x-4 pointer-events-none"
+									: "opacity-100 translate-x-0 pointer-events-auto",
+							)}
+						>
+							<span className="text-sm font-bold text-slate-200 truncate px-1">
+								{name}
+							</span>
+							<span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-0.5 rounded-full shrink-0">
+								{tasks.length}
+							</span>
+						</div>
 
-					{isMinimized && !isOver && !isHovered && !isDraggingAnyTask && (
-						<div className="absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-500 ease-in-out group-hover/column:opacity-0 group-hover/column:scale-150">
+						<div
+							className={cn(
+								"absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-500 ease-in-out",
+								isMinimized && !isOver && !isHovered && !isDraggingAnyTask
+									? "opacity-100 scale-100"
+									: "opacity-0 scale-150",
+							)}
+						>
 							<span className="text-lg font-black text-slate-500/50 uppercase tracking-tighter">
 								{name.charAt(0)}
 							</span>
 						</div>
-					)}
+					</div>
 				</div>
-			</div>
 
-			<div
-				className={cn(
-					"flex-1 overflow-y-auto custom-scrollbar p-3 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
-					isMinimized && !isOver && !isHovered
-						? "opacity-0 translate-y-8 pointer-events-none"
-						: "opacity-100 translate-y-0",
-				)}
-			>
-				<SortableContext
-					items={tasks.map((t) => t.id)}
-					strategy={verticalListSortingStrategy}
-				>
-					{tasks.length === 0 ? (
-						<div className="text-center py-12 text-slate-600">
-							<div className="w-10 h-10 bg-slate-800/50 rounded-xl flex items-center justify-center mx-auto mb-3">
-								<AlertCircle className="w-5 h-5" />
-							</div>
-							<p className="text-sm">No tasks yet</p>
-						</div>
-					) : (
-						tasks.map((task) => (
-							<SortableTask
-								key={task.id}
-								task={task}
-								globalTags={globalTags}
-								onDelete={onDeleteTask}
-								onClick={onTaskClick}
-							/>
-						))
+				<div
+					className={cn(
+						"flex-1 overflow-y-auto custom-scrollbar p-3 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+						isMinimized && !isOver && !isHovered
+							? "opacity-0 translate-y-8 pointer-events-none"
+							: "opacity-100 translate-y-0",
 					)}
-				</SortableContext>
+				>
+					<SortableContext
+						items={tasks.map((t) => t.id)}
+						strategy={verticalListSortingStrategy}
+					>
+						{tasks.length === 0 ? (
+							<div className="text-center py-12 text-slate-600">
+								<div className="w-10 h-10 bg-slate-800/50 rounded-xl flex items-center justify-center mx-auto mb-3">
+									<AlertCircle className="w-5 h-5" />
+								</div>
+								<p className="text-sm">No tasks yet</p>
+							</div>
+						) : (
+							tasks.map((task) => (
+								<SortableTask
+									key={task.id}
+									task={task}
+									globalTags={globalTags}
+									onDelete={onDeleteTask}
+									onClick={onTaskClick}
+								/>
+							))
+						)}
+					</SortableContext>
+				</div>
 			</div>
 		</div>
 	);
