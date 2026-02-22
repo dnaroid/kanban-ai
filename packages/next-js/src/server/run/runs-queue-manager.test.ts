@@ -56,6 +56,7 @@ const {
 		},
 		mockRoleRepo: {
 			list: vi.fn(() => [{ id: "dev", name: "Developer" }]),
+			listWithPresets: vi.fn(() => [{ id: "dev", name: "Developer" }]),
 			getPresetJson: vi.fn(() => null),
 		},
 		mockRunEventRepo: {

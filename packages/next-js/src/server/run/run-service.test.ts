@@ -24,6 +24,7 @@ const {
 	},
 	mockRoleRepo: {
 		list: vi.fn(),
+		listWithPresets: vi.fn(),
 		getPresetJson: vi.fn(),
 	},
 	mockProjectRepo: {
@@ -152,10 +153,12 @@ describe("RunService.generateUserStory", () => {
 		}));
 		mockRunRepo.listByTask.mockReturnValue([]);
 		mockRunRepo.create.mockReturnValue(buildRun("queued", "run-new"));
-		mockRoleRepo.list.mockReturnValue([
+		const roles = [
 			{ id: "ba", name: "Business Analyst" },
 			{ id: "dev", name: "Developer" },
-		]);
+		];
+		mockRoleRepo.list.mockReturnValue(roles);
+		mockRoleRepo.listWithPresets.mockReturnValue(roles);
 		mockRoleRepo.getPresetJson.mockReturnValue(null);
 		mockProjectRepo.getById.mockReturnValue({
 			id: "project-1",
@@ -213,10 +216,13 @@ describe("RunService.startQaTesting", () => {
 		mockRunRepo.create.mockReturnValue(
 			buildRun("queued", "run-qa-new", "task-qa-testing"),
 		);
-		mockRoleRepo.list.mockReturnValue([
+		const roles = [
 			{ id: "qa", name: "QA" },
 			{ id: "dev", name: "Developer" },
-		]);
+		];
+		mockRoleRepo.list.mockReturnValue(roles);
+		mockRoleRepo.listWithPresets.mockReturnValue(roles);
+		mockRoleRepo.getPresetJson.mockReturnValue(null);
 		mockProjectRepo.getById.mockReturnValue({
 			id: "project-1",
 			name: "Kanban",

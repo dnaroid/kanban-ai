@@ -4,7 +4,15 @@ import { roleRepo } from "@/server/repositories/role";
 export async function POST(request: Request): Promise<Response> {
 	try {
 		const body = await request.json();
-		const { id, name, description, preset_json } = body;
+		const {
+			id,
+			name,
+			description,
+			preset_json,
+			preferred_model_name,
+			preferred_model_variant,
+			preferred_llm_agent,
+		} = body;
 
 		if (!id || !name || !preset_json) {
 			return NextResponse.json(
@@ -26,7 +34,25 @@ export async function POST(request: Request): Promise<Response> {
 			);
 		}
 
-		roleRepo.upsert({ id, name, description: description || "", preset_json });
+		roleRepo.upsert({
+			id,
+			name,
+			description: description || "",
+			preset_json,
+			preferred_model_name:
+				typeof preferred_model_name === "string" && preferred_model_name.trim()
+					? preferred_model_name.trim()
+					: null,
+			preferred_model_variant:
+				typeof preferred_model_variant === "string" &&
+				preferred_model_variant.trim()
+					? preferred_model_variant.trim()
+					: null,
+			preferred_llm_agent:
+				typeof preferred_llm_agent === "string" && preferred_llm_agent.trim()
+					? preferred_llm_agent.trim()
+					: null,
+		});
 
 		return NextResponse.json({ success: true });
 	} catch (error) {

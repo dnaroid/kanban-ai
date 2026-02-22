@@ -207,8 +207,8 @@ export class DatabaseManager {
 		const now = new Date().toISOString();
 		const insert = this.db.prepare(
 			`INSERT INTO agent_roles
-        (id, name, description, preset_json, created_at, updated_at)
-        VALUES (@id, @name, @description, @preset_json, @created_at, @updated_at)`,
+				(id, name, description, preset_json, preferred_model_name, preferred_model_variant, preferred_llm_agent, created_at, updated_at)
+				VALUES (@id, @name, @description, @preset_json, NULL, NULL, NULL, @created_at, @updated_at)`,
 		);
 
 		const roles = [

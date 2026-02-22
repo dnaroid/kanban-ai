@@ -19,6 +19,12 @@ interface UserStoryPromptOptions {
 	availableTypes?: string[];
 	availableDifficulties?: string[];
 	availableRoles?: Array<{ id: string; name: string; description: string }>;
+	role?: {
+		id: string;
+		name: string;
+		systemPrompt?: string | null;
+		skills?: string[] | null;
+	};
 }
 
 export function buildUserStoryPrompt(
@@ -46,6 +52,13 @@ export function buildUserStoryPrompt(
 		availableRoles.length > 0
 			? availableRoles.map((role) => `${role.id} (${role.name})`).join(", ")
 			: "(нет доступных ролей)";
+	const rolePrompt = options.role?.systemPrompt?.trim() ?? "";
+	const roleSkills = (options.role?.skills ?? [])
+		.map((skill) => skill.trim())
+		.filter((skill) => skill.length > 0);
+	const rolePromptLine = rolePrompt.length > 0 ? rolePrompt : "(не задан)";
+	const roleSkillsLine =
+		roleSkills.length > 0 ? roleSkills.join(", ") : "(не заданы)";
 
 	return `Твоя задача: переписать описание задачи в формат user story для AI-агента (код-исполнителя), чтобы по нему можно было сразу запускать работу.
 
@@ -68,6 +81,8 @@ export function buildUserStoryPrompt(
 - Тип: ${types.join(", ")}
 - Сложность: ${difficulties.join(", ")}
 - Агент (id): ${rolesLine}
+- Промпт роли агента: ${rolePromptLine}
+- Скиллы роли агента: ${roleSkillsLine}
 
 Верни ответ строго в формате:
 

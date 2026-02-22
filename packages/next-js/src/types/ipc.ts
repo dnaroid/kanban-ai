@@ -93,6 +93,11 @@ export interface OpencodeModel {
 	variants: string;
 }
 
+export interface OpencodeAgent {
+	id: string;
+	name: string;
+}
+
 export type RunStatus =
 	| "queued"
 	| "running"
@@ -167,6 +172,10 @@ export interface OpenCodeSessionTodosResponse {
 
 export interface OpencodeModelsListResponse {
 	models: OpencodeModel[];
+}
+
+export interface OpencodeAgentsListResponse {
+	agents: OpencodeAgent[];
 }
 
 export interface OpencodeSendMessageResponse {

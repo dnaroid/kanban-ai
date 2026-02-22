@@ -285,3 +285,14 @@ VALUES
   ('rule-user-reopen-task-done', 'reopen_task', NULL, NULL, 'done', 'pending'),
   ('rule-user-reopen-task-failed', 'reopen_task', NULL, NULL, 'failed', 'pending');
 `;
+
+export const v024AgentRoleSessionPreferencesSql = `
+ALTER TABLE agent_roles
+ADD COLUMN preferred_model_name TEXT;
+
+ALTER TABLE agent_roles
+ADD COLUMN preferred_model_variant TEXT;
+
+ALTER TABLE agent_roles
+ADD COLUMN preferred_llm_agent TEXT;
+`;

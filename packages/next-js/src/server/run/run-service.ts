@@ -3,6 +3,7 @@ import { buildTaskPrompt } from "@/server/run/prompts/task";
 import { buildQaTestingPrompt } from "@/server/run/prompts/qa-testing";
 import { buildUserStoryPrompt } from "@/server/run/prompts/user-story";
 import { publishSseEvent } from "@/server/events/sse-broker";
+import type { SessionStartPreferences } from "@/server/opencode/session-manager";
 import { publishRunUpdate } from "@/server/run/run-publisher";
 import type { QueueStats } from "@/server/run/runs-queue-manager";
 import { getRunsQueueManager } from "@/server/run/runs-queue-manager";
@@ -54,7 +55,7 @@ export class RunService {
 			throw new Error(`Task not found: ${input.taskId}`);
 		}
 
-		const availableRoles = roleRepo.list();
+		const availableRoles = roleRepo.listWithPresets();
 		const taskTags = this.parseTaskTags(task.tags);
 		const assignedRoleId = this.resolveAssignedRoleIdFromTags(taskTags);
 		const selectedRoleId =
@@ -117,6 +118,7 @@ export class RunService {
 		this.queueManager.enqueue(run.id, {
 			projectPath: project.path,
 			sessionTitle: task.title.slice(0, 120),
+			sessionPreferences: this.toSessionPreferences(selectedRole),
 			prompt: buildTaskPrompt(
 				{ title: task.title, description: task.description },
 				{
@@ -220,7 +222,12 @@ export class RunService {
 		publishRunUpdate(run);
 
 		const taskTags = this.parseTaskTags(task.tags);
-		const availableRoles = roleRepo.list();
+		const availableRoles = roleRepo.listWithPresets();
+		const selectedRole =
+			availableRoles.find((candidate) => candidate.id === roleId) ?? null;
+		const selectedRolePreset = this.parseRolePreset(
+			roleRepo.getPresetJson(roleId),
+		);
 		const availableTags = tagRepo.listNames();
 
 		log.debug("Enqueueing user story run", {
@@ -230,6 +237,7 @@ export class RunService {
 		this.queueManager.enqueue(run.id, {
 			projectPath: project.path,
 			sessionTitle: `User Story: ${task.title}`.slice(0, 120),
+			sessionPreferences: this.toSessionPreferences(selectedRole),
 			prompt: buildUserStoryPrompt(
 				{
 					title: task.title,
@@ -248,6 +256,12 @@ export class RunService {
 					availableTypes: [...allowedTaskTypes],
 					availableDifficulties: [...allowedDifficulties],
 					availableRoles,
+					role: {
+						id: roleId,
+						name: selectedRole?.name ?? roleId,
+						systemPrompt: selectedRolePreset?.systemPrompt,
+						skills: selectedRolePreset?.skills,
+					},
 				},
 			),
 		});
@@ -331,7 +345,12 @@ export class RunService {
 		publishRunUpdate(run);
 
 		const taskTags = this.parseTaskTags(task.tags);
-		const availableRoles = roleRepo.list();
+		const availableRoles = roleRepo.listWithPresets();
+		const selectedRole =
+			availableRoles.find((candidate) => candidate.id === roleId) ?? null;
+		const selectedRolePreset = this.parseRolePreset(
+			roleRepo.getPresetJson(roleId),
+		);
 		const availableTags = tagRepo.listNames();
 
 		log.debug("Enqueueing QA testing run", {
@@ -341,6 +360,7 @@ export class RunService {
 		this.queueManager.enqueue(run.id, {
 			projectPath: project.path,
 			sessionTitle: `QA Testing: ${task.title}`.slice(0, 120),
+			sessionPreferences: this.toSessionPreferences(selectedRole),
 			prompt: buildQaTestingPrompt(
 				{
 					title: task.title,
@@ -359,6 +379,12 @@ export class RunService {
 					availableTypes: [...allowedTaskTypes],
 					availableDifficulties: [...allowedDifficulties],
 					availableRoles,
+					role: {
+						id: roleId,
+						name: selectedRole?.name ?? roleId,
+						systemPrompt: selectedRolePreset?.systemPrompt,
+						skills: selectedRolePreset?.skills,
+					},
 				},
 			),
 		});
@@ -479,6 +505,33 @@ export class RunService {
 			recommended: source.recommended === true,
 			optional: source.optional === true,
 			quickSelect: source.quickSelect === true,
+		};
+	}
+
+	private toSessionPreferences(
+		role: {
+			preferred_model_name?: string | null;
+			preferred_model_variant?: string | null;
+			preferred_llm_agent?: string | null;
+		} | null,
+	): SessionStartPreferences | undefined {
+		if (!role) {
+			return undefined;
+		}
+
+		const preferredModelName = role.preferred_model_name?.trim() || undefined;
+		const preferredModelVariant =
+			role.preferred_model_variant?.trim() || undefined;
+		const preferredLlmAgent = role.preferred_llm_agent?.trim() || undefined;
+
+		if (!preferredModelName && !preferredModelVariant && !preferredLlmAgent) {
+			return undefined;
+		}
+
+		return {
+			preferredModelName,
+			preferredModelVariant,
+			preferredLlmAgent,
 		};
 	}
 

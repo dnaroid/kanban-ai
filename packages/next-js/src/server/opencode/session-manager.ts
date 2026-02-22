@@ -20,6 +20,12 @@ export type SessionEvent =
 	| { type: "todo.updated"; sessionId: string; todos: OpenCodeTodo[] }
 	| { type: "error"; sessionId: string; error: string };
 
+export interface SessionStartPreferences {
+	preferredModelName?: string | null;
+	preferredModelVariant?: string | null;
+	preferredLlmAgent?: string | null;
+}
+
 interface SessionInfo {
 	id: string;
 	directory: string;
@@ -83,9 +89,22 @@ export class OpencodeSessionManager {
 	public async createSession(
 		title: string,
 		directory: string,
+		preferences?: SessionStartPreferences,
 	): Promise<string> {
 		const client = this.getDirectoryClient(directory);
-		const response = await client.session.create({ title, directory });
+		const payload: Record<string, unknown> = { title, directory };
+		if (preferences?.preferredModelName) {
+			payload.model = preferences.preferredModelName;
+			payload.modelName = preferences.preferredModelName;
+		}
+		if (preferences?.preferredModelVariant) {
+			payload.variant = preferences.preferredModelVariant;
+			payload.modelVariant = preferences.preferredModelVariant;
+		}
+		if (preferences?.preferredLlmAgent) {
+			payload.agent = preferences.preferredLlmAgent;
+		}
+		const response = await client.session.create(payload);
 		const data = getData<unknown>(response);
 		const sessionRecord = asRecord(data);
 		const sessionId =

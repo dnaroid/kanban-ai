@@ -18,6 +18,7 @@ import type {
 	Artifact,
 	OpenCodeMessage,
 	OpenCodeTodo,
+	OpencodeAgent,
 	Run,
 	QueueStatsResponse,
 } from "@/types/ipc";
@@ -401,6 +402,9 @@ class ApiClient {
 				name: string;
 				description: string;
 				preset_json: string;
+				preferred_model_name?: string | null;
+				preferred_model_variant?: string | null;
+				preferred_llm_agent?: string | null;
 			}>;
 		}> => {
 			const response = await fetch(`${this.baseUrl}/api/roles/list-full`);
@@ -418,6 +422,9 @@ class ApiClient {
 					name: string;
 					description: string;
 					preset_json: string;
+					preferred_model_name?: string | null;
+					preferred_model_variant?: string | null;
+					preferred_llm_agent?: string | null;
 				}>;
 			}>(payload);
 			return { roles: data.roles ?? [] };
@@ -427,6 +434,9 @@ class ApiClient {
 			name: string;
 			description?: string;
 			preset_json: string;
+			preferred_model_name?: string | null;
+			preferred_model_variant?: string | null;
+			preferred_llm_agent?: string | null;
 		}): Promise<{ success: boolean }> => {
 			const response = await fetch(`${this.baseUrl}/api/roles/save`, {
 				method: "POST",
@@ -542,6 +552,19 @@ class ApiClient {
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ skills?: string[] }>(payload);
 			return { skills: data.skills ?? [] };
+		},
+		listAgents: async (): Promise<{ agents: OpencodeAgent[] }> => {
+			const response = await fetch(`${this.baseUrl}/api/opencode/agents`);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to fetch OpenCode agents",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{ agents?: OpencodeAgent[] }>(payload);
+			return { agents: data.agents ?? [] };
 		},
 		refreshSkillAssignments: async (): Promise<{
 			sessionId: string;

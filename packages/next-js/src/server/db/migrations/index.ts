@@ -6,6 +6,7 @@ import {
 	v021WorkflowConfigSql,
 	v022WorkflowVisualsSql,
 	v023WorkflowSignalsSql,
+	v024AgentRoleSessionPreferencesSql,
 } from "./sql";
 export {
 	v017SystemKeySql,
@@ -15,6 +16,7 @@ export {
 	v021WorkflowConfigSql,
 	v022WorkflowVisualsSql,
 	v023WorkflowSignalsSql,
+	v024AgentRoleSessionPreferencesSql,
 };
 
 export const INIT_DB_SQL = `
@@ -142,6 +144,9 @@ CREATE TABLE IF NOT EXISTS agent_roles (
   name TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   preset_json TEXT NOT NULL DEFAULT '{}',
+  preferred_model_name TEXT,
+  preferred_model_variant TEXT,
+  preferred_llm_agent TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -506,6 +511,10 @@ export const migrations = [
 	{
 		version: 23,
 		sql: v023WorkflowSignalsSql,
+	},
+	{
+		version: 24,
+		sql: v024AgentRoleSessionPreferencesSql,
 	},
 ] as const;
 

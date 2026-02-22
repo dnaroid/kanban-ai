@@ -23,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { useSettingsStatus } from "@/components/settings/SettingsStatusContext";
+import type { OpencodeAgent, OpencodeModel } from "@/types/ipc";
 
 interface AgentRolePreset {
 	version: string;
@@ -48,6 +49,16 @@ interface FullRole {
 	name: string;
 	description: string;
 	preset_json: string;
+	preferred_model_name?: string | null;
+	preferred_model_variant?: string | null;
+	preferred_llm_agent?: string | null;
+}
+
+function parseModelVariants(raw: string): string[] {
+	return raw
+		.split(",")
+		.map((variant) => variant.trim())
+		.filter(Boolean);
 }
 
 const DEFAULT_BEHAVIOR: AgentRoleBehavior = {
@@ -103,6 +114,8 @@ function normalizeSkills(skills: string[]): string[] {
 export function TeamManagement() {
 	const [roles, setRoles] = useState<FullRole[]>([]);
 	const [skillsCatalog, setSkillsCatalog] = useState<string[]>([]);
+	const [enabledModels, setEnabledModels] = useState<OpencodeModel[]>([]);
+	const [agentsCatalog, setAgentsCatalog] = useState<OpencodeAgent[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
@@ -114,6 +127,9 @@ export function TeamManagement() {
 	const [formId, setFormId] = useState("");
 	const [formName, setFormName] = useState("");
 	const [formDescription, setFormDescription] = useState("");
+	const [preferredModelName, setPreferredModelName] = useState("");
+	const [preferredModelVariant, setPreferredModelVariant] = useState("");
+	const [preferredLlmAgent, setPreferredLlmAgent] = useState("");
 	const [formPreset, setFormPreset] = useState<AgentRolePreset>(DEFAULT_PRESET);
 	const [isNew, setIsNew] = useState(false);
 
@@ -122,6 +138,9 @@ export function TeamManagement() {
 		setFormId(role.id);
 		setFormName(role.name);
 		setFormDescription(role.description);
+		setPreferredModelName(role.preferred_model_name ?? "");
+		setPreferredModelVariant(role.preferred_model_variant ?? "");
+		setPreferredLlmAgent(role.preferred_llm_agent ?? "");
 		setFormPreset(parseRolePreset(role.preset_json));
 		setSkillQuery("");
 		setIsNew(false);
@@ -153,6 +172,26 @@ export function TeamManagement() {
 		}
 	}, []);
 
+	const loadEnabledModels = useCallback(async () => {
+		try {
+			const response = await api.opencode.listEnabledModels();
+			setEnabledModels(response.models ?? []);
+		} catch (error) {
+			console.error("Failed to load enabled OpenCode models:", error);
+			setEnabledModels([]);
+		}
+	}, []);
+
+	const loadAgentsCatalog = useCallback(async () => {
+		try {
+			const response = await api.opencode.listAgents();
+			setAgentsCatalog(response.agents ?? []);
+		} catch (error) {
+			console.error("Failed to load OpenCode agents:", error);
+			setAgentsCatalog([]);
+		}
+	}, []);
+
 	const handleRefreshSkills = useCallback(async () => {
 		setIsRefreshingSkills(true);
 		try {
@@ -176,13 +215,18 @@ export function TeamManagement() {
 	useEffect(() => {
 		void loadRoles();
 		void loadSkillsCatalog();
-	}, [loadRoles, loadSkillsCatalog]);
+		void loadEnabledModels();
+		void loadAgentsCatalog();
+	}, [loadRoles, loadSkillsCatalog, loadEnabledModels, loadAgentsCatalog]);
 
 	const handleAddNew = () => {
 		setSelectedRoleId(null);
 		setFormId("");
 		setFormName("");
 		setFormDescription("");
+		setPreferredModelName("");
+		setPreferredModelVariant("");
+		setPreferredLlmAgent("");
 		setFormPreset(DEFAULT_PRESET);
 		setSkillQuery("");
 		setIsNew(true);
@@ -211,6 +255,9 @@ export function TeamManagement() {
 				name: formName.trim(),
 				description: formDescription.trim(),
 				preset_json,
+				preferred_model_name: preferredModelName.trim() || null,
+				preferred_model_variant: preferredModelVariant.trim() || null,
+				preferred_llm_agent: preferredLlmAgent.trim() || null,
 			});
 
 			setStatus({
@@ -294,6 +341,26 @@ export function TeamManagement() {
 			.filter((skill) => skill.toLowerCase().includes(q))
 			.slice(0, 15);
 	}, [skillQuery, skillsCatalog, formPreset.skills]);
+
+	const selectedModel = useMemo(
+		() =>
+			enabledModels.find((model) => model.name === preferredModelName) ?? null,
+		[enabledModels, preferredModelName],
+	);
+
+	const modelVariants = useMemo(
+		() => (selectedModel ? parseModelVariants(selectedModel.variants) : []),
+		[selectedModel],
+	);
+
+	useEffect(() => {
+		if (!preferredModelVariant) {
+			return;
+		}
+		if (!modelVariants.includes(preferredModelVariant)) {
+			setPreferredModelVariant("");
+		}
+	}, [modelVariants, preferredModelVariant]);
 
 	const addSkill = useCallback((rawSkill: string) => {
 		const skill = rawSkill.trim();
@@ -512,6 +579,82 @@ export function TeamManagement() {
 								/>
 							</div>
 
+							<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+								<div className="space-y-2">
+									<label
+										htmlFor="team-role-preferred-model"
+										className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1"
+									>
+										Preferred Model (Enabled)
+									</label>
+									<select
+										id="team-role-preferred-model"
+										value={preferredModelName}
+										onChange={(event) => {
+											setPreferredModelName(event.target.value);
+											setPreferredModelVariant("");
+										}}
+										className="w-full bg-slate-900/60 border border-slate-800/80 text-sm text-slate-100 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+									>
+										<option value="">(default)</option>
+										{enabledModels.map((model) => (
+											<option key={model.name} value={model.name}>
+												{model.name}
+											</option>
+										))}
+									</select>
+								</div>
+
+								<div className="space-y-2">
+									<label
+										htmlFor="team-role-preferred-variant"
+										className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1"
+									>
+										Preferred Variant
+									</label>
+									<select
+										id="team-role-preferred-variant"
+										value={preferredModelVariant}
+										onChange={(event) =>
+											setPreferredModelVariant(event.target.value)
+										}
+										disabled={!preferredModelName || modelVariants.length === 0}
+										className="w-full bg-slate-900/60 border border-slate-800/80 text-sm text-slate-100 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
+									>
+										<option value="">(default)</option>
+										{modelVariants.map((variant) => (
+											<option key={variant} value={variant}>
+												{variant}
+											</option>
+										))}
+									</select>
+								</div>
+
+								<div className="space-y-2">
+									<label
+										htmlFor="team-role-preferred-agent"
+										className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1"
+									>
+										Preferred LLM Agent
+									</label>
+									<select
+										id="team-role-preferred-agent"
+										value={preferredLlmAgent}
+										onChange={(event) =>
+											setPreferredLlmAgent(event.target.value)
+										}
+										className="w-full bg-slate-900/60 border border-slate-800/80 text-sm text-slate-100 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+									>
+										<option value="">(default)</option>
+										{agentsCatalog.map((agent) => (
+											<option key={agent.id} value={agent.id}>
+												{agent.name}
+											</option>
+										))}
+									</select>
+								</div>
+							</div>
+
 							<div className="space-y-2">
 								<label
 									htmlFor="team-role-system-prompt"
@@ -559,7 +702,9 @@ export function TeamManagement() {
 										) : (
 											<div className="flex items-center gap-2 text-slate-600 italic py-1">
 												<Brain className="w-3.5 h-3.5" />
-												<p className="text-xs">No skills assigned to this agent.</p>
+												<p className="text-xs">
+													No skills assigned to this agent.
+												</p>
 											</div>
 										)}
 									</div>

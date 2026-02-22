@@ -1,7 +1,10 @@
 import { createLogger } from "@/lib/logger";
 import { extractOpencodeStatus } from "@/lib/opencode-status";
 import { buildTaskPrompt } from "@/server/run/prompts/task";
-import type { SessionEvent } from "@/server/opencode/session-manager";
+import type {
+	SessionEvent,
+	SessionStartPreferences,
+} from "@/server/opencode/session-manager";
 import { getOpencodeService } from "@/server/opencode/opencode-service";
 import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
 import { contextSnapshotRepo } from "@/server/repositories/context-snapshot";
@@ -34,6 +37,7 @@ interface QueuedRunInput {
 	projectPath: string;
 	sessionTitle: string;
 	prompt: string;
+	sessionPreferences?: SessionStartPreferences;
 }
 
 interface AssistantRunSignal {
@@ -434,6 +438,7 @@ export class RunsQueueManager {
 			const sessionId = await this.sessionManager.createSession(
 				runInput.sessionTitle,
 				runInput.projectPath,
+				runInput.sessionPreferences,
 			);
 			log.info("OpenCode session created", { runId, sessionId });
 
@@ -791,7 +796,7 @@ export class RunsQueueManager {
 			return;
 		}
 
-		const availableRoles = roleRepo.list();
+		const availableRoles = roleRepo.listWithPresets();
 		const taskTags = this.parseTaskTags(task.tags);
 		const assignedRoleId = this.resolveAssignedRoleIdFromTags(taskTags);
 		const roleId = assignedRoleId ?? availableRoles[0]?.id;
@@ -842,6 +847,7 @@ export class RunsQueueManager {
 		this.enqueue(executionRun.id, {
 			projectPath: project.path,
 			sessionTitle: task.title.slice(0, 120),
+			sessionPreferences: this.toSessionPreferences(selectedRole),
 			prompt: buildTaskPrompt(
 				{ title: task.title, description: task.description },
 				{
@@ -856,6 +862,31 @@ export class RunsQueueManager {
 				},
 			),
 		});
+	}
+
+	private toSessionPreferences(
+		role:
+			| {
+					preferred_model_name?: string | null;
+					preferred_model_variant?: string | null;
+					preferred_llm_agent?: string | null;
+			  }
+			| null
+			| undefined,
+	): SessionStartPreferences | undefined {
+		const modelName = role?.preferred_model_name?.trim();
+		const modelVariant = role?.preferred_model_variant?.trim();
+		const llmAgent = role?.preferred_llm_agent?.trim();
+
+		if (!modelName && !modelVariant && !llmAgent) {
+			return undefined;
+		}
+
+		return {
+			preferredModelName: modelName,
+			preferredModelVariant: modelVariant,
+			preferredLlmAgent: llmAgent,
+		};
 	}
 
 	private parseTaskTags(rawTags: unknown): string[] {

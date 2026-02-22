@@ -45,7 +45,7 @@ export function TaskDetailsDescription({
 	);
 	const [isGeneratingStory, setIsGeneratingStory] = useState(false);
 	const [generationError, setGenerationError] = useState<string | null>(null);
-	const [isEditing, setIsEditing] = useState(false);
+	const [isEditing, setIsEditing] = useState(!task.description?.trim());
 	const [liveTranscript, setLiveTranscript] = useState("");
 	const [isDragging, setIsDragging] = useState(false);
 	const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);

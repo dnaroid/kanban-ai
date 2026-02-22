@@ -4,6 +4,9 @@ export interface AgentRole {
 	id: string;
 	name: string;
 	description: string;
+	preferred_model_name?: string | null;
+	preferred_model_variant?: string | null;
+	preferred_llm_agent?: string | null;
 }
 
 export interface AgentRolePreset {
@@ -43,7 +46,7 @@ export class RoleRepository {
 		const db = dbManager.connect();
 		return db
 			.prepare(
-				"SELECT id, name, description, preset_json FROM agent_roles ORDER BY created_at ASC",
+				"SELECT id, name, description, preset_json, preferred_model_name, preferred_model_variant, preferred_llm_agent FROM agent_roles ORDER BY created_at ASC",
 			)
 			.all() as (AgentRole & { preset_json: string })[];
 	}
@@ -66,14 +69,37 @@ export class RoleRepository {
 		const now = new Date().toISOString();
 
 		db.prepare(
-			`INSERT INTO agent_roles (id, name, description, preset_json, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?)
+			`INSERT INTO agent_roles (
+				id,
+				name,
+				description,
+				preset_json,
+				preferred_model_name,
+				preferred_model_variant,
+				preferred_llm_agent,
+				created_at,
+				updated_at
+			)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(id) DO UPDATE SET
 				name = excluded.name,
 				description = excluded.description,
 				preset_json = excluded.preset_json,
+				preferred_model_name = excluded.preferred_model_name,
+				preferred_model_variant = excluded.preferred_model_variant,
+				preferred_llm_agent = excluded.preferred_llm_agent,
 				updated_at = excluded.updated_at`,
-		).run(role.id, role.name, role.description, role.preset_json, now, now);
+		).run(
+			role.id,
+			role.name,
+			role.description,
+			role.preset_json,
+			role.preferred_model_name ?? null,
+			role.preferred_model_variant ?? null,
+			role.preferred_llm_agent ?? null,
+			now,
+			now,
+		);
 	}
 
 	public delete(id: string): void {

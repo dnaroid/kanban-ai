@@ -19,6 +19,12 @@ interface QaTestingPromptOptions {
 	availableTypes?: string[];
 	availableDifficulties?: string[];
 	availableRoles?: Array<{ id: string; name: string; description: string }>;
+	role?: {
+		id: string;
+		name: string;
+		systemPrompt?: string | null;
+		skills?: string[] | null;
+	};
 }
 
 export function buildQaTestingPrompt(
@@ -44,6 +50,13 @@ export function buildQaTestingPrompt(
 					.map((role) => `${role.id} (${role.name})`)
 					.join(", ")
 			: "(нет доступных ролей)";
+	const rolePrompt = options.role?.systemPrompt?.trim() ?? "";
+	const roleSkills = (options.role?.skills ?? [])
+		.map((skill) => skill.trim())
+		.filter((skill) => skill.length > 0);
+	const rolePromptLine = rolePrompt.length > 0 ? rolePrompt : "(не задан)";
+	const roleSkillsLine =
+		roleSkills.length > 0 ? roleSkills.join(", ") : "(не заданы)";
 
 	return `Ты QA-агент. Проведи проверку задачи и результата реализации в текущем проекте.
 
@@ -64,6 +77,8 @@ export function buildQaTestingPrompt(
 - Типы: ${typesLine}
 - Сложности: ${difficultiesLine}
 - Роли: ${rolesLine}
+- Промпт роли агента: ${rolePromptLine}
+- Скиллы роли агента: ${roleSkillsLine}
 
 Что нужно сделать:
 1) Проверить, что задача реализована в коде согласно описанию и критериям приемки.
