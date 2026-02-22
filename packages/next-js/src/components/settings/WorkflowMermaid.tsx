@@ -181,11 +181,6 @@ export function WorkflowMermaid({ config }: WorkflowMermaidProps) {
 				return;
 			}
 
-			const fillColor = signal.isActive
-				? signal.scope === "run"
-					? "#1e3a8a"
-					: "#14532d"
-				: "#334155";
 			const strokeColor = signal.isActive
 				? signal.scope === "run"
 					? "#3b82f6"
@@ -193,7 +188,7 @@ export function WorkflowMermaid({ config }: WorkflowMermaidProps) {
 				: "#64748b";
 
 			lines.push(
-				`  style ${signalId} fill:${fillColor},stroke:${strokeColor},stroke-width:2px,color:#ffffff`,
+				`  style ${signalId} fill:transparent,stroke:${strokeColor},stroke-width:2px,color:#ffffff`,
 			);
 		});
 
