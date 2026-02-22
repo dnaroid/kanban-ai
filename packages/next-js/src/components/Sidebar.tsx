@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { LAST_PROJECT_ID_KEY } from "@/components/ClientLayout";
 
 interface SidebarProps {
 	isSidebarCollapsed: boolean;
@@ -122,10 +123,16 @@ export function Sidebar({
 							onClick={() => {
 								if (item.id === "timeline") {
 									if (!activeProject) return;
-									router.push(
-										`/timeline/${activeProject.id}`,
-									);
+									router.push(`/timeline/${activeProject.id}`);
 									return;
+								}
+								if (item.id === "projects") {
+									const lastProjectId =
+										localStorage.getItem(LAST_PROJECT_ID_KEY);
+									if (lastProjectId && pathname !== `/board/${lastProjectId}`) {
+										router.push(`/board/${lastProjectId}`);
+										return;
+									}
 								}
 								router.push(item.path);
 							}}

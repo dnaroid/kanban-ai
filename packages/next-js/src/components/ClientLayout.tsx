@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 
 const SIDEBAR_COLLAPSED_KEY = "sidebar-collapsed";
+export const LAST_PROJECT_ID_KEY = "last-project-id";
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -45,6 +46,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 					const project = await api.getProject(projectId);
 					if (project) {
 						setActiveProject({ id: project.id, name: project.name });
+						localStorage.setItem(LAST_PROJECT_ID_KEY, project.id);
 					}
 				} catch (error) {
 					console.error("Failed to load active project:", error);
@@ -60,6 +62,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 						const project = await api.getProject(lastProjectId);
 						if (project) {
 							setActiveProject({ id: project.id, name: project.name });
+							localStorage.setItem(LAST_PROJECT_ID_KEY, project.id);
 						}
 					}
 				} catch (error) {
@@ -73,6 +76,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
 	const handleProjectSelect = (id: string, name: string) => {
 		setActiveProject({ id, name });
+		localStorage.setItem(LAST_PROJECT_ID_KEY, id);
 		router.push(`/board/${id}`);
 	};
 
