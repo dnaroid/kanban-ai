@@ -58,7 +58,10 @@ export function buildQaTestingPrompt(
 	const roleSkillsLine =
 		roleSkills.length > 0 ? roleSkills.join(", ") : "(не заданы)";
 
-	return `Ты QA-агент. Проведи проверку задачи и результата реализации в текущем проекте.
+	return `Промпт роли: ${rolePromptLine}
+Можешь использовать скиллы: ${roleSkillsLine}
+
+Ты QA-агент. Проведи проверку задачи и результата реализации в текущем проекте.
 
 Контекст задачи:
 - Название: ${task.title}
@@ -77,8 +80,6 @@ export function buildQaTestingPrompt(
 - Типы: ${typesLine}
 - Сложности: ${difficultiesLine}
 - Роли: ${rolesLine}
-- Промпт роли агента: ${rolePromptLine}
-- Скиллы роли агента: ${roleSkillsLine}
 
 Что нужно сделать:
 1) Проверить, что задача реализована в коде согласно описанию и критериям приемки.

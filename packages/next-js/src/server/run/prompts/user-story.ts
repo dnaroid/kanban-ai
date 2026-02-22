@@ -60,7 +60,10 @@ export function buildUserStoryPrompt(
 	const roleSkillsLine =
 		roleSkills.length > 0 ? roleSkills.join(", ") : "(не заданы)";
 
-	return `Твоя задача: переписать описание задачи в формат user story для AI-агента (код-исполнителя), чтобы по нему можно было сразу запускать работу.
+	return `Промпт роли: ${rolePromptLine}
+Можешь использовать скиллы: ${roleSkillsLine}
+
+Твоя задача: переписать описание задачи в формат user story для AI-агента (код-исполнителя), чтобы по нему можно было сразу запускать работу.
 
 Сформируй **технически точное, полное и однозначное описание задачи**, но **без реализации**.
 
@@ -81,8 +84,6 @@ export function buildUserStoryPrompt(
 - Тип: ${types.join(", ")}
 - Сложность: ${difficulties.join(", ")}
 - Агент (id): ${rolesLine}
-- Промпт роли агента: ${rolePromptLine}
-- Скиллы роли агента: ${roleSkillsLine}
 
 Верни ответ строго в формате:
 

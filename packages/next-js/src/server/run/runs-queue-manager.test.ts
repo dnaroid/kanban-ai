@@ -375,7 +375,7 @@ describe("RunsQueueManager scheduling", () => {
 		);
 	});
 
-	it("auto-enqueues execution run after completed BA generation", async () => {
+	it("keeps generated task in workflow and does not auto-enqueue execution by default", async () => {
 		taskMap.set(
 			"task-generated",
 			buildTask("task-generated", "normal", "generating"),
@@ -408,7 +408,7 @@ describe("RunsQueueManager scheduling", () => {
 		await waitForDrain();
 		await waitForDrain();
 
-		expect(mockRunRepo.create).toHaveBeenCalledWith(
+		expect(mockRunRepo.create).not.toHaveBeenCalledWith(
 			expect.objectContaining({
 				taskId: "task-generated",
 				mode: "execute",

@@ -605,7 +605,11 @@ export class RunsQueueManager {
 				signalKey,
 				assistantContent,
 			);
-			if (status === "completed" && this.isGenerationRun(nextRun)) {
+			if (
+				status === "completed" &&
+				this.isGenerationRun(nextRun) &&
+				this.shouldAutoExecuteAfterGeneration()
+			) {
 				await this.enqueueExecutionForGeneratedTask(nextRun.taskId);
 			}
 		} catch (error) {
@@ -749,6 +753,10 @@ export class RunsQueueManager {
 
 	private isGenerationRun(run: Run): boolean {
 		return run.metadata?.kind === generationRunKind;
+	}
+
+	private shouldAutoExecuteAfterGeneration(): boolean {
+		return process.env.RUNS_AUTO_EXECUTE_AFTER_GENERATION === "1";
 	}
 
 	private async enqueueExecutionForGeneratedTask(

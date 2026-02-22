@@ -28,13 +28,15 @@ export function buildTaskPrompt(
 		.filter((skill) => skill.length > 0);
 
 	return [
+		rolePrompt
+			? `Промпт роли агента: ${rolePrompt}`
+			: "Промпт роли агента: (не задан)",
+		`Можешь использовать скиллы: ${roleSkills.length > 0 ? roleSkills.join(", ") : "(не заданы)"}`,
+		`Назначенный агент: ${role?.name ?? role?.id ?? "(не указан)"}`,
+		"",
 		`ЗАДАЧА: ${task.title}`,
 		"",
 		`Описание: ${task.description ?? "Нет описания"}`,
-		"",
-		`Назначенный агент: ${role?.name ?? role?.id ?? "(не указан)"}`,
-		rolePrompt ? `Промпт агента: ${rolePrompt}` : "Промпт агента: (не задан)",
-		`Скиллы агента: ${roleSkills.length > 0 ? roleSkills.join(", ") : "(не заданы)"}`,
 		"",
 		"Контекст проекта:",
 		`- Путь проекта: ${project.path}`,
