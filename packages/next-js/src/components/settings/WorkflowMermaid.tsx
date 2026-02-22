@@ -224,8 +224,8 @@ export function WorkflowMermaid({ config }: WorkflowMermaidProps) {
 				.map((status) => status.status)
 				.join(", ");
 			const label = statuses
-				? `${column.name}\\n[${statuses}]`
-				: `${column.name}\\n[no statuses]`;
+				? `${column.name}<br/>[${statuses}]`
+				: `${column.name}<br/>[no statuses]`;
 
 			lines.push(`  ${columnId}["${escapeMermaidLabel(label)}"]`);
 		});
