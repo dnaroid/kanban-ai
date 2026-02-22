@@ -13,8 +13,8 @@ import {
 	GitCompare,
 	Map as MapIcon,
 	SlidersHorizontal,
-	type LucideIcon,
-} from "lucide-react";
+	type LucideIcon, GitBranch,
+} from "lucide-react"
 
 import {
 	WorkflowSettingsProvider,
@@ -44,118 +44,113 @@ function WorkflowSettingsHeader() {
 	} = useWorkflowSettings();
 
 	return (
-		<div className="space-y-8">
+		<div className="space-y-6">
 			{/* Top Bar / Actions */}
-			<div className="rounded-3xl border border-slate-800/60 bg-[#0B0E14]/40 p-6 shadow-2xl backdrop-blur-md">
-				<div className="flex flex-wrap items-center justify-between gap-6">
-					<div className="flex items-center gap-5">
-						<div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-[0_0_20px_-5px_rgba(59,130,246,0.3)]">
-							<RefreshCw
-								className={cn("h-7 w-7", isLoading && "animate-spin")}
-							/>
-						</div>
-						<div>
-							<h2 className="text-2xl font-bold text-slate-100 tracking-tight">
+			<div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-800/60">
+				<div className="flex items-center gap-4">
+					<div className="w-10 h-10 rounded-xl bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center shadow-lg shadow-blue-500/10">
+						<GitBranch className="w-5 h-5 text-blue-400" />
+					</div>
+					<div>
+						<div className="flex items-center gap-2">
+							<h2 className="text-xl font-black text-white tracking-tight leading-none">
 								Workflow Engine
 							</h2>
-							<div className="flex items-center gap-3 mt-1">
-								{isDirty ? (
-									<div className="flex items-center gap-2 text-[10px] font-black text-amber-500 uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20">
-										<AlertCircle className="h-3 w-3" />
-										Unsaved Changes
-									</div>
-								) : (
-									<div className="flex items-center gap-2 text-[10px] font-black text-emerald-500 uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-										<CheckCircle2 className="h-3 w-3" />
-										Fully Synced
-									</div>
-								)}
-								<span className="h-1 w-1 rounded-full bg-slate-700" />
-								<span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-									v1.0.4-engine
-								</span>
-							</div>
-						</div>
-					</div>
-
-					<div className="flex items-center gap-3">
-						<button
-							type="button"
-							onClick={() => void loadConfig(true, isDirty)}
-							disabled={isLoading || isSaving}
-							className="group inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/20 px-4 py-2.5 text-sm font-bold text-slate-300 hover:bg-slate-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 transition-all active:scale-95"
-						>
-							<RefreshCw className="h-4 w-4 group-hover:rotate-180 transition-transform duration-700" />
-							Reload
-						</button>
-						{isDirty && (
-							<button
-								type="button"
-								onClick={resetDraft}
-								disabled={isLoading || isSaving}
-								className="inline-flex items-center gap-2 rounded-xl border border-slate-800/40 px-4 py-2.5 text-sm font-bold text-slate-500 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 disabled:cursor-not-allowed disabled:opacity-50 transition-all active:scale-95"
-							>
-								<Undo2 className="h-4 w-4" />
-								Discard
-							</button>
-						)}
-						<button
-							type="button"
-							onClick={() => void saveConfig()}
-							disabled={isLoading || isSaving || !isDirty || !isValid}
-							className={cn(
-								"inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-black uppercase tracking-wider transition-all disabled:cursor-not-allowed disabled:opacity-30 active:scale-95",
-								isValid && isDirty
-									? "bg-blue-600 text-white hover:bg-blue-500 shadow-[0_0_25px_-5px_rgba(37,99,235,0.4)]"
-									: "bg-slate-800 text-slate-500 border border-slate-700/50",
-							)}
-						>
-							{isSaving ? (
-								<Loader2 className="h-4 w-4 animate-spin" />
+							{isDirty ? (
+								<div className="flex items-center gap-1.5 text-[8px] font-black text-amber-500 uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20">
+									<AlertCircle className="h-2.5 w-2.5" />
+									Unsaved
+								</div>
 							) : (
-								<Save className="h-4 w-4" />
+								<div className="flex items-center gap-1.5 text-[8px] font-black text-emerald-500 uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+									<CheckCircle2 className="h-2.5 w-2.5" />
+									Synced
+								</div>
 							)}
-							Apply Changes
-						</button>
+						</div>
+						<p className="text-[10px] text-slate-500 font-medium mt-1">
+							Configure board columns, task statuses, and lifecycle transitions.
+						</p>
 					</div>
 				</div>
 
-				{/* Global Errors */}
-				{!isValid && (
-					<div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/5 p-5 animate-in slide-in-from-top-2 duration-300">
-						<div className="flex gap-4">
-							<div className="h-10 w-10 shrink-0 rounded-xl bg-red-500/10 flex items-center justify-center border border-red-500/20">
-								<AlertCircle className="h-5 w-5 text-red-500" />
-							</div>
-							<div className="space-y-2">
-								<p className="text-sm font-black text-red-400 uppercase tracking-tight">
-									Workflow Configuration Errors
-								</p>
-								<ul className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 text-xs text-red-500/70 font-medium">
-									{jsonError && (
-										<li className="flex items-center gap-2">
-											<span className="h-1 w-1 rounded-full bg-red-500" />
-											JSON: {jsonError}
-										</li>
-									)}
-									{validationErrors.map((err) => (
-										<li
-											key={`${err.path}:${err.message}`}
-											className="flex items-center gap-2"
-										>
-											<span className="h-1 w-1 rounded-full bg-red-500" />
-											<span className="font-bold opacity-60 uppercase mr-1">
-												{err.path}:
-											</span>
-											{err.message}
-										</li>
-									))}
-								</ul>
-							</div>
+				<div className="flex items-center gap-3">
+					<button
+						type="button"
+						onClick={() => void loadConfig(true, isDirty)}
+						disabled={isLoading || isSaving}
+						className="flex items-center gap-2 h-9 px-4 bg-slate-900/50 hover:bg-slate-800/70 disabled:opacity-30 text-slate-300 border border-slate-700/70 rounded-xl font-bold text-xs uppercase tracking-widest transition-all active:scale-95"
+					>
+						<RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
+						Reload
+					</button>
+					{isDirty && (
+						<button
+							type="button"
+							onClick={resetDraft}
+							disabled={isLoading || isSaving}
+							className="flex items-center gap-2 h-9 px-4 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-xl font-bold text-xs uppercase tracking-widest transition-all active:scale-95"
+						>
+							<Undo2 className="h-3.5 w-3.5" />
+							Discard
+						</button>
+					)}
+					<button
+						type="button"
+						onClick={() => void saveConfig()}
+						disabled={isLoading || isSaving || !isDirty || !isValid}
+						className={cn(
+							"flex items-center gap-2 h-9 px-6 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95 disabled:opacity-30 disabled:shadow-none",
+							isValid && isDirty
+								? "bg-blue-600 text-white hover:bg-blue-500 shadow-blue-600/20"
+								: "bg-slate-800 text-slate-500 border border-slate-700/50",
+						)}
+					>
+						{isSaving ? (
+							<Loader2 className="h-3.5 w-3.5 animate-spin" />
+						) : (
+							<Save className="h-3.5 w-3.5" />
+						)}
+						Apply
+					</button>
+				</div>
+			</div>
+
+			{/* Global Errors */}
+			{!isValid && (
+				<div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-4 animate-in slide-in-from-top-2 duration-300">
+					<div className="flex gap-4">
+						<div className="h-9 w-9 shrink-0 rounded-xl bg-red-500/10 flex items-center justify-center border border-red-500/20">
+							<AlertCircle className="h-4 w-4 text-red-500" />
+						</div>
+						<div className="space-y-1">
+							<p className="text-[10px] font-black text-red-400 uppercase tracking-widest">
+								Configuration Errors
+							</p>
+							<ul className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-0.5 text-[10px] text-red-500/70 font-medium">
+								{jsonError && (
+									<li className="flex items-center gap-2">
+										<span className="h-1 w-1 rounded-full bg-red-500" />
+										JSON: {jsonError}
+									</li>
+								)}
+								{validationErrors.map((err) => (
+									<li
+										key={`${err.path}:${err.message}`}
+										className="flex items-center gap-2"
+									>
+										<span className="h-1 w-1 rounded-full bg-red-500" />
+										<span className="font-bold opacity-60 uppercase mr-1">
+											{err.path}:
+										</span>
+										{err.message}
+									</li>
+								))}
+							</ul>
 						</div>
 					</div>
-				)}
-			</div>
+				</div>
+			)}
 		</div>
 	);
 }
