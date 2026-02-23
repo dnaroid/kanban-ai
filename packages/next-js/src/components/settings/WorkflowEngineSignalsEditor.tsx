@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { PillSelect } from "@/components/common/PillSelect";
 import { createStatusPillOptions } from "@/components/kanban/workflow-display";
+import { Modal } from "@/components/common/Modal";
 
 import type {
 	WorkflowColumnConfig,
@@ -963,156 +964,27 @@ export function WorkflowEngineSignalsEditor({
 
 			{/* Signal Modal */}
 			{(isAddingSignal || editingSignalKey) && signalForm && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
-					<div className="w-full max-w-lg overflow-hidden rounded-[2.5rem] border border-slate-800/60 bg-[#0B0E14] shadow-[0_0_50px_-12px_rgba(59,130,246,0.3)] animate-in zoom-in-95 duration-300">
-						<div className="flex items-center justify-between border-b border-slate-800/60 px-8 py-6 bg-slate-900/20">
-							<div className="flex items-center gap-3">
-								<div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
-									<Activity className="h-5 w-5" />
-								</div>
-								<h3 className="text-xl font-bold text-slate-100">
-									{isAddingSignal ? "New Signal" : "Edit Signal"}
-								</h3>
+				<Modal
+					open={true}
+					onOpenChange={(open) => {
+						if (!open) {
+							setIsAddingSignal(false);
+							setEditingSignalKey(null);
+						}
+					}}
+					size="md"
+					title={
+						<div className="flex items-center gap-3">
+							<div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+								<Activity className="h-5 w-5" />
 							</div>
-							<button
-								type="button"
-								onClick={() => {
-									setIsAddingSignal(false);
-									setEditingSignalKey(null);
-								}}
-								className="rounded-full p-2 text-slate-500 hover:bg-slate-800 hover:text-slate-200 transition-all"
-							>
-								<X className="h-5 w-5" />
-							</button>
+							<h3 className="text-xl font-bold text-slate-100">
+								{isAddingSignal ? "New Signal" : "Edit Signal"}
+							</h3>
 						</div>
-						<div className="p-8 space-y-6">
-							<div className="grid gap-6 sm:grid-cols-2">
-								<div className="space-y-2">
-									<label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
-										Unique Key
-									</label>
-									<input
-										type="text"
-										value={signalForm.key}
-										onChange={(e) =>
-											setSignalForm({ ...signalForm, key: e.target.value })
-										}
-										placeholder="e.g. run_started"
-										disabled={!isAddingSignal}
-										className={cn(
-											"w-full rounded-2xl border bg-[#0B0E14] px-4 py-3 text-sm text-slate-200 outline-none transition-all focus:ring-2 focus:ring-blue-500/20",
-											formErrors.key
-												? "border-red-500/50 focus:border-red-500"
-												: "border-slate-800 focus:border-blue-500/50",
-											!isAddingSignal && "opacity-50 cursor-not-allowed",
-										)}
-									/>
-									{formErrors.key && (
-										<p className="text-[10px] font-bold text-red-400 uppercase tracking-tight ml-1">
-											{formErrors.key}
-										</p>
-									)}
-								</div>
-								<div className="space-y-2">
-									<label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
-										Scope
-									</label>
-									<div className="relative">
-										<select
-											value={signalForm.scope}
-											onChange={(e) =>
-												setSignalForm({
-													...signalForm,
-													scope: toSignalScope(e.target.value),
-												})
-											}
-											className="w-full appearance-none rounded-2xl border border-slate-800 bg-[#0B0E14] px-4 py-3 text-sm text-slate-200 outline-none focus:border-blue-500/50 transition-all focus:ring-2 focus:ring-blue-500/20"
-										>
-											<option value="run">Run Scope</option>
-											<option value="user_action">User Action</option>
-										</select>
-										<ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600 pointer-events-none" />
-									</div>
-								</div>
-							</div>
-							<div className="space-y-2">
-								<label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
-									Display Title
-								</label>
-								<input
-									type="text"
-									value={signalForm.title}
-									onChange={(e) =>
-										setSignalForm({ ...signalForm, title: e.target.value })
-									}
-									placeholder="e.g. AI Started Working"
-									className={cn(
-										"w-full rounded-2xl border bg-[#0B0E14] px-4 py-3 text-sm text-slate-200 outline-none transition-all focus:ring-2 focus:ring-blue-500/20",
-										formErrors.title
-											? "border-red-500/50"
-											: "border-slate-800 focus:border-blue-500/50",
-									)}
-								/>
-							</div>
-							<div className="space-y-2">
-								<label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
-									Description
-								</label>
-								<textarea
-									value={signalForm.description}
-									onChange={(e) =>
-										setSignalForm({
-											...signalForm,
-											description: e.target.value,
-										})
-									}
-									placeholder="Describe when this signal is triggered..."
-									rows={3}
-									className="w-full rounded-2xl border border-slate-800 bg-[#0B0E14] px-4 py-3 text-sm text-slate-200 outline-none focus:border-blue-500/50 transition-all focus:ring-2 focus:ring-blue-500/20 resize-none"
-								/>
-							</div>
-							<div className="flex items-center justify-between rounded-2xl bg-blue-500/5 border border-blue-500/10 p-5">
-								<div className="flex items-center gap-4">
-									<div
-										className={cn(
-											"h-4 w-4 rounded-full border-2",
-											signalForm.isActive
-												? "bg-emerald-500 border-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.5)]"
-												: "bg-slate-800 border-slate-700",
-										)}
-									/>
-									<div>
-										<div className="text-sm font-bold text-slate-100">
-											Signal Active
-										</div>
-										<div className="text-[10px] text-slate-500 uppercase font-black tracking-widest">
-											Engine will process this signal
-										</div>
-									</div>
-								</div>
-								<button
-									type="button"
-									onClick={() =>
-										setSignalForm({
-											...signalForm,
-											isActive: !signalForm.isActive,
-										})
-									}
-									className={cn(
-										"relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none",
-										signalForm.isActive ? "bg-blue-600" : "bg-slate-800",
-									)}
-								>
-									<span
-										className={cn(
-											"inline-block h-6 w-6 transform rounded-full bg-white shadow-xl transition duration-300 ease-in-out",
-											signalForm.isActive ? "translate-x-5" : "translate-x-0",
-										)}
-									/>
-								</button>
-							</div>
-						</div>
-						<div className="flex items-center justify-end gap-3 border-t border-slate-800/60 px-8 py-6 bg-slate-900/20">
+					}
+					footer={
+						<div className="flex items-center justify-end gap-3 w-full">
 							<button
 								type="button"
 								onClick={() => {
@@ -1131,238 +1003,157 @@ export function WorkflowEngineSignalsEditor({
 								{isAddingSignal ? "Create Signal" : "Update Signal"}
 							</button>
 						</div>
+					}
+				>
+					<div className="space-y-6">
+						<div className="grid gap-6 sm:grid-cols-2">
+							<div className="space-y-2">
+								<label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
+									Unique Key
+								</label>
+								<input
+									type="text"
+									value={signalForm.key}
+									onChange={(e) =>
+										setSignalForm({ ...signalForm, key: e.target.value })
+									}
+									placeholder="e.g. run_started"
+									disabled={!isAddingSignal}
+									className={cn(
+										"w-full rounded-2xl border bg-[#161B26] border-slate-700 px-4 py-3 text-sm text-slate-200 outline-none transition-all focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 placeholder:text-slate-500",
+										formErrors.key && "border-red-500/50 focus:ring-red-500/10 focus:border-red-500",
+										!isAddingSignal && "opacity-50 cursor-not-allowed",
+									)}
+								/>
+								{formErrors.key && (
+									<p className="text-[10px] font-bold text-red-400 uppercase tracking-tight ml-1">
+										{formErrors.key}
+									</p>
+								)}
+							</div>
+							<div className="space-y-2">
+								<label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
+									Scope
+								</label>
+								<div className="relative">
+									<select
+										value={signalForm.scope}
+										onChange={(e) =>
+											setSignalForm({
+												...signalForm,
+												scope: toSignalScope(e.target.value),
+											})
+										}
+										className="w-full appearance-none rounded-2xl border border-slate-700 bg-[#161B26] px-4 py-3 text-sm text-slate-200 outline-none focus:border-blue-500/50 transition-all focus:ring-4 focus:ring-blue-500/10"
+									>
+										<option value="run">Run Scope</option>
+										<option value="user_action">User Action</option>
+									</select>
+									<ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600 pointer-events-none" />
+								</div>
+							</div>
+						</div>
+						<div className="space-y-2">
+							<label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
+								Display Title
+							</label>
+							<input
+								type="text"
+								value={signalForm.title}
+								onChange={(e) =>
+									setSignalForm({ ...signalForm, title: e.target.value })
+								}
+								placeholder="e.g. AI Started Working"
+								className={cn(
+									"w-full rounded-2xl border bg-[#161B26] border-slate-700 px-4 py-3 text-sm text-slate-200 outline-none transition-all focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 placeholder:text-slate-500",
+									formErrors.title && "border-red-500/50 focus:ring-red-500/10 focus:border-red-500",
+								)}
+							/>
+						</div>
+						<div className="space-y-2">
+							<label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
+								Description
+							</label>
+							<textarea
+								value={signalForm.description}
+								onChange={(e) =>
+									setSignalForm({
+										...signalForm,
+										description: e.target.value,
+									})
+								}
+								placeholder="Describe when this signal is triggered..."
+								rows={3}
+								className="w-full rounded-2xl border border-slate-700 bg-[#161B26] px-4 py-3 text-sm text-slate-200 outline-none focus:border-blue-500/50 transition-all focus:ring-4 focus:ring-blue-500/10 resize-none placeholder:text-slate-500"
+							/>
+						</div>
+						<div className="flex items-center justify-between rounded-2xl bg-blue-500/5 border border-blue-500/10 p-5">
+							<div className="flex items-center gap-4">
+								<div
+									className={cn(
+										"h-4 w-4 rounded-full border-2",
+										signalForm.isActive
+											? "bg-emerald-500 border-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.5)]"
+											: "bg-slate-800 border-slate-700",
+									)}
+								/>
+								<div>
+									<div className="text-sm font-bold text-slate-100">
+										Signal Active
+									</div>
+									<div className="text-[10px] text-slate-500 uppercase font-black tracking-widest">
+										Engine will process this signal
+									</div>
+								</div>
+							</div>
+							<button
+								type="button"
+								onClick={() =>
+									setSignalForm({
+										...signalForm,
+										isActive: !signalForm.isActive,
+									})
+								}
+								className={cn(
+									"relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none",
+									signalForm.isActive ? "bg-blue-600" : "bg-slate-800",
+								)}
+							>
+								<span
+									className={cn(
+										"inline-block h-6 w-6 transform rounded-full bg-white shadow-xl transition duration-300 ease-in-out",
+										signalForm.isActive ? "translate-x-5" : "translate-x-0",
+									)}
+								/>
+							</button>
+						</div>
 					</div>
-				</div>
+				</Modal>
 			)}
 
 			{/* Rule Modal */}
 			{(isAddingRule || editingRuleKey) && ruleForm && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
-					<div className="w-full max-w-lg overflow-hidden rounded-[2.5rem] border border-slate-800/60 bg-[#0B0E14] shadow-[0_0_50px_-12px_rgba(6,182,212,0.3)] animate-in zoom-in-95 duration-300">
-						<div className="flex items-center justify-between border-b border-slate-800/60 px-8 py-6 bg-slate-900/20">
-							<div className="flex items-center gap-3">
-								<div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-									<Zap className="h-5 w-5" />
-								</div>
-								<h3 className="text-xl font-bold text-slate-100">
-									{isAddingRule
-										? "New Transition Rule"
-										: "Edit Transition Rule"}
-								</h3>
+				<Modal
+					open={true}
+					onOpenChange={(open) => {
+						if (!open) {
+							setIsAddingRule(false);
+							setEditingRuleKey(null);
+						}
+					}}
+					size="md"
+					title={
+						<div className="flex items-center gap-3">
+							<div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+								<Zap className="h-5 w-5" />
 							</div>
-							<button
-								type="button"
-								onClick={() => {
-									setIsAddingRule(false);
-									setEditingRuleKey(null);
-								}}
-								className="rounded-full p-2 text-slate-500 hover:bg-slate-800 hover:text-slate-200 transition-all"
-							>
-								<X className="h-5 w-5" />
-							</button>
+							<h3 className="text-xl font-bold text-slate-100">
+								{isAddingRule ? "New Transition Rule" : "Edit Transition Rule"}
+							</h3>
 						</div>
-						<div className="p-8 space-y-6">
-							{(() => {
-								const fromStatusValue = ruleForm.fromStatus ?? "any_status";
-								const fromColumnValue =
-									ruleForm.fromColumnSystemKey ?? "any_column";
-								const toStatusValue = ruleForm.toStatus;
-								const fromStatusDisplay =
-									fromStatusPillOptions[fromStatusValue]?.label ?? "Any status";
-								const fromColumnDisplay =
-									fromColumnOptions.find(
-										(option) => option.value === fromColumnValue,
-									)?.label ?? "Any column";
-								const toStatusDisplay =
-									statusPillOptions[toStatusValue]?.label ?? toStatusValue;
-
-								return (
-									<div className="space-y-6">
-										<div className="space-y-2">
-											<label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
-												Signal Trigger
-											</label>
-											<div className="relative">
-												<select
-													value={ruleForm.signalKey}
-													onChange={(e) =>
-														setRuleForm({
-															...ruleForm,
-															signalKey: e.target.value,
-														})
-													}
-													className="w-full appearance-none rounded-2xl border border-slate-800 bg-[#0B0E14] px-4 py-3 text-sm text-slate-200 outline-none focus:border-cyan-500/50 transition-all focus:ring-2 focus:ring-cyan-500/20"
-												>
-													{signals.map((s) => (
-														<option key={s.key} value={s.key}>
-															{s.title} ({s.key})
-														</option>
-													))}
-												</select>
-												<ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600 pointer-events-none" />
-											</div>
-										</div>
-
-										<div className="grid gap-6 sm:grid-cols-3">
-											<div className="space-y-1.5">
-												<PillSelect
-													label="From Status"
-													value={fromStatusValue}
-													options={fromStatusPillOptions}
-													displayValue={fromStatusDisplay}
-													className="w-full"
-													onChange={(value) =>
-														setRuleForm({
-															...ruleForm,
-															fromStatus:
-																value === "any_status"
-																	? null
-																	: toTaskStatusOrNull(value, statusKeySet),
-														})
-													}
-												/>
-											</div>
-											<div className="space-y-2">
-												<label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
-													From Column
-												</label>
-												<div className="relative">
-													<select
-														value={fromColumnValue}
-														onChange={(e) =>
-															setRuleForm({
-																...ruleForm,
-																fromColumnSystemKey:
-																	e.target.value === "any_column"
-																		? null
-																		: toColumnSystemKeyOrNull(
-																				e.target.value,
-																				columnKeySet,
-																			),
-															})
-														}
-														className="w-full appearance-none rounded-2xl border border-slate-800 bg-[#0B0E14] px-4 py-3 text-sm text-slate-200 outline-none focus:border-cyan-500/50 transition-all focus:ring-2 focus:ring-cyan-500/20"
-													>
-														{fromColumnOptions.map((option) => (
-															<option key={option.value} value={option.value}>
-																{option.label}
-															</option>
-														))}
-													</select>
-													<ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600 pointer-events-none" />
-												</div>
-												<p className="text-[10px] font-bold text-slate-500 ml-1 uppercase tracking-tight">
-													{fromColumnDisplay}
-												</p>
-											</div>
-											<div className="space-y-1.5">
-												<PillSelect
-													label="Target Status"
-													value={toStatusValue}
-													options={statusPillOptions}
-													displayValue={toStatusDisplay}
-													className="w-full"
-													onChange={(value) =>
-														setRuleForm({
-															...ruleForm,
-															toStatus: toTaskStatus(
-																value,
-																ruleForm.toStatus,
-																statusKeySet,
-															),
-														})
-													}
-												/>
-											</div>
-										</div>
-									</div>
-								);
-							})()}
-
-							<div className="space-y-4 rounded-3xl bg-slate-900/20 p-6 border border-slate-800/60 relative overflow-hidden group/selectors">
-								<div className="absolute top-0 left-0 w-1 h-full bg-cyan-500/20 group-hover/selectors:bg-cyan-500/40 transition-colors" />
-								<div className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-									<Info className="h-3.5 w-3.5 text-cyan-500" />
-									Advanced Selectors (Run Scope)
-								</div>
-
-								<div className="grid gap-4 sm:grid-cols-2">
-									<div className="space-y-2">
-										<label className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
-											Run Kind
-										</label>
-										<div className="relative">
-											<select
-												value={ruleForm.runKind || ""}
-												onChange={(e) =>
-													setRuleForm({
-														...ruleForm,
-														runKind: e.target.value || null,
-													})
-												}
-												disabled={
-													signals.find((s) => s.key === ruleForm.signalKey)
-														?.scope === "user_action"
-												}
-												className="w-full appearance-none rounded-xl border border-slate-800 bg-[#0B0E14] px-3 py-2 text-xs text-slate-200 outline-none focus:border-cyan-500/50 disabled:opacity-20 transition-all"
-											>
-												<option value="">Any Run Kind</option>
-												{runKindOptions.map((kind) => (
-													<option key={kind} value={kind}>
-														{kind}
-													</option>
-												))}
-											</select>
-											<ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-700 pointer-events-none" />
-										</div>
-									</div>
-									<div className="space-y-2">
-										<label className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
-											Run Status
-										</label>
-										<div className="relative">
-											<select
-												value={ruleForm.runStatus || ""}
-												onChange={(e) =>
-													setRuleForm({
-														...ruleForm,
-														runStatus: toRunStatusOrNull(e.target.value),
-													})
-												}
-												disabled={
-													signals.find((s) => s.key === ruleForm.signalKey)
-														?.scope === "user_action"
-												}
-												className="w-full appearance-none rounded-xl border border-slate-800 bg-[#0B0E14] px-3 py-2 text-xs text-slate-200 outline-none focus:border-cyan-500/50 disabled:opacity-20 transition-all"
-											>
-												<option value="">Any Run Status</option>
-												{RUN_STATUSES.map((s) => (
-													<option key={s} value={s}>
-														{s.toUpperCase()}
-													</option>
-												))}
-											</select>
-											<ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-700 pointer-events-none" />
-										</div>
-									</div>
-								</div>
-								{signals.find((s) => s.key === ruleForm.signalKey)?.scope ===
-									"user_action" && (
-									<p className="text-[9px] font-bold text-amber-500/60 uppercase leading-relaxed text-center italic">
-										Advanced selectors are only available for run-scoped
-										signals.
-									</p>
-								)}
-							</div>
-
-							{formErrors.selector && (
-								<div className="flex items-center gap-3 rounded-2xl bg-red-500/10 border border-red-500/20 p-4 text-xs font-bold text-red-400 animate-pulse">
-									<AlertCircle className="h-4 w-4 shrink-0" />
-									{formErrors.selector}
-								</div>
-							)}
-						</div>
-						<div className="flex items-center justify-end gap-3 border-t border-slate-800/60 px-8 py-6 bg-slate-900/20">
+					}
+					footer={
+						<div className="flex items-center justify-end gap-3 w-full">
 							<button
 								type="button"
 								onClick={() => {
@@ -1381,8 +1172,208 @@ export function WorkflowEngineSignalsEditor({
 								{isAddingRule ? "Add Rule" : "Update Rule"}
 							</button>
 						</div>
-					</div>
-				</div>
+					}
+				>
+					{(() => {
+						const fromStatusValue = ruleForm.fromStatus ?? "any_status";
+						const fromColumnValue =
+							ruleForm.fromColumnSystemKey ?? "any_column";
+						const toStatusValue = ruleForm.toStatus;
+						const fromStatusDisplay =
+							fromStatusPillOptions[fromStatusValue]?.label ?? "Any status";
+						const fromColumnDisplay =
+							fromColumnOptions.find(
+								(option) => option.value === fromColumnValue,
+							)?.label ?? "Any column";
+						const toStatusDisplay =
+							statusPillOptions[toStatusValue]?.label ?? toStatusValue;
+
+						return (
+							<div className="space-y-6">
+								<div className="space-y-2">
+									<label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
+										Signal Trigger
+									</label>
+									<div className="relative">
+										<select
+											value={ruleForm.signalKey}
+											onChange={(e) =>
+												setRuleForm({
+													...ruleForm,
+													signalKey: e.target.value,
+												})
+											}
+											className="w-full appearance-none rounded-2xl border border-slate-700 bg-[#161B26] px-4 py-3 text-sm text-slate-200 outline-none focus:border-cyan-500/50 transition-all focus:ring-4 focus:ring-cyan-500/10"
+										>
+											{signals.map((s) => (
+												<option key={s.key} value={s.key}>
+													{s.title} ({s.key})
+												</option>
+											))}
+										</select>
+										<ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600 pointer-events-none" />
+									</div>
+								</div>
+
+								<div className="grid gap-6 sm:grid-cols-3">
+									<div className="space-y-1.5">
+										<PillSelect
+											label="From Status"
+											value={fromStatusValue}
+											options={fromStatusPillOptions}
+											displayValue={fromStatusDisplay}
+											className="w-full"
+											onChange={(value) =>
+												setRuleForm({
+													...ruleForm,
+													fromStatus:
+														value === "any_status"
+															? null
+															: toTaskStatusOrNull(value, statusKeySet),
+												})
+											}
+										/>
+									</div>
+									<div className="space-y-2">
+										<label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
+											From Column
+										</label>
+										<div className="relative">
+											<select
+												value={fromColumnValue}
+												onChange={(e) =>
+													setRuleForm({
+														...ruleForm,
+														fromColumnSystemKey:
+															e.target.value === "any_column"
+																? null
+																: toColumnSystemKeyOrNull(
+																		e.target.value,
+																		columnKeySet,
+																	),
+												})
+											}
+											className="w-full appearance-none rounded-2xl border border-slate-700 bg-[#161B26] px-4 py-3 text-sm text-slate-200 outline-none focus:border-cyan-500/50 transition-all focus:ring-4 focus:ring-cyan-500/10"
+											>
+												{fromColumnOptions.map((option) => (
+													<option key={option.value} value={option.value}>
+														{option.label}
+													</option>
+												))}
+											</select>
+											<ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600 pointer-events-none" />
+										</div>
+										<p className="text-[10px] font-bold text-slate-500 ml-1 uppercase tracking-tight">
+											{fromColumnDisplay}
+										</p>
+									</div>
+									<div className="space-y-1.5">
+										<PillSelect
+											label="Target Status"
+											value={toStatusValue}
+											options={statusPillOptions}
+											displayValue={toStatusDisplay}
+											className="w-full"
+											onChange={(value) =>
+												setRuleForm({
+													...ruleForm,
+													toStatus: toTaskStatus(
+														value,
+														ruleForm.toStatus,
+														statusKeySet,
+													),
+												})
+											}
+										/>
+									</div>
+								</div>
+
+								<div className="space-y-4 rounded-3xl bg-slate-900/20 p-6 border border-slate-800/60 relative overflow-hidden group/selectors">
+									<div className="absolute top-0 left-0 w-1 h-full bg-cyan-500/20 group-hover/selectors:bg-cyan-500/40 transition-colors" />
+									<div className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+										<Info className="h-3.5 w-3.5 text-cyan-500" />
+										Advanced Selectors (Run Scope)
+									</div>
+
+									<div className="grid gap-4 sm:grid-cols-2">
+										<div className="space-y-2">
+											<label className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
+												Run Kind
+											</label>
+											<div className="relative">
+												<select
+													value={ruleForm.runKind || ""}
+													onChange={(e) =>
+														setRuleForm({
+															...ruleForm,
+															runKind: e.target.value || null,
+														})
+													}
+													disabled={
+														signals.find((s) => s.key === ruleForm.signalKey)
+															?.scope === "user_action"
+													}
+													className="w-full appearance-none rounded-xl border border-slate-800 bg-[#0B0E14] px-3 py-2 text-xs text-slate-200 outline-none focus:border-cyan-500/50 disabled:opacity-20 transition-all"
+												>
+													<option value="">Any Run Kind</option>
+													{runKindOptions.map((kind) => (
+														<option key={kind} value={kind}>
+															{kind}
+														</option>
+													))}
+												</select>
+												<ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-700 pointer-events-none" />
+											</div>
+										</div>
+										<div className="space-y-2">
+											<label className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
+												Run Status
+											</label>
+											<div className="relative">
+												<select
+													value={ruleForm.runStatus || ""}
+													onChange={(e) =>
+														setRuleForm({
+															...ruleForm,
+															runStatus: toRunStatusOrNull(e.target.value),
+														})
+													}
+													disabled={
+														signals.find((s) => s.key === ruleForm.signalKey)
+															?.scope === "user_action"
+													}
+													className="w-full appearance-none rounded-xl border border-slate-800 bg-[#0B0E14] px-3 py-2 text-xs text-slate-200 outline-none focus:border-cyan-500/50 disabled:opacity-20 transition-all"
+												>
+													<option value="">Any Run Status</option>
+													{RUN_STATUSES.map((s) => (
+														<option key={s} value={s}>
+															{s.toUpperCase()}
+														</option>
+													))}
+												</select>
+												<ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-700 pointer-events-none" />
+											</div>
+										</div>
+									</div>
+									{signals.find((s) => s.key === ruleForm.signalKey)?.scope ===
+										"user_action" && (
+										<p className="text-[9px] font-bold text-amber-500/60 uppercase leading-relaxed text-center italic">
+											Advanced selectors are only available for run-scoped
+											signals.
+										</p>
+									)}
+								</div>
+
+								{formErrors.selector && (
+									<div className="flex items-center gap-3 rounded-2xl bg-red-500/10 border border-red-500/20 p-4 text-xs font-bold text-red-400 animate-pulse">
+										<AlertCircle className="h-4 w-4 shrink-0" />
+										{formErrors.selector}
+									</div>
+								)}
+							</div>
+						);
+					})()}
+				</Modal>
 			)}
 		</div>
 	);

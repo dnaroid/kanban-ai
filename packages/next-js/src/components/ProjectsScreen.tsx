@@ -15,6 +15,7 @@ import { FileSystemPicker } from "@/components/common/FileSystemPicker";
 import type { Project } from "@/server/types";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
+import { Modal } from "@/components/common/Modal";
 
 interface ProjectsScreenProps {
 	onProjectSelect: (id: string, name: string) => void;
@@ -62,114 +63,106 @@ function CreateProjectModal({
 	if (!isOpen) return null;
 
 	return (
-		<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
-			<div className="bg-[#11151C] border border-slate-800/60 rounded-2xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
-				<div className="flex items-center justify-between mb-2">
-					<h2 className="text-2xl font-bold text-white">Connect Repository</h2>
+		<Modal
+			open={isOpen}
+			onOpenChange={(open) => !open && onClose()}
+			size="sm"
+			title="Connect Repository"
+			description="Select a local folder to start managing tasks"
+			footer={
+				<>
 					<button
 						type="button"
-						onClick={onClose}
-						className="text-slate-500 hover:text-slate-300 transition-colors"
+						onClick={() => {
+							onClose();
+							setSelectedFolder(null);
+							setIsBrowserOpen(false);
+						}}
+						className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-semibold text-xs transition-all border border-slate-700/50"
 					>
-						<X className="w-5 h-5" />
+						Cancel
 					</button>
-				</div>
-				<p className="text-slate-500 text-sm mb-8">
-					Select a local folder to start managing tasks
-				</p>
-
-				<form onSubmit={handleSubmit} className="space-y-6">
-					<div className="space-y-2">
-						<label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
-							Project Folder
-						</label>
-						<div className="flex gap-2">
-							<div className="flex-1 px-4 py-3 bg-[#0B0E14] border border-slate-800 rounded-xl text-white font-mono text-sm overflow-hidden">
-								{selectedFolder ? (
-									<span className="truncate block">{selectedFolder.path}</span>
-								) : (
-									<span className="text-slate-600">No folder selected</span>
-								)}
-							</div>
-							<button
-								type="button"
-								onClick={handleSelectFolder}
-								className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-bold text-xs transition-all border border-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-							>
-								Browse...
-							</button>
+					<button
+						type="button"
+						onClick={handleSubmit}
+						disabled={!selectedFolder}
+						className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-600/20"
+					>
+						Connect
+					</button>
+				</>
+			}
+		>
+			<form onSubmit={handleSubmit} className="space-y-6">
+				<div className="space-y-2">
+					<label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+						Project Folder
+					</label>
+					<div className="flex gap-2">
+						<div className="flex-1 px-4 py-3 bg-[#161B26] border border-slate-700 rounded-xl text-slate-200 font-mono text-sm overflow-hidden">
+							{selectedFolder ? (
+								<span className="truncate block">{selectedFolder.path}</span>
+							) : (
+								<span className="text-slate-500">No folder selected</span>
+							)}
 						</div>
-						<p className="text-[11px] text-slate-500 pl-1">
-							Browse and select the project folder.
-						</p>
-					</div>
-
-					{selectedFolder && (
-						<div className="space-y-4 animate-in slide-in-from-top-2 duration-200">
-							<div className="space-y-2">
-								<label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
-									Project Name
-								</label>
-								<input
-									type="text"
-									value={projectName}
-									onChange={(e) => setProjectName(e.target.value)}
-									placeholder="Enter project name"
-									className="w-full px-4 py-3 bg-[#0B0E14] border border-slate-800 rounded-xl text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all"
-								/>
-							</div>
-
-							<div className="space-y-3">
-								<label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
-									Project Color
-								</label>
-								<div className="grid grid-cols-4 gap-2">
-									{PROJECT_COLORS.map((color) => (
-										<button
-											key={color.value}
-											type="button"
-											onClick={() => setSelectedColor(color.value)}
-											className={cn(
-												"h-10 rounded-xl transition-all relative flex items-center justify-center group",
-												selectedColor === color.value
-													? "ring-2 ring-white ring-offset-2 ring-offset-[#11151C]"
-													: "opacity-60 hover:opacity-100",
-											)}
-											style={{ backgroundColor: color.value }}
-											title={color.name}
-										>
-											{selectedColor === color.value && (
-												<Check className="w-5 h-5 text-white shadow-lg" />
-											)}
-										</button>
-									))}
-								</div>
-							</div>
-						</div>
-					)}
-
-					<div className="flex gap-4 pt-4">
 						<button
 							type="button"
-							onClick={() => {
-								onClose();
-								setSelectedFolder(null);
-								setIsBrowserOpen(false);
-							}}
-							className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-semibold text-xs transition-all border border-slate-700/50"
+							onClick={handleSelectFolder}
+							className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-bold text-xs transition-all border border-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
 						>
-							Cancel
-						</button>
-						<button
-							type="submit"
-							disabled={!selectedFolder}
-							className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-600/20"
-						>
-							Connect
+							Browse...
 						</button>
 					</div>
-				</form>
-			</div>
+					<p className="text-[11px] text-slate-500 pl-1 font-medium">
+						Browse and select the project folder.
+					</p>
+				</div>
+
+				{selectedFolder && (
+					<div className="space-y-4 animate-in slide-in-from-top-2 duration-200">
+						<div className="space-y-2">
+							<label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+								Project Name
+							</label>
+							<input
+								type="text"
+								value={projectName}
+								onChange={(e) => setProjectName(e.target.value)}
+								placeholder="Enter project name"
+								className="w-full px-4 py-3 bg-[#161B26] border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all placeholder:text-slate-500"
+							/>
+						</div>
+
+						<div className="space-y-3">
+							<label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+								Project Color
+							</label>
+							<div className="grid grid-cols-4 gap-2">
+								{PROJECT_COLORS.map((color) => (
+									<button
+										key={color.value}
+										type="button"
+										onClick={() => setSelectedColor(color.value)}
+										className={cn(
+											"h-10 rounded-xl transition-all relative flex items-center justify-center group",
+											selectedColor === color.value
+												? "ring-2 ring-white ring-offset-2 ring-offset-[#0B0E14]"
+												: "opacity-60 hover:opacity-100",
+										)}
+										style={{ backgroundColor: color.value }}
+										title={color.name}
+									>
+										{selectedColor === color.value && (
+											<Check className="w-5 h-5 text-white shadow-lg" />
+										)}
+									</button>
+								))}
+							</div>
+						</div>
+					</div>
+				)}
+			</form>
 
 			<FileSystemPicker
 				isOpen={isBrowserOpen}
@@ -186,7 +179,7 @@ function CreateProjectModal({
 				title="Select Project Folder"
 				selectLabel="Select Current Folder"
 			/>
-		</div>
+		</Modal>
 	);
 }
 
