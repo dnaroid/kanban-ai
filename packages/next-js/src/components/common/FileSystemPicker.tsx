@@ -261,8 +261,8 @@ export function FileSystemPicker({
 			open={isOpen}
 			onOpenChange={(open) => !open && onClose()}
 			size="lg"
-			className="p-0 flex flex-col h-[640px] max-w-3xl overflow-hidden"
-			contentClassName="flex-1 flex flex-col min-h-0 space-y-0"
+			className="flex flex-col h-[640px] max-w-3xl overflow-hidden"
+			contentClassName="flex-1 flex flex-col min-h-0 space-y-4"
 			title={
 				<div>
 					<h2 className="text-xl font-bold text-white tracking-tight">
@@ -310,7 +310,7 @@ export function FileSystemPicker({
 				</div>
 			}
 		>
-			<div className="px-6 py-4 flex items-center gap-3 bg-[#0B0E14]">
+			<div className="flex items-center gap-3">
 				<div className="flex gap-2">
 					<button
 						type="button"
@@ -342,7 +342,7 @@ export function FileSystemPicker({
 						value={filterText}
 						onChange={(e) => setFilterText(e.target.value)}
 						placeholder="Filter items..."
-						className="w-full bg-[#161B26] border border-slate-800/60 text-sm text-slate-300 rounded-xl pl-10 pr-10 py-2 hover:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500/30 transition-all placeholder:text-slate-600"
+						className="w-full bg-[#161B26] border border-slate-800/60 text-sm text-slate-300 rounded-xl pl-10 pr-10 py-2 hover:border-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/30 transition-all placeholder:text-slate-600"
 					/>
 					{filterText && (
 						<button
@@ -356,7 +356,7 @@ export function FileSystemPicker({
 				</div>
 			</div>
 
-			<div className="flex-1 overflow-hidden px-6 pb-6 min-h-[300px]">
+			<div className="flex-1 overflow-hidden min-h-[300px]">
 				<div className="h-full bg-[#0B0E14] border border-slate-800/60 rounded-xl overflow-hidden shadow-inner shadow-black/40 flex flex-col">
 					<div className="flex-1 overflow-y-auto custom-scrollbar p-1">
 						{loading ? (
