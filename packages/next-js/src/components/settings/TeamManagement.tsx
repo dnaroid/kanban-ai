@@ -10,6 +10,7 @@ import {
 import {
 	Brain,
 	ChevronRight,
+	Cpu,
 	Loader2,
 	Plus,
 	RefreshCw,
@@ -459,42 +460,94 @@ export function TeamManagement() {
 							<Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
 						</div>
 					) : (
-						sortedFilteredRoles.map((role) => (
-							<button
-								type="button"
-								key={role.id}
-								onClick={() => selectRole(role)}
-								className={cn(
-									"w-full text-left p-4 rounded-2xl border transition-all duration-300 group flex items-center justify-between",
-									selectedRoleId === role.id
-										? "bg-blue-500/10 border-blue-500/40"
-										: "bg-slate-900/20 border-slate-800/60 hover:border-slate-700 hover:bg-slate-800/40",
-								)}
-							>
-								<div className="flex items-center gap-4">
-									<div className="w-10 h-10 rounded-xl flex items-center justify-center bg-slate-800 text-slate-400">
-										<Terminal className="w-5 h-5" />
-									</div>
-									<div>
-										<div className="flex items-center gap-2">
-											<h3 className="font-black text-sm tracking-tight text-slate-200">
-												{role.name}
-											</h3>
-											{(roleBehaviorById.get(role.id) ?? DEFAULT_BEHAVIOR)
-												.recommended ? (
-												<span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-[8px] font-black uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-500/30">
-													Recommended
-												</span>
-											) : null}
+						sortedFilteredRoles.map((role) => {
+							const preset = parseRolePreset(role.preset_json);
+							const behavior = preset.behavior ?? DEFAULT_BEHAVIOR;
+							const hasModel = role.preferred_model_name || role.preferred_llm_agent;
+							const skillsCount = preset.skills.length;
+
+							return (
+								<button
+									type="button"
+									key={role.id}
+									onClick={() => selectRole(role)}
+									className={cn(
+										"w-full text-left p-4 rounded-2xl border transition-all duration-300 group flex items-center justify-between",
+										selectedRoleId === role.id
+											? "bg-blue-500/10 border-blue-500/40 shadow-lg shadow-blue-500/5"
+											: "bg-slate-900/20 border-slate-800/60 hover:border-slate-700 hover:bg-slate-800/40",
+									)}
+								>
+									<div className="flex items-center gap-4 min-w-0">
+										<div className={cn(
+											"w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
+											selectedRoleId === role.id ? "bg-blue-500/20 text-blue-400" : "bg-slate-800 text-slate-400"
+										)}>
+											<Terminal className="w-5 h-5" />
 										</div>
-										<p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-											{role.id}
-										</p>
+										<div className="min-w-0">
+											<div className="flex items-center gap-2">
+												<h3 className="font-black text-sm tracking-tight text-slate-200 truncate">
+													{role.name}
+												</h3>
+												<span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider shrink-0">
+													{role.id}
+												</span>
+												{behavior.recommended ? (
+													<span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-[8px] font-black uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-500/30 shrink-0">
+														Recommended
+													</span>
+												) : null}
+											</div>
+											
+											{(hasModel || skillsCount > 0) ? (
+												<div className="flex items-center gap-2 mt-1">
+													{hasModel && (
+														<div className="flex items-center gap-1 text-[9px] font-bold text-blue-400/80 uppercase tracking-tight">
+															<Cpu className="w-2.5 h-2.5" />
+															<div className="truncate max-w-[180px] flex items-center gap-1">
+																{role.preferred_llm_agent && (
+																	<span className="text-blue-400">{role.preferred_llm_agent}</span>
+																)}
+																{role.preferred_llm_agent && role.preferred_model_name && (
+																	<span className="text-slate-600 font-black">@</span>
+																)}
+																{role.preferred_model_name && (
+																	<span className="text-slate-400">
+																		{role.preferred_model_name}
+																		{role.preferred_model_variant ? ` (${role.preferred_model_variant})` : ''}
+																	</span>
+																)}
+																{!role.preferred_llm_agent && !role.preferred_model_name && (
+																	<span className="text-slate-500 italic">Default</span>
+																)}
+															</div>
+														</div>
+													)}
+													{skillsCount > 0 && (
+														<div className={cn(
+															"flex items-center gap-1 text-[9px] font-bold text-purple-400/80 uppercase tracking-tight",
+															hasModel && "border-l border-slate-800 pl-2"
+														)}>
+															<Brain className="w-2.5 h-2.5" />
+															<span>{skillsCount} Skills</span>
+														</div>
+													)}
+												</div>
+											) : (
+												<p className="text-[9px] font-medium text-slate-600 italic mt-0.5">
+													No specific model or skills assigned
+												</p>
+											)}
+										</div>
 									</div>
-								</div>
-								<ChevronRight className="w-4 h-4 text-slate-600" />
-							</button>
-						))
+									<ChevronRight className={cn(
+										"w-4 h-4 transition-colors shrink-0 ml-2",
+										selectedRoleId === role.id ? "text-blue-400" : "text-slate-600"
+									)} />
+								</button>
+							);
+						})
 					)}
 				</div>
 
