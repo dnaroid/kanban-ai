@@ -10,6 +10,7 @@ import {
 	AlertCircle,
 	X,
 	AlertTriangle,
+	Cpu,
 } from "lucide-react";
 import { ModelPicker } from "@/components/common/ModelPicker";
 import type { OpencodeModel } from "@/types/kanban";
@@ -416,6 +417,10 @@ function ObjectTreeNode({
 	const label = path.split(".").pop() ?? "";
 	const fieldLabel = schema.title ?? label;
 
+	// Extract model and variant for header
+	const itemModel = obj.model as string | undefined;
+	const itemVariant = obj.variant as string | undefined;
+
 	const pathErrors = validationErrors.filter(
 		(e) => e.path === path || e.path.startsWith(`${path}.`),
 	);
@@ -435,6 +440,17 @@ function ObjectTreeNode({
 				<span className="text-sm font-bold text-slate-300 truncate">
 					{fieldLabel}
 				</span>
+
+				{itemModel && (
+					<div className="flex items-center gap-1.5 ml-2 px-2 py-0.5 rounded-md bg-blue-500/5 ring-1 ring-blue-500/20 max-w-[200px] truncate">
+						<Cpu className="w-3 h-3 text-blue-400 shrink-0" />
+						<span className="text-[10px] font-bold text-blue-400/80 uppercase tracking-tight truncate">
+							{itemModel}
+							{itemVariant ? ` (${itemVariant})` : ""}
+						</span>
+					</div>
+				)}
+
 				{pathErrors.length > 0 && (
 					<span className="text-xs text-red-400 ml-2 flex items-center gap-1">
 						<AlertCircle className="w-3 h-3" />
