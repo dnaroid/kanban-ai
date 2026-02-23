@@ -139,17 +139,7 @@ export function WorkflowSettingsProvider({ children }: { children: ReactNode }) 
 	const isValid = validationErrors.length === 0 && !jsonError;
 
 	const loadConfig = useCallback(
-		async (confirm = true, hasUnsavedChanges = false) => {
-			if (confirm && hasUnsavedChanges) {
-				if (
-					!window.confirm(
-						"You have unsaved changes. Are you sure you want to reload and discard them?",
-					)
-				) {
-					return;
-				}
-			}
-
+		async (skipConfirm = false) => {
 			setIsLoading(true);
 			try {
 				const config = await api.workflow.getConfig();
@@ -170,7 +160,7 @@ export function WorkflowSettingsProvider({ children }: { children: ReactNode }) 
 	);
 
 	useEffect(() => {
-		void loadConfig(false);
+		void loadConfig(true);
 	}, [loadConfig]);
 
 	const saveConfig = async () => {
@@ -198,14 +188,8 @@ export function WorkflowSettingsProvider({ children }: { children: ReactNode }) 
 
 	const resetDraft = () => {
 		if (!originalConfig) return;
-		if (
-			window.confirm(
-				"Are you sure you want to reset all changes to the last saved state?",
-			)
-		) {
-			setDraftConfig(JSON.parse(JSON.stringify(originalConfig)));
-			setJsonError(null);
-		}
+		setDraftConfig(JSON.parse(JSON.stringify(originalConfig)));
+		setJsonError(null);
 	};
 
 	const updateDraft = (updates: Partial<WorkflowConfig>) => {

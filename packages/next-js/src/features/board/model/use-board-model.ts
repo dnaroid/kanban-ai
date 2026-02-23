@@ -30,6 +30,22 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 	const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
 	const [isQueueingSignalRuns, setIsQueueingSignalRuns] = useState(false);
 
+	const [deleteTaskConfirm, setDeleteTaskConfirm] = useState<{ isOpen: boolean; taskId: string | null }>({
+		isOpen: false,
+		taskId: null,
+	});
+	const [deleteColumnConfirm, setDeleteColumnConfirm] = useState<{ isOpen: boolean; columnId: string | null }>({
+		isOpen: false,
+		columnId: null,
+	});
+	const [columnHasTasksConfirm, setColumnHasTasksConfirm] = useState<{ isOpen: boolean }>({
+		isOpen: false,
+	});
+	const [signalErrorConfirm, setSignalErrorConfirm] = useState<{ isOpen: boolean; message: string | null }>({
+		isOpen: false,
+		message: null,
+	});
+
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
 		useSensor(KeyboardSensor, {
@@ -393,16 +409,19 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		}
 	};
 
-	const handleDeleteTask = async (taskId: string) => {
-		if (!confirm("Are you sure you want to delete this task?")) {
-			return;
-		}
+	const handleDeleteTask = (taskId: string) => {
+		setDeleteTaskConfirm({ isOpen: true, taskId });
+	};
 
+	const confirmDeleteTask = async () => {
+		if (!deleteTaskConfirm.taskId) return;
 		try {
-			await api.deleteTask(taskId);
+			await api.deleteTask(deleteTaskConfirm.taskId);
 			await loadBoard();
 		} catch (deleteError) {
 			console.error("Failed to delete task:", deleteError);
+		} finally {
+			setDeleteTaskConfirm({ isOpen: false, taskId: null });
 		}
 	};
 
@@ -494,20 +513,20 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		setEditingColumnId(null);
 	};
 
-	const handleDeleteColumn = async (columnId: string) => {
-		if (!board) {
-			return;
-		}
+	const handleDeleteColumn = (columnId: string) => {
+		if (!board) return;
 		if (tasks.filter((task) => task.columnId === columnId).length > 0) {
-			alert("Cannot delete column with tasks.");
+			setColumnHasTasksConfirm({ isOpen: true });
 			return;
 		}
-		if (!confirm("Are you sure you want to delete this column?")) {
-			return;
-		}
+		setDeleteColumnConfirm({ isOpen: true, columnId });
+	};
+
+	const confirmDeleteColumn = async () => {
+		if (!board || !deleteColumnConfirm.columnId) return;
 
 		const newColumns = (board.columns || [])
-			.filter((column) => column.id !== columnId)
+			.filter((column) => column.id !== deleteColumnConfirm.columnId)
 			.map(({ id, name, systemKey, color }) => ({
 				id,
 				name,
@@ -522,6 +541,8 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			setBoard({ ...board, columns: response });
 		} catch (deleteError) {
 			console.error("Failed to delete column:", deleteError);
+		} finally {
+			setDeleteColumnConfirm({ isOpen: false, columnId: null });
 		}
 	};
 
@@ -609,5 +630,15 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		openCreateColumnModal,
 		handleStartSignalRuns,
 		isQueueingSignalRuns,
+		deleteTaskConfirm,
+		setDeleteTaskConfirm,
+		confirmDeleteTask,
+		deleteColumnConfirm,
+		setDeleteColumnConfirm,
+		confirmDeleteColumn,
+		columnHasTasksConfirm,
+		setColumnHasTasksConfirm,
+		signalErrorConfirm,
+		setSignalErrorConfirm,
 	};
 }

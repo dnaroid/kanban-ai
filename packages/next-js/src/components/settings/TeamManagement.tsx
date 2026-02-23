@@ -23,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { useSettingsStatus } from "@/components/settings/SettingsStatusContext";
+import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 import type { OpencodeAgent, OpencodeModel } from "@/types/ipc";
 
 interface AgentRolePreset {
@@ -122,6 +123,8 @@ export function TeamManagement() {
 	const [isSaving, setIsSaving] = useState(false);
 	const [isRefreshingSkills, setIsRefreshingSkills] = useState(false);
 	const [skillQuery, setSkillQuery] = useState("");
+	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+	const [deletingId, setDeletingId] = useState<string | null>(null);
 	const { setStatus } = useSettingsStatus();
 
 	const [formId, setFormId] = useState("");
@@ -275,21 +278,27 @@ export function TeamManagement() {
 		}
 	};
 
-	const handleDelete = async (id: string) => {
-		if (!confirm(`Are you sure you want to delete the role "${id}"?`)) {
-			return;
-		}
+	const handleDelete = (id: string) => {
+		setDeletingId(id);
+		setShowDeleteConfirm(true);
+	};
+
+	const confirmDelete = async () => {
+		if (!deletingId) return;
 
 		try {
-			await api.roles.delete({ id });
+			await api.roles.delete({ id: deletingId });
 			setStatus({ message: "Role deleted", type: "success" });
 			await loadRoles();
-			if (selectedRoleId === id) {
+			if (selectedRoleId === deletingId) {
 				handleAddNew();
 			}
 		} catch (error) {
 			console.error("Failed to delete role:", error);
 			setStatus({ message: "Failed to delete role", type: "error" });
+		} finally {
+			setShowDeleteConfirm(false);
+			setDeletingId(null);
 		}
 	};
 
@@ -765,6 +774,18 @@ export function TeamManagement() {
 					</div>
 				</div>
 			</div>
+
+			<ConfirmationModal
+				isOpen={showDeleteConfirm}
+				onClose={() => {
+					setShowDeleteConfirm(false);
+					setDeletingId(null);
+				}}
+				onConfirm={confirmDelete}
+				title="Delete Agent Role"
+				description={`Are you sure you want to delete the role "${deletingId}"? This action cannot be undone.`}
+				confirmLabel="Delete Role"
+			/>
 		</div>
 	);
 }

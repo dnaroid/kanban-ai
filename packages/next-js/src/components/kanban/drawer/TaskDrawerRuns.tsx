@@ -20,6 +20,7 @@ import {
 	toneBadgeStyle,
 } from "@/components/kanban/workflow-display";
 import { useWorkflowDisplayConfig } from "@/components/kanban/useWorkflowDisplayConfig";
+import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 
 interface TaskDrawerRunsProps {
 	task: KanbanTask;
@@ -106,6 +107,8 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 	const [roles, setRoles] = useState<AgentRole[]>([]);
 	const [isLoadingRoles, setIsLoadingRoles] = useState(false);
 	const [selectedRoleId, setSelectedRoleId] = useState<string>("");
+	const [runToDelete, setRunToDelete] = useState<string | null>(null);
+	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
 	const quickSelectRoles = roles.filter((role) => role.quickSelect);
 	const assignedRoleId = resolveAssignedRoleId(task.tags);
@@ -218,17 +221,25 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 		}
 	};
 
-	const handleDeleteRun = async (runId: string, e: React.MouseEvent) => {
+	const handleDeleteRun = (runId: string, e: React.MouseEvent) => {
 		e.stopPropagation();
-		if (!window.confirm("Are you sure you want to delete this run?")) return;
+		setRunToDelete(runId);
+		setShowDeleteConfirm(true);
+	};
+
+	const confirmDeleteRun = async () => {
+		if (!runToDelete) return;
 		try {
-			await api.run.delete({ runId });
+			await api.run.delete({ runId: runToDelete });
 			await fetchRuns();
-			if (selectedRunId === runId) {
+			if (selectedRunId === runToDelete) {
 				setSelectedRunId(null);
 			}
 		} catch (error) {
 			console.error("Failed to delete run:", error);
+		} finally {
+			setShowDeleteConfirm(false);
+			setRunToDelete(null);
 		}
 	};
 
@@ -518,6 +529,18 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 					</div>
 				)}
 			</div>
+
+			<ConfirmationModal
+				isOpen={showDeleteConfirm}
+				onClose={() => {
+					setShowDeleteConfirm(false);
+					setRunToDelete(null);
+				}}
+				onConfirm={confirmDeleteRun}
+				title="Delete Execution Run"
+				description={`Are you sure you want to delete run ${runToDelete?.slice(0, 8)}? All execution logs and results for this run will be permanently removed.`}
+				confirmLabel="Delete Run"
+			/>
 		</div>
 	);
 }

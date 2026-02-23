@@ -21,6 +21,8 @@ import {
 	useWorkflowSettings,
 } from "@/components/settings/WorkflowSettingsContext";
 import { cn } from "@/lib/utils";
+import { ConfirmationModal } from "@/components/common/ConfirmationModal";
+import { useState } from "react";
 
 const tabs: { id: string; label: string; icon: LucideIcon; path: string }[] = [
 	{ id: "events", label: "Events", icon: SlidersHorizontal, path: "/settings/workflow/events" },
@@ -42,6 +44,21 @@ function WorkflowSettingsHeader() {
 		validationErrors,
 		jsonError,
 	} = useWorkflowSettings();
+
+	const [showReloadConfirm, setShowReloadConfirm] = useState(false);
+	const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
+	const handleReloadClick = () => {
+		if (isDirty) {
+			setShowReloadConfirm(true);
+		} else {
+			void loadConfig(true);
+		}
+	};
+
+	const handleDiscardClick = () => {
+		setShowDiscardConfirm(true);
+	};
 
 	return (
 		<div className="space-y-6">
@@ -77,7 +94,7 @@ function WorkflowSettingsHeader() {
 				<div className="flex items-center gap-3">
 					<button
 						type="button"
-						onClick={() => void loadConfig(true, isDirty)}
+						onClick={handleReloadClick}
 						disabled={isLoading || isSaving}
 						className="flex items-center gap-2 h-9 px-4 bg-slate-900/50 hover:bg-slate-800/70 disabled:opacity-30 text-slate-300 border border-slate-700/70 rounded-xl font-bold text-xs uppercase tracking-widest transition-all active:scale-95"
 					>
@@ -87,7 +104,7 @@ function WorkflowSettingsHeader() {
 					{isDirty && (
 						<button
 							type="button"
-							onClick={resetDraft}
+							onClick={handleDiscardClick}
 							disabled={isLoading || isSaving}
 							className="flex items-center gap-2 h-9 px-4 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-xl font-bold text-xs uppercase tracking-widest transition-all active:scale-95"
 						>
@@ -115,6 +132,26 @@ function WorkflowSettingsHeader() {
 					</button>
 				</div>
 			</div>
+
+			<ConfirmationModal
+				isOpen={showReloadConfirm}
+				onClose={() => setShowReloadConfirm(false)}
+				onConfirm={() => void loadConfig(true)}
+				title="Discard Changes & Reload"
+				description="You have unsaved changes in your workflow configuration. Are you sure you want to reload? All local edits will be lost."
+				confirmLabel="Reload & Discard"
+				variant="warning"
+			/>
+
+			<ConfirmationModal
+				isOpen={showDiscardConfirm}
+				onClose={() => setShowDiscardConfirm(false)}
+				onConfirm={resetDraft}
+				title="Discard All Changes"
+				description="Are you sure you want to reset all changes to the last saved state? This action cannot be undone."
+				confirmLabel="Discard Changes"
+				variant="danger"
+			/>
 
 			{/* Global Errors */}
 			{!isValid && (

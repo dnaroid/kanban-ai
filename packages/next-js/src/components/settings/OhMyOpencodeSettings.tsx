@@ -48,6 +48,7 @@ import {
 	type ValidationError,
 } from "./DynamicFormFields";
 import type { JSONSchema } from "@/lib/json-schema-types";
+import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 
 type OhMyOpencodeSettingsProps = {
 	onStatusChangeAction: (status: {
@@ -601,6 +602,8 @@ export function OhMyOpencodeSettings({
 		string | undefined
 	>(undefined);
 	const [schema, setSchema] = useState<JSONSchema | null>(null);
+	const [showNavConfirm, setShowNavConfirm] = useState(false);
+	const [pendingPath, setPendingPath] = useState<string | null>(null);
 
 	const loadPresets = useCallback(async (path: string) => {
 		try {

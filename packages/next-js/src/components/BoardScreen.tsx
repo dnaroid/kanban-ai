@@ -22,6 +22,7 @@ import { ListView, ListItemView } from "./kanban/board/ListView";
 import { QuickCreateModal } from "./kanban/board/QuickCreateModal";
 import { useBoardModel } from "@/features/board/model/use-board-model";
 import { cn } from "@/lib/utils";
+import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 
 interface BoardScreenProps {
 	projectId: string;
@@ -54,8 +55,19 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 		handleAddTask,
 		handleQuickGenerateStory,
 		handleDeleteTask,
+		handleDeleteColumn,
 		handleStartSignalRuns,
 		isQueueingSignalRuns,
+		deleteTaskConfirm,
+		setDeleteTaskConfirm,
+		confirmDeleteTask,
+		deleteColumnConfirm,
+		setDeleteColumnConfirm,
+		confirmDeleteColumn,
+		columnHasTasksConfirm,
+		setColumnHasTasksConfirm,
+		signalErrorConfirm,
+		setSignalErrorConfirm,
 	} = useBoardModel({ projectId });
 
 	const [expandedColumns, setExpandedColumns] = useState<
@@ -165,7 +177,7 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 									startError instanceof Error
 										? startError.message
 										: "Failed to queue tasks by signal";
-								alert(message);
+								setSignalErrorConfirm({ isOpen: true, message });
 							});
 						}}
 						disabled={isQueueingSignalRuns}
@@ -282,6 +294,44 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 							await handleQuickGenerateStory(firstColumnId, prompt);
 						}
 					}}
+				/>
+
+				<ConfirmationModal
+					isOpen={deleteTaskConfirm.isOpen}
+					onClose={() => setDeleteTaskConfirm({ isOpen: false, taskId: null })}
+					onConfirm={confirmDeleteTask}
+					title="Delete Task"
+					description="Are you sure you want to delete this task? This action cannot be undone."
+					confirmLabel="Delete Task"
+				/>
+
+				<ConfirmationModal
+					isOpen={deleteColumnConfirm.isOpen}
+					onClose={() => setDeleteColumnConfirm({ isOpen: false, columnId: null })}
+					onConfirm={confirmDeleteColumn}
+					title="Delete Column"
+					description="Are you sure you want to delete this column? All tasks must be moved out of the column first."
+					confirmLabel="Delete Column"
+				/>
+
+				<ConfirmationModal
+					isOpen={columnHasTasksConfirm.isOpen}
+					onClose={() => setColumnHasTasksConfirm({ isOpen: false })}
+					onConfirm={() => {}}
+					title="Cannot Delete Column"
+					description="Cannot delete a column that contains tasks. Please move all tasks to another column first."
+					confirmLabel="Understand"
+					variant="warning"
+				/>
+
+				<ConfirmationModal
+					isOpen={signalErrorConfirm.isOpen}
+					onClose={() => setSignalErrorConfirm({ isOpen: false, message: null })}
+					onConfirm={() => {}}
+					title="Workflow Engine Error"
+					description={signalErrorConfirm.message || "An error occurred while queueing tasks by signal."}
+					confirmLabel="Close"
+					variant="danger"
 				/>
 			</main>
 		</div>

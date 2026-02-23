@@ -21,6 +21,7 @@ import {
 import { PillSelect } from "@/components/common/PillSelect";
 import { createStatusPillOptions } from "@/components/kanban/workflow-display";
 import { Modal } from "@/components/common/Modal";
+import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 
 import type {
 	WorkflowColumnConfig,
@@ -211,6 +212,12 @@ export function WorkflowEngineSignalsEditor({
 	const [editingRuleKey, setEditingRuleKey] = useState<string | null>(null);
 	const [isAddingSignal, setIsAddingSignal] = useState(false);
 	const [isAddingRule, setIsAddingRule] = useState(false);
+
+	// Confirmation state
+	const [showDeleteSignalConfirm, setShowDeleteSignalConfirm] = useState(false);
+	const [deletingSignalKey, setDeletingSignalKey] = useState<string | null>(null);
+	const [showDeleteRuleConfirm, setShowDeleteRuleConfirm] = useState(false);
+	const [deletingRuleKey, setDeletingRuleKey] = useState<string | null>(null);
 
 	// Form States
 	const [signalForm, setSignalForm] = useState<WorkflowSignalConfig | null>(
@@ -403,16 +410,18 @@ export function WorkflowEngineSignalsEditor({
 	};
 
 	const handleDeleteSignal = (key: string) => {
-		if (
-			window.confirm(
-				`Are you sure you want to delete signal "${key}"? This will also delete related rules.`,
-			)
-		) {
-			const newSignals = signals.filter((s) => s.key !== key);
-			const newRules = signalRules.filter((r) => r.signalKey !== key);
-			onSignalsChange(newSignals);
-			onSignalRulesChange(newRules);
-		}
+		setDeletingSignalKey(key);
+		setShowDeleteSignalConfirm(true);
+	};
+
+	const confirmDeleteSignal = () => {
+		if (!deletingSignalKey) return;
+		const newSignals = signals.filter((s) => s.key !== deletingSignalKey);
+		const newRules = signalRules.filter((r) => r.signalKey !== deletingSignalKey);
+		onSignalsChange(newSignals);
+		onSignalRulesChange(newRules);
+		setShowDeleteSignalConfirm(false);
+		setDeletingSignalKey(null);
 	};
 
 	const handleReorderSignal = (key: string, direction: "up" | "down") => {
@@ -484,9 +493,15 @@ export function WorkflowEngineSignalsEditor({
 	};
 
 	const handleDeleteRule = (key: string) => {
-		if (window.confirm("Are you sure you want to delete this rule?")) {
-			onSignalRulesChange(signalRules.filter((r) => r.key !== key));
-		}
+		setDeletingRuleKey(key);
+		setShowDeleteRuleConfirm(true);
+	};
+
+	const confirmDeleteRule = () => {
+		if (!deletingRuleKey) return;
+		onSignalRulesChange(signalRules.filter((r) => r.key !== deletingRuleKey));
+		setShowDeleteRuleConfirm(false);
+		setDeletingRuleKey(null);
 	};
 
 	return (
@@ -1375,6 +1390,30 @@ export function WorkflowEngineSignalsEditor({
 					})()}
 				</Modal>
 			)}
+
+			<ConfirmationModal
+				isOpen={showDeleteSignalConfirm}
+				onClose={() => {
+					setShowDeleteSignalConfirm(false);
+					setDeletingSignalKey(null);
+				}}
+				onConfirm={confirmDeleteSignal}
+				title="Delete Signal"
+				description={`Are you sure you want to delete signal "${deletingSignalKey}"? This will also delete all related transition rules.`}
+				confirmLabel="Delete Signal"
+			/>
+
+			<ConfirmationModal
+				isOpen={showDeleteRuleConfirm}
+				onClose={() => {
+					setShowDeleteRuleConfirm(false);
+					setDeletingRuleKey(null);
+				}}
+				onConfirm={confirmDeleteRule}
+				title="Delete Transition Rule"
+				description="Are you sure you want to delete this status mapping rule?"
+				confirmLabel="Delete Rule"
+			/>
 		</div>
 	);
 }
