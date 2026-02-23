@@ -5,17 +5,18 @@ import {
 	SettingsStatusContext,
 	type SettingsStatus,
 } from "@/components/settings/SettingsStatusContext";
+import { useToast } from "@/components/common/toast/ToastContext";
 
 export function SettingsStatusProvider({ children }: { children: ReactNode }) {
 	const [status, setStatus] = useState<SettingsStatus>(null);
+	const { addToast } = useToast();
 
 	useEffect(() => {
 		if (status) {
-			const timer = setTimeout(() => setStatus(null), 5000);
-			return () => clearTimeout(timer);
+			addToast(status.message, status.type);
+			setStatus(null);
 		}
-		return undefined;
-	}, [status]);
+	}, [status, addToast]);
 
 	return (
 		<SettingsStatusContext.Provider value={{ status, setStatus }}>

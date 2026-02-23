@@ -23,6 +23,7 @@ import { QuickCreateModal } from "./kanban/board/QuickCreateModal";
 import { useBoardModel } from "@/features/board/model/use-board-model";
 import { cn } from "@/lib/utils";
 import { ConfirmationModal } from "@/components/common/ConfirmationModal";
+import { useToast } from "@/components/common/toast/ToastContext";
 
 interface BoardScreenProps {
 	projectId: string;
@@ -110,6 +111,8 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 
 	const firstColumnId = columns[0]?.id;
 
+	const { addToast } = useToast();
+
 	return (
 		<div className="flex flex-col h-full overflow-hidden">
 			<div className="flex items-center justify-between px-8 py-2 border-b border-slate-800/50 bg-slate-900/20 backdrop-blur-md shrink-0">
@@ -178,6 +181,7 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 										? startError.message
 										: "Failed to queue tasks by signal";
 								setSignalErrorConfirm({ isOpen: true, message });
+								addToast(message, "error");
 							});
 						}}
 						disabled={isQueueingSignalRuns}

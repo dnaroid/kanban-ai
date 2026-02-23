@@ -11,6 +11,7 @@ import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import type { Board, BoardColumn } from "@/server/types";
 import type { KanbanTask, Tag, BoardColumnInput } from "@/types/kanban";
 import { api } from "@/lib/api-client";
+import { useToast } from "@/components/common/toast/ToastContext";
 
 interface UseBoardModelArgs {
 	projectId: string;
@@ -19,6 +20,7 @@ interface UseBoardModelArgs {
 export function useBoardModel({ projectId }: UseBoardModelArgs) {
 	const router = useRouter();
 	const pathname = usePathname();
+	const { addToast } = useToast();
 	const [board, setBoard] = useState<Board | null>(null);
 	const [tasks, setTasks] = useState<KanbanTask[]>([]);
 	const [globalTags, setGlobalTags] = useState<Tag[]>([]);
@@ -363,8 +365,10 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 
 			router.push(`/board/${projectId}/task/${response.id}`);
 			await loadBoard();
+			addToast("Task created successfully", "success");
 		} catch (createError) {
 			console.error("Failed to create task:", createError);
+			addToast("Failed to create task", "error");
 		}
 	};
 
@@ -399,8 +403,10 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 
 			await api.opencode.generateUserStory({ taskId: createdTask.id });
 			await loadBoard();
+			addToast("User story generated successfully", "success");
 		} catch (generateError) {
 			console.error("Failed to quick-create generated story:", generateError);
+			addToast("Failed to generate user story", "error");
 			throw new Error(
 				generateError instanceof Error
 					? generateError.message
@@ -418,8 +424,10 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		try {
 			await api.deleteTask(deleteTaskConfirm.taskId);
 			await loadBoard();
+			addToast("Task deleted successfully", "success");
 		} catch (deleteError) {
 			console.error("Failed to delete task:", deleteError);
+			addToast("Failed to delete task", "error");
 		} finally {
 			setDeleteTaskConfirm({ isOpen: false, taskId: null });
 		}
@@ -433,9 +441,11 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 				signalKey: "queue_ready_pending",
 			});
 			await refreshBoardTasksFromServer();
+			addToast("Tasks queued by signal", "success");
 			return result;
 		} catch (startError) {
 			console.error("Failed to queue runs by signal:", startError);
+			addToast("Failed to queue tasks", "error");
 			throw new Error(
 				startError instanceof Error
 					? startError.message
@@ -476,6 +486,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 				normalizeColumns(currentColumns),
 			);
 			setBoard({ ...board, columns: response });
+			addToast("Column updated", "success");
 		} else {
 			const currentColumns = (board.columns || []).map(
 				({ id, name: columnName, systemKey, color: columnColor }) => ({
@@ -507,6 +518,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 				normalizeColumns(newColumns),
 			);
 			setBoard({ ...board, columns: response });
+			addToast("Column created", "success");
 		}
 
 		setIsColumnModalOpen(false);
@@ -539,8 +551,10 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 				normalizeColumns(newColumns),
 			);
 			setBoard({ ...board, columns: response });
+			addToast("Column deleted", "success");
 		} catch (deleteError) {
 			console.error("Failed to delete column:", deleteError);
+			addToast("Failed to delete column", "error");
 		} finally {
 			setDeleteColumnConfirm({ isOpen: false, columnId: null });
 		}
@@ -579,14 +593,20 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		if (patch.assignee !== undefined) updateData.assignee = patch.assignee;
 		if (patch.modelName !== undefined) updateData.modelName = patch.modelName;
 
-		await api.updateTask(taskId, updateData);
-		setTasks((prev) =>
-			prev.map((task) =>
-				task.id === taskId
-					? { ...task, ...patch, updatedAt: new Date().toISOString() }
-					: task,
-			),
-		);
+		try {
+			await api.updateTask(taskId, updateData);
+			setTasks((prev) =>
+				prev.map((task) =>
+					task.id === taskId
+						? { ...task, ...patch, updatedAt: new Date().toISOString() }
+						: task,
+				),
+			);
+			addToast("Task updated", "success");
+		} catch (updateError) {
+			console.error("Failed to update task:", updateError);
+			addToast("Failed to update task", "error");
+		}
 	};
 
 	const closeColumnModal = () => {

@@ -170,3 +170,33 @@
 .animate-shimmer {
   animation: shimmer 2s infinite;
 }
+
+@keyframes toast-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toast-out {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.animate-toast-in {
+  animation: toast-in 0.3s ease-out forwards;
+}
+
+.animate-toast-out {
+  animation: toast-out 0.3s ease-in forwards;
+}
