@@ -12,7 +12,7 @@ import {
 	AlertTriangle,
 	Cpu,
 } from "lucide-react";
-import { ModelPicker } from "@/components/common/ModelPicker";
+import { ModelPicker, DIFFICULTY_STYLES } from "@/components/common/ModelPicker";
 import type { OpencodeModel } from "@/types/kanban";
 import Ajv from "ajv";
 
@@ -421,6 +421,11 @@ function ObjectTreeNode({
 	const itemModel = obj.model as string | undefined;
 	const itemVariant = obj.variant as string | undefined;
 
+	// Determine model styles based on difficulty
+	const modelInfo = models?.find(m => m.name === itemModel);
+	const difficulty = (modelInfo?.difficulty || 'medium') as keyof typeof DIFFICULTY_STYLES;
+	const styles = DIFFICULTY_STYLES[difficulty] || DIFFICULTY_STYLES.medium;
+
 	const pathErrors = validationErrors.filter(
 		(e) => e.path === path || e.path.startsWith(`${path}.`),
 	);
@@ -442,10 +447,19 @@ function ObjectTreeNode({
 				</span>
 
 				{itemModel && (
-					<div className="flex items-center gap-1.5 ml-2 px-2 py-0.5 rounded-md bg-blue-500/5 ring-1 ring-blue-500/20 max-w-[200px] truncate">
-						<Cpu className="w-3 h-3 text-blue-400 shrink-0" />
-						<span className="text-[10px] font-bold text-blue-400/80 uppercase tracking-tight truncate">
-							{itemModel}
+					<div className={cn(
+						"flex items-center gap-1.5 ml-2 px-2 py-0.5 rounded-md ring-1 max-w-[200px] truncate",
+						styles.bg,
+						styles.text.replace('text-', 'text-opacity-80 text-'), // Handle text opacity if needed
+						"ring-opacity-20 border-none"
+					)}
+					style={{
+						borderColor: 'transparent',
+						boxShadow: 'none'
+					}}>
+						<Cpu className={cn("w-3 h-3 shrink-0", styles.text)} />
+						<span className={cn("text-[10px] font-bold uppercase tracking-tight truncate", styles.text)}>
+							{itemModel.split('/').pop()}
 							{itemVariant ? ` (${itemVariant})` : ""}
 						</span>
 					</div>
