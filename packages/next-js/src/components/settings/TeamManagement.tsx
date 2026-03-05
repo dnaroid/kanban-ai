@@ -5,6 +5,7 @@ import {
 	useEffect,
 	useMemo,
 	useState,
+	useRef,
 	type KeyboardEvent,
 } from "react";
 import {
@@ -14,12 +15,12 @@ import {
 	Loader2,
 	Plus,
 	RefreshCw,
-	Save,
 	Search,
 	Terminal,
 	Trash2,
 	Users,
 	X,
+	CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -137,34 +138,232 @@ export function TeamManagement() {
 	const [formPreset, setFormPreset] = useState<AgentRolePreset>(DEFAULT_PRESET);
 	const [isNew, setIsNew] = useState(false);
 
-	const selectRole = useCallback((role: FullRole) => {
-		setSelectedRoleId(role.id);
-		setFormId(role.id);
-		setFormName(role.name);
-		setFormDescription(role.description);
-		setPreferredModelName(role.preferred_model_name ?? "");
-		setPreferredModelVariant(role.preferred_model_variant ?? "");
-		setPreferredLlmAgent(role.preferred_llm_agent ?? "");
-		setFormPreset(parseRolePreset(role.preset_json));
-		setSkillQuery("");
-		setIsNew(false);
+	const lastSavedData = useRef<string>("");
+	const latestDataRef = useRef<{
+		formId: string;
+		formName: string;
+		formDescription: string;
+		preferredModelName: string;
+		preferredModelVariant: string;
+		preferredLlmAgent: string;
+		formPreset: AgentRolePreset;
+	} | null>(null);
+
+	const formData = useMemo(
+		() => ({
+			formId,
+			formName,
+			formDescription,
+			preferredModelName,
+			preferredModelVariant,
+			preferredLlmAgent,
+			formPreset,
+		}),
+		[
+			formId,
+			formName,
+			formDescription,
+			preferredModelName,
+			preferredModelVariant,
+			preferredLlmAgent,
+			formPreset,
+		],
+	);
+
+	useEffect(() => {
+		latestDataRef.current = formData;
+	}, [formData]);
+
+	const saveChanges = useCallback(
+		async (dataToSave: typeof formData) => {
+			if (!dataToSave.formId.trim() || !dataToSave.formName.trim()) {
+				return;
+			}
+
+			setIsSaving(true);
+			try {
+				const behavior = {
+					...DEFAULT_BEHAVIOR,
+					...(dataToSave.formPreset.behavior ?? {}),
+				};
+				const preset_json = JSON.stringify({
+					...dataToSave.formPreset,
+					skills: normalizeSkills(dataToSave.formPreset.skills),
+					systemPrompt: dataToSave.formPreset.systemPrompt.trim(),
+					behavior,
+				});
+
+				await api.roles.save({
+					id: dataToSave.formId.trim(),
+					name: dataToSave.formName.trim(),
+					description: dataToSave.formDescription.trim(),
+					preset_json,
+					preferred_model_name: dataToSave.preferredModelName.trim() || null,
+					preferred_model_variant:
+						dataToSave.preferredModelVariant.trim() || null,
+					preferred_llm_agent: dataToSave.preferredLlmAgent.trim() || null,
+				});
+
+				lastSavedData.current = JSON.stringify(dataToSave);
+
+				setStatus({
+					message: `Role ${dataToSave.formName.trim()} saved successfully`,
+					type: "success",
+				});
+
+				const response = await api.roles.listFull();
+				setRoles(response.roles);
+
+				setSelectedRoleId((prevId) => {
+					if (prevId !== dataToSave.formId.trim()) {
+						return dataToSave.formId.trim();
+					}
+					return prevId;
+				});
+				setIsNew(false);
+			} catch (error) {
+				console.error("Failed to save role:", error);
+				setStatus({ message: "Failed to save role", type: "error" });
+			} finally {
+				setIsSaving(false);
+			}
+		},
+		[setStatus],
+	);
+
+	const loadRoles = useCallback(
+		async (autoSelect = false) => {
+			setIsLoading(true);
+			try {
+				const response = await api.roles.listFull();
+				setRoles(response.roles);
+
+				if (autoSelect && response.roles.length > 0) {
+					const role = response.roles[0];
+					setSelectedRoleId(role.id);
+					setFormId(role.id);
+					setFormName(role.name);
+					setFormDescription(role.description);
+					setPreferredModelName(role.preferred_model_name ?? "");
+					setPreferredModelVariant(role.preferred_model_variant ?? "");
+					setPreferredLlmAgent(role.preferred_llm_agent ?? "");
+					const preset = parseRolePreset(role.preset_json);
+					setFormPreset(preset);
+
+					const newFormData = {
+						formId: role.id,
+						formName: role.name,
+						formDescription: role.description,
+						preferredModelName: role.preferred_model_name ?? "",
+						preferredModelVariant: role.preferred_model_variant ?? "",
+						preferredLlmAgent: role.preferred_llm_agent ?? "",
+						formPreset: preset,
+					};
+					lastSavedData.current = JSON.stringify(newFormData);
+					latestDataRef.current = newFormData;
+				}
+			} catch (error) {
+				console.error("Failed to load roles:", error);
+				setStatus({ message: "Failed to load roles", type: "error" });
+			} finally {
+				setIsLoading(false);
+			}
+		},
+		[setStatus],
+	);
+
+	useEffect(() => {
+		const currentDataStr = JSON.stringify(formData);
+		if (currentDataStr === lastSavedData.current) {
+			return;
+		}
+
+		if (!formData.formId.trim() || !formData.formName.trim()) {
+			return;
+		}
+
+		const timer = setTimeout(() => {
+			void saveChanges(formData);
+		}, 1000);
+
+		return () => clearTimeout(timer);
+	}, [formData, saveChanges]);
+
+	useEffect(() => {
+		return () => {
+			if (latestDataRef.current) {
+				const currentDataStr = JSON.stringify(latestDataRef.current);
+				if (
+					currentDataStr !== lastSavedData.current &&
+					latestDataRef.current.formId.trim() &&
+					latestDataRef.current.formName.trim()
+				) {
+					const dataToSave = latestDataRef.current;
+					const behavior = {
+						...DEFAULT_BEHAVIOR,
+						...(dataToSave.formPreset.behavior ?? {}),
+					};
+					const preset_json = JSON.stringify({
+						...dataToSave.formPreset,
+						skills: normalizeSkills(dataToSave.formPreset.skills),
+						systemPrompt: dataToSave.formPreset.systemPrompt.trim(),
+						behavior,
+					});
+
+					void api.roles.save({
+						id: dataToSave.formId.trim(),
+						name: dataToSave.formName.trim(),
+						description: dataToSave.formDescription.trim(),
+						preset_json,
+						preferred_model_name: dataToSave.preferredModelName.trim() || null,
+						preferred_model_variant:
+							dataToSave.preferredModelVariant.trim() || null,
+						preferred_llm_agent: dataToSave.preferredLlmAgent.trim() || null,
+					});
+				}
+			}
+		};
 	}, []);
 
-	const loadRoles = useCallback(async () => {
-		setIsLoading(true);
-		try {
-			const response = await api.roles.listFull();
-			setRoles(response.roles);
-			if (response.roles.length > 0 && !selectedRoleId) {
-				selectRole(response.roles[0]);
+	const selectRole = useCallback(
+		(role: FullRole) => {
+			if (latestDataRef.current) {
+				const currentDataStr = JSON.stringify(latestDataRef.current);
+				if (
+					currentDataStr !== lastSavedData.current &&
+					latestDataRef.current.formId.trim() &&
+					latestDataRef.current.formName.trim()
+				) {
+					void saveChanges(latestDataRef.current);
+				}
 			}
-		} catch (error) {
-			console.error("Failed to load roles:", error);
-			setStatus({ message: "Failed to load roles", type: "error" });
-		} finally {
-			setIsLoading(false);
-		}
-	}, [selectedRoleId, selectRole, setStatus]);
+
+			setSelectedRoleId(role.id);
+			setFormId(role.id);
+			setFormName(role.name);
+			setFormDescription(role.description);
+			setPreferredModelName(role.preferred_model_name ?? "");
+			setPreferredModelVariant(role.preferred_model_variant ?? "");
+			setPreferredLlmAgent(role.preferred_llm_agent ?? "");
+			const preset = parseRolePreset(role.preset_json);
+			setFormPreset(preset);
+			setSkillQuery("");
+			setIsNew(false);
+
+			const newData = {
+				formId: role.id,
+				formName: role.name,
+				formDescription: role.description,
+				preferredModelName: role.preferred_model_name ?? "",
+				preferredModelVariant: role.preferred_model_variant ?? "",
+				preferredLlmAgent: role.preferred_llm_agent ?? "",
+				formPreset: preset,
+			};
+			lastSavedData.current = JSON.stringify(newData);
+			latestDataRef.current = newData;
+		},
+		[saveChanges],
+	);
 
 	const loadSkillsCatalog = useCallback(async () => {
 		try {
@@ -217,13 +416,24 @@ export function TeamManagement() {
 	}, [loadRoles, setStatus]);
 
 	useEffect(() => {
-		void loadRoles();
+		void loadRoles(true);
 		void loadSkillsCatalog();
 		void loadEnabledModels();
 		void loadAgentsCatalog();
 	}, [loadRoles, loadSkillsCatalog, loadEnabledModels, loadAgentsCatalog]);
 
 	const handleAddNew = () => {
+		if (latestDataRef.current) {
+			const currentDataStr = JSON.stringify(latestDataRef.current);
+			if (
+				currentDataStr !== lastSavedData.current &&
+				latestDataRef.current.formId.trim() &&
+				latestDataRef.current.formName.trim()
+			) {
+				void saveChanges(latestDataRef.current);
+			}
+		}
+
 		setSelectedRoleId(null);
 		setFormId("");
 		setFormName("");
@@ -234,49 +444,18 @@ export function TeamManagement() {
 		setFormPreset(DEFAULT_PRESET);
 		setSkillQuery("");
 		setIsNew(true);
-	};
 
-	const handleSave = async () => {
-		if (!formId.trim() || !formName.trim()) {
-			setStatus({ message: "ID and Name are required", type: "error" });
-			return;
-		}
-
-		setIsSaving(true);
-		try {
-			const behavior = {
-				...DEFAULT_BEHAVIOR,
-				...(formPreset.behavior ?? {}),
-			};
-			const preset_json = JSON.stringify({
-				...formPreset,
-				skills: normalizeSkills(formPreset.skills),
-				systemPrompt: formPreset.systemPrompt.trim(),
-				behavior,
-			});
-			await api.roles.save({
-				id: formId.trim(),
-				name: formName.trim(),
-				description: formDescription.trim(),
-				preset_json,
-				preferred_model_name: preferredModelName.trim() || null,
-				preferred_model_variant: preferredModelVariant.trim() || null,
-				preferred_llm_agent: preferredLlmAgent.trim() || null,
-			});
-
-			setStatus({
-				message: `Role ${formName.trim()} saved successfully`,
-				type: "success",
-			});
-			await loadRoles();
-			setSelectedRoleId(formId.trim());
-			setIsNew(false);
-		} catch (error) {
-			console.error("Failed to save role:", error);
-			setStatus({ message: "Failed to save role", type: "error" });
-		} finally {
-			setIsSaving(false);
-		}
+		const emptyData = {
+			formId: "",
+			formName: "",
+			formDescription: "",
+			preferredModelName: "",
+			preferredModelVariant: "",
+			preferredLlmAgent: "",
+			formPreset: DEFAULT_PRESET,
+		};
+		lastSavedData.current = JSON.stringify(emptyData);
+		latestDataRef.current = emptyData;
 	};
 
 	const handleDelete = (id: string) => {
@@ -399,6 +578,12 @@ export function TeamManagement() {
 		addSkill(skillQuery);
 	};
 
+	const isDataSaved =
+		!isSaving &&
+		JSON.stringify(formData) === lastSavedData.current &&
+		formId.trim() &&
+		formName.trim();
+
 	return (
 		<div className="flex flex-col w-full min-h-screen">
 			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 mb-6 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -463,7 +648,8 @@ export function TeamManagement() {
 						sortedFilteredRoles.map((role) => {
 							const preset = parseRolePreset(role.preset_json);
 							const behavior = preset.behavior ?? DEFAULT_BEHAVIOR;
-							const hasModel = role.preferred_model_name || role.preferred_llm_agent;
+							const hasModel =
+								role.preferred_model_name || role.preferred_llm_agent;
 							const skillsCount = preset.skills.length;
 
 							return (
@@ -479,10 +665,14 @@ export function TeamManagement() {
 									)}
 								>
 									<div className="flex items-center gap-4 min-w-0">
-										<div className={cn(
-											"w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
-											selectedRoleId === role.id ? "bg-blue-500/20 text-blue-400" : "bg-slate-800 text-slate-400"
-										)}>
+										<div
+											className={cn(
+												"w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
+												selectedRoleId === role.id
+													? "bg-blue-500/20 text-blue-400"
+													: "bg-slate-800 text-slate-400",
+											)}
+										>
 											<Terminal className="w-5 h-5" />
 										</div>
 										<div className="min-w-0">
@@ -499,36 +689,48 @@ export function TeamManagement() {
 													</span>
 												) : null}
 											</div>
-											
-											{(hasModel || skillsCount > 0) ? (
+
+											{hasModel || skillsCount > 0 ? (
 												<div className="flex items-center gap-2 mt-1">
 													{hasModel && (
 														<div className="flex items-center gap-1 text-[9px] font-bold text-blue-400/80 uppercase tracking-tight">
 															<Cpu className="w-2.5 h-2.5" />
 															<div className="truncate max-w-[180px] flex items-center gap-1">
 																{role.preferred_llm_agent && (
-																	<span className="text-blue-400">{role.preferred_llm_agent}</span>
+																	<span className="text-blue-400">
+																		{role.preferred_llm_agent}
+																	</span>
 																)}
-																{role.preferred_llm_agent && role.preferred_model_name && (
-																	<span className="text-slate-600 font-black">@</span>
-																)}
+																{role.preferred_llm_agent &&
+																	role.preferred_model_name && (
+																		<span className="text-slate-600 font-black">
+																			@
+																		</span>
+																	)}
 																{role.preferred_model_name && (
 																	<span className="text-slate-400">
 																		{role.preferred_model_name}
-																		{role.preferred_model_variant ? ` (${role.preferred_model_variant})` : ''}
+																		{role.preferred_model_variant
+																			? ` (${role.preferred_model_variant})`
+																			: ""}
 																	</span>
 																)}
-																{!role.preferred_llm_agent && !role.preferred_model_name && (
-																	<span className="text-slate-500 italic">Default</span>
-																)}
+																{!role.preferred_llm_agent &&
+																	!role.preferred_model_name && (
+																		<span className="text-slate-500 italic">
+																			Default
+																		</span>
+																	)}
 															</div>
 														</div>
 													)}
 													{skillsCount > 0 && (
-														<div className={cn(
-															"flex items-center gap-1 text-[9px] font-bold text-purple-400/80 uppercase tracking-tight",
-															hasModel && "border-l border-slate-800 pl-2"
-														)}>
+														<div
+															className={cn(
+																"flex items-center gap-1 text-[9px] font-bold text-purple-400/80 uppercase tracking-tight",
+																hasModel && "border-l border-slate-800 pl-2",
+															)}
+														>
 															<Brain className="w-2.5 h-2.5" />
 															<span>{skillsCount} Skills</span>
 														</div>
@@ -541,10 +743,14 @@ export function TeamManagement() {
 											)}
 										</div>
 									</div>
-									<ChevronRight className={cn(
-										"w-4 h-4 transition-colors shrink-0 ml-2",
-										selectedRoleId === role.id ? "text-blue-400" : "text-slate-600"
-									)} />
+									<ChevronRight
+										className={cn(
+											"w-4 h-4 transition-colors shrink-0 ml-2",
+											selectedRoleId === role.id
+												? "text-blue-400"
+												: "text-slate-600",
+										)}
+									/>
 								</button>
 							);
 						})
@@ -574,19 +780,17 @@ export function TeamManagement() {
 										<Trash2 className="w-5 h-5" />
 									</button>
 								) : null}
-								<button
-									type="button"
-									onClick={handleSave}
-									disabled={isSaving}
-									className="flex items-center gap-3 px-8 py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all"
-								>
-									{isSaving ? (
-										<Loader2 className="w-5 h-5 animate-spin" />
-									) : (
-										<Save className="w-5 h-5" />
-									)}
-									<span>Save</span>
-								</button>
+								{isSaving ? (
+									<div className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 text-slate-400 rounded-xl font-bold text-xs uppercase tracking-widest">
+										<Loader2 className="w-4 h-4 animate-spin" />
+										<span>Saving...</span>
+									</div>
+								) : isDataSaved ? (
+									<div className="flex items-center gap-2 px-4 py-2 text-emerald-500/80 font-bold text-xs uppercase tracking-widest bg-emerald-500/5 rounded-xl border border-emerald-500/10">
+										<CheckCircle2 className="w-4 h-4" />
+										<span>Saved</span>
+									</div>
+								) : null}
 							</div>
 						</div>
 
