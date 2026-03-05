@@ -90,6 +90,7 @@ export function ModelPicker({
 		<div className={cn("flex items-center gap-2", className)}>
 			<div className="relative">
 				<button
+					type="button"
 					onClick={() => setIsPickerOpen(!isPickerOpen)}
 					className={cn(
 						"w-max flex items-center justify-between px-3 h-8 rounded-lg text-[11px] transition-all border whitespace-nowrap",
@@ -130,7 +131,9 @@ export function ModelPicker({
 
 				{isPickerOpen && (
 					<>
-						<div
+						<button
+							type="button"
+							aria-label="Close model picker"
 							className="fixed inset-0 z-10"
 							onClick={() => setIsPickerOpen(false)}
 						/>
@@ -143,6 +146,7 @@ export function ModelPicker({
 								<>
 									{allowAuto && (
 										<button
+											type="button"
 											onClick={() => handleSelectModel(null)}
 											onMouseEnter={() => setHoveredModel("auto")}
 											onMouseLeave={() => setHoveredModel(null)}
@@ -165,15 +169,17 @@ export function ModelPicker({
 											] || DIFFICULTY_STYLES.easy;
 										return (
 											<button
+												type="button"
 												key={model.name}
 												onClick={() => {
 													const variants = model.variants
 														? model.variants.split(",").map((v) => v.trim())
 														: [];
-													handleSelectModel(
-														model.name,
-														variants.length > 0 ? variants[0] : undefined,
-													);
+													const defaultVariant =
+														showVariantSelector && variants.length > 0
+															? variants[0]
+															: undefined;
+													handleSelectModel(model.name, defaultVariant);
 												}}
 												onMouseEnter={() => setHoveredModel(model.name)}
 												onMouseLeave={() => setHoveredModel(null)}
@@ -224,6 +230,7 @@ export function ModelPicker({
 					</select>
 					<div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 group-hover/variant:text-blue-400 transition-colors">
 						<svg
+							aria-hidden="true"
 							width="8"
 							height="6"
 							viewBox="0 0 8 6"
