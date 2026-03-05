@@ -569,4 +569,98 @@ describe("RunsQueueManager scheduling", () => {
 			buildOpencodeStatusLine("test_fail"),
 		);
 	});
+
+	it("recovers failed run when late done marker arrives after fetch failure", async () => {
+		taskMap.set(
+			"task-late-done",
+			buildTask("task-late-done", "normal", "failed"),
+		);
+		runMap.set("run-late-done", {
+			...buildRun(
+				"run-late-done",
+				"task-late-done",
+				"execution",
+				"2026-01-01T00:00:00.000Z",
+			),
+			status: "failed",
+			startedAt: new Date(Date.now() - 15_000).toISOString(),
+			endedAt: new Date().toISOString(),
+			metadata: {
+				kind: "task-run",
+				errorText: "fetch failed",
+			},
+		});
+
+		const manager = new RunsQueueManager();
+		const withPrivateAccess = manager as unknown as {
+			finalizeRunFromSession: (
+				runId: string,
+				status: "completed" | "failed" | "paused",
+				signalKey: string,
+				assistantContent: string,
+			) => Promise<void>;
+		};
+
+		await withPrivateAccess.finalizeRunFromSession(
+			"run-late-done",
+			"completed",
+			"done",
+			buildOpencodeStatusLine("done"),
+		);
+
+		expect(runMap.get("run-late-done")?.status).toBe("completed");
+		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "run-late-done", status: "completed" }),
+			"completed",
+			"done",
+			buildOpencodeStatusLine("done"),
+		);
+	});
+
+	it("does not recover failed run with non-network error on late done marker", async () => {
+		taskMap.set(
+			"task-late-done-no-recover",
+			buildTask("task-late-done-no-recover", "normal", "failed"),
+		);
+		runMap.set("run-late-done-no-recover", {
+			...buildRun(
+				"run-late-done-no-recover",
+				"task-late-done-no-recover",
+				"execution",
+				"2026-01-01T00:00:00.000Z",
+			),
+			status: "failed",
+			startedAt: new Date(Date.now() - 15_000).toISOString(),
+			endedAt: new Date().toISOString(),
+			metadata: {
+				kind: "task-run",
+				errorText: "validation failed",
+			},
+		});
+
+		const manager = new RunsQueueManager();
+		const withPrivateAccess = manager as unknown as {
+			finalizeRunFromSession: (
+				runId: string,
+				status: "completed" | "failed" | "paused",
+				signalKey: string,
+				assistantContent: string,
+			) => Promise<void>;
+		};
+
+		await withPrivateAccess.finalizeRunFromSession(
+			"run-late-done-no-recover",
+			"completed",
+			"done",
+			buildOpencodeStatusLine("done"),
+		);
+
+		expect(runMap.get("run-late-done-no-recover")?.status).toBe("failed");
+		expect(mockTaskProjector.projectRunOutcome).not.toHaveBeenCalledWith(
+			expect.objectContaining({ id: "run-late-done-no-recover" }),
+			"completed",
+			"done",
+			buildOpencodeStatusLine("done"),
+		);
+	});
 });

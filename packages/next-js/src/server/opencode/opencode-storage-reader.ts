@@ -189,9 +189,42 @@ export class OpencodeStorageReader {
 	private normalizeToolState(
 		value: unknown,
 	): "pending" | "running" | "completed" | "error" {
-		if (value === "pending" || value === "running" || value === "completed") {
-			return value;
+		let stateStr = "";
+		if (typeof value === "string") {
+			stateStr = value.trim().toLowerCase();
+		} else if (
+			typeof value === "object" &&
+			value !== null &&
+			"status" in value
+		) {
+			const status = value.status;
+			if (typeof status === "string") {
+				stateStr = status.trim().toLowerCase();
+			}
 		}
+
+		if (stateStr === "pending") return "pending";
+
+		if (
+			stateStr === "running" ||
+			stateStr === "in_progress" ||
+			stateStr === "in-progress"
+		) {
+			return "running";
+		}
+
+		if (
+			stateStr === "completed" ||
+			stateStr === "complete" ||
+			stateStr === "done" ||
+			stateStr === "success" ||
+			stateStr === "succeeded" ||
+			stateStr === "result" ||
+			stateStr === "finished"
+		) {
+			return "completed";
+		}
+
 		return "error";
 	}
 

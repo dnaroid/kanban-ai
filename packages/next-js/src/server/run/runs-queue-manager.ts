@@ -23,6 +23,7 @@ import type { Run, RunStatus } from "@/types/ipc";
 const generationRunKind = "task-description-improve";
 const agentRoleTagPrefix = "agent:";
 const dependencyReadyStatus = "done";
+const lateCompletionRecoveryWindowMs = 15 * 60 * 1000;
 
 const runPriorityScore: Record<TaskPriority, number> = {
 	postpone: 1,
@@ -84,6 +85,15 @@ function resolveAssistantRunSignal(text: string): AssistantRunSignal | null {
 	}
 
 	return null;
+}
+
+function getRunErrorText(run: Run): string {
+	const errorText = run.metadata?.errorText;
+	if (typeof errorText !== "string") {
+		return "";
+	}
+
+	return errorText.trim();
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -647,12 +657,24 @@ export class RunsQueueManager {
 			return;
 		}
 
-		if (run.status !== "running" && run.status !== "queued") {
+		const canRecoverLateCompletion = this.canRecoverLateCompletion(run, status);
+		if (
+			run.status !== "running" &&
+			run.status !== "queued" &&
+			!canRecoverLateCompletion
+		) {
 			log.warn("Run not in running/queued state, cannot finalize", {
 				runId,
 				currentStatus: run.status,
 			});
 			return;
+		}
+
+		if (canRecoverLateCompletion) {
+			log.info("Recovering failed run from late completion marker", {
+				runId,
+				errorText: getRunErrorText(run),
+			});
 		}
 
 		const finishedAt = new Date().toISOString();
@@ -1196,6 +1218,29 @@ export class RunsQueueManager {
 			return 0;
 		}
 		return Math.max(0, Math.round((endMs - startMs) / 1000));
+	}
+
+	private canRecoverLateCompletion(run: Run, targetStatus: RunStatus): boolean {
+		if (run.status !== "failed" || targetStatus !== "completed") {
+			return false;
+		}
+
+		if (getRunErrorText(run).toLowerCase() !== "fetch failed") {
+			return false;
+		}
+
+		const endedAt = run.endedAt;
+		if (!endedAt) {
+			return false;
+		}
+
+		const finishedMs = Date.parse(endedAt);
+		if (!Number.isFinite(finishedMs)) {
+			return false;
+		}
+
+		const ageMs = Date.now() - finishedMs;
+		return ageMs >= 0 && ageMs <= lateCompletionRecoveryWindowMs;
 	}
 }
 

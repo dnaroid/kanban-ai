@@ -757,11 +757,7 @@ export class OpencodeSessionManager {
 		}
 
 		if (type === "tool") {
-			const state = raw.state;
-			const normalizedState =
-				state === "pending" || state === "running" || state === "completed"
-					? state
-					: "error";
+			const normalizedState = this.normalizeToolState(raw.state);
 
 			return {
 				type: "tool",
@@ -795,6 +791,48 @@ export class OpencodeSessionManager {
 		}
 
 		return { type: "other" };
+	}
+
+	private normalizeToolState(
+		value: unknown,
+	): "pending" | "running" | "completed" | "error" {
+		let stateStr = "";
+		if (typeof value === "string") {
+			stateStr = value.trim().toLowerCase();
+		} else if (
+			typeof value === "object" &&
+			value !== null &&
+			"status" in value
+		) {
+			const status = value.status;
+			if (typeof status === "string") {
+				stateStr = status.trim().toLowerCase();
+			}
+		}
+
+		if (stateStr === "pending") return "pending";
+
+		if (
+			stateStr === "running" ||
+			stateStr === "in_progress" ||
+			stateStr === "in-progress"
+		) {
+			return "running";
+		}
+
+		if (
+			stateStr === "completed" ||
+			stateStr === "complete" ||
+			stateStr === "done" ||
+			stateStr === "success" ||
+			stateStr === "succeeded" ||
+			stateStr === "result" ||
+			stateStr === "finished"
+		) {
+			return "completed";
+		}
+
+		return "error";
 	}
 
 	private buildMessageContent(parts: Part[]): string {
