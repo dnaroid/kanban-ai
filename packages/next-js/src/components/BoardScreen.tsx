@@ -31,6 +31,8 @@ interface BoardScreenProps {
 }
 
 export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
+	const { addToast } = useToast();
+
 	const [viewMode, setViewMode] = useState<"board" | "list">(() => {
 		if (typeof window !== "undefined") {
 			return (
@@ -55,8 +57,8 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 		handleTaskClick,
 		handleAddTask,
 		handleQuickGenerateStory,
+		handleQuickRunRawStory,
 		handleDeleteTask,
-		handleDeleteColumn,
 		handleStartSignalRuns,
 		isQueueingSignalRuns,
 		deleteTaskConfirm,
@@ -110,8 +112,6 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 		);
 
 	const firstColumnId = columns[0]?.id;
-
-	const { addToast } = useToast();
 
 	return (
 		<div className="flex flex-col h-full overflow-hidden">
@@ -283,9 +283,10 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 
 				{/* Floating Action Button */}
 				<button
+					type="button"
 					onClick={() => setIsQuickCreateModalOpen(true)}
 					className="fixed bottom-8 right-8 w-16 h-16 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-2xl shadow-blue-600/40 flex items-center justify-center transition-all hover:scale-110 active:scale-95 group z-40"
-					title="Quick Create Story"
+					title="Quick Create Task"
 				>
 					<Plus className="w-8 h-8 group-hover:rotate-90 transition-transform duration-300" />
 				</button>
@@ -293,9 +294,16 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 				<QuickCreateModal
 					isOpen={isQuickCreateModalOpen}
 					onClose={() => setIsQuickCreateModalOpen(false)}
-					onGenerate={async (prompt) => {
+					onGenerateStory={async (prompt) => {
 						if (firstColumnId) {
 							await handleQuickGenerateStory(firstColumnId, prompt);
+						}
+					}}
+					onRunRawStory={async (prompt, modelName) => {
+						if (firstColumnId) {
+							await handleQuickRunRawStory(firstColumnId, prompt, {
+								modelName,
+							});
 						}
 					}}
 				/>
@@ -311,7 +319,9 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 
 				<ConfirmationModal
 					isOpen={deleteColumnConfirm.isOpen}
-					onClose={() => setDeleteColumnConfirm({ isOpen: false, columnId: null })}
+					onClose={() =>
+						setDeleteColumnConfirm({ isOpen: false, columnId: null })
+					}
 					onConfirm={confirmDeleteColumn}
 					title="Delete Column"
 					description="Are you sure you want to delete this column? All tasks must be moved out of the column first."
@@ -330,10 +340,15 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 
 				<ConfirmationModal
 					isOpen={signalErrorConfirm.isOpen}
-					onClose={() => setSignalErrorConfirm({ isOpen: false, message: null })}
+					onClose={() =>
+						setSignalErrorConfirm({ isOpen: false, message: null })
+					}
 					onConfirm={() => {}}
 					title="Workflow Engine Error"
-					description={signalErrorConfirm.message || "An error occurred while queueing tasks by signal."}
+					description={
+						signalErrorConfirm.message ||
+						"An error occurred while queueing tasks by signal."
+					}
 					confirmLabel="Close"
 					variant="danger"
 				/>

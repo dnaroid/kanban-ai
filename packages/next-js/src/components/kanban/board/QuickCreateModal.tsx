@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import {
-	Loader2,
-	Mic,
-	MicOff,
-	Sparkles,
-	X,
-} from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Loader2, Mic, MicOff, Play, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/common/Modal";
+import { ModelPicker } from "@/components/common/ModelPicker";
+import { api } from "@/lib/api-client";
+import type { OpencodeModel } from "@/types/kanban";
 
 type SpeechRecognitionResultLike = {
 	isFinal: boolean;
@@ -48,42 +45,81 @@ type BrowserSpeechRecognitionCtor = new () => BrowserSpeechRecognition;
 interface QuickCreateModalProps {
 	isOpen: boolean;
 	onClose: () => void;
-	onGenerate: (prompt: string) => Promise<void>;
+	onGenerateStory: (prompt: string) => Promise<void>;
+	onRunRawStory: (prompt: string, modelName: string | null) => Promise<void>;
 }
 
 export function QuickCreateModal({
 	isOpen,
 	onClose,
-	onGenerate,
+	onGenerateStory,
+	onRunRawStory,
 }: QuickCreateModalProps) {
 	const [prompt, setPrompt] = useState("");
 	const [liveTranscript, setLiveTranscript] = useState("");
 	const [isListening, setIsListening] = useState(false);
-	const [isGenerating, setIsGenerating] = useState(false);
+	const [submittingAction, setSubmittingAction] = useState<
+		"generate" | "runRaw" | null
+	>(null);
+	const [models, setModels] = useState<OpencodeModel[]>([]);
+	const [selectedModel, setSelectedModel] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
 
-	const stopDictation = () => {
+	const stopDictation = useCallback(() => {
 		recognitionRef.current?.stop();
 		recognitionRef.current = null;
 		setIsListening(false);
 		setLiveTranscript("");
-	};
+	}, []);
 
 	useEffect(() => {
 		if (!isOpen) {
 			stopDictation();
 			setPrompt("");
 			setLiveTranscript("");
+			setSelectedModel(null);
 			setError(null);
 		}
+	}, [isOpen, stopDictation]);
+
+	useEffect(() => {
+		if (!isOpen) {
+			return;
+		}
+
+		let isCancelled = false;
+		const loadEnabledModels = async () => {
+			try {
+				const response = await api.opencode.listEnabledModels();
+				const difficultyOrder = { easy: 0, medium: 1, hard: 2, epic: 3 };
+				const sortedModels = [...response.models].sort((a, b) => {
+					return (
+						difficultyOrder[a.difficulty as keyof typeof difficultyOrder] -
+						difficultyOrder[b.difficulty as keyof typeof difficultyOrder]
+					);
+				});
+
+				if (!isCancelled) {
+					setModels(sortedModels);
+				}
+			} catch (loadError) {
+				console.error("Failed to load models:", loadError);
+			}
+		};
+
+		void loadEnabledModels();
+
+		return () => {
+			isCancelled = true;
+		};
 	}, [isOpen]);
 
 	useEffect(() => {
 		return () => {
 			stopDictation();
 		};
-	}, []);
+	}, [stopDictation]);
 
 	const handleToggleDictation = () => {
 		setError(null);
@@ -186,10 +222,10 @@ export function QuickCreateModal({
 		}
 
 		setError(null);
-		setIsGenerating(true);
+		setSubmittingAction("generate");
 
 		try {
-			await onGenerate(fullPrompt);
+			await onGenerateStory(fullPrompt);
 			onClose();
 		} catch (err) {
 			setError(
@@ -198,9 +234,31 @@ export function QuickCreateModal({
 					: "Failed to create and generate story.",
 			);
 		} finally {
-			setIsGenerating(false);
+			setSubmittingAction(null);
 		}
 	};
+
+	const handleRunRawStory = async () => {
+		const fullPrompt = `${prompt.trim()} ${liveTranscript.trim()}`.trim();
+		if (!fullPrompt) {
+			setError("Enter or dictate task details first.");
+			return;
+		}
+
+		setError(null);
+		setSubmittingAction("runRaw");
+
+		try {
+			await onRunRawStory(fullPrompt, selectedModel);
+			onClose();
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to run raw story.");
+		} finally {
+			setSubmittingAction(null);
+		}
+	};
+
+	const isSubmitting = submittingAction !== null;
 
 	if (!isOpen) return null;
 
@@ -213,36 +271,64 @@ export function QuickCreateModal({
 			title={
 				<div className="flex items-center gap-3">
 					<div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-						<Sparkles className="w-6 h-6 text-emerald-400" />
+						<Play className="w-6 h-6 text-emerald-400 fill-current" />
 					</div>
 					<div>
 						<h3 className="text-lg font-bold text-white">Quick Create Story</h3>
-						<p className="text-xs text-slate-500 font-medium">Describe what should be done</p>
+						<p className="text-xs text-slate-500 font-medium">
+							Generate a story or run raw story immediately
+						</p>
 					</div>
 				</div>
 			}
 			footer={
 				<div className="flex items-center gap-4">
 					<button
+						type="button"
 						onClick={onClose}
+						disabled={isSubmitting}
 						className="px-6 py-2.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
 					>
 						Cancel
 					</button>
 					<button
-						onClick={handleGenerateStory}
-						disabled={isGenerating}
+						type="button"
+						onClick={handleRunRawStory}
+						disabled={isSubmitting}
 						className={cn(
-							"inline-flex items-center gap-2 rounded-xl px-8 py-2.5 text-xs font-bold transition-all border shadow-lg",
-							isGenerating
-								? "cursor-not-allowed bg-emerald-500/10 text-emerald-300/80 border-emerald-500/30"
-								: "bg-emerald-600 text-white border-emerald-500 hover:bg-emerald-500 hover:scale-[1.02] active:scale-[0.98] shadow-emerald-500/20"
+							"inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-xs font-bold transition-all border shadow-lg",
+							isSubmitting
+								? "cursor-not-allowed bg-blue-500/10 text-blue-300/80 border-blue-500/30"
+								: "bg-blue-600 text-white border-blue-500 hover:bg-blue-500 hover:scale-[1.02] active:scale-[0.98] shadow-blue-500/20",
 						)}
 					>
-						{isGenerating ? (
+						{submittingAction === "runRaw" ? (
 							<>
 								<Loader2 className="w-4 h-4 animate-spin" />
-								Generating...
+								Running Raw Story...
+							</>
+						) : (
+							<>
+								<Play className="w-4 h-4 fill-current" />
+								Run Raw Story
+							</>
+						)}
+					</button>
+					<button
+						type="button"
+						onClick={handleGenerateStory}
+						disabled={isSubmitting}
+						className={cn(
+							"inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-xs font-bold transition-all border shadow-lg",
+							isSubmitting
+								? "cursor-not-allowed bg-emerald-500/10 text-emerald-300/80 border-emerald-500/30"
+								: "bg-emerald-600 text-white border-emerald-500 hover:bg-emerald-500 hover:scale-[1.02] active:scale-[0.98] shadow-emerald-500/20",
+						)}
+					>
+						{submittingAction === "generate" ? (
+							<>
+								<Loader2 className="w-4 h-4 animate-spin" />
+								Generating Story...
 							</>
 						) : (
 							<>
@@ -255,14 +341,26 @@ export function QuickCreateModal({
 			}
 		>
 			<div className="space-y-6">
+				<div className="rounded-2xl border border-slate-700/70 bg-slate-900/60 p-4">
+					<p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+						Model / Variant
+					</p>
+					<ModelPicker
+						value={selectedModel}
+						models={models}
+						onChange={setSelectedModel}
+						allowAuto
+						showVariantSelector
+					/>
+				</div>
+
 				<div className="relative rounded-2xl border border-slate-700/70 bg-slate-900/60 p-4 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all">
 					<textarea
-						autoFocus
 						value={prompt}
 						onChange={(e) => setPrompt(e.target.value)}
-						placeholder="Type or dictate your idea here..."
+						placeholder="Type or dictate story details here..."
 						rows={4}
-						disabled={isGenerating}
+						disabled={isSubmitting}
 						className="w-full resize-none bg-transparent border-none text-slate-200 placeholder:text-slate-500 outline-none focus:ring-0 text-base leading-relaxed p-0"
 					/>
 
@@ -279,12 +377,12 @@ export function QuickCreateModal({
 					<button
 						type="button"
 						onClick={handleToggleDictation}
-						disabled={isGenerating}
+						disabled={isSubmitting}
 						className={cn(
 							"w-12 h-12 rounded-2xl border transition-all flex items-center justify-center",
 							isListening
 								? "text-red-300 border-red-500/40 bg-red-500/10 hover:bg-red-500/20 shadow-lg shadow-red-500/10"
-								: "text-slate-300 border-slate-700/80 bg-slate-800/60 hover:bg-slate-700/60"
+								: "text-slate-300 border-slate-700/80 bg-slate-800/60 hover:bg-slate-700/60",
 						)}
 						title={isListening ? "Stop dictation" : "Start dictation"}
 					>
@@ -303,7 +401,7 @@ export function QuickCreateModal({
 							setError(null);
 							if (isListening) stopDictation();
 						}}
-						disabled={isGenerating}
+						disabled={isSubmitting}
 						className="w-12 h-12 rounded-2xl border border-slate-700/80 bg-slate-800/60 hover:bg-slate-700/60 text-slate-400 flex items-center justify-center transition-all"
 						title="Clear"
 					>

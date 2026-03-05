@@ -32,18 +32,29 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 	const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
 	const [isQueueingSignalRuns, setIsQueueingSignalRuns] = useState(false);
 
-	const [deleteTaskConfirm, setDeleteTaskConfirm] = useState<{ isOpen: boolean; taskId: string | null }>({
+	const [deleteTaskConfirm, setDeleteTaskConfirm] = useState<{
+		isOpen: boolean;
+		taskId: string | null;
+	}>({
 		isOpen: false,
 		taskId: null,
 	});
-	const [deleteColumnConfirm, setDeleteColumnConfirm] = useState<{ isOpen: boolean; columnId: string | null }>({
+	const [deleteColumnConfirm, setDeleteColumnConfirm] = useState<{
+		isOpen: boolean;
+		columnId: string | null;
+	}>({
 		isOpen: false,
 		columnId: null,
 	});
-	const [columnHasTasksConfirm, setColumnHasTasksConfirm] = useState<{ isOpen: boolean }>({
+	const [columnHasTasksConfirm, setColumnHasTasksConfirm] = useState<{
+		isOpen: boolean;
+	}>({
 		isOpen: false,
 	});
-	const [signalErrorConfirm, setSignalErrorConfirm] = useState<{ isOpen: boolean; message: string | null }>({
+	const [signalErrorConfirm, setSignalErrorConfirm] = useState<{
+		isOpen: boolean;
+		message: string | null;
+	}>({
 		isOpen: false,
 		message: null,
 	});
@@ -415,6 +426,54 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		}
 	};
 
+	const handleQuickRunRawStory = async (
+		columnId: string,
+		prompt: string,
+		options?: { modelName?: string | null },
+	) => {
+		if (!board) {
+			throw new Error("Board not found");
+		}
+
+		const cleanPrompt = prompt.trim();
+		if (!cleanPrompt) {
+			throw new Error("Prompt cannot be empty");
+		}
+
+		const firstLine = cleanPrompt.split(/\r?\n/)[0]?.trim() ?? "";
+		const title = (firstLine.length > 0 ? firstLine : cleanPrompt).slice(
+			0,
+			120,
+		);
+
+		try {
+			const createdTask = await api.createTask({
+				boardId: board.id,
+				columnId,
+				title,
+				description: cleanPrompt,
+				priority: "normal",
+				difficulty: "medium",
+				type: "feature",
+				projectId,
+				modelName: options?.modelName ?? null,
+				tags: [],
+			});
+
+			await api.run.start({ taskId: createdTask.id });
+			await loadBoard();
+			addToast("Raw story queued for execution", "success");
+		} catch (createError) {
+			console.error("Failed to quick-run raw story:", createError);
+			addToast("Failed to run raw story", "error");
+			throw new Error(
+				createError instanceof Error
+					? createError.message
+					: "Failed to run raw story",
+			);
+		}
+	};
+
 	const handleDeleteTask = (taskId: string) => {
 		setDeleteTaskConfirm({ isOpen: true, taskId });
 	};
@@ -641,6 +700,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		handleTaskClick,
 		handleAddTask,
 		handleQuickGenerateStory,
+		handleQuickRunRawStory,
 		handleDeleteTask,
 		handleColumnSubmit,
 		handleDeleteColumn,
