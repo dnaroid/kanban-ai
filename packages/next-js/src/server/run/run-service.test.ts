@@ -244,6 +244,37 @@ describe("RunService.generateUserStory", () => {
 		);
 	});
 
+	it("combines preset provider and modelName for session preferences", async () => {
+		mockRoleRepo.listWithPresets.mockReturnValue([
+			{
+				id: "ba",
+				name: "Business Analyst",
+				preferred_model_name: null,
+				preferred_model_variant: null,
+				preferred_llm_agent: null,
+				preset_json: JSON.stringify({
+					provider: "google",
+					modelName: "antigravity-gemini-3.1-pro#fast",
+					agent: "ba-agent",
+				}),
+			},
+		]);
+
+		const service = new RunService();
+		await service.generateUserStory("task-1");
+
+		expect(mockQueueManager.enqueue).toHaveBeenCalledWith(
+			"run-new",
+			expect.objectContaining({
+				sessionPreferences: {
+					preferredModelName: "google/antigravity-gemini-3.1-pro",
+					preferredModelVariant: "fast",
+					preferredLlmAgent: "ba-agent",
+				},
+			}),
+		);
+	});
+
 	it("uses assigned task executor role for generation when agent tag is present", async () => {
 		mockTaskRepo.getById.mockReturnValue(
 			buildTask({ tags: JSON.stringify(["agent:qa"]) }),

@@ -262,6 +262,12 @@ export class RunsQueueManager {
 				(typeof nestedModel?.id === "string" && nestedModel.id.trim()) ||
 				undefined;
 
+			const rawProvider =
+				(typeof parsed.provider === "string" && parsed.provider.trim()) ||
+				(typeof nestedModel?.provider === "string" &&
+					nestedModel.provider.trim()) ||
+				undefined;
+
 			const explicitVariant =
 				(typeof parsed.modelVariant === "string" &&
 					parsed.modelVariant.trim()) ||
@@ -274,7 +280,14 @@ export class RunsQueueManager {
 				? rawModelName.split("#", 2)
 				: [undefined, undefined];
 
-			const preferredModelName = modelWithoutVariant?.trim() || undefined;
+			const normalizedModelName = modelWithoutVariant?.trim() || undefined;
+			const preferredModelName = normalizedModelName
+				? normalizedModelName.includes("/")
+					? normalizedModelName
+					: rawProvider
+						? `${rawProvider}/${normalizedModelName}`
+						: normalizedModelName
+				: undefined;
 			const preferredModelVariant =
 				explicitVariant || modelVariantFromName?.trim() || undefined;
 

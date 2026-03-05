@@ -56,7 +56,16 @@ const {
 		},
 		mockRoleRepo: {
 			list: vi.fn(() => [{ id: "dev", name: "Developer" }]),
-			listWithPresets: vi.fn(() => [{ id: "dev", name: "Developer" }]),
+			listWithPresets: vi.fn(() => [
+				{
+					id: "dev",
+					name: "Developer",
+					preferred_model_name: null,
+					preferred_model_variant: null,
+					preferred_llm_agent: null,
+					preset_json: null,
+				},
+			]),
 			getPresetJson: vi.fn(() => null),
 		},
 		mockRunEventRepo: {
@@ -456,6 +465,33 @@ describe("RunsQueueManager scheduling", () => {
 			"generated",
 			buildOpencodeStatusLine("generated"),
 		);
+	});
+
+	it("extracts provider/model session preference from preset payload", () => {
+		const manager = new RunsQueueManager();
+		const withPrivateAccess = manager as unknown as {
+			extractSessionPreferencesFromPreset: (presetJson: string | null) =>
+				| {
+						preferredModelName?: string;
+						preferredModelVariant?: string;
+						preferredLlmAgent?: string;
+				  }
+				| undefined;
+		};
+
+		expect(
+			withPrivateAccess.extractSessionPreferencesFromPreset(
+				JSON.stringify({
+					provider: "google",
+					modelName: "antigravity-gemini-3.1-pro#high",
+					agent: "build",
+				}),
+			),
+		).toEqual({
+			preferredModelName: "google/antigravity-gemini-3.1-pro",
+			preferredModelVariant: "high",
+			preferredLlmAgent: "build",
+		});
 	});
 
 	it("maps QA success marker to test_ok signal", async () => {
