@@ -326,12 +326,12 @@ export function QuickCreateModal({
 			title={
 				<div className="flex items-center gap-3">
 					<div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-						<Play className="w-6 h-6 text-emerald-400 fill-current" />
+						<Sparkles className="w-6 h-6 text-emerald-400" />
 					</div>
 					<div>
 						<h3 className="text-lg font-bold text-white">Quick Create Story</h3>
 						<p className="text-xs text-slate-500 font-medium">
-							Generate a story or run raw story immediately
+							Describe your task and let the agent generate a story
 						</p>
 					</div>
 				</div>
@@ -346,35 +346,31 @@ export function QuickCreateModal({
 					>
 						Cancel
 					</button>
+					<div className="flex-1" />
 					<button
 						type="button"
 						onClick={handleRunRawStory}
 						disabled={isSubmitting}
 						className={cn(
-							"inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-xs font-bold transition-all border shadow-lg",
+							"inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all border",
 							isSubmitting
-								? "cursor-not-allowed bg-blue-500/10 text-blue-300/80 border-blue-500/30"
-								: "bg-blue-600 text-white border-blue-500 hover:bg-blue-500 hover:scale-[1.02] active:scale-[0.98] shadow-blue-500/20",
+								? "cursor-not-allowed opacity-50 bg-slate-800 text-slate-500 border-slate-700"
+								: "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white",
 						)}
 					>
 						{submittingAction === "runRaw" ? (
-							<>
-								<Loader2 className="w-4 h-4 animate-spin" />
-								Running Raw Story...
-							</>
+							<Loader2 className="w-4 h-4 animate-spin" />
 						) : (
-							<>
-								<Play className="w-4 h-4 fill-current" />
-								Run Raw Story
-							</>
+							<Play className="w-4 h-4 fill-current" />
 						)}
+						Run Raw
 					</button>
 					<button
 						type="button"
 						onClick={handleGenerateStory}
 						disabled={isSubmitting}
 						className={cn(
-							"inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-xs font-bold transition-all border shadow-lg",
+							"inline-flex items-center gap-2 rounded-xl px-8 py-2.5 text-xs font-bold transition-all border shadow-lg",
 							isSubmitting
 								? "cursor-not-allowed bg-emerald-500/10 text-emerald-300/80 border-emerald-500/30"
 								: "bg-emerald-600 text-white border-emerald-500 hover:bg-emerald-500 hover:scale-[1.02] active:scale-[0.98] shadow-emerald-500/20",
@@ -383,7 +379,7 @@ export function QuickCreateModal({
 						{submittingAction === "generate" ? (
 							<>
 								<Loader2 className="w-4 h-4 animate-spin" />
-								Generating Story...
+								Generating...
 							</>
 						) : (
 							<>
@@ -395,125 +391,122 @@ export function QuickCreateModal({
 				</div>
 			}
 		>
-			<div className="space-y-6">
-				<div className="rounded-2xl border border-slate-700/70 bg-slate-900/60 p-4 space-y-3">
-					<div className="flex items-center justify-between gap-3">
-						<p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
-							Context Files
-						</p>
-						<button
-							type="button"
-							onClick={() => setIsFilePickerOpen(true)}
+			<div className="space-y-4">
+				<div className="relative group">
+					<div className="rounded-2xl border border-slate-700/70 bg-slate-900/60 p-4 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all">
+						<textarea
+							value={prompt}
+							onChange={(e) => setPrompt(e.target.value)}
+							placeholder="What needs to be done? Type or dictate story details..."
+							rows={6}
 							disabled={isSubmitting}
-							className="inline-flex items-center gap-2 rounded-lg border border-slate-700/80 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 transition-colors hover:bg-slate-700/70 disabled:cursor-not-allowed disabled:opacity-60"
-							aria-label="Select context files"
-						>
-							<FolderOpen className="w-4 h-4" />
-							Select Files
-						</button>
+							className="w-full resize-none bg-transparent border-none text-slate-200 placeholder:text-slate-500 outline-none focus:ring-0 text-base leading-relaxed p-0"
+							autoFocus
+						/>
+
+						{liveTranscript && (
+							<div className="mt-4 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+								<p className="text-sm text-emerald-300/90 italic">
+									{liveTranscript}
+								</p>
+							</div>
+						)}
+
+						<div className="flex items-center justify-end gap-2 mt-2">
+							<button
+								type="button"
+								onClick={handleToggleDictation}
+								disabled={isSubmitting}
+								className={cn(
+									"w-9 h-9 rounded-lg border transition-all flex items-center justify-center",
+									isListening
+										? "text-red-300 border-red-500/40 bg-red-500/10 hover:bg-red-500/20 shadow-lg shadow-red-500/10"
+										: "text-slate-400 border-slate-700/80 bg-slate-800/60 hover:bg-slate-700/60 hover:text-slate-200",
+								)}
+								title={isListening ? "Stop dictation" : "Start dictation"}
+							>
+								{isListening ? (
+									<MicOff className="w-4 h-4" />
+								) : (
+									<Mic className="w-4 h-4" />
+								)}
+							</button>
+
+							<button
+								type="button"
+								onClick={() => {
+									setPrompt("");
+									setLiveTranscript("");
+									setError(null);
+									if (isListening) stopDictation();
+								}}
+								disabled={isSubmitting}
+								className="w-9 h-9 rounded-lg border border-slate-700/80 bg-slate-800/60 hover:bg-slate-700/60 text-slate-400 flex items-center justify-center transition-all hover:text-slate-200"
+								title="Clear"
+							>
+								<X className="w-4 h-4" />
+							</button>
+						</div>
 					</div>
-					{selectedFiles.length > 0 ? (
-						<ul
-							className="space-y-1.5 max-h-28 overflow-y-auto pr-1"
-							aria-live="polite"
-						>
+				</div>
+
+				<div className="flex flex-wrap items-center gap-3 px-1">
+					<div className="flex items-center gap-2">
+						<span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Model:</span>
+						<ModelPicker
+							value={selectedModel}
+							models={models}
+							onChange={setSelectedModel}
+							allowAuto
+							showVariantSelector
+						/>
+					</div>
+
+					<div className="h-4 w-px bg-slate-800 mx-1" />
+
+					<button
+						type="button"
+						onClick={() => setIsFilePickerOpen(true)}
+						disabled={isSubmitting}
+						className={cn(
+							"inline-flex items-center gap-2 rounded-lg border border-slate-700/80 bg-slate-800/80 px-3 h-8 text-[11px] font-semibold transition-colors hover:bg-slate-700/70 disabled:cursor-not-allowed disabled:opacity-60",
+							selectedFiles.length > 0 ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/5" : "text-slate-300"
+						)}
+					>
+						<FolderOpen className="w-3.5 h-3.5" />
+						{selectedFiles.length > 0 ? `${selectedFiles.length} Files Attached` : "Add Context Files"}
+					</button>
+				</div>
+
+				{selectedFiles.length > 0 && (
+					<div className="rounded-xl border border-slate-800/50 bg-slate-900/30 p-2">
+						<ul className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto no-scrollbar">
 							{selectedFiles.map((filePath) => {
 								const normalized = filePath.replace(/\\/g, "/");
 								const fileName = normalized.split("/").pop() || filePath;
 								return (
 									<li
 										key={filePath}
-										className="flex items-center gap-2 rounded-lg bg-slate-800/70 px-2.5 py-1.5"
+										className="group inline-flex items-center gap-1.5 rounded-md bg-slate-800/60 px-2 py-1 text-[10px] text-slate-300 border border-slate-700/50"
 									>
-										<FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-										<span
-											className="truncate text-xs text-slate-200"
-											title={filePath}
+										<FileText className="w-3 h-3 text-slate-500" />
+										<span className="truncate max-w-[150px]" title={filePath}>{fileName}</span>
+										<button
+											onClick={() => setSelectedFiles(prev => prev.filter(f => f !== filePath))}
+											className="opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all ml-1"
+											title="Remove"
 										>
-											{fileName}
-										</span>
+											<X className="w-2.5 h-2.5" />
+										</button>
 									</li>
 								);
 							})}
 						</ul>
-					) : (
-						<p className="text-xs text-slate-500">
-							No files selected. Add files to give the model repository context.
-						</p>
-					)}
-				</div>
-
-				<div className="rounded-2xl border border-slate-700/70 bg-slate-900/60 p-4">
-					<p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
-						Model / Variant
-					</p>
-					<ModelPicker
-						value={selectedModel}
-						models={models}
-						onChange={setSelectedModel}
-						allowAuto
-						showVariantSelector
-					/>
-				</div>
-
-				<div className="relative rounded-2xl border border-slate-700/70 bg-slate-900/60 p-4 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all">
-					<textarea
-						value={prompt}
-						onChange={(e) => setPrompt(e.target.value)}
-						placeholder="Type or dictate story details here..."
-						rows={4}
-						disabled={isSubmitting}
-						className="w-full resize-none bg-transparent border-none text-slate-200 placeholder:text-slate-500 outline-none focus:ring-0 text-base leading-relaxed p-0"
-					/>
-
-					{liveTranscript && (
-						<div className="mt-4 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
-							<p className="text-sm text-emerald-300/90 italic">
-								{liveTranscript}
-							</p>
-						</div>
-					)}
-				</div>
-
-				<div className="flex items-center gap-3">
-					<button
-						type="button"
-						onClick={handleToggleDictation}
-						disabled={isSubmitting}
-						className={cn(
-							"w-12 h-12 rounded-2xl border transition-all flex items-center justify-center",
-							isListening
-								? "text-red-300 border-red-500/40 bg-red-500/10 hover:bg-red-500/20 shadow-lg shadow-red-500/10"
-								: "text-slate-300 border-slate-700/80 bg-slate-800/60 hover:bg-slate-700/60",
-						)}
-						title={isListening ? "Stop dictation" : "Start dictation"}
-					>
-						{isListening ? (
-							<MicOff className="w-6 h-6" />
-						) : (
-							<Mic className="w-6 h-6" />
-						)}
-					</button>
-
-					<button
-						type="button"
-						onClick={() => {
-							setPrompt("");
-							setLiveTranscript("");
-							setSelectedFiles([]);
-							setError(null);
-							if (isListening) stopDictation();
-						}}
-						disabled={isSubmitting}
-						className="w-12 h-12 rounded-2xl border border-slate-700/80 bg-slate-800/60 hover:bg-slate-700/60 text-slate-400 flex items-center justify-center transition-all"
-						title="Clear"
-					>
-						<X className="w-6 h-6" />
-					</button>
-				</div>
+					</div>
+				)}
 
 				{error && (
-					<p className="text-sm text-red-300 bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 animate-in slide-in-from-top-2">
+					<p className="text-sm text-red-300 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 animate-in slide-in-from-top-2">
 						{error}
 					</p>
 				)}
