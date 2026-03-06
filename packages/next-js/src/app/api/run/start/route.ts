@@ -5,6 +5,7 @@ interface StartRunBody {
 	taskId?: unknown;
 	roleId?: unknown;
 	mode?: unknown;
+	modelName?: unknown;
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -27,8 +28,14 @@ export async function POST(request: Request): Promise<Response> {
 			typeof body.mode === "string" && body.mode.trim().length > 0
 				? body.mode.trim()
 				: undefined;
+		const modelName =
+			typeof body.modelName === "string" && body.modelName.trim().length > 0
+				? body.modelName.trim()
+				: body.modelName === null
+					? null
+					: undefined;
 
-		const data = await runService.start({ taskId, roleId, mode });
+		const data = await runService.start({ taskId, roleId, mode, modelName });
 		return NextResponse.json({ success: true, data });
 	} catch (error) {
 		const message =

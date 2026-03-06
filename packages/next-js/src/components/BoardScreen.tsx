@@ -304,10 +304,11 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 							);
 						}
 					}}
-					onRunRawStory={async (prompt, modelName, selectedFiles) => {
+					onRunRawStory={async (prompt, modelName, roleId, selectedFiles) => {
 						if (firstColumnId) {
 							await handleQuickRunRawStory(firstColumnId, prompt, {
 								modelName,
+								roleId,
 								selectedFiles,
 							});
 						}

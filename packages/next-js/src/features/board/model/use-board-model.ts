@@ -472,7 +472,11 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 	const handleQuickRunRawStory = async (
 		columnId: string,
 		prompt: string,
-		options?: { modelName?: string | null; selectedFiles?: string[] },
+		options?: {
+			modelName?: string | null;
+			roleId?: string | null;
+			selectedFiles?: string[];
+		},
 	) => {
 		if (!board) {
 			throw new Error("Board not found");
@@ -525,7 +529,11 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 				}
 			});
 
+			const preferredRoleId = options?.roleId?.trim();
 			const executionRoleId =
+				(preferredRoleId && preferredRoleId.length > 0
+					? preferredRoleId
+					: null) ??
 				roleWithBehavior.find(
 					(item) =>
 						item.behavior.quickSelect &&
@@ -557,6 +565,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 				taskId: createdTask.id,
 				roleId: executionRoleId,
 				mode: "execute",
+				modelName: options?.modelName ?? null,
 			});
 			await loadBoard();
 			addToast("Raw story queued for execution", "success");

@@ -60,8 +60,26 @@ interface QuickCreateModalProps {
 	onRunRawStory: (
 		prompt: string,
 		modelName: string | null,
+		roleId: string | null,
 		selectedFiles: string[],
 	) => Promise<void>;
+}
+
+interface AgentRole {
+	id: string;
+	name: string;
+	quickSelect: boolean;
+}
+
+function parseQuickSelectFlag(rawPresetJson: string): boolean {
+	try {
+		const parsed = JSON.parse(rawPresetJson) as {
+			behavior?: { quickSelect?: unknown };
+		};
+		return parsed.behavior?.quickSelect === true;
+	} catch {
+		return false;
+	}
 }
 
 export function QuickCreateModal({
@@ -79,6 +97,9 @@ export function QuickCreateModal({
 	>(null);
 	const [models, setModels] = useState<OpencodeModel[]>([]);
 	const [selectedModel, setSelectedModel] = useState<string | null>(null);
+	const [roles, setRoles] = useState<AgentRole[]>([]);
+	const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
+	const [isLoadingRoles, setIsLoadingRoles] = useState(false);
 	const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
 	const [projectPath, setProjectPath] = useState<string | undefined>(undefined);
 	const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
@@ -98,6 +119,8 @@ export function QuickCreateModal({
 			setPrompt("");
 			setLiveTranscript("");
 			setSelectedModel(null);
+			setSelectedRoleId(null);
+			setRoles([]);
 			setSelectedFiles([]);
 			setProjectPath(undefined);
 			setIsFilePickerOpen(false);
@@ -159,6 +182,49 @@ export function QuickCreateModal({
 		};
 
 		void loadEnabledModels();
+
+		return () => {
+			isCancelled = true;
+		};
+	}, [isOpen]);
+
+	useEffect(() => {
+		if (!isOpen) {
+			return;
+		}
+
+		let isCancelled = false;
+		const loadRoles = async () => {
+			setIsLoadingRoles(true);
+			try {
+				const response = await api.roles.listFull();
+				const fetchedRoles = response.roles.map((role) => ({
+					id: role.id,
+					name: role.name,
+					quickSelect: parseQuickSelectFlag(role.preset_json),
+				}));
+
+				if (isCancelled) {
+					return;
+				}
+
+				setRoles(fetchedRoles);
+				const quickRole = fetchedRoles.find((role) => role.quickSelect);
+				setSelectedRoleId(quickRole?.id ?? fetchedRoles[0]?.id ?? null);
+			} catch (loadError) {
+				if (!isCancelled) {
+					setRoles([]);
+					setSelectedRoleId(null);
+				}
+				console.error("Failed to load roles:", loadError);
+			} finally {
+				if (!isCancelled) {
+					setIsLoadingRoles(false);
+				}
+			}
+		};
+
+		void loadRoles();
 
 		return () => {
 			isCancelled = true;
@@ -299,7 +365,12 @@ export function QuickCreateModal({
 		setSubmittingAction("runRaw");
 
 		try {
-			await onRunRawStory(fullPrompt, selectedModel, selectedFiles);
+			await onRunRawStory(
+				fullPrompt,
+				selectedModel,
+				selectedRoleId,
+				selectedFiles,
+			);
 			onClose();
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Failed to run raw story.");
@@ -338,6 +409,24 @@ export function QuickCreateModal({
 			footer={
 				<div className="flex items-center justify-between w-full">
 					<div className="flex items-center gap-2">
+						<select
+							value={selectedRoleId ?? ""}
+							onChange={(event) =>
+								setSelectedRoleId(event.target.value || null)
+							}
+							disabled={isLoadingRoles || roles.length === 0}
+							className="h-9 min-w-[160px] rounded-lg border border-slate-700 bg-slate-900 px-2 text-xs text-slate-200 outline-none focus:border-emerald-500/50 disabled:opacity-60"
+						>
+							{roles.length === 0 ? (
+								<option value="">No agents</option>
+							) : (
+								roles.map((role) => (
+									<option key={role.id} value={role.id}>
+										{role.name}
+									</option>
+								))
+							)}
+						</select>
 						<ModelPicker
 							value={selectedModel}
 							models={models}
@@ -402,7 +491,6 @@ export function QuickCreateModal({
 							rows={6}
 							disabled={isSubmitting}
 							className="w-full resize-none bg-transparent border-none text-slate-200 placeholder:text-slate-500 outline-none focus:ring-0 text-base leading-relaxed p-0"
-							autoFocus
 						/>
 
 						{liveTranscript && (
@@ -478,9 +566,16 @@ export function QuickCreateModal({
 										className="group inline-flex items-center gap-1.5 rounded-md bg-slate-800/60 px-2 py-1 text-[10px] text-slate-300 border border-slate-700/50"
 									>
 										<FileText className="w-3 h-3 text-slate-500" />
-										<span className="truncate max-w-[150px]" title={filePath}>{fileName}</span>
+										<span className="truncate max-w-[150px]" title={filePath}>
+											{fileName}
+										</span>
 										<button
-											onClick={() => setSelectedFiles(prev => prev.filter(f => f !== filePath))}
+											type="button"
+											onClick={() =>
+												setSelectedFiles((prev) =>
+													prev.filter((f) => f !== filePath),
+												)
+											}
 											className="opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all ml-1"
 											title="Remove"
 										>

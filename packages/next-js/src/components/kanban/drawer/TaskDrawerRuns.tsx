@@ -187,6 +187,7 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 			const response = await api.run.start({
 				taskId: task.id,
 				roleId: selectedRoleId,
+				modelName: task.modelName ?? null,
 			});
 			await fetchRuns();
 			setSelectedRunId(response.runId);
@@ -255,6 +256,7 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 				taskId: task.id,
 				roleId: retryRoleId,
 				mode: run.mode,
+				modelName: task.modelName ?? null,
 			});
 			await fetchRuns();
 			setSelectedRunId(response.runId);

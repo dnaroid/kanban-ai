@@ -28,6 +28,7 @@ export interface StartRunInput {
 	taskId: string;
 	roleId?: string;
 	mode?: string;
+	modelName?: string | null;
 }
 
 const allowedTaskTypes = ["feature", "bug", "chore", "improvement"] as const;
@@ -132,6 +133,7 @@ export class RunService {
 			taskId: input.taskId,
 			roleId: input.roleId,
 			mode: input.mode,
+			modelName: input.modelName,
 		});
 
 		const task = taskRepo.getById(input.taskId);
@@ -207,6 +209,7 @@ export class RunService {
 				selectedRole,
 				selectedRole?.preset_json,
 				task.modelName,
+				input.modelName,
 			),
 			prompt: buildTaskPrompt(
 				{ title: task.title, description: task.description },
@@ -684,9 +687,11 @@ export class RunService {
 		} | null,
 		presetJson?: string | null,
 		taskModelName?: string | null,
+		startModelName?: string | null,
 	): SessionStartPreferences | undefined {
 		const fromPreset = this.extractSessionPreferencesFromPreset(presetJson);
-		const normalizedTaskModelName = taskModelName?.trim() || "";
+		const normalizedTaskModelName =
+			startModelName?.trim() || taskModelName?.trim() || "";
 		const [taskModelFromNameRaw, taskModelVariantRaw] = normalizedTaskModelName
 			? normalizedTaskModelName.split("#", 2)
 			: ["", ""];
