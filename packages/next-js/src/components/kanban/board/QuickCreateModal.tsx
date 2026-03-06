@@ -339,7 +339,6 @@ export function QuickCreateModal({
 			footer={
 				<div className="flex items-center justify-between w-full">
 					<div className="flex items-center gap-2">
-						<span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Model:</span>
 						<ModelPicker
 							value={selectedModel}
 							models={models}
@@ -348,7 +347,7 @@ export function QuickCreateModal({
 							showVariantSelector
 						/>
 					</div>
-					<div className="flex items-center gap-3">
+					<div className="flex items-center gap-2">
 						<button
 							type="button"
 							onClick={handleRunRawStory}
@@ -372,7 +371,7 @@ export function QuickCreateModal({
 							onClick={handleGenerateStory}
 							disabled={isSubmitting}
 							className={cn(
-								"inline-flex items-center gap-2 rounded-xl px-8 py-2.5 text-xs font-bold transition-all border shadow-lg",
+								"inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-xs font-bold transition-all border shadow-lg",
 								isSubmitting
 									? "cursor-not-allowed bg-emerald-500/10 text-emerald-300/80 border-emerald-500/30"
 									: "bg-emerald-600 text-white border-emerald-500 hover:bg-emerald-500 hover:scale-[1.02] active:scale-[0.98] shadow-emerald-500/20",
@@ -386,7 +385,7 @@ export function QuickCreateModal({
 							) : (
 								<>
 									<Sparkles className="w-4 h-4" />
-									Generate Story
+									Generate
 								</>
 							)}
 						</button>
