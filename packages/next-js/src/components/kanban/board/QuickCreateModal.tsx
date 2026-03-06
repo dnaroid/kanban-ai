@@ -321,8 +321,7 @@ export function QuickCreateModal({
 		<Modal
 			open={isOpen}
 			onOpenChange={(open) => !open && onClose()}
-			size="md"
-			className="max-w-xl"
+			size="lg"
 			title={
 				<div className="flex items-center gap-3">
 					<div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
