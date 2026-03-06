@@ -337,48 +337,60 @@ export function QuickCreateModal({
 				</div>
 			}
 			footer={
-				<div className="flex items-center justify-end gap-4">
-					<button
-						type="button"
-						onClick={handleRunRawStory}
-						disabled={isSubmitting}
-						className={cn(
-							"inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all border",
-							isSubmitting
-								? "cursor-not-allowed opacity-50 bg-slate-800 text-slate-500 border-slate-700"
-								: "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white",
-						)}
-					>
-						{submittingAction === "runRaw" ? (
-							<Loader2 className="w-4 h-4 animate-spin" />
-						) : (
-							<Play className="w-4 h-4 fill-current" />
-						)}
-						Run Raw
-					</button>
-					<button
-						type="button"
-						onClick={handleGenerateStory}
-						disabled={isSubmitting}
-						className={cn(
-							"inline-flex items-center gap-2 rounded-xl px-8 py-2.5 text-xs font-bold transition-all border shadow-lg",
-							isSubmitting
-								? "cursor-not-allowed bg-emerald-500/10 text-emerald-300/80 border-emerald-500/30"
-								: "bg-emerald-600 text-white border-emerald-500 hover:bg-emerald-500 hover:scale-[1.02] active:scale-[0.98] shadow-emerald-500/20",
-						)}
-					>
-						{submittingAction === "generate" ? (
-							<>
+				<div className="flex items-center justify-between w-full">
+					<div className="flex items-center gap-2">
+						<span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Model:</span>
+						<ModelPicker
+							value={selectedModel}
+							models={models}
+							onChange={setSelectedModel}
+							allowAuto
+							showVariantSelector
+						/>
+					</div>
+					<div className="flex items-center gap-3">
+						<button
+							type="button"
+							onClick={handleRunRawStory}
+							disabled={isSubmitting}
+							className={cn(
+								"inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all border",
+								isSubmitting
+									? "cursor-not-allowed opacity-50 bg-slate-800 text-slate-500 border-slate-700"
+									: "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white",
+							)}
+						>
+							{submittingAction === "runRaw" ? (
 								<Loader2 className="w-4 h-4 animate-spin" />
-								Generating...
-							</>
-						) : (
-							<>
-								<Sparkles className="w-4 h-4" />
-								Generate Story
-							</>
-						)}
-					</button>
+							) : (
+								<Play className="w-4 h-4 fill-current" />
+							)}
+							Run Raw
+						</button>
+						<button
+							type="button"
+							onClick={handleGenerateStory}
+							disabled={isSubmitting}
+							className={cn(
+								"inline-flex items-center gap-2 rounded-xl px-8 py-2.5 text-xs font-bold transition-all border shadow-lg",
+								isSubmitting
+									? "cursor-not-allowed bg-emerald-500/10 text-emerald-300/80 border-emerald-500/30"
+									: "bg-emerald-600 text-white border-emerald-500 hover:bg-emerald-500 hover:scale-[1.02] active:scale-[0.98] shadow-emerald-500/20",
+							)}
+						>
+							{submittingAction === "generate" ? (
+								<>
+									<Loader2 className="w-4 h-4 animate-spin" />
+									Generating...
+								</>
+							) : (
+								<>
+									<Sparkles className="w-4 h-4" />
+									Generate Story
+								</>
+							)}
+						</button>
+					</div>
 				</div>
 			}
 		>
@@ -453,19 +465,6 @@ export function QuickCreateModal({
 								<X className="w-4 h-4" />
 							</button>
 						</div>
-					</div>
-				</div>
-
-				<div className="flex items-center gap-3 px-1">
-					<div className="flex items-center gap-2">
-						<span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Model:</span>
-						<ModelPicker
-							value={selectedModel}
-							models={models}
-							onChange={setSelectedModel}
-							allowAuto
-							showVariantSelector
-						/>
 					</div>
 				</div>
 
