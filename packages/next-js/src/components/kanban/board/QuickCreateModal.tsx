@@ -1,10 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Mic, MicOff, Play, Sparkles, X } from "lucide-react";
+import {
+	FileText,
+	FolderOpen,
+	Loader2,
+	Mic,
+	MicOff,
+	Play,
+	Sparkles,
+	X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/common/Modal";
 import { ModelPicker } from "@/components/common/ModelPicker";
+import { FileSystemPicker } from "@/components/common/FileSystemPicker";
 import { api } from "@/lib/api-client";
 import type { OpencodeModel } from "@/types/kanban";
 
@@ -43,13 +53,19 @@ type BrowserSpeechRecognition = {
 type BrowserSpeechRecognitionCtor = new () => BrowserSpeechRecognition;
 
 interface QuickCreateModalProps {
+	projectId: string;
 	isOpen: boolean;
 	onClose: () => void;
-	onGenerateStory: (prompt: string) => Promise<void>;
-	onRunRawStory: (prompt: string, modelName: string | null) => Promise<void>;
+	onGenerateStory: (prompt: string, selectedFiles: string[]) => Promise<void>;
+	onRunRawStory: (
+		prompt: string,
+		modelName: string | null,
+		selectedFiles: string[],
+	) => Promise<void>;
 }
 
 export function QuickCreateModal({
+	projectId,
 	isOpen,
 	onClose,
 	onGenerateStory,
@@ -63,6 +79,9 @@ export function QuickCreateModal({
 	>(null);
 	const [models, setModels] = useState<OpencodeModel[]>([]);
 	const [selectedModel, setSelectedModel] = useState<string | null>(null);
+	const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+	const [projectPath, setProjectPath] = useState<string | undefined>(undefined);
+	const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
 
@@ -79,9 +98,40 @@ export function QuickCreateModal({
 			setPrompt("");
 			setLiveTranscript("");
 			setSelectedModel(null);
+			setSelectedFiles([]);
+			setProjectPath(undefined);
+			setIsFilePickerOpen(false);
 			setError(null);
 		}
 	}, [isOpen, stopDictation]);
+
+	useEffect(() => {
+		if (!isOpen) {
+			return;
+		}
+
+		let isCancelled = false;
+
+		const loadProjectPath = async () => {
+			try {
+				const project = await api.getProject(projectId);
+				if (!isCancelled) {
+					setProjectPath(project?.path || undefined);
+				}
+			} catch (projectError) {
+				if (!isCancelled) {
+					setProjectPath(undefined);
+				}
+				console.error("Failed to load project path:", projectError);
+			}
+		};
+
+		void loadProjectPath();
+
+		return () => {
+			isCancelled = true;
+		};
+	}, [isOpen, projectId]);
 
 	useEffect(() => {
 		if (!isOpen) {
@@ -225,7 +275,7 @@ export function QuickCreateModal({
 		setSubmittingAction("generate");
 
 		try {
-			await onGenerateStory(fullPrompt);
+			await onGenerateStory(fullPrompt, selectedFiles);
 			onClose();
 		} catch (err) {
 			setError(
@@ -249,13 +299,18 @@ export function QuickCreateModal({
 		setSubmittingAction("runRaw");
 
 		try {
-			await onRunRawStory(fullPrompt, selectedModel);
+			await onRunRawStory(fullPrompt, selectedModel, selectedFiles);
 			onClose();
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Failed to run raw story.");
 		} finally {
 			setSubmittingAction(null);
 		}
+	};
+
+	const handleFilesSelect = (paths: string[]) => {
+		setIsFilePickerOpen(false);
+		setSelectedFiles(paths);
 	};
 
 	const isSubmitting = submittingAction !== null;
@@ -341,6 +396,53 @@ export function QuickCreateModal({
 			}
 		>
 			<div className="space-y-6">
+				<div className="rounded-2xl border border-slate-700/70 bg-slate-900/60 p-4 space-y-3">
+					<div className="flex items-center justify-between gap-3">
+						<p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+							Context Files
+						</p>
+						<button
+							type="button"
+							onClick={() => setIsFilePickerOpen(true)}
+							disabled={isSubmitting}
+							className="inline-flex items-center gap-2 rounded-lg border border-slate-700/80 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 transition-colors hover:bg-slate-700/70 disabled:cursor-not-allowed disabled:opacity-60"
+							aria-label="Select context files"
+						>
+							<FolderOpen className="w-4 h-4" />
+							Select Files
+						</button>
+					</div>
+					{selectedFiles.length > 0 ? (
+						<ul
+							className="space-y-1.5 max-h-28 overflow-y-auto pr-1"
+							aria-live="polite"
+						>
+							{selectedFiles.map((filePath) => {
+								const normalized = filePath.replace(/\\/g, "/");
+								const fileName = normalized.split("/").pop() || filePath;
+								return (
+									<li
+										key={filePath}
+										className="flex items-center gap-2 rounded-lg bg-slate-800/70 px-2.5 py-1.5"
+									>
+										<FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+										<span
+											className="truncate text-xs text-slate-200"
+											title={filePath}
+										>
+											{fileName}
+										</span>
+									</li>
+								);
+							})}
+						</ul>
+					) : (
+						<p className="text-xs text-slate-500">
+							No files selected. Add files to give the model repository context.
+						</p>
+					)}
+				</div>
+
 				<div className="rounded-2xl border border-slate-700/70 bg-slate-900/60 p-4">
 					<p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
 						Model / Variant
@@ -398,6 +500,7 @@ export function QuickCreateModal({
 						onClick={() => {
 							setPrompt("");
 							setLiveTranscript("");
+							setSelectedFiles([]);
 							setError(null);
 							if (isListening) stopDictation();
 						}}
@@ -414,6 +517,16 @@ export function QuickCreateModal({
 						{error}
 					</p>
 				)}
+
+				<FileSystemPicker
+					isOpen={isFilePickerOpen}
+					mode="files"
+					initialPath={projectPath}
+					title="Select Files for Story Context"
+					selectLabel="Attach Files"
+					onSelect={handleFilesSelect}
+					onClose={() => setIsFilePickerOpen(false)}
+				/>
 			</div>
 		</Modal>
 	);

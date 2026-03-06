@@ -10,14 +10,7 @@ import {
 	ReactNode,
 } from "react";
 import { api } from "@/lib/api-client";
-import type {
-	WorkflowConfig,
-	WorkflowColumnConfig,
-	WorkflowStatusConfig,
-	WorkflowTaskStatus,
-	WorkflowSignal,
-	WorkflowSignalRule,
-} from "@/lib/api-client";
+import type { WorkflowConfig, WorkflowColumnConfig } from "@/lib/api-client";
 import { useSettingsStatus } from "@/components/settings/SettingsStatusContext";
 import {
 	validateWorkflowConfig,
@@ -34,7 +27,7 @@ interface WorkflowSettingsContextType {
 	validationErrors: Array<{ path: string; message: string }>;
 	jsonError: string | null;
 	setJsonError: (error: string | null) => void;
-	loadConfig: (confirm?: boolean, hasUnsavedChanges?: boolean) => Promise<void>;
+	loadConfig: () => Promise<void>;
 	saveConfig: () => Promise<void>;
 	resetDraft: () => void;
 	updateDraft: (updates: Partial<WorkflowConfig>) => void;
@@ -115,7 +108,11 @@ function reconcileConfigAfterColumnsChange(
 	};
 }
 
-export function WorkflowSettingsProvider({ children }: { children: ReactNode }) {
+export function WorkflowSettingsProvider({
+	children,
+}: {
+	children: ReactNode;
+}) {
 	const { setStatus } = useSettingsStatus();
 	const [isLoading, setIsLoading] = useState(true);
 	const [isSaving, setIsSaving] = useState(false);
@@ -138,29 +135,26 @@ export function WorkflowSettingsProvider({ children }: { children: ReactNode }) 
 
 	const isValid = validationErrors.length === 0 && !jsonError;
 
-	const loadConfig = useCallback(
-		async (skipConfirm = false) => {
-			setIsLoading(true);
-			try {
-				const config = await api.workflow.getConfig();
-				setOriginalConfig(config);
-				setDraftConfig(JSON.parse(JSON.stringify(config)));
-				setJsonError(null);
-			} catch (error) {
-				const message =
-					error instanceof Error
-						? error.message
-						: "Failed to load workflow configuration";
-				setStatus({ type: "error", message });
-			} finally {
-				setIsLoading(false);
-			}
-		},
-		[setStatus],
-	);
+	const loadConfig = useCallback(async () => {
+		setIsLoading(true);
+		try {
+			const config = await api.workflow.getConfig();
+			setOriginalConfig(config);
+			setDraftConfig(JSON.parse(JSON.stringify(config)));
+			setJsonError(null);
+		} catch (error) {
+			const message =
+				error instanceof Error
+					? error.message
+					: "Failed to load workflow configuration";
+			setStatus({ type: "error", message });
+		} finally {
+			setIsLoading(false);
+		}
+	}, [setStatus]);
 
 	useEffect(() => {
-		void loadConfig(true);
+		void loadConfig();
 	}, [loadConfig]);
 
 	const saveConfig = async () => {

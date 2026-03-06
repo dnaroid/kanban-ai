@@ -12,7 +12,6 @@ import {
 	Search,
 	Filter,
 	AlertCircle,
-	X,
 	Info,
 	Settings2,
 	Zap,
@@ -215,7 +214,9 @@ export function WorkflowEngineSignalsEditor({
 
 	// Confirmation state
 	const [showDeleteSignalConfirm, setShowDeleteSignalConfirm] = useState(false);
-	const [deletingSignalKey, setDeletingSignalKey] = useState<string | null>(null);
+	const [deletingSignalKey, setDeletingSignalKey] = useState<string | null>(
+		null,
+	);
 	const [showDeleteRuleConfirm, setShowDeleteRuleConfirm] = useState(false);
 	const [deletingRuleKey, setDeletingRuleKey] = useState<string | null>(null);
 
@@ -417,7 +418,9 @@ export function WorkflowEngineSignalsEditor({
 	const confirmDeleteSignal = () => {
 		if (!deletingSignalKey) return;
 		const newSignals = signals.filter((s) => s.key !== deletingSignalKey);
-		const newRules = signalRules.filter((r) => r.signalKey !== deletingSignalKey);
+		const newRules = signalRules.filter(
+			(r) => r.signalKey !== deletingSignalKey,
+		);
 		onSignalsChange(newSignals);
 		onSignalRulesChange(newRules);
 		setShowDeleteSignalConfirm(false);
@@ -1036,7 +1039,8 @@ export function WorkflowEngineSignalsEditor({
 									disabled={!isAddingSignal}
 									className={cn(
 										"w-full rounded-2xl border bg-[#161B26] border-slate-700 px-4 py-3 text-sm text-slate-200 outline-none transition-all focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 placeholder:text-slate-500",
-										formErrors.key && "border-red-500/50 focus:ring-red-500/10 focus:border-red-500",
+										formErrors.key &&
+											"border-red-500/50 focus:ring-red-500/10 focus:border-red-500",
 										!isAddingSignal && "opacity-50 cursor-not-allowed",
 									)}
 								/>
@@ -1081,7 +1085,8 @@ export function WorkflowEngineSignalsEditor({
 								placeholder="e.g. AI Started Working"
 								className={cn(
 									"w-full rounded-2xl border bg-[#161B26] border-slate-700 px-4 py-3 text-sm text-slate-200 outline-none transition-all focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 placeholder:text-slate-500",
-									formErrors.title && "border-red-500/50 focus:ring-red-500/10 focus:border-red-500",
+									formErrors.title &&
+										"border-red-500/50 focus:ring-red-500/10 focus:border-red-500",
 								)}
 							/>
 						</div>
@@ -1266,9 +1271,9 @@ export function WorkflowEngineSignalsEditor({
 																		e.target.value,
 																		columnKeySet,
 																	),
-												})
-											}
-											className="w-full appearance-none rounded-2xl border border-slate-700 bg-[#161B26] px-4 py-3 text-sm text-slate-200 outline-none focus:border-cyan-500/50 transition-all focus:ring-4 focus:ring-cyan-500/10"
+													})
+												}
+												className="w-full appearance-none rounded-2xl border border-slate-700 bg-[#161B26] px-4 py-3 text-sm text-slate-200 outline-none focus:border-cyan-500/50 transition-all focus:ring-4 focus:ring-cyan-500/10"
 											>
 												{fromColumnOptions.map((option) => (
 													<option key={option.value} value={option.value}>

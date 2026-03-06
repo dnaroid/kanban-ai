@@ -9,7 +9,6 @@ import {
 	Edit2,
 	Palette,
 	Check,
-	X,
 } from "lucide-react";
 import { FileSystemPicker } from "@/components/common/FileSystemPicker";
 import type { Project } from "@/server/types";
@@ -412,53 +411,54 @@ export function ProjectsScreen({ onProjectSelect }: ProjectsScreenProps) {
 
 			<div className="p-8 space-y-8">
 				{loading ? (
-				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-					{[1, 2, 3].map((i) => (
-						<div
-							key={i}
-							className="h-48 bg-slate-800/20 rounded-2xl border border-slate-800/50 animate-pulse"
-						/>
-					))}
-				</div>
-			) : projects.length === 0 ? (
-				<div className="flex flex-col items-center justify-center py-24 bg-slate-800/10 rounded-3xl border border-dashed border-slate-800/50">
-					<div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
-						<FolderKanban className="w-8 h-8 text-slate-500" />
+					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+						{[1, 2, 3].map((i) => (
+							<div
+								key={i}
+								className="h-48 bg-slate-800/20 rounded-2xl border border-slate-800/50 animate-pulse"
+							/>
+						))}
 					</div>
-					<h3 className="text-xl font-bold text-white">Workspace is empty</h3>
-					<p className="text-slate-500 mt-2 max-w-sm text-center">
-						Connect your first repository to start managing tasks with Kanban AI
-					</p>
-					<button
-						type="button"
-						onClick={() => setIsModalOpen(true)}
-						className="mt-6 text-blue-400 font-semibold hover:text-blue-300 transition-colors flex items-center gap-2"
-					>
-						Get Started <Plus className="w-4 h-4" />
-					</button>
-				</div>
-			) : (
-				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-					{projects.map((project) => (
-						<ProjectCard
-							key={project.id}
-							project={project}
-							onSelect={async (id, name) => {
-								await api.setLastProjectId(id);
-								onProjectSelect(id, name);
-							}}
-							onUpdate={loadProjects}
-						/>
-					))}
-				</div>
-			)}
+				) : projects.length === 0 ? (
+					<div className="flex flex-col items-center justify-center py-24 bg-slate-800/10 rounded-3xl border border-dashed border-slate-800/50">
+						<div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4">
+							<FolderKanban className="w-8 h-8 text-slate-500" />
+						</div>
+						<h3 className="text-xl font-bold text-white">Workspace is empty</h3>
+						<p className="text-slate-500 mt-2 max-w-sm text-center">
+							Connect your first repository to start managing tasks with Kanban
+							AI
+						</p>
+						<button
+							type="button"
+							onClick={() => setIsModalOpen(true)}
+							className="mt-6 text-blue-400 font-semibold hover:text-blue-300 transition-colors flex items-center gap-2"
+						>
+							Get Started <Plus className="w-4 h-4" />
+						</button>
+					</div>
+				) : (
+					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+						{projects.map((project) => (
+							<ProjectCard
+								key={project.id}
+								project={project}
+								onSelect={async (id, name) => {
+									await api.setLastProjectId(id);
+									onProjectSelect(id, name);
+								}}
+								onUpdate={loadProjects}
+							/>
+						))}
+					</div>
+				)}
 
-			<CreateProjectModal
-				isOpen={isModalOpen}
-				onClose={() => setIsModalOpen(false)}
-				onCreate={handleCreateProject}
-			/>
-		</div>
+				<CreateProjectModal
+					isOpen={isModalOpen}
+					onClose={() => setIsModalOpen(false)}
+					onCreate={handleCreateProject}
+				/>
+			</div>
 		</div>
 	);
 }

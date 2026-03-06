@@ -14,7 +14,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { SettingsStatusProvider } from "@/components/settings/SettingsStatusProvider";
-import { useSettingsStatus } from "@/components/settings/SettingsStatusContext";
 
 type Tab =
 	| "all-models"

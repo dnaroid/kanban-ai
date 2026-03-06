@@ -47,10 +47,6 @@ export function PillSelect({
 	const entries = Object.entries(options);
 	const currentOption = options[value] ?? entries[0]?.[1];
 
-	if (!currentOption) {
-		return null;
-	}
-
 	const updatePosition = useCallback(() => {
 		const trigger = triggerRef.current;
 		if (!trigger) {
@@ -94,6 +90,10 @@ export function PillSelect({
 			window.removeEventListener("scroll", updatePosition, true);
 		};
 	}, [isOpen, updatePosition]);
+
+	if (!currentOption) {
+		return null;
+	}
 
 	return (
 		<div className={cn("flex flex-col gap-1.5", className)}>

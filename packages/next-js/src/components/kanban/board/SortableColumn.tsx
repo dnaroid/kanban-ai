@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import {
 	useSortable,
 	SortableContext,
@@ -8,52 +7,10 @@ import {
 } from "@dnd-kit/sortable";
 import { useDndContext } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import {
-	AlertCircle,
-	Loader2,
-	Mic,
-	MicOff,
-	Plus,
-	Sparkles,
-	X,
-} from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import type { KanbanTask, Tag } from "@/types/kanban";
 import { cn } from "@/lib/utils";
 import { SortableTask } from "./SortableTask";
-
-type SpeechRecognitionResultLike = {
-	isFinal: boolean;
-	0: {
-		transcript: string;
-	};
-};
-
-type SpeechRecognitionResultListLike = {
-	length: number;
-	[index: number]: SpeechRecognitionResultLike;
-};
-
-type SpeechRecognitionEventLike = Event & {
-	resultIndex: number;
-	results: SpeechRecognitionResultListLike;
-};
-
-type SpeechRecognitionErrorEventLike = Event & {
-	error?: string;
-};
-
-type BrowserSpeechRecognition = {
-	lang: string;
-	continuous: boolean;
-	interimResults: boolean;
-	onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-	onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
-	onend: (() => void) | null;
-	start: () => void;
-	stop: () => void;
-};
-
-type BrowserSpeechRecognitionCtor = new () => BrowserSpeechRecognition;
 
 export interface SortableColumnProps {
 	id: string;
@@ -104,49 +61,50 @@ export function SortableColumn({
 		transition,
 	};
 
-	const [isHovered, setIsHovered] = useState(false);
 	const isEmpty = tasks.length === 0;
 	const isOver = isColumnOver || isTaskOverThisColumn;
 	const isMinimized = isEmpty;
-
-	const getColumnWidth = () => {
-		if (!isMinimized) return "w-[344px]";
-		if (isOver || isHovered) return "w-[344px]";
-		if (isDraggingAnyTask) return "w-[152px]";
-		return "w-[80px]";
-	};
+	const isHovered = false;
+	const columnWidthClass = !isMinimized
+		? "w-[344px]"
+		: isOver
+			? "w-[344px]"
+			: isDraggingAnyTask
+				? "w-[152px] hover:w-[344px]"
+				: "w-[80px] hover:w-[344px]";
 
 	return (
 		<div
 			ref={setNodeRef}
-			onMouseEnter={() => setIsHovered(true)}
-			onMouseLeave={() => setIsHovered(false)}
 			style={style}
 			className={cn(
 				"flex-shrink-0 h-full px-3 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
-				getColumnWidth(),
+				columnWidthClass,
 				isDragging && "opacity-50 scale-95",
 			)}
 		>
 			<div
 				style={{
-					borderColor: color 
-						? (isHovered || isOver ? color : `${color}40`) 
+					borderColor: color
+						? isHovered || isOver
+							? color
+							: `${color}40`
 						: undefined,
-					boxShadow: color 
-						? (isHovered || isOver 
-							? `0 0 30px -5px ${color}40, inset 0 0 10px ${color}10` 
-							: `0 0 25px -10px ${color}20`)
+					boxShadow: color
+						? isHovered || isOver
+							? `0 0 30px -5px ${color}40, inset 0 0 10px ${color}10`
+							: `0 0 25px -10px ${color}20`
 						: undefined,
 					backgroundColor: color
-						? (isHovered || isOver 
-							? `color-mix(in srgb, ${color} 6%, #0B0E14)` 
-							: `color-mix(in srgb, ${color} 3%, #0B0E14)`)
+						? isHovered || isOver
+							? `color-mix(in srgb, ${color} 6%, #0B0E14)`
+							: `color-mix(in srgb, ${color} 3%, #0B0E14)`
 						: "#0B0E14",
 				}}
 				className={cn(
 					"flex flex-col h-full w-full relative group/column overflow-hidden rounded-2xl border",
-					!color && (isHovered || isOver ? "border-slate-600" : "border-slate-800/50"),
+					!color &&
+						(isHovered || isOver ? "border-slate-600" : "border-slate-800/50"),
 					isOver && "ring-4 ring-blue-500/20 scale-[1.02] z-10",
 				)}
 			>

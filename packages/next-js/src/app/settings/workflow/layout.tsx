@@ -13,8 +13,9 @@ import {
 	GitCompare,
 	Map as MapIcon,
 	SlidersHorizontal,
-	type LucideIcon, GitBranch,
-} from "lucide-react"
+	type LucideIcon,
+	GitBranch,
+} from "lucide-react";
 
 import {
 	WorkflowSettingsProvider,
@@ -25,11 +26,36 @@ import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 import { useState } from "react";
 
 const tabs: { id: string; label: string; icon: LucideIcon; path: string }[] = [
-	{ id: "events", label: "Events", icon: SlidersHorizontal, path: "/settings/workflow/events" },
-	{ id: "statuses", label: "Statuses", icon: ListTodo, path: "/settings/workflow/statuses" },
-	{ id: "columns", label: "Columns", icon: LayoutGrid, path: "/settings/workflow/columns" },
-	{ id: "transitions", label: "Transitions", icon: GitCompare, path: "/settings/workflow/transitions" },
-	{ id: "map", label: "Workflow Map", icon: MapIcon, path: "/settings/workflow/map" },
+	{
+		id: "events",
+		label: "Events",
+		icon: SlidersHorizontal,
+		path: "/settings/workflow/events",
+	},
+	{
+		id: "statuses",
+		label: "Statuses",
+		icon: ListTodo,
+		path: "/settings/workflow/statuses",
+	},
+	{
+		id: "columns",
+		label: "Columns",
+		icon: LayoutGrid,
+		path: "/settings/workflow/columns",
+	},
+	{
+		id: "transitions",
+		label: "Transitions",
+		icon: GitCompare,
+		path: "/settings/workflow/transitions",
+	},
+	{
+		id: "map",
+		label: "Workflow Map",
+		icon: MapIcon,
+		path: "/settings/workflow/map",
+	},
 ];
 
 function WorkflowSettingsHeader() {
@@ -52,7 +78,7 @@ function WorkflowSettingsHeader() {
 		if (isDirty) {
 			setShowReloadConfirm(true);
 		} else {
-			void loadConfig(true);
+			void loadConfig();
 		}
 	};
 
@@ -98,7 +124,9 @@ function WorkflowSettingsHeader() {
 						disabled={isLoading || isSaving}
 						className="flex items-center gap-2 h-9 px-4 bg-slate-900/50 hover:bg-slate-800/70 disabled:opacity-30 text-slate-300 border border-slate-700/70 rounded-xl font-bold text-xs uppercase tracking-widest transition-all active:scale-95"
 					>
-						<RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
+						<RefreshCw
+							className={cn("h-3.5 w-3.5", isLoading && "animate-spin")}
+						/>
 						Reload
 					</button>
 					{isDirty && (
@@ -136,7 +164,7 @@ function WorkflowSettingsHeader() {
 			<ConfirmationModal
 				isOpen={showReloadConfirm}
 				onClose={() => setShowReloadConfirm(false)}
-				onConfirm={() => void loadConfig(true)}
+				onConfirm={() => void loadConfig()}
 				title="Discard Changes & Reload"
 				description="You have unsaved changes in your workflow configuration. Are you sure you want to reload? All local edits will be lost."
 				confirmLabel="Reload & Discard"
@@ -213,9 +241,7 @@ function WorkflowSettingsNav() {
 								: "border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-800",
 						)}
 					>
-						<Icon
-							className={cn("h-4 w-4", isActive ? "animate-pulse" : "")}
-						/>
+						<Icon className={cn("h-4 w-4", isActive ? "animate-pulse" : "")} />
 						{tab.label}
 						{isActive && (
 							<div className="absolute inset-0 bg-blue-500/5 blur-xl -z-10 rounded-full" />
@@ -249,9 +275,7 @@ function WorkflowSettingsContent({ children }: { children: React.ReactNode }) {
 		<div className="flex flex-col w-full h-full">
 			<WorkflowSettingsHeader />
 			<WorkflowSettingsNav />
-			<div className="flex-1 animate-in fade-in duration-500">
-				{children}
-			</div>
+			<div className="flex-1 animate-in fade-in duration-500">{children}</div>
 		</div>
 	);
 }

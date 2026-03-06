@@ -12,7 +12,10 @@ import {
 	AlertTriangle,
 	Cpu,
 } from "lucide-react";
-import { ModelPicker, DIFFICULTY_STYLES } from "@/components/common/ModelPicker";
+import {
+	ModelPicker,
+	DIFFICULTY_STYLES,
+} from "@/components/common/ModelPicker";
 import type { OpencodeModel } from "@/types/kanban";
 import Ajv from "ajv";
 
@@ -408,7 +411,9 @@ function ObjectTreeNode({
 	};
 
 	const handleRemoveDynamicKey = (key: string) => {
-		const { [key]: _, ...rest } = obj;
+		const rest = Object.fromEntries(
+			Object.entries(obj).filter(([entryKey]) => entryKey !== key),
+		);
 		onChange(rest);
 	};
 
@@ -422,8 +427,9 @@ function ObjectTreeNode({
 	const itemVariant = obj.variant as string | undefined;
 
 	// Determine model styles based on difficulty
-	const modelInfo = models?.find(m => m.name === itemModel);
-	const difficulty = (modelInfo?.difficulty || 'medium') as keyof typeof DIFFICULTY_STYLES;
+	const modelInfo = models?.find((m) => m.name === itemModel);
+	const difficulty = (modelInfo?.difficulty ||
+		"medium") as keyof typeof DIFFICULTY_STYLES;
 	const styles = DIFFICULTY_STYLES[difficulty] || DIFFICULTY_STYLES.medium;
 
 	const pathErrors = validationErrors.filter(
@@ -447,19 +453,26 @@ function ObjectTreeNode({
 				</span>
 
 				{itemModel && (
-					<div className={cn(
-						"flex items-center gap-1.5 ml-2 px-2 py-0.5 rounded-md ring-1 max-w-[200px] truncate",
-						styles.bg,
-						styles.text.replace('text-', 'text-opacity-80 text-'), // Handle text opacity if needed
-						"ring-opacity-20 border-none"
-					)}
-					style={{
-						borderColor: 'transparent',
-						boxShadow: 'none'
-					}}>
+					<div
+						className={cn(
+							"flex items-center gap-1.5 ml-2 px-2 py-0.5 rounded-md ring-1 max-w-[200px] truncate",
+							styles.bg,
+							styles.text.replace("text-", "text-opacity-80 text-"), // Handle text opacity if needed
+							"ring-opacity-20 border-none",
+						)}
+						style={{
+							borderColor: "transparent",
+							boxShadow: "none",
+						}}
+					>
 						<Cpu className={cn("w-3 h-3 shrink-0", styles.text)} />
-						<span className={cn("text-[10px] font-bold uppercase tracking-tight truncate", styles.text)}>
-							{itemModel.split('/').pop()}
+						<span
+							className={cn(
+								"text-[10px] font-bold uppercase tracking-tight truncate",
+								styles.text,
+							)}
+						>
+							{itemModel.split("/").pop()}
 							{itemVariant ? ` (${itemVariant})` : ""}
 						</span>
 					</div>
@@ -618,7 +631,6 @@ function DynamicField({
 	models,
 	modelVariants,
 	depth = 0,
-	validationErrors,
 	labelAction,
 	entityModel,
 }: FieldProps) {
@@ -639,11 +651,14 @@ function DynamicField({
 	// Handle variant field BEFORE enum check - schema may not have enum
 	if (path.endsWith(".variant") && models) {
 		// entityModel may be in "provider/model#variant" format, extract model name
-		const modelName = (entityModel?.includes("/")
-			? entityModel.split("/").slice(-1)[0]
-			: entityModel)?.split('#')?.[0];
-		const modelData = models.find((m) =>
-			m.name.split("/").slice(-1)[0] === modelName);
+		const modelName = (
+			entityModel?.includes("/")
+				? entityModel.split("/").slice(-1)[0]
+				: entityModel
+		)?.split("#")?.[0];
+		const modelData = models.find(
+			(m) => m.name.split("/").slice(-1)[0] === modelName,
+		);
 		// variants is a comma-separated string
 		const variantOptions = modelData?.variants
 			? modelData.variants

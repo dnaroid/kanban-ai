@@ -6,7 +6,7 @@ export default function ProjectsPage() {
 	const router = useRouter();
 	return (
 		<ProjectsScreen
-			onProjectSelect={(id, name) => {
+			onProjectSelect={(id, _name) => {
 				router.push(`/board/${id}`);
 			}}
 		/>

@@ -206,6 +206,7 @@ export class RunService {
 			sessionPreferences: this.toSessionPreferences(
 				selectedRole,
 				selectedRole?.preset_json,
+				task.modelName,
 			),
 			prompt: buildTaskPrompt(
 				{ title: task.title, description: task.description },
@@ -682,14 +683,24 @@ export class RunService {
 			preferred_llm_agent?: string | null;
 		} | null,
 		presetJson?: string | null,
+		taskModelName?: string | null,
 	): SessionStartPreferences | undefined {
 		const fromPreset = this.extractSessionPreferencesFromPreset(presetJson);
+		const normalizedTaskModelName = taskModelName?.trim() || "";
+		const [taskModelFromNameRaw, taskModelVariantRaw] = normalizedTaskModelName
+			? normalizedTaskModelName.split("#", 2)
+			: ["", ""];
+		const taskModelFromName = taskModelFromNameRaw.trim();
+		const taskModelVariant = taskModelVariantRaw.trim();
 
 		const preferredModelName =
-			role?.preferred_model_name?.trim() || fromPreset?.preferredModelName;
-		const preferredModelVariant =
-			role?.preferred_model_variant?.trim() ||
-			fromPreset?.preferredModelVariant;
+			taskModelFromName ||
+			role?.preferred_model_name?.trim() ||
+			fromPreset?.preferredModelName;
+		const preferredModelVariant = taskModelFromName
+			? taskModelVariant || undefined
+			: role?.preferred_model_variant?.trim() ||
+				fromPreset?.preferredModelVariant;
 		const preferredLlmAgent =
 			role?.preferred_llm_agent?.trim() || fromPreset?.preferredLlmAgent;
 

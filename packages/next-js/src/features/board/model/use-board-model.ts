@@ -383,7 +383,46 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		}
 	};
 
-	const handleQuickGenerateStory = async (columnId: string, prompt: string) => {
+	const buildFileUrlFromPath = (filePath: string) => {
+		const normalizedPath = filePath.replace(/\\/g, "/");
+		const withPrefix = /^[A-Za-z]:\//.test(normalizedPath)
+			? `/${normalizedPath}`
+			: normalizedPath;
+		return `file://${encodeURI(withPrefix)}`;
+	};
+
+	const appendFileReferencesToPrompt = (
+		prompt: string,
+		filePaths?: string[],
+	) => {
+		if (!filePaths || filePaths.length === 0) {
+			return prompt;
+		}
+
+		const normalizedPaths = Array.from(
+			new Set(filePaths.map((path) => path.trim()).filter(Boolean)),
+		);
+
+		if (normalizedPaths.length === 0) {
+			return prompt;
+		}
+
+		const fileLines = normalizedPaths.map((filePath) => {
+			const normalized = filePath.replace(/\\/g, "/");
+			const name = normalized.split("/").pop() || filePath;
+			return `- [${name}](${buildFileUrlFromPath(filePath)})`;
+		});
+
+		const cleanPrompt = prompt.trimEnd();
+		const separator = cleanPrompt.length > 0 ? "\n\n" : "";
+		return `${cleanPrompt}${separator}Attached files:\n${fileLines.join("\n")}`;
+	};
+
+	const handleQuickGenerateStory = async (
+		columnId: string,
+		prompt: string,
+		selectedFiles?: string[],
+	) => {
 		if (!board) {
 			throw new Error("Board not found");
 		}
@@ -398,13 +437,17 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			0,
 			120,
 		);
+		const promptWithFiles = appendFileReferencesToPrompt(
+			cleanPrompt,
+			selectedFiles,
+		);
 
 		try {
 			const createdTask = await api.createTask({
 				boardId: board.id,
 				columnId,
 				title,
-				description: cleanPrompt,
+				description: promptWithFiles,
 				priority: "normal",
 				difficulty: "medium",
 				type: "feature",
@@ -429,7 +472,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 	const handleQuickRunRawStory = async (
 		columnId: string,
 		prompt: string,
-		options?: { modelName?: string | null },
+		options?: { modelName?: string | null; selectedFiles?: string[] },
 	) => {
 		if (!board) {
 			throw new Error("Board not found");
@@ -445,13 +488,63 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			0,
 			120,
 		);
+		const promptWithFiles = appendFileReferencesToPrompt(
+			cleanPrompt,
+			options?.selectedFiles,
+		);
 
 		try {
+			const rolesResponse = await api.roles.listFull();
+			const roleWithBehavior = rolesResponse.roles.map((role) => {
+				try {
+					const parsed = JSON.parse(role.preset_json) as {
+						behavior?: {
+							preferredForStoryGeneration?: unknown;
+							quickSelect?: unknown;
+							recommended?: unknown;
+						};
+					};
+					return {
+						role,
+						behavior: {
+							preferredForStoryGeneration:
+								parsed.behavior?.preferredForStoryGeneration === true,
+							quickSelect: parsed.behavior?.quickSelect === true,
+							recommended: parsed.behavior?.recommended === true,
+						},
+					};
+				} catch {
+					return {
+						role,
+						behavior: {
+							preferredForStoryGeneration: false,
+							quickSelect: false,
+							recommended: false,
+						},
+					};
+				}
+			});
+
+			const executionRoleId =
+				roleWithBehavior.find(
+					(item) =>
+						item.behavior.quickSelect &&
+						!item.behavior.preferredForStoryGeneration,
+				)?.role.id ??
+				roleWithBehavior.find(
+					(item) =>
+						item.behavior.recommended &&
+						!item.behavior.preferredForStoryGeneration,
+				)?.role.id ??
+				roleWithBehavior.find(
+					(item) => !item.behavior.preferredForStoryGeneration,
+				)?.role.id;
+
 			const createdTask = await api.createTask({
 				boardId: board.id,
 				columnId,
 				title,
-				description: cleanPrompt,
+				description: promptWithFiles,
 				priority: "normal",
 				difficulty: "medium",
 				type: "feature",
@@ -460,7 +553,11 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 				tags: [],
 			});
 
-			await api.run.start({ taskId: createdTask.id });
+			await api.run.start({
+				taskId: createdTask.id,
+				roleId: executionRoleId,
+				mode: "execute",
+			});
 			await loadBoard();
 			addToast("Raw story queued for execution", "success");
 		} catch (createError) {
