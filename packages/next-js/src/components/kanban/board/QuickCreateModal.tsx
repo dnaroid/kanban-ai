@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	FileText,
-	FolderOpen,
 	Loader2,
 	Mic,
 	MicOff,
+	Paperclip,
 	Play,
 	Sparkles,
 	X,
@@ -337,16 +337,7 @@ export function QuickCreateModal({
 				</div>
 			}
 			footer={
-				<div className="flex items-center gap-4">
-					<button
-						type="button"
-						onClick={onClose}
-						disabled={isSubmitting}
-						className="px-6 py-2.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
-					>
-						Cancel
-					</button>
-					<div className="flex-1" />
+				<div className="flex items-center justify-end gap-4">
 					<button
 						type="button"
 						onClick={handleRunRawStory}
@@ -415,6 +406,21 @@ export function QuickCreateModal({
 						<div className="flex items-center justify-end gap-2 mt-2">
 							<button
 								type="button"
+								onClick={() => setIsFilePickerOpen(true)}
+								disabled={isSubmitting}
+								className={cn(
+									"w-9 h-9 rounded-lg border transition-all flex items-center justify-center",
+									selectedFiles.length > 0
+										? "text-emerald-400 border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20"
+										: "text-slate-400 border-slate-700/80 bg-slate-800/60 hover:bg-slate-700/60 hover:text-slate-200",
+								)}
+								title="Add context files"
+							>
+								<Paperclip className="w-4 h-4" />
+							</button>
+
+							<button
+								type="button"
 								onClick={handleToggleDictation}
 								disabled={isSubmitting}
 								className={cn(
@@ -450,7 +456,7 @@ export function QuickCreateModal({
 					</div>
 				</div>
 
-				<div className="flex flex-wrap items-center gap-3 px-1">
+				<div className="flex items-center gap-3 px-1">
 					<div className="flex items-center gap-2">
 						<span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Model:</span>
 						<ModelPicker
@@ -461,21 +467,6 @@ export function QuickCreateModal({
 							showVariantSelector
 						/>
 					</div>
-
-					<div className="h-4 w-px bg-slate-800 mx-1" />
-
-					<button
-						type="button"
-						onClick={() => setIsFilePickerOpen(true)}
-						disabled={isSubmitting}
-						className={cn(
-							"inline-flex items-center gap-2 rounded-lg border border-slate-700/80 bg-slate-800/80 px-3 h-8 text-[11px] font-semibold transition-colors hover:bg-slate-700/70 disabled:cursor-not-allowed disabled:opacity-60",
-							selectedFiles.length > 0 ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/5" : "text-slate-300"
-						)}
-					>
-						<FolderOpen className="w-3.5 h-3.5" />
-						{selectedFiles.length > 0 ? `${selectedFiles.length} Files Attached` : "Add Context Files"}
-					</button>
 				</div>
 
 				{selectedFiles.length > 0 && (
