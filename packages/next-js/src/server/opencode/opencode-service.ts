@@ -208,27 +208,121 @@ export class OpencodeService {
 		return util.promisify(childProcess.exec);
 	}
 
-	public async stop(): Promise<void> {
-		this.startupPromise = null;
+	private getErrorCode(error: unknown): string | null {
+		if (typeof error !== "object" || error === null || !("code" in error)) {
+			return null;
+		}
 
-		if (!this.processRef || this.externalProcess) {
+		const code = error.code;
+		return typeof code === "string" ? code : null;
+	}
+
+	private isPidAlive(pid: number): boolean {
+		try {
+			process.kill(pid, 0);
+			return true;
+		} catch (error) {
+			if (this.getErrorCode(error) === "ESRCH") {
+				return false;
+			}
+
+			throw error;
+		}
+	}
+
+	private async waitForPidExit(
+		pid: number,
+		attempts: number,
+		delayMs: number,
+	): Promise<boolean> {
+		for (let attempt = 0; attempt < attempts; attempt += 1) {
+			if (!this.isPidAlive(pid)) {
+				return true;
+			}
+
+			await new Promise((resolve) => setTimeout(resolve, delayMs));
+		}
+
+		return !this.isPidAlive(pid);
+	}
+
+	private async terminatePid(pid: number): Promise<void> {
+		try {
+			process.kill(pid, "SIGTERM");
+		} catch (error) {
+			if (this.getErrorCode(error) === "ESRCH") {
+				return;
+			}
+
+			throw error;
+		}
+
+		if (await this.waitForPidExit(pid, 30, 200)) {
 			return;
 		}
 
-		this.isShuttingDown = true;
+		try {
+			process.kill(pid, "SIGKILL");
+		} catch (error) {
+			if (this.getErrorCode(error) === "ESRCH") {
+				return;
+			}
+
+			throw error;
+		}
+
+		await this.waitForPidExit(pid, 15, 200);
+	}
+
+	private async listRunningOpenCodePids(): Promise<number[]> {
+		const exec = this.getExec();
+
+		try {
+			const { stdout } = await exec('pgrep -f "opencode serve"');
+			const pidSet = new Set<number>();
+
+			for (const line of stdout.split("\n")) {
+				const pid = Number.parseInt(line.trim(), 10);
+				if (!Number.isNaN(pid) && pid > 0 && pid !== process.pid) {
+					pidSet.add(pid);
+				}
+			}
+
+			return [...pidSet];
+		} catch {
+			return [];
+		}
+	}
+
+	public async stop(): Promise<void> {
+		this.startupPromise = null;
 		const processRef = this.processRef;
+		const shouldStopManagedProcess = !!processRef && !this.externalProcess;
+		const shouldStopDiscoveredProcess = this.externalProcess || !processRef;
+
+		this.isShuttingDown = true;
 		this.processRef = null;
 
-		processRef.kill("SIGTERM");
-
-		setTimeout(() => {
-			if (!processRef.killed) {
-				processRef.kill("SIGKILL");
+		try {
+			if (shouldStopManagedProcess && processRef) {
+				if (typeof processRef.pid === "number") {
+					await this.terminatePid(processRef.pid);
+				} else {
+					processRef.kill("SIGTERM");
+					await new Promise((resolve) => setTimeout(resolve, 1_000));
+				}
 			}
-		}, 5_000).unref();
 
-		await new Promise((resolve) => setTimeout(resolve, 6_000));
-		this.isShuttingDown = false;
+			if (shouldStopDiscoveredProcess) {
+				const pids = await this.listRunningOpenCodePids();
+				for (const pid of pids) {
+					await this.terminatePid(pid);
+				}
+			}
+		} finally {
+			this.externalProcess = false;
+			this.isShuttingDown = false;
+		}
 	}
 }
 
