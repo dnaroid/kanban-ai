@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { TaskDrawerProperties } from "./TaskDrawerProperties";
 import { TaskDrawerDetails } from "./TaskDrawerDetails";
 import { TaskDrawerRuns } from "./TaskDrawerRuns";
+import { TaskDrawerVcs } from "./TaskDrawerVcs";
 
 interface TaskDrawerProps {
 	task: KanbanTask | null;
@@ -272,15 +273,15 @@ export function TaskDrawerContent({
 
 				<div
 					className={cn(
-						"absolute inset-0 flex items-center justify-center text-slate-500 flex-col gap-2",
+						"absolute inset-0 flex flex-col",
 						activeTab !== "vcs" && "hidden",
 					)}
 				>
-					<div className="p-3 bg-slate-800/50 rounded-full">
-						<p className="text-xs font-medium uppercase tracking-widest">
-							VCS Integration Coming Soon
-						</p>
-					</div>
+					<TaskDrawerVcs
+						task={task}
+						isActive={activeTab === "vcs"}
+						onOpenRuns={() => setActiveTab("runs")}
+					/>
 				</div>
 			</div>
 		</div>
