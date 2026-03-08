@@ -83,6 +83,8 @@ graph TB
 
 ## 3. Структура проекта
 
+### 3.1 Файловая система проекта
+
 ```
 packages/next-js/
 ├── src/
@@ -120,6 +122,32 @@ packages/next-js/
 ├── prisma/                     # Schema (if used)
 └── package.json
 ```
+
+### 3.2 Git Worktrees (параллельная разработка)
+
+> **Подробная документация**: [GIT_WORKTREES.md](GIT_WORKTREES.md)
+
+Проект использует Git Worktrees для изоляции работы AI-агентов и параллельной разработки:
+
+```
+/Volumes/128GBSSD/Projects/
+├── kanban-ai/                          # Главная директория (master branch)
+│   └── .git/                           # Основной репозиторий
+│
+└── kanban-ai.worktrees/                # Worktrees для активных задач
+    ├── {task-id}-git-worktrees-{sha}/  # Worktree для задачи #1
+    │   └── .git → ../../kanban-ai/.git/worktrees/...
+    ├── {task-id}-git-worktrees-{sha}/  # Worktree для задачи #2
+    └── ...
+```
+
+**Нейминг worktree**: `{task-id}-git-worktrees-{short-sha}`
+**Нейминг ветки**: `task/{task-id}-{suffix}`
+
+**Ключевые особенности**:
+- Каждый worktree имеет отдельный `projectId` (вычисляется из пути)
+- AI-агенты работают в изолированных окружениях
+- После завершения задачи worktree удаляется
 
 ---
 
