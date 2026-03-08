@@ -82,6 +82,27 @@ const client = createOpencodeClient({
 
 Примечание: Команда `pnpm dev` автоматически перестраивает native модули для Electron перед запуском.
 
+## Git Worktrees
+
+Проект использует Git Worktrees для параллельной разработки нескольких задач. Каждая задача выполняется в отдельной директории worktree.
+
+**Структура:**
+```
+kanban-ai/                    # Главная директория (master)
+kanban-ai.worktrees/          # Worktrees для активных задач
+├── {task-id}-git-worktrees-{sha}/
+└── ...
+```
+
+**Основные команды:**
+```bash
+git worktree list                                          # Список worktrees
+git worktree add -b task/ID ../kanban-ai.worktrees/ID-xxx  # Создать
+git worktree remove ../kanban-ai.worktrees/ID-xxx          # Удалить
+```
+
+См. подробную документацию: [docs/GIT_WORKTREES.md](docs/GIT_WORKTREES.md)
+
 ## Quality Gates
 
 - **TypeScript**: `pnpm typecheck`
