@@ -434,6 +434,26 @@ describe("RunService.start", () => {
 		);
 	});
 
+	it("starts an execution run when model name has no variant suffix", async () => {
+		const service = new RunService();
+
+		await expect(
+			service.start({
+				taskId: "task-1",
+				modelName: "openai/gpt-5",
+			}),
+		).resolves.toEqual({ runId: "run-start" });
+
+		expect(mockQueueManager.enqueue).toHaveBeenCalledWith(
+			"run-start",
+			expect.objectContaining({
+				sessionPreferences: expect.objectContaining({
+					preferredModelName: "openai/gpt-5",
+				}),
+			}),
+		);
+	});
+
 	it("marks the run failed when worktree provisioning fails", async () => {
 		mockVcsManager.provisionRunWorkspace.mockRejectedValueOnce(
 			new Error("git worktree add failed"),

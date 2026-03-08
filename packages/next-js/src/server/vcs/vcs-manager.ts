@@ -175,22 +175,22 @@ export class VcsManager {
 			);
 		}
 
-		if (await this.hasUncommittedChanges(repoRoot)) {
-			throw new Error("Base project worktree has uncommitted changes.");
-		}
-		if (await this.hasUncommittedChanges(vcs.worktreePath)) {
+		const baseStagedChanges = await this.hasStagedChanges(repoRoot);
+		if (baseStagedChanges) {
 			throw new Error(
-				"Run worktree has uncommitted changes. Commit or discard them before merge.",
+				"Base project worktree has staged changes. Commit or unstage them before merge.",
 			);
 		}
 
-		const branchRef = `refs/heads/${vcs.branchName}`;
+		const preparedVcs = await this.prepareRunWorkspaceForMerge(run, vcs);
+
+		const branchRef = `refs/heads/${preparedVcs.branchName}`;
 		await this.git(repoRoot, ["show-ref", "--verify", branchRef]);
 
 		const aheadCount = await this.countAheadCommits(
 			repoRoot,
-			vcs.baseBranch,
-			vcs.branchName,
+			preparedVcs.baseBranch,
+			preparedVcs.branchName,
 		);
 		if (aheadCount === 0) {
 			throw new Error("Run branch has no commits to merge.");
@@ -201,13 +201,13 @@ export class VcsManager {
 				"merge",
 				"--no-ff",
 				"--no-commit",
-				vcs.branchName,
+				preparedVcs.branchName,
 			]);
 		} catch (error) {
 			await this.abortMerge(repoRoot);
 			throw this.wrapGitError(
 				error,
-				`Merge conflict detected for ${vcs.branchName}`,
+				`Merge conflict detected for ${preparedVcs.branchName}`,
 			);
 		}
 
@@ -226,7 +226,7 @@ export class VcsManager {
 		const headCommit = await this.git(vcs.worktreePath, ["rev-parse", "HEAD"]);
 
 		return {
-			...vcs,
+			...preparedVcs,
 			headCommit,
 			hasChanges: false,
 			workspaceStatus: "merged",
@@ -238,6 +238,31 @@ export class VcsManager {
 			cleanupStatus: "pending",
 			cleanedAt: undefined,
 			lastCleanupError: undefined,
+		};
+	}
+
+	private async prepareRunWorkspaceForMerge(
+		run: Run,
+		vcs: RunVcsMetadata,
+	): Promise<RunVcsMetadata> {
+		if (!(await this.hasUncommittedChanges(vcs.worktreePath))) {
+			return vcs;
+		}
+
+		await this.git(vcs.worktreePath, ["add", "-A"]);
+		await this.gitWithConfig(vcs.worktreePath, [
+			"commit",
+			"-m",
+			`Capture run ${run.id.slice(0, 8)} changes for task ${run.taskId}`,
+		]);
+
+		const headCommit = await this.git(vcs.worktreePath, ["rev-parse", "HEAD"]);
+
+		return {
+			...vcs,
+			headCommit,
+			hasChanges: false,
+			workspaceStatus: "ready",
 		};
 	}
 
@@ -337,6 +362,15 @@ export class VcsManager {
 		return output.length > 0;
 	}
 
+	private async hasStagedChanges(projectPath: string): Promise<boolean> {
+		const output = await this.git(projectPath, [
+			"diff",
+			"--cached",
+			"--name-only",
+		]);
+		return output.length > 0;
+	}
+
 	private async branchExists(
 		projectPath: string,
 		branchRef: string,
@@ -384,6 +418,28 @@ export class VcsManager {
 		const { stdout } = await execFileAsync(
 			"git",
 			["-C", projectPath, ...args],
+			{
+				maxBuffer: 1024 * 1024,
+			},
+		);
+		return stdout.trim();
+	}
+
+	private async gitWithConfig(
+		projectPath: string,
+		args: string[],
+	): Promise<string> {
+		const { stdout } = await execFileAsync(
+			"git",
+			[
+				"-C",
+				projectPath,
+				"-c",
+				"user.name=Kanban AI",
+				"-c",
+				"user.email=kanban-ai@example.com",
+				...args,
+			],
 			{
 				maxBuffer: 1024 * 1024,
 			},

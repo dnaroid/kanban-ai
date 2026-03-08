@@ -42,7 +42,8 @@ async function createRepo(): Promise<{ repoPath: string; baseBranch: string }> {
 	await mkdir(repoPath);
 	git(repoPath, ["init", "-b", "main"]);
 	await writeFile(join(repoPath, "README.md"), "base\n", "utf8");
-	git(repoPath, ["add", "README.md"]);
+	await writeFile(join(repoPath, "NOTES.md"), "notes\n", "utf8");
+	git(repoPath, ["add", "README.md", "NOTES.md"]);
 	gitCommit(repoPath, "Initial commit");
 	return { repoPath, baseBranch: git(repoPath, ["branch", "--show-current"]) };
 }
@@ -147,6 +148,39 @@ describe("VcsManager", () => {
 		).resolves.toContain("feature");
 	});
 
+	it("merges even when the base worktree has unrelated local changes", async () => {
+		const { repoPath } = await createRepo();
+		const manager = new VcsManager();
+		const metadata = await manager.provisionRunWorkspace({
+			projectPath: repoPath,
+			runId: "run-dirty-base-1234",
+			taskId: "task-1",
+			taskTitle: "Dirty Base Merge",
+		});
+
+		await writeFile(
+			join(metadata.worktreePath, "README.md"),
+			"base\nfeature\n",
+			"utf8",
+		);
+		git(metadata.worktreePath, ["add", "README.md"]);
+		gitCommit(metadata.worktreePath, "Feature change");
+
+		await writeFile(join(repoPath, "NOTES.md"), "notes\nlocal edit\n", "utf8");
+
+		const merged = await manager.mergeRunWorkspace(
+			buildRun("run-dirty-base-1234", metadata),
+		);
+
+		expect(merged.mergeStatus).toBe("merged");
+		await expect(
+			readFile(join(repoPath, "README.md"), "utf8"),
+		).resolves.toContain("feature");
+		await expect(
+			readFile(join(repoPath, "NOTES.md"), "utf8"),
+		).resolves.toContain("local edit");
+	});
+
 	it("cleans up a merged run worktree and branch", async () => {
 		const { repoPath } = await createRepo();
 		const manager = new VcsManager();
@@ -176,7 +210,7 @@ describe("VcsManager", () => {
 		expect(git(repoPath, ["branch", "--list", metadata.branchName])).toBe("");
 	});
 
-	it("refuses to merge while the run worktree is dirty", async () => {
+	it("commits dirty run worktree changes before merging", async () => {
 		const { repoPath } = await createRepo();
 		const manager = new VcsManager();
 		const metadata = await manager.provisionRunWorkspace({
@@ -192,8 +226,40 @@ describe("VcsManager", () => {
 			"utf8",
 		);
 
+		const merged = await manager.mergeRunWorkspace(
+			buildRun("run-dirty-1234", metadata),
+		);
+
+		expect(merged.mergeStatus).toBe("merged");
+		expect(merged.headCommit).toBeTruthy();
 		await expect(
-			manager.mergeRunWorkspace(buildRun("run-dirty-1234", metadata)),
-		).rejects.toThrow("Run worktree has uncommitted changes");
+			readFile(join(repoPath, "README.md"), "utf8"),
+		).resolves.toContain("working tree");
+	});
+
+	it("refuses to merge when the base worktree has staged changes", async () => {
+		const { repoPath } = await createRepo();
+		const manager = new VcsManager();
+		const metadata = await manager.provisionRunWorkspace({
+			projectPath: repoPath,
+			runId: "run-staged-base-1234",
+			taskId: "task-1",
+			taskTitle: "Staged Base Merge",
+		});
+
+		await writeFile(
+			join(metadata.worktreePath, "README.md"),
+			"base\nfeature\n",
+			"utf8",
+		);
+		git(metadata.worktreePath, ["add", "README.md"]);
+		gitCommit(metadata.worktreePath, "Feature change");
+
+		await writeFile(join(repoPath, "NOTES.md"), "notes\nstaged edit\n", "utf8");
+		git(repoPath, ["add", "NOTES.md"]);
+
+		await expect(
+			manager.mergeRunWorkspace(buildRun("run-staged-base-1234", metadata)),
+		).rejects.toThrow("Base project worktree has staged changes");
 	});
 });

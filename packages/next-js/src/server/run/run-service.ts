@@ -793,9 +793,10 @@ export class RunService {
 		const fromPreset = this.extractSessionPreferencesFromPreset(presetJson);
 		const normalizedTaskModelName =
 			startModelName?.trim() || taskModelName?.trim() || "";
-		const [taskModelFromNameRaw, taskModelVariantRaw] = normalizedTaskModelName
-			? normalizedTaskModelName.split("#", 2)
-			: ["", ""];
+		const [taskModelFromNameRaw = "", taskModelVariantRaw = ""] =
+			normalizedTaskModelName
+				? normalizedTaskModelName.split("#", 2)
+				: ["", ""];
 		const taskModelFromName = taskModelFromNameRaw.trim();
 		const taskModelVariant = taskModelVariantRaw.trim();
 
