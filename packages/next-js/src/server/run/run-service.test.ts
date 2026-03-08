@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Run } from "@/types/ipc";
 
 const {
 	mockQueueManager,
@@ -8,6 +9,7 @@ const {
 	mockProjectRepo,
 	mockContextSnapshotRepo,
 	mockRunEventRepo,
+	mockVcsManager,
 } = vi.hoisted(() => ({
 	mockQueueManager: {
 		enqueue: vi.fn(),
@@ -21,6 +23,8 @@ const {
 	mockRunRepo: {
 		listByTask: vi.fn(),
 		create: vi.fn(),
+		getById: vi.fn(),
+		update: vi.fn(),
 	},
 	mockRoleRepo: {
 		list: vi.fn(),
@@ -35,6 +39,13 @@ const {
 	},
 	mockRunEventRepo: {
 		create: vi.fn(),
+	},
+	mockVcsManager: {
+		provisionRunWorkspace: vi.fn(),
+		mergeRunWorkspace: vi.fn(),
+		cleanupRunWorkspace: vi.fn(),
+		syncRunWorkspace: vi.fn(),
+		syncVcsMetadata: vi.fn(),
 	},
 }));
 
@@ -69,6 +80,10 @@ vi.mock("@/server/repositories/task", () => ({
 
 vi.mock("@/server/repositories/run", () => ({
 	runRepo: mockRunRepo,
+}));
+
+vi.mock("@/server/vcs/vcs-manager", () => ({
+	getVcsManager: () => mockVcsManager,
 }));
 
 vi.mock("@/server/repositories/role", () => ({
@@ -134,15 +149,17 @@ function buildTaskBase() {
 }
 
 function buildRun(
-	status: string,
+	status: Run["status"],
 	id = "run-1",
 	kind = "task-description-improve",
-) {
+): Run {
 	const now = new Date().toISOString();
 	return {
 		id,
 		taskId: "task-1",
 		sessionId: "",
+		roleId: "dev",
+		mode: "execute",
 		status,
 		createdAt: now,
 		updatedAt: now,
@@ -176,6 +193,40 @@ describe("RunService.generateUserStory", () => {
 			updatedAt: new Date().toISOString(),
 		});
 		mockContextSnapshotRepo.create.mockReturnValue("snapshot-1");
+		const storedRuns = new Map<string, Run>();
+		mockRunRepo.create.mockImplementation((input) => {
+			const run: Run = buildRun(
+				"queued",
+				"run-new",
+				typeof input.kind === "string" ? input.kind : "task-run",
+			);
+			run.taskId = input.taskId;
+			run.roleId = input.roleId;
+			run.mode = input.mode;
+			run.metadata = {
+				kind: typeof input.kind === "string" ? input.kind : "task-run",
+				...(typeof input.metadata === "object" && input.metadata
+					? input.metadata
+					: {}),
+			};
+			storedRuns.set(run.id, run);
+			return run;
+		});
+		mockRunRepo.getById.mockImplementation(
+			(runId) => storedRuns.get(runId) ?? null,
+		);
+		mockRunRepo.update.mockImplementation((runId, patch) => {
+			const current =
+				storedRuns.get(runId) ?? buildRun("queued", runId, "task-run");
+			const next = {
+				...current,
+				...patch,
+				metadata: patch.metadata ?? current.metadata,
+				updatedAt: new Date().toISOString(),
+			};
+			storedRuns.set(runId, next);
+			return next;
+		});
 	});
 
 	it("returns active generation run instead of creating duplicate", async () => {
@@ -297,6 +348,113 @@ describe("RunService.generateUserStory", () => {
 	});
 });
 
+describe("RunService.start", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockTaskRepo.getById.mockReturnValue(buildTask());
+		mockRunRepo.listByTask.mockReturnValue([]);
+		mockRoleRepo.listWithPresets.mockReturnValue([
+			{ id: "dev", name: "Developer", preset_json: "{}" },
+		]);
+		mockRoleRepo.getPresetJson.mockReturnValue("{}");
+		mockProjectRepo.getById.mockReturnValue({
+			id: "project-1",
+			name: "Kanban",
+			path: "/tmp/kanban",
+			color: "#111111",
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		});
+		mockContextSnapshotRepo.create.mockReturnValue("snapshot-run");
+		const storedRuns = new Map<string, Run>();
+		mockRunRepo.create.mockImplementation((input) => {
+			const run: Run = buildRun("queued", "run-start", "task-run");
+			run.taskId = input.taskId;
+			run.roleId = input.roleId;
+			run.mode = input.mode;
+			storedRuns.set(run.id, run);
+			return run;
+		});
+		mockRunRepo.update.mockImplementation((runId, patch) => {
+			const current =
+				storedRuns.get(runId) ?? buildRun("queued", runId, "task-run");
+			const next = {
+				...current,
+				...patch,
+				metadata: patch.metadata ?? current.metadata,
+				updatedAt: new Date().toISOString(),
+			};
+			storedRuns.set(runId, next);
+			return next;
+		});
+		mockRunRepo.getById.mockImplementation(
+			(runId) => storedRuns.get(runId) ?? null,
+		);
+		mockVcsManager.provisionRunWorkspace.mockResolvedValue({
+			repoRoot: "/tmp/kanban",
+			worktreePath: "/tmp/kanban.worktrees/task-1-run-start",
+			branchName: "task/task-1-run-start",
+			baseBranch: "main",
+			baseCommit: "abc123",
+			headCommit: "abc123",
+			hasChanges: false,
+			workspaceStatus: "ready",
+			mergeStatus: "pending",
+			cleanupStatus: "pending",
+		});
+	});
+
+	it("provisions a worktree and enqueues the run there", async () => {
+		const service = new RunService();
+		const result = await service.start({ taskId: "task-1" });
+
+		expect(result).toEqual({ runId: "run-start" });
+		expect(mockVcsManager.provisionRunWorkspace).toHaveBeenCalledWith(
+			expect.objectContaining({
+				projectPath: "/tmp/kanban",
+				runId: "run-start",
+				taskId: "task-1",
+			}),
+		);
+		expect(mockQueueManager.enqueue).toHaveBeenCalledWith(
+			"run-start",
+			expect.objectContaining({
+				projectPath: "/tmp/kanban.worktrees/task-1-run-start",
+			}),
+		);
+		expect(mockRunRepo.update).toHaveBeenCalledWith(
+			"run-start",
+			expect.objectContaining({
+				metadata: expect.objectContaining({
+					vcs: expect.objectContaining({
+						branchName: "task/task-1-run-start",
+					}),
+				}),
+			}),
+		);
+	});
+
+	it("marks the run failed when worktree provisioning fails", async () => {
+		mockVcsManager.provisionRunWorkspace.mockRejectedValueOnce(
+			new Error("git worktree add failed"),
+		);
+
+		const service = new RunService();
+		await expect(service.start({ taskId: "task-1" })).rejects.toThrow(
+			"git worktree add failed",
+		);
+
+		expect(mockRunRepo.update).toHaveBeenCalledWith(
+			"run-start",
+			expect.objectContaining({
+				status: "failed",
+				errorText: "git worktree add failed",
+			}),
+		);
+		expect(mockQueueManager.enqueue).not.toHaveBeenCalled();
+	});
+});
+
 describe("RunService.startQaTesting", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -368,6 +526,121 @@ describe("RunService.startQaTesting", () => {
 				sessionTitle: expect.stringContaining("QA Testing:"),
 				prompt: "qa-testing-prompt",
 			}),
+		);
+	});
+});
+
+describe("RunService.merge", () => {
+	it("merges a completed run and persists merged VCS metadata", async () => {
+		const run = {
+			...buildRun("completed", "run-merge", "task-run"),
+			metadata: {
+				kind: "task-run",
+				vcs: {
+					repoRoot: "/tmp/kanban",
+					worktreePath: "/tmp/kanban.worktrees/task-1-run-merge",
+					branchName: "task/task-1-run-merge",
+					baseBranch: "main",
+					baseCommit: "abc123",
+					workspaceStatus: "ready",
+					mergeStatus: "pending",
+					cleanupStatus: "pending",
+				},
+			},
+		};
+		mockRunRepo.getById.mockReturnValue(run);
+		mockVcsManager.mergeRunWorkspace.mockResolvedValue({
+			...run.metadata.vcs,
+			workspaceStatus: "merged",
+			mergeStatus: "merged",
+			mergedBy: "manual",
+			mergedAt: "2026-03-08T12:00:00.000Z",
+			mergedCommit: "def456",
+			cleanupStatus: "pending",
+		});
+		mockVcsManager.cleanupRunWorkspace.mockResolvedValue({
+			...run.metadata.vcs,
+			workspaceStatus: "cleaned",
+			mergeStatus: "merged",
+			mergedBy: "manual",
+			mergedAt: "2026-03-08T12:00:00.000Z",
+			mergedCommit: "def456",
+			cleanupStatus: "cleaned",
+			cleanedAt: "2026-03-08T12:01:00.000Z",
+		});
+		mockRunRepo.update.mockImplementation((_runId, patch) => ({
+			...run,
+			...patch,
+			metadata: patch.metadata,
+		}));
+
+		const service = new RunService();
+		const result = await service.merge("run-merge");
+
+		expect(mockVcsManager.mergeRunWorkspace).toHaveBeenCalledWith(
+			run,
+			"manual",
+		);
+		expect(mockVcsManager.cleanupRunWorkspace).toHaveBeenCalled();
+		expect(result.run.metadata?.vcs?.mergeStatus).toBe("merged");
+		expect(result.run.metadata?.vcs?.mergedCommit).toBe("def456");
+		expect(result.run.metadata?.vcs?.cleanupStatus).toBe("cleaned");
+	});
+
+	it("preserves synced workspace state when cleanup fails after merge", async () => {
+		const run = {
+			...buildRun("completed", "run-merge-fail", "task-run"),
+			metadata: {
+				kind: "task-run",
+				vcs: {
+					repoRoot: "/tmp/kanban",
+					worktreePath: "/tmp/kanban.worktrees/task-1-run-merge-fail",
+					branchName: "task/task-1-run-merge-fail",
+					baseBranch: "main",
+					baseCommit: "abc123",
+					workspaceStatus: "ready",
+					mergeStatus: "pending",
+					cleanupStatus: "pending",
+				},
+			},
+		};
+		mockRunRepo.getById.mockReturnValue(run);
+		mockVcsManager.mergeRunWorkspace.mockResolvedValue({
+			...run.metadata.vcs,
+			workspaceStatus: "merged",
+			mergeStatus: "merged",
+			mergedBy: "manual",
+			mergedAt: "2026-03-08T12:00:00.000Z",
+			mergedCommit: "def456",
+			cleanupStatus: "pending",
+		});
+		mockVcsManager.cleanupRunWorkspace.mockRejectedValueOnce(
+			new Error("branch delete failed"),
+		);
+		mockVcsManager.syncVcsMetadata.mockResolvedValueOnce({
+			...run.metadata.vcs,
+			workspaceStatus: "missing",
+			mergeStatus: "merged",
+			mergedBy: "manual",
+			mergedAt: "2026-03-08T12:00:00.000Z",
+			mergedCommit: "def456",
+			cleanupStatus: "pending",
+		});
+		mockRunRepo.update.mockImplementation((_runId, patch) => ({
+			...run,
+			...patch,
+			metadata: patch.metadata,
+		}));
+
+		const service = new RunService();
+		const result = await service.merge("run-merge-fail");
+
+		expect(mockVcsManager.syncVcsMetadata).toHaveBeenCalled();
+		expect(result.run.metadata?.vcs?.mergeStatus).toBe("merged");
+		expect(result.run.metadata?.vcs?.workspaceStatus).toBe("missing");
+		expect(result.run.metadata?.vcs?.cleanupStatus).toBe("failed");
+		expect(result.run.metadata?.vcs?.lastCleanupError).toBe(
+			"branch delete failed",
 		);
 	});
 });

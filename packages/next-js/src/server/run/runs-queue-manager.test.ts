@@ -18,6 +18,7 @@ const {
 	mockTaskRepo,
 	mockRunRepo,
 	mockTaskProjector,
+	mockVcsManager,
 } = vi.hoisted(() => {
 	const runs = new Map<string, MockRecord>();
 	const tasks = new Map<string, MockRecord>();
@@ -118,6 +119,45 @@ const {
 			projectRunStarted: vi.fn(),
 			projectRunOutcome: vi.fn(),
 		},
+		mockVcsManager: {
+			provisionRunWorkspace: vi.fn(async () => ({
+				repoRoot: "/tmp/project",
+				worktreePath: "/tmp/project.worktrees/task-generated-run",
+				branchName: "task/task-generated-run",
+				baseBranch: "main",
+				baseCommit: "abc123",
+				headCommit: "abc123",
+				hasChanges: false,
+				workspaceStatus: "ready",
+				mergeStatus: "pending",
+				cleanupStatus: "pending",
+			})),
+			mergeRunWorkspace: vi.fn<(run: MockRecord) => Promise<MockRecord>>(
+				async (run: MockRecord) => ({
+					...(run.metadata as { vcs: Record<string, unknown> }).vcs,
+					workspaceStatus: "merged",
+					mergeStatus: "merged",
+					mergedBy: "automatic",
+					mergedAt: new Date().toISOString(),
+					mergedCommit: "def456",
+					cleanupStatus: "pending",
+				}),
+			),
+			cleanupRunWorkspace: vi.fn<(vcs: MockRecord) => Promise<MockRecord>>(
+				async (vcs: MockRecord) => ({
+					...vcs,
+					workspaceStatus: "cleaned",
+					cleanupStatus: "cleaned",
+					cleanedAt: new Date().toISOString(),
+				}),
+			),
+			syncRunWorkspace: vi.fn<(run?: MockRecord) => Promise<MockRecord | null>>(
+				async (_run?: MockRecord) => null,
+			),
+			syncVcsMetadata: vi.fn<(vcs: MockRecord) => Promise<MockRecord>>(
+				async (vcs: MockRecord) => vcs,
+			),
+		},
 	};
 });
 
@@ -176,6 +216,10 @@ vi.mock("@/server/run/run-task-projector", () => ({
 
 vi.mock("@/server/run/run-publisher", () => ({
 	publishRunUpdate: vi.fn(),
+}));
+
+vi.mock("@/server/vcs/vcs-manager", () => ({
+	getVcsManager: () => mockVcsManager,
 }));
 
 import { RunsQueueManager } from "@/server/run/runs-queue-manager";
@@ -252,6 +296,7 @@ describe("RunsQueueManager scheduling", () => {
 		process.env.RUNS_BLOCKED_RETRY_MS = "10";
 		mockSessionManager.getMessages.mockResolvedValue([]);
 		mockTaskLinkRepo.listByTaskId.mockReturnValue([]);
+		mockVcsManager.syncRunWorkspace.mockResolvedValue(null);
 	});
 
 	it("starts higher-priority execution run first", async () => {
@@ -464,6 +509,362 @@ describe("RunsQueueManager scheduling", () => {
 			"completed",
 			"generated",
 			buildOpencodeStatusLine("generated"),
+		);
+	});
+
+	it("auto-enqueues generated execution into a provisioned worktree", async () => {
+		process.env.RUNS_AUTO_EXECUTE_AFTER_GENERATION = "1";
+		taskMap.set(
+			"task-generated",
+			buildTask("task-generated", "normal", "generating"),
+		);
+		runMap.set(
+			"run-generation",
+			buildRun(
+				"run-generation",
+				"task-generated",
+				"generation",
+				"2026-01-01T00:00:00.000Z",
+			),
+		);
+
+		mockSessionManager.getMessages.mockImplementation(async () => [
+			{
+				id: "msg-1",
+				role: "assistant",
+				content: buildOpencodeStatusLine("generated"),
+			},
+		]);
+		mockVcsManager.provisionRunWorkspace.mockResolvedValueOnce({
+			repoRoot: "/tmp/project",
+			worktreePath: "/tmp/project.worktrees/generated-exec",
+			branchName: "task/task-generated-generated-exec",
+			baseBranch: "main",
+			baseCommit: "abc123",
+			headCommit: "abc123",
+			hasChanges: false,
+			workspaceStatus: "ready",
+			mergeStatus: "pending",
+			cleanupStatus: "pending",
+		});
+
+		const manager = new RunsQueueManager();
+		manager.enqueue("run-generation", {
+			projectPath: "/tmp/project",
+			sessionTitle: "generation",
+			prompt: "prompt",
+		});
+
+		await waitForDrain();
+		await waitForDrain();
+		await waitForDrain();
+
+		expect(mockVcsManager.provisionRunWorkspace).toHaveBeenCalledWith(
+			expect.objectContaining({
+				projectPath: "/tmp/project",
+				taskId: "task-generated",
+			}),
+		);
+		expect(mockSessionManager.createSession).toHaveBeenLastCalledWith(
+			"task-generated",
+			"/tmp/project.worktrees/generated-exec",
+		);
+	});
+
+	it("refreshes VCS state when cancelling a run", async () => {
+		runMap.set("run-cancel", {
+			...buildRun(
+				"run-cancel",
+				"task-cancel",
+				"execution",
+				"2026-01-01T00:00:00.000Z",
+			),
+			status: "running",
+			metadata: {
+				kind: "task-run",
+				vcs: {
+					repoRoot: "/tmp/project",
+					worktreePath: "/tmp/project.worktrees/run-cancel",
+					branchName: "task/run-cancel",
+					baseBranch: "main",
+					baseCommit: "abc123",
+					workspaceStatus: "ready",
+					mergeStatus: "pending",
+					cleanupStatus: "pending",
+				},
+			},
+		});
+		taskMap.set("task-cancel", buildTask("task-cancel", "normal", "running"));
+		mockVcsManager.syncRunWorkspace.mockResolvedValueOnce({
+			repoRoot: "/tmp/project",
+			worktreePath: "/tmp/project.worktrees/run-cancel",
+			branchName: "task/run-cancel",
+			baseBranch: "main",
+			baseCommit: "abc123",
+			headCommit: "abc123",
+			hasChanges: true,
+			workspaceStatus: "dirty",
+			mergeStatus: "pending",
+			cleanupStatus: "pending",
+		});
+
+		const manager = new RunsQueueManager();
+		await manager.cancel("run-cancel");
+
+		expect(runMap.get("run-cancel")).toEqual(
+			expect.objectContaining({
+				status: "cancelled",
+				metadata: expect.objectContaining({
+					vcs: expect.objectContaining({
+						workspaceStatus: "dirty",
+					}),
+				}),
+			}),
+		);
+	});
+
+	it("automatically merges and cleans a completed execution run", async () => {
+		const vcs = {
+			repoRoot: "/tmp/project",
+			worktreePath: "/tmp/project.worktrees/run-auto-merge",
+			branchName: "task/run-auto-merge",
+			baseBranch: "main",
+			baseCommit: "abc123",
+			workspaceStatus: "ready",
+			mergeStatus: "pending",
+			cleanupStatus: "pending",
+		};
+		taskMap.set(
+			"task-auto-merge",
+			buildTask("task-auto-merge", "normal", "running"),
+		);
+		runMap.set("run-auto-merge", {
+			...buildRun(
+				"run-auto-merge",
+				"task-auto-merge",
+				"execution",
+				"2026-01-01T00:00:00.000Z",
+			),
+			status: "running",
+			startedAt: new Date(Date.now() - 15_000).toISOString(),
+			metadata: {
+				kind: "task-run",
+				vcs,
+			},
+		});
+		mockVcsManager.mergeRunWorkspace.mockResolvedValueOnce({
+			...vcs,
+			workspaceStatus: "merged",
+			mergeStatus: "merged",
+			mergedBy: "automatic",
+			mergedAt: "2026-01-01T00:01:00.000Z",
+			mergedCommit: "def456",
+			cleanupStatus: "pending",
+		});
+		mockVcsManager.cleanupRunWorkspace.mockResolvedValueOnce({
+			...vcs,
+			workspaceStatus: "cleaned",
+			mergeStatus: "merged",
+			mergedBy: "automatic",
+			mergedAt: "2026-01-01T00:01:00.000Z",
+			mergedCommit: "def456",
+			cleanupStatus: "cleaned",
+			cleanedAt: "2026-01-01T00:02:00.000Z",
+		});
+
+		const manager = new RunsQueueManager();
+		const withPrivateAccess = manager as unknown as {
+			finalizeRunFromSession: (
+				runId: string,
+				status: "completed" | "failed" | "paused",
+				signalKey: string,
+				assistantContent: string,
+			) => Promise<void>;
+		};
+
+		await withPrivateAccess.finalizeRunFromSession(
+			"run-auto-merge",
+			"completed",
+			"done",
+			buildOpencodeStatusLine("done"),
+		);
+
+		expect(mockVcsManager.mergeRunWorkspace).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "run-auto-merge" }),
+			"automatic",
+		);
+		expect(mockVcsManager.cleanupRunWorkspace).toHaveBeenCalled();
+		expect(runMap.get("run-auto-merge")).toEqual(
+			expect.objectContaining({
+				status: "completed",
+				metadata: expect.objectContaining({
+					vcs: expect.objectContaining({
+						mergeStatus: "merged",
+						mergedBy: "automatic",
+						cleanupStatus: "cleaned",
+					}),
+				}),
+			}),
+		);
+	});
+
+	it("preserves manual merge retry state when automatic merge fails", async () => {
+		const vcs = {
+			repoRoot: "/tmp/project",
+			worktreePath: "/tmp/project.worktrees/run-auto-merge-fail",
+			branchName: "task/run-auto-merge-fail",
+			baseBranch: "main",
+			baseCommit: "abc123",
+			workspaceStatus: "ready",
+			mergeStatus: "pending",
+			cleanupStatus: "pending",
+		};
+		taskMap.set(
+			"task-auto-merge-fail",
+			buildTask("task-auto-merge-fail", "normal", "running"),
+		);
+		runMap.set("run-auto-merge-fail", {
+			...buildRun(
+				"run-auto-merge-fail",
+				"task-auto-merge-fail",
+				"execution",
+				"2026-01-01T00:00:00.000Z",
+			),
+			status: "running",
+			startedAt: new Date(Date.now() - 15_000).toISOString(),
+			metadata: {
+				kind: "task-run",
+				vcs,
+			},
+		});
+		mockVcsManager.syncRunWorkspace.mockImplementation(
+			async (run?: MockRecord) => {
+				if (!run) {
+					return null;
+				}
+				const metadata = run.metadata as
+					| { vcs?: Record<string, unknown> }
+					| undefined;
+				return metadata?.vcs ?? null;
+			},
+		);
+		mockVcsManager.mergeRunWorkspace.mockRejectedValueOnce(
+			new Error("Base project worktree has uncommitted changes."),
+		);
+
+		const manager = new RunsQueueManager();
+		const withPrivateAccess = manager as unknown as {
+			finalizeRunFromSession: (
+				runId: string,
+				status: "completed" | "failed" | "paused",
+				signalKey: string,
+				assistantContent: string,
+			) => Promise<void>;
+		};
+
+		await withPrivateAccess.finalizeRunFromSession(
+			"run-auto-merge-fail",
+			"completed",
+			"done",
+			buildOpencodeStatusLine("done"),
+		);
+
+		expect(mockVcsManager.cleanupRunWorkspace).not.toHaveBeenCalled();
+		expect(runMap.get("run-auto-merge-fail")).toEqual(
+			expect.objectContaining({
+				status: "completed",
+				metadata: expect.objectContaining({
+					vcs: expect.objectContaining({
+						mergeStatus: "pending",
+						cleanupStatus: "pending",
+						lastMergeError: "Base project worktree has uncommitted changes.",
+					}),
+				}),
+			}),
+		);
+	});
+
+	it("persists synced workspace state when cleanup fails after auto-merge", async () => {
+		const vcs = {
+			repoRoot: "/tmp/project",
+			worktreePath: "/tmp/project.worktrees/run-auto-cleanup-fail",
+			branchName: "task/run-auto-cleanup-fail",
+			baseBranch: "main",
+			baseCommit: "abc123",
+			workspaceStatus: "ready",
+			mergeStatus: "pending",
+			cleanupStatus: "pending",
+		};
+		taskMap.set(
+			"task-auto-cleanup-fail",
+			buildTask("task-auto-cleanup-fail", "normal", "running"),
+		);
+		runMap.set("run-auto-cleanup-fail", {
+			...buildRun(
+				"run-auto-cleanup-fail",
+				"task-auto-cleanup-fail",
+				"execution",
+				"2026-01-01T00:00:00.000Z",
+			),
+			status: "running",
+			startedAt: new Date(Date.now() - 15_000).toISOString(),
+			metadata: {
+				kind: "task-run",
+				vcs,
+			},
+		});
+		mockVcsManager.mergeRunWorkspace.mockResolvedValueOnce({
+			...vcs,
+			workspaceStatus: "merged",
+			mergeStatus: "merged",
+			mergedBy: "automatic",
+			mergedAt: "2026-01-01T00:01:00.000Z",
+			mergedCommit: "def456",
+			cleanupStatus: "pending",
+		});
+		mockVcsManager.cleanupRunWorkspace.mockRejectedValueOnce(
+			new Error("branch delete failed"),
+		);
+		mockVcsManager.syncVcsMetadata.mockResolvedValueOnce({
+			...vcs,
+			workspaceStatus: "missing",
+			mergeStatus: "merged",
+			mergedBy: "automatic",
+			mergedAt: "2026-01-01T00:01:00.000Z",
+			mergedCommit: "def456",
+			cleanupStatus: "pending",
+		});
+
+		const manager = new RunsQueueManager();
+		const withPrivateAccess = manager as unknown as {
+			finalizeRunFromSession: (
+				runId: string,
+				status: "completed" | "failed" | "paused",
+				signalKey: string,
+				assistantContent: string,
+			) => Promise<void>;
+		};
+
+		await withPrivateAccess.finalizeRunFromSession(
+			"run-auto-cleanup-fail",
+			"completed",
+			"done",
+			buildOpencodeStatusLine("done"),
+		);
+
+		expect(mockVcsManager.syncVcsMetadata).toHaveBeenCalled();
+		expect(runMap.get("run-auto-cleanup-fail")).toEqual(
+			expect.objectContaining({
+				status: "completed",
+				metadata: expect.objectContaining({
+					vcs: expect.objectContaining({
+						mergeStatus: "merged",
+						workspaceStatus: "missing",
+						cleanupStatus: "failed",
+						lastCleanupError: "branch delete failed",
+					}),
+				}),
+			}),
 		);
 	});
 

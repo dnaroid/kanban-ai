@@ -7,6 +7,7 @@ import {
 	v022WorkflowVisualsSql,
 	v023WorkflowSignalsSql,
 	v024AgentRoleSessionPreferencesSql,
+	v025RunMetadataSql,
 } from "./sql";
 export {
 	v017SystemKeySql,
@@ -17,6 +18,7 @@ export {
 	v022WorkflowVisualsSql,
 	v023WorkflowSignalsSql,
 	v024AgentRoleSessionPreferencesSql,
+	v025RunMetadataSql,
 };
 
 export const INIT_DB_SQL = `
@@ -174,6 +176,7 @@ CREATE TABLE IF NOT EXISTS runs (
   finished_at TEXT,
   error_text TEXT NOT NULL DEFAULT '',
   budget_json TEXT NOT NULL DEFAULT '{}',
+  metadata_json TEXT NOT NULL DEFAULT '{}',
   context_snapshot_id TEXT NOT NULL,
 
   ai_tokens_in INTEGER NOT NULL DEFAULT 0,
@@ -515,6 +518,10 @@ export const migrations = [
 	{
 		version: 24,
 		sql: v024AgentRoleSessionPreferencesSql,
+	},
+	{
+		version: 25,
+		sql: v025RunMetadataSql,
 	},
 ] as const;
 

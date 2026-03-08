@@ -239,6 +239,26 @@ class ApiClient {
 			}
 			return { success: true };
 		},
+		merge: async ({ runId }: { runId: string }): Promise<{ run: Run }> => {
+			const response = await fetch(`${this.baseUrl}/api/run/merge`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ runId }),
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to merge run changes",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{ run?: Run | null }>(payload);
+			if (!data.run) {
+				throw new Error("Run merge response did not contain run");
+			}
+			return { run: data.run };
+		},
 		get: async ({ runId }: { runId: string }): Promise<{ run: Run | null }> => {
 			const query = new URLSearchParams({ runId });
 			const response = await fetch(

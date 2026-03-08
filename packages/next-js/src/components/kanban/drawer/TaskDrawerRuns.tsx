@@ -104,6 +104,7 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 	const [isLoadingRuns, setIsLoadingRuns] = useState(false);
 	const [isStartingRun, setIsStartingRun] = useState(false);
 	const [isStartingQaRun, setIsStartingQaRun] = useState(false);
+	const [mergingRunId, setMergingRunId] = useState<string | null>(null);
 	const [roles, setRoles] = useState<AgentRole[]>([]);
 	const [isLoadingRoles, setIsLoadingRoles] = useState(false);
 	const [selectedRoleId, setSelectedRoleId] = useState<string>("");
@@ -193,6 +194,7 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 			setSelectedRunId(response.runId);
 		} catch (error) {
 			console.error("Failed to start run:", error);
+			await fetchRuns();
 		} finally {
 			setIsStartingRun(false);
 		}
@@ -262,6 +264,26 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 			setSelectedRunId(response.runId);
 		} catch (error) {
 			console.error("Failed to retry run:", error);
+			await fetchRuns();
+		}
+	};
+
+	const handleMergeRun = async (runId: string, e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (mergingRunId === runId) {
+			return;
+		}
+
+		setMergingRunId(runId);
+		try {
+			await api.run.merge({ runId });
+			await fetchRuns();
+			setSelectedRunId(runId);
+		} catch (error) {
+			console.error("Failed to merge run:", error);
+			await fetchRuns();
+		} finally {
+			setMergingRunId(null);
 		}
 	};
 
@@ -402,6 +424,8 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 						onDelete={(e) => handleDeleteRun(selectedRun.id, e)}
 						onRestart={(e) => selectedRun && handleRetryRun(selectedRun, e)}
 						onCancel={(e) => handleCancelRun(selectedRun.id, e)}
+						onMerge={(e) => handleMergeRun(selectedRun.id, e)}
+						isMerging={mergingRunId === selectedRun.id}
 						showBack={runs.length > 1}
 					/>
 				) : (

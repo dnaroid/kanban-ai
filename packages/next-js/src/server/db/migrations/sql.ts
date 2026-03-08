@@ -304,3 +304,8 @@ ADD COLUMN preferred_model_variant TEXT;
 ALTER TABLE agent_roles
 ADD COLUMN preferred_llm_agent TEXT;
 `;
+
+export const v025RunMetadataSql = `
+ALTER TABLE runs
+ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}';
+`;

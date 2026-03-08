@@ -3,6 +3,7 @@ import {
 	ArrowLeft,
 	Brain,
 	Files,
+	GitMerge,
 	ListTodo,
 	RotateCcw,
 	Square,
@@ -23,6 +24,8 @@ export function RunDetailsView({
 	onDelete,
 	onRestart,
 	onCancel,
+	onMerge,
+	isMerging = false,
 	showBack = true,
 }: {
 	runId: string;
@@ -31,12 +34,31 @@ export function RunDetailsView({
 	onDelete?: (e: React.MouseEvent) => void;
 	onRestart?: (e: React.MouseEvent) => void;
 	onCancel?: (e: React.MouseEvent) => void;
+	onMerge?: (e: React.MouseEvent) => void;
+	isMerging?: boolean;
 	showBack?: boolean;
 }) {
 	const [view, setView] = useState<"log" | "artifacts" | "todo">("log");
 	const [showReasoning, setShowReasoning] = useState(false);
 	const [hasTodos, setHasTodos] = useState(false);
 	const sessionId = run?.sessionId;
+	const runVcs = run?.metadata?.vcs;
+	const canMerge =
+		Boolean(onMerge) &&
+		run?.status === "completed" &&
+		runVcs?.mergeStatus !== "merged" &&
+		runVcs?.workspaceStatus !== "missing";
+	const mergeTitle =
+		runVcs?.lastMergeError ??
+		runVcs?.lastCleanupError ??
+		"Merge run changes into the base branch";
+	const mergeLabel = isMerging
+		? "Merging"
+		: runVcs?.lastMergeError
+			? "Retry Merge"
+			: "Merge";
+	const mergedLabel =
+		runVcs?.mergedBy === "automatic" ? "Auto merged" : "Merged";
 
 	useEffect(() => {
 		if (!sessionId) return;
@@ -102,6 +124,47 @@ export function RunDetailsView({
 								<Trash2 className="w-3.5 h-3.5" />
 							</button>
 						)}
+						{canMerge && (
+							<button
+								type="button"
+								onClick={onMerge}
+								disabled={isMerging}
+								className="flex items-center gap-1.5 px-2.5 py-1.5 text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+								title={mergeTitle}
+							>
+								<GitMerge className="w-3.5 h-3.5" />
+								<span className="text-[10px] font-bold uppercase tracking-wider">
+									{mergeLabel}
+								</span>
+							</button>
+						)}
+						{runVcs?.mergeStatus === "merged" && (
+							<div
+								className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-lg"
+								title={
+									runVcs?.mergedBy === "automatic"
+										? "This run was merged automatically after completion"
+										: "This run was merged manually"
+								}
+							>
+								<GitMerge className="w-3.5 h-3.5" />
+								{mergedLabel}
+							</div>
+						)}
+						{runVcs?.cleanupStatus === "cleaned" && (
+							<div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-sky-300 bg-sky-500/10 border border-sky-500/20 rounded-lg">
+								Cleaned
+							</div>
+						)}
+						{runVcs?.mergeStatus === "merged" &&
+							runVcs.cleanupStatus === "failed" && (
+								<div
+									className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg"
+									title={runVcs.lastCleanupError ?? "Cleanup is still pending"}
+								>
+									Cleanup pending
+								</div>
+							)}
 					</div>
 				</div>
 

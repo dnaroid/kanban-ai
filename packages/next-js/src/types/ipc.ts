@@ -107,6 +107,50 @@ export type RunStatus =
 	| "timeout"
 	| "paused";
 
+export type RunWorkspaceStatus =
+	| "ready"
+	| "dirty"
+	| "merged"
+	| "cleaned"
+	| "missing";
+
+export type RunMergeStatus = "pending" | "merged";
+
+export type RunMergeMode = "manual" | "automatic";
+
+export type RunCleanupStatus = "pending" | "cleaned" | "failed";
+
+export interface RunVcsMetadata {
+	repoRoot: string;
+	worktreePath: string;
+	branchName: string;
+	baseBranch: string;
+	baseCommit: string;
+	headCommit?: string;
+	hasChanges?: boolean;
+	workspaceStatus: RunWorkspaceStatus;
+	mergeStatus: RunMergeStatus;
+	mergedBy?: RunMergeMode;
+	mergedAt?: string;
+	mergedCommit?: string;
+	lastMergeError?: string;
+	cleanupStatus: RunCleanupStatus;
+	cleanedAt?: string;
+	lastCleanupError?: string;
+}
+
+export interface RunMetadata {
+	kind?: string;
+	errorText?: string;
+	budget?: unknown;
+	tokensIn?: number;
+	tokensOut?: number;
+	costUsd?: number;
+	durationSec?: number;
+	vcs?: RunVcsMetadata;
+	[key: string]: unknown;
+}
+
 export interface Run {
 	id: string;
 	taskId: string;
@@ -119,7 +163,7 @@ export interface Run {
 	endedAt?: string | null;
 	createdAt: string;
 	updatedAt: string;
-	metadata?: Record<string, unknown>;
+	metadata?: RunMetadata;
 }
 
 export interface RunEvent {

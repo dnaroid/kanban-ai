@@ -20,7 +20,8 @@ import { runRepo } from "@/server/repositories/run";
 import { tagRepo } from "@/server/repositories/tag";
 import { taskRepo } from "@/server/repositories/task";
 import { resolveTaskStatusBySignal } from "@/server/workflow/task-workflow-manager";
-import type { Run } from "@/types/ipc";
+import { getVcsManager } from "@/server/vcs/vcs-manager";
+import type { Run, RunVcsMetadata } from "@/types/ipc";
 
 const log = createLogger("run-service");
 
@@ -53,6 +54,7 @@ interface StartRunsBySignalResult {
 
 export class RunService {
 	private readonly queueManager = getRunsQueueManager();
+	private readonly vcsManager = getVcsManager();
 
 	private extractSessionPreferencesFromPreset(
 		presetJson: string | null | undefined,
@@ -158,6 +160,15 @@ export class RunService {
 			roleRepo.getPresetJson(selectedRoleId),
 		);
 
+		const project = projectRepo.getById(task.projectId);
+		if (!project) {
+			log.error("Project not found for task", {
+				taskId: task.id,
+				projectId: task.projectId,
+			});
+			throw new Error(`Project not found for task: ${task.id}`);
+		}
+
 		log.debug("Creating context snapshot", { taskId: task.id });
 		const snapshotId = contextSnapshotRepo.create({
 			taskId: task.id,
@@ -192,18 +203,58 @@ export class RunService {
 		});
 		publishRunUpdate(run);
 
-		const project = projectRepo.getById(task.projectId);
-		if (!project) {
-			log.error("Project not found for task", {
-				taskId: task.id,
-				projectId: task.projectId,
-			});
-			throw new Error(`Project not found for task: ${task.id}`);
+		let executionProjectPath = project.path;
+		if ((input.mode ?? "execute") === "execute") {
+			try {
+				const vcsMetadata = await this.vcsManager.provisionRunWorkspace({
+					projectPath: project.path,
+					runId: run.id,
+					taskId: task.id,
+					taskTitle: task.title,
+				});
+				const updatedRun = runRepo.update(run.id, {
+					metadata: this.mergeVcsMetadata(run, vcsMetadata),
+				});
+				publishRunUpdate(updatedRun);
+				runEventRepo.create({
+					runId: run.id,
+					eventType: "status",
+					payload: {
+						status: updatedRun.status,
+						message: `Worktree ready: ${vcsMetadata.branchName}`,
+						worktreePath: vcsMetadata.worktreePath,
+					},
+				});
+				executionProjectPath = vcsMetadata.worktreePath;
+			} catch (error) {
+				const message =
+					error instanceof Error
+						? error.message
+						: "Failed to provision git worktree";
+				const failedRun = runRepo.update(run.id, {
+					status: "failed",
+					finishedAt: new Date().toISOString(),
+					errorText: message,
+				});
+				runEventRepo.create({
+					runId: run.id,
+					eventType: "status",
+					payload: {
+						status: "failed",
+						message,
+					},
+				});
+				publishRunUpdate(failedRun);
+				throw error instanceof Error ? error : new Error(message);
+			}
 		}
 
-		log.debug("Enqueueing run", { runId: run.id, projectPath: project.path });
+		log.debug("Enqueueing run", {
+			runId: run.id,
+			projectPath: executionProjectPath,
+		});
 		this.queueManager.enqueue(run.id, {
-			projectPath: project.path,
+			projectPath: executionProjectPath,
 			sessionTitle: task.title.slice(0, 120),
 			sessionPreferences: this.toSessionPreferences(
 				selectedRole,
@@ -215,7 +266,7 @@ export class RunService {
 				{ title: task.title, description: task.description },
 				{
 					id: project.id,
-					path: project.path,
+					path: executionProjectPath,
 				},
 				{
 					id: selectedRoleId,
@@ -228,6 +279,56 @@ export class RunService {
 
 		log.info("Run enqueued", { runId: run.id });
 		return { runId: run.id };
+	}
+
+	public async merge(runId: string): Promise<{ run: Run }> {
+		const run = runRepo.getById(runId);
+		if (!run) {
+			throw new Error(`Run not found: ${runId}`);
+		}
+
+		const currentVcs = run.metadata?.vcs;
+		if (!currentVcs) {
+			throw new Error("Run does not have a provisioned worktree.");
+		}
+
+		try {
+			const mergedVcs = await this.vcsManager.mergeRunWorkspace(run, "manual");
+			const vcsMetadata = await this.cleanupMergedWorkspace(mergedVcs);
+			const updatedRun = runRepo.update(run.id, {
+				metadata: this.mergeVcsMetadata(run, vcsMetadata),
+			});
+			const cleanupMessage =
+				vcsMetadata.cleanupStatus === "cleaned"
+					? " and cleaned the worktree"
+					: vcsMetadata.lastCleanupError
+						? `, but cleanup is pending: ${vcsMetadata.lastCleanupError}`
+						: "";
+			runEventRepo.create({
+				runId: run.id,
+				eventType: "status",
+				payload: {
+					status: updatedRun.status,
+					message: `Merged ${vcsMetadata.branchName} into ${vcsMetadata.baseBranch}${cleanupMessage}`,
+					mergedCommit: vcsMetadata.mergedCommit,
+					cleanupStatus: vcsMetadata.cleanupStatus,
+				},
+			});
+			publishRunUpdate(updatedRun);
+			return { run: updatedRun };
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : "Failed to merge run changes";
+			const refreshedVcs = await this.vcsManager.syncRunWorkspace(run);
+			const updatedRun = runRepo.update(run.id, {
+				metadata: this.mergeVcsMetadata(run, {
+					...(refreshedVcs ?? currentVcs),
+					lastMergeError: message,
+				}),
+			});
+			publishRunUpdate(updatedRun);
+			throw error instanceof Error ? error : new Error(message);
+		}
 	}
 
 	public async generateUserStory(taskId: string): Promise<{ runId: string }> {
@@ -774,6 +875,37 @@ export class RunService {
 		}
 
 		return rolesWithPresets[0]?.id ?? null;
+	}
+
+	private mergeVcsMetadata(
+		run: Run,
+		vcsMetadata: RunVcsMetadata,
+	): NonNullable<Run["metadata"]> {
+		return {
+			...(run.metadata ?? {}),
+			vcs: vcsMetadata,
+		};
+	}
+
+	private async cleanupMergedWorkspace(
+		vcsMetadata: RunVcsMetadata,
+	): Promise<RunVcsMetadata> {
+		try {
+			return await this.vcsManager.cleanupRunWorkspace(vcsMetadata);
+		} catch (error) {
+			const syncedVcs = await this.vcsManager
+				.syncVcsMetadata(vcsMetadata)
+				.catch(() => vcsMetadata);
+			const message =
+				error instanceof Error
+					? error.message
+					: "Merged successfully, but worktree cleanup failed";
+			return {
+				...syncedVcs,
+				cleanupStatus: "failed",
+				lastCleanupError: message,
+			};
+		}
 	}
 }
 

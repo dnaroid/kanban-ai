@@ -14,6 +14,7 @@ interface RunRow {
 	finished_at: string | null;
 	error_text: string;
 	budget_json: string;
+	metadata_json: string;
 	created_at: string;
 	updated_at: string;
 	ai_tokens_in: number;
@@ -28,6 +29,7 @@ interface CreateRunInput {
 	mode?: string;
 	kind?: string;
 	contextSnapshotId: string;
+	metadata?: Run["metadata"];
 }
 
 interface UpdateRunInput {
@@ -39,6 +41,7 @@ interface UpdateRunInput {
 	mode?: string;
 	roleId?: string;
 	durationSec?: number;
+	metadata?: Run["metadata"];
 }
 
 function parseJson(value: string): unknown {
@@ -49,9 +52,26 @@ function parseJson(value: string): unknown {
 	}
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return {};
+	}
+
+	return value as Record<string, unknown>;
+}
+
+function serializeMetadata(metadata: Run["metadata"] | undefined): string {
+	if (!metadata) {
+		return "{}";
+	}
+
+	return JSON.stringify(metadata);
+}
+
 function mapRunRow(row: RunRow): Run {
 	const budget = parseJson(row.budget_json);
-	const metadata: Record<string, unknown> = {
+	const metadata = {
+		...asRecord(parseJson(row.metadata_json)),
 		kind: row.kind,
 		errorText: row.error_text,
 		budget,
@@ -95,6 +115,7 @@ export class RunRepository {
 				finished_at,
 				error_text,
 				budget_json,
+				metadata_json,
 				context_snapshot_id,
 				ai_tokens_in,
 				ai_tokens_out,
@@ -102,7 +123,7 @@ export class RunRepository {
 				duration_sec,
 				created_at,
 				updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		).run(
 			id,
 			input.taskId,
@@ -115,6 +136,7 @@ export class RunRepository {
 			null,
 			"",
 			JSON.stringify({}),
+			serializeMetadata(input.metadata),
 			input.contextSnapshotId,
 			0,
 			0,
@@ -192,6 +214,10 @@ export class RunRepository {
 		if (patch.durationSec !== undefined) {
 			updates.push("duration_sec = ?");
 			values.push(patch.durationSec);
+		}
+		if (patch.metadata !== undefined) {
+			updates.push("metadata_json = ?");
+			values.push(serializeMetadata(patch.metadata));
 		}
 
 		values.push(runId);

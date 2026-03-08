@@ -17,8 +17,9 @@ import { taskLinkRepo } from "@/server/repositories/task-link";
 import { taskRepo } from "@/server/repositories/task";
 import { getRunTaskProjector } from "@/server/run/run-task-projector";
 import { publishRunUpdate } from "@/server/run/run-publisher";
+import { getVcsManager } from "@/server/vcs/vcs-manager";
 import type { TaskPriority } from "@/types/kanban";
-import type { Run, RunStatus } from "@/types/ipc";
+import type { Run, RunStatus, RunVcsMetadata } from "@/types/ipc";
 
 const generationRunKind = "task-description-improve";
 const agentRoleTagPrefix = "agent:";
@@ -233,6 +234,7 @@ export class RunsQueueManager {
 	private readonly opencodeService = getOpencodeService();
 	private readonly sessionManager = getOpencodeSessionManager();
 	private readonly taskProjector = getRunTaskProjector();
+	private readonly vcsManager = getVcsManager();
 	private readonly defaultConcurrency = parsePositiveInt(
 		process.env.RUNS_DEFAULT_CONCURRENCY,
 		1,
@@ -368,12 +370,13 @@ export class RunsQueueManager {
 		}
 
 		const finishedAt = new Date().toISOString();
-		const cancelled = runRepo.update(runId, {
+		let cancelled = runRepo.update(runId, {
 			status: "cancelled",
 			finishedAt,
 			errorText: "",
 			durationSec: this.durationSec(run.startedAt ?? finishedAt, finishedAt),
 		});
+		cancelled = await this.syncRunWorkspaceState(cancelled);
 
 		runEventRepo.create({
 			runId,
@@ -564,12 +567,13 @@ export class RunsQueueManager {
 				error instanceof Error ? error.message : "Run execution failed";
 			log.error("Run execution failed", { runId, error: message });
 			const finishedAt = new Date().toISOString();
-			const failedRun = runRepo.update(runId, {
+			let failedRun = runRepo.update(runId, {
 				status: "failed",
 				finishedAt,
 				errorText: message,
 				durationSec: this.durationSec(startedAt, finishedAt),
 			});
+			failedRun = await this.syncRunWorkspaceState(failedRun);
 
 			runEventRepo.create({
 				runId,
@@ -678,12 +682,16 @@ export class RunsQueueManager {
 		}
 
 		const finishedAt = new Date().toISOString();
-		const nextRun = runRepo.update(runId, {
+		let nextRun = runRepo.update(runId, {
 			status,
 			finishedAt,
 			errorText: status === "failed" ? "Run failed" : "",
 			durationSec: this.durationSec(run.startedAt ?? finishedAt, finishedAt),
 		});
+		nextRun = await this.syncRunWorkspaceState(nextRun);
+		if (status === "completed") {
+			nextRun = await this.tryAutomaticMerge(nextRun);
+		}
 
 		log.info("Run finalized", {
 			runId,
@@ -723,6 +731,105 @@ export class RunsQueueManager {
 		this.runInputs.delete(runId);
 
 		await this.unsubscribeRunSession(runId);
+	}
+
+	private async syncRunWorkspaceState(run: Run): Promise<Run> {
+		const vcsMetadata = await this.vcsManager.syncRunWorkspace(run);
+		if (!vcsMetadata) {
+			return run;
+		}
+
+		return runRepo.update(run.id, {
+			metadata: {
+				...(run.metadata ?? {}),
+				vcs: vcsMetadata,
+			},
+		});
+	}
+
+	private async tryAutomaticMerge(run: Run): Promise<Run> {
+		const currentVcs = run.metadata?.vcs;
+		if (!currentVcs || currentVcs.mergeStatus === "merged") {
+			return run;
+		}
+
+		try {
+			const mergedVcs = await this.vcsManager.mergeRunWorkspace(
+				run,
+				"automatic",
+			);
+			const vcsMetadata = await this.cleanupMergedWorkspace(mergedVcs);
+			const updatedRun = runRepo.update(run.id, {
+				metadata: {
+					...(run.metadata ?? {}),
+					vcs: vcsMetadata,
+				},
+			});
+			const cleanupMessage =
+				vcsMetadata.cleanupStatus === "cleaned"
+					? " and cleaned the worktree"
+					: vcsMetadata.lastCleanupError
+						? `, but cleanup is pending: ${vcsMetadata.lastCleanupError}`
+						: "";
+			runEventRepo.create({
+				runId: run.id,
+				eventType: "status",
+				payload: {
+					status: updatedRun.status,
+					message: `Automatically merged ${vcsMetadata.branchName} into ${vcsMetadata.baseBranch}${cleanupMessage}`,
+					autoMerged: true,
+					mergedCommit: vcsMetadata.mergedCommit,
+					cleanupStatus: vcsMetadata.cleanupStatus,
+				},
+			});
+			return updatedRun;
+		} catch (error) {
+			const message =
+				error instanceof Error
+					? error.message
+					: "Automatic merge could not be completed";
+			const refreshedVcs = await this.vcsManager.syncRunWorkspace(run);
+			const updatedRun = runRepo.update(run.id, {
+				metadata: {
+					...(run.metadata ?? {}),
+					vcs: {
+						...(refreshedVcs ?? currentVcs),
+						lastMergeError: message,
+					},
+				},
+			});
+			runEventRepo.create({
+				runId: run.id,
+				eventType: "status",
+				payload: {
+					status: updatedRun.status,
+					message: `Automatic merge deferred: ${message}`,
+					autoMerged: false,
+				},
+			});
+			return updatedRun;
+		}
+	}
+
+	private async cleanupMergedWorkspace(
+		vcsMetadata: RunVcsMetadata,
+	): Promise<RunVcsMetadata> {
+		try {
+			return await this.vcsManager.cleanupRunWorkspace(vcsMetadata);
+		} catch (error) {
+			const syncedVcs = await this.vcsManager
+				.syncVcsMetadata(vcsMetadata)
+				.catch(() => vcsMetadata);
+			const message =
+				error instanceof Error
+					? error.message
+					: "Merged successfully, but worktree cleanup failed";
+			return {
+				...syncedVcs,
+				cleanupStatus: "failed",
+				lastCleanupError: message,
+			};
+		}
 	}
 
 	private selectNextRunnableRun(queue: string[]): string | null {
@@ -951,8 +1058,56 @@ export class RunsQueueManager {
 		});
 		publishRunUpdate(executionRun);
 
-		this.enqueue(executionRun.id, {
-			projectPath: project.path,
+		let queuedExecutionRun = executionRun;
+		let executionProjectPath = project.path;
+		try {
+			const vcsMetadata = await this.vcsManager.provisionRunWorkspace({
+				projectPath: project.path,
+				runId: executionRun.id,
+				taskId: task.id,
+				taskTitle: task.title,
+			});
+			queuedExecutionRun = runRepo.update(executionRun.id, {
+				metadata: {
+					...(executionRun.metadata ?? {}),
+					vcs: vcsMetadata,
+				},
+			});
+			runEventRepo.create({
+				runId: executionRun.id,
+				eventType: "status",
+				payload: {
+					status: queuedExecutionRun.status,
+					message: `Worktree ready: ${vcsMetadata.branchName}`,
+					worktreePath: vcsMetadata.worktreePath,
+				},
+			});
+			publishRunUpdate(queuedExecutionRun);
+			executionProjectPath = vcsMetadata.worktreePath;
+		} catch (error) {
+			const message =
+				error instanceof Error
+					? error.message
+					: "Failed to provision git worktree";
+			const failedRun = runRepo.update(executionRun.id, {
+				status: "failed",
+				finishedAt: new Date().toISOString(),
+				errorText: message,
+			});
+			runEventRepo.create({
+				runId: executionRun.id,
+				eventType: "status",
+				payload: {
+					status: "failed",
+					message,
+				},
+			});
+			publishRunUpdate(failedRun);
+			return;
+		}
+
+		this.enqueue(queuedExecutionRun.id, {
+			projectPath: executionProjectPath,
 			sessionTitle: task.title.slice(0, 120),
 			sessionPreferences: this.toSessionPreferences(
 				selectedRole,
@@ -962,7 +1117,7 @@ export class RunsQueueManager {
 				{ title: task.title, description: task.description },
 				{
 					id: project.id,
-					path: project.path,
+					path: executionProjectPath,
 				},
 				{
 					id: roleId,
