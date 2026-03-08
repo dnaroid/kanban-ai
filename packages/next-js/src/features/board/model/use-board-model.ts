@@ -22,6 +22,31 @@ type PromptAttachment = {
 	path?: string;
 };
 
+export function normalizeQuickRunPrompt(
+	prompt: string | null | undefined,
+): string {
+	return typeof prompt === "string" ? prompt.trim() : "";
+}
+
+export function normalizeOptionalRoleId(roleId: unknown): string | null {
+	if (typeof roleId !== "string") {
+		return null;
+	}
+
+	const trimmedRoleId = roleId.trim();
+	return trimmedRoleId.length > 0 ? trimmedRoleId : null;
+}
+
+export function normalizeQuickRunRawStoryInput(
+	prompt: string | null | undefined,
+	roleId: unknown,
+): { cleanPrompt: string; preferredRoleId: string | null } {
+	return {
+		cleanPrompt: normalizeQuickRunPrompt(prompt),
+		preferredRoleId: normalizeOptionalRoleId(roleId),
+	};
+}
+
 export function useBoardModel({ projectId }: UseBoardModelArgs) {
 	const router = useRouter();
 	const pathname = usePathname();
@@ -452,7 +477,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			throw new Error("Board not found");
 		}
 
-		const cleanPrompt = prompt.trim();
+		const cleanPrompt = normalizeQuickRunPrompt(prompt);
 		if (!cleanPrompt) {
 			throw new Error("Prompt cannot be empty");
 		}
@@ -507,7 +532,10 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			throw new Error("Board not found");
 		}
 
-		const cleanPrompt = prompt.trim();
+		const { cleanPrompt, preferredRoleId } = normalizeQuickRunRawStoryInput(
+			prompt,
+			options?.roleId,
+		);
 		if (!cleanPrompt) {
 			throw new Error("Prompt cannot be empty");
 		}
@@ -554,11 +582,8 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 				}
 			});
 
-			const preferredRoleId = options?.roleId?.trim();
 			const executionRoleId =
-				(preferredRoleId && preferredRoleId.length > 0
-					? preferredRoleId
-					: null) ??
+				preferredRoleId ??
 				roleWithBehavior.find(
 					(item) =>
 						item.behavior.quickSelect &&
