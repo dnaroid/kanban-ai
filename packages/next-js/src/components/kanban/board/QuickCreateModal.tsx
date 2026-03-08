@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+	type ClipboardEvent,
+} from "react";
 import {
 	FileText,
 	Loader2,
@@ -56,13 +62,21 @@ interface QuickCreateModalProps {
 	projectId: string;
 	isOpen: boolean;
 	onClose: () => void;
-	onGenerateStory: (prompt: string, selectedFiles: string[]) => Promise<void>;
+	onGenerateStory: (
+		prompt: string,
+		selectedAttachments: QuickCreateAttachment[],
+	) => Promise<void>;
 	onRunRawStory: (
 		prompt: string,
 		modelName: string | null,
 		roleId: string | null,
-		selectedFiles: string[],
+		selectedAttachments: QuickCreateAttachment[],
 	) => Promise<void>;
+}
+
+export interface QuickCreateAttachment {
+	name: string;
+	path?: string;
 }
 
 interface AgentRole {
@@ -100,7 +114,9 @@ export function QuickCreateModal({
 	const [roles, setRoles] = useState<AgentRole[]>([]);
 	const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
 	const [isLoadingRoles, setIsLoadingRoles] = useState(false);
-	const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+	const [selectedAttachments, setSelectedAttachments] = useState<
+		QuickCreateAttachment[]
+	>([]);
 	const [projectPath, setProjectPath] = useState<string | undefined>(undefined);
 	const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -121,7 +137,7 @@ export function QuickCreateModal({
 			setSelectedModel(null);
 			setSelectedRoleId(null);
 			setRoles([]);
-			setSelectedFiles([]);
+			setSelectedAttachments([]);
 			setProjectPath(undefined);
 			setIsFilePickerOpen(false);
 			setError(null);
@@ -341,7 +357,7 @@ export function QuickCreateModal({
 		setSubmittingAction("generate");
 
 		try {
-			await onGenerateStory(fullPrompt, selectedFiles);
+			await onGenerateStory(fullPrompt, selectedAttachments);
 			onClose();
 		} catch (err) {
 			setError(
@@ -369,7 +385,7 @@ export function QuickCreateModal({
 				fullPrompt,
 				selectedModel,
 				selectedRoleId,
-				selectedFiles,
+				selectedAttachments,
 			);
 			onClose();
 		} catch (err) {
@@ -379,9 +395,76 @@ export function QuickCreateModal({
 		}
 	};
 
+	const extractClipboardFiles = (clipboardData: DataTransfer): File[] => {
+		const directFiles = Array.from(clipboardData.files ?? []);
+		const itemFiles = Array.from(clipboardData.items ?? [])
+			.filter((item) => item.kind === "file")
+			.map((item) => item.getAsFile())
+			.filter((file): file is File => file !== null);
+
+		const uniqueFiles = new Map<string, File>();
+		for (const file of [...directFiles, ...itemFiles]) {
+			const key = `${file.name}:${file.size}:${file.type}:${file.lastModified}`;
+			uniqueFiles.set(key, file);
+		}
+
+		return Array.from(uniqueFiles.values());
+	};
+
+	const mergeAttachments = (
+		current: QuickCreateAttachment[],
+		incoming: QuickCreateAttachment[],
+	) => {
+		const merged = new Map<string, QuickCreateAttachment>();
+
+		for (const attachment of current) {
+			const key = attachment.path
+				? `path:${attachment.path}`
+				: `name:${attachment.name}`;
+			merged.set(key, attachment);
+		}
+
+		for (const attachment of incoming) {
+			const key = attachment.path
+				? `path:${attachment.path}`
+				: `name:${attachment.name}`;
+			merged.set(key, attachment);
+		}
+
+		return Array.from(merged.values());
+	};
+
+	const handlePromptPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+		const files = extractClipboardFiles(event.clipboardData);
+		if (files.length === 0) {
+			return;
+		}
+
+		event.preventDefault();
+		setError(null);
+
+		const pastedAttachments: QuickCreateAttachment[] = files.map((file) => {
+			const path = (file as File & { path?: string }).path;
+			return {
+				name: file.name || "clipboard-item",
+				path,
+			};
+		});
+
+		setSelectedAttachments((prev) => mergeAttachments(prev, pastedAttachments));
+	};
+
 	const handleFilesSelect = (paths: string[]) => {
 		setIsFilePickerOpen(false);
-		setSelectedFiles(paths);
+		setSelectedAttachments(
+			paths.map((path) => {
+				const normalized = path.replace(/\\/g, "/");
+				return {
+					name: normalized.split("/").pop() || path,
+					path,
+				};
+			}),
+		);
 	};
 
 	const isSubmitting = submittingAction !== null;
@@ -487,6 +570,7 @@ export function QuickCreateModal({
 						<textarea
 							value={prompt}
 							onChange={(e) => setPrompt(e.target.value)}
+							onPaste={handlePromptPaste}
 							placeholder="What needs to be done? Type or dictate story details..."
 							rows={6}
 							disabled={isSubmitting}
@@ -508,7 +592,7 @@ export function QuickCreateModal({
 								disabled={isSubmitting}
 								className={cn(
 									"w-9 h-9 rounded-lg border transition-all flex items-center justify-center",
-									selectedFiles.length > 0
+									selectedAttachments.length > 0
 										? "text-emerald-400 border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20"
 										: "text-slate-400 border-slate-700/80 bg-slate-800/60 hover:bg-slate-700/60 hover:text-slate-200",
 								)}
@@ -554,26 +638,32 @@ export function QuickCreateModal({
 					</div>
 				</div>
 
-				{selectedFiles.length > 0 && (
+				{selectedAttachments.length > 0 && (
 					<div className="rounded-xl border border-slate-800/50 bg-slate-900/30 p-2">
 						<ul className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto no-scrollbar">
-							{selectedFiles.map((filePath) => {
-								const normalized = filePath.replace(/\\/g, "/");
-								const fileName = normalized.split("/").pop() || filePath;
+							{selectedAttachments.map((attachment) => {
 								return (
 									<li
-										key={filePath}
+										key={attachment.path ?? attachment.name}
 										className="group inline-flex items-center gap-1.5 rounded-md bg-slate-800/60 px-2 py-1 text-[10px] text-slate-300 border border-slate-700/50"
 									>
 										<FileText className="w-3 h-3 text-slate-500" />
-										<span className="truncate max-w-[150px]" title={filePath}>
-											{fileName}
+										<span
+											className="truncate max-w-[150px]"
+											title={attachment.path ?? attachment.name}
+										>
+											{attachment.name}
 										</span>
 										<button
 											type="button"
 											onClick={() =>
-												setSelectedFiles((prev) =>
-													prev.filter((f) => f !== filePath),
+												setSelectedAttachments((prev) =>
+													prev.filter((item) => {
+														if (attachment.path) {
+															return item.path !== attachment.path;
+														}
+														return item.name !== attachment.name;
+													}),
 												)
 											}
 											className="opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all ml-1"

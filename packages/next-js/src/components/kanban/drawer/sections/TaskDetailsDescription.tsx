@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ClipboardEvent } from "react";
 import {
 	AlertTriangle,
 	FilePenLine,
@@ -188,6 +188,22 @@ export function TaskDetailsDescription({
 	const isFileDrag = (e: React.DragEvent) =>
 		Array.from(e.dataTransfer.types || []).includes("Files");
 
+	const extractClipboardFiles = (clipboardData: DataTransfer): File[] => {
+		const directFiles = Array.from(clipboardData.files ?? []);
+		const itemFiles = Array.from(clipboardData.items ?? [])
+			.filter((item) => item.kind === "file")
+			.map((item) => item.getAsFile())
+			.filter((file): file is File => file !== null);
+
+		const uniqueFiles = new Map<string, File>();
+		for (const file of [...directFiles, ...itemFiles]) {
+			const key = `${file.name}:${file.size}:${file.type}:${file.lastModified}`;
+			uniqueFiles.set(key, file);
+		}
+
+		return Array.from(uniqueFiles.values());
+	};
+
 	const handleRemoveLink = (url: string) => {
 		const lines = editedDescription.split("\n");
 		const nextLines = lines.filter((line) => {
@@ -233,6 +249,25 @@ export function TaskDetailsDescription({
 		}
 	};
 
+	const handlePaste = (event: ClipboardEvent<HTMLElement>) => {
+		const files = extractClipboardFiles(event.clipboardData);
+		if (files.length === 0) {
+			return;
+		}
+
+		event.preventDefault();
+
+		const items: AttachmentItem[] = files.map((file) => ({
+			name: file.name,
+			url: buildFileUrl(file) ?? undefined,
+			type: file.type,
+			size: file.size,
+		}));
+
+		onFilesSelected?.(files);
+		appendAttachmentItemsToDescription(items);
+	};
+
 	const handlePickFiles = () => {
 		setIsFilePickerOpen(true);
 	};
@@ -264,6 +299,7 @@ export function TaskDetailsDescription({
 			onDragOver={handleDragOver}
 			onDragLeave={handleDragLeave}
 			onDrop={handleDrop}
+			onPasteCapture={handlePaste}
 		>
 			{isDragging && (
 				<div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">

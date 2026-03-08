@@ -17,6 +17,11 @@ interface UseBoardModelArgs {
 	projectId: string;
 }
 
+type PromptAttachment = {
+	name: string;
+	path?: string;
+};
+
 export function useBoardModel({ projectId }: UseBoardModelArgs) {
 	const router = useRouter();
 	const pathname = usePathname();
@@ -393,24 +398,44 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 
 	const appendFileReferencesToPrompt = (
 		prompt: string,
-		filePaths?: string[],
+		attachments?: PromptAttachment[],
 	) => {
-		if (!filePaths || filePaths.length === 0) {
+		if (!attachments || attachments.length === 0) {
 			return prompt;
 		}
 
-		const normalizedPaths = Array.from(
-			new Set(filePaths.map((path) => path.trim()).filter(Boolean)),
-		);
+		const attachmentMap = new Map<string, PromptAttachment>();
+		for (const attachment of attachments) {
+			const normalizedName = attachment.name.trim();
+			if (!normalizedName) {
+				continue;
+			}
 
-		if (normalizedPaths.length === 0) {
+			const normalizedPath = attachment.path?.trim();
+			const key = normalizedPath
+				? `path:${normalizedPath}`
+				: `name:${normalizedName}`;
+
+			attachmentMap.set(key, {
+				name: normalizedName,
+				path: normalizedPath,
+			});
+		}
+
+		const normalizedAttachments = Array.from(attachmentMap.values());
+
+		if (normalizedAttachments.length === 0) {
 			return prompt;
 		}
 
-		const fileLines = normalizedPaths.map((filePath) => {
-			const normalized = filePath.replace(/\\/g, "/");
-			const name = normalized.split("/").pop() || filePath;
-			return `- [${name}](${buildFileUrlFromPath(filePath)})`;
+		const fileLines = normalizedAttachments.map((attachment) => {
+			if (!attachment.path) {
+				return `- ${attachment.name}`;
+			}
+
+			const normalized = attachment.path.replace(/\\/g, "/");
+			const name = normalized.split("/").pop() || attachment.path;
+			return `- [${name}](${buildFileUrlFromPath(attachment.path)})`;
 		});
 
 		const cleanPrompt = prompt.trimEnd();
@@ -421,7 +446,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 	const handleQuickGenerateStory = async (
 		columnId: string,
 		prompt: string,
-		selectedFiles?: string[],
+		selectedAttachments?: PromptAttachment[],
 	) => {
 		if (!board) {
 			throw new Error("Board not found");
@@ -439,7 +464,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		);
 		const promptWithFiles = appendFileReferencesToPrompt(
 			cleanPrompt,
-			selectedFiles,
+			selectedAttachments,
 		);
 
 		try {
@@ -475,7 +500,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		options?: {
 			modelName?: string | null;
 			roleId?: string | null;
-			selectedFiles?: string[];
+			selectedAttachments?: PromptAttachment[];
 		},
 	) => {
 		if (!board) {
@@ -494,7 +519,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		);
 		const promptWithFiles = appendFileReferencesToPrompt(
 			cleanPrompt,
-			options?.selectedFiles,
+			options?.selectedAttachments,
 		);
 
 		try {

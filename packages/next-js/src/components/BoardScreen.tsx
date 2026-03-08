@@ -295,21 +295,26 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 					projectId={projectId}
 					isOpen={isQuickCreateModalOpen}
 					onClose={() => setIsQuickCreateModalOpen(false)}
-					onGenerateStory={async (prompt, selectedFiles) => {
+					onGenerateStory={async (prompt, selectedAttachments) => {
 						if (firstColumnId) {
 							await handleQuickGenerateStory(
 								firstColumnId,
 								prompt,
-								selectedFiles,
+								selectedAttachments,
 							);
 						}
 					}}
-					onRunRawStory={async (prompt, modelName, roleId, selectedFiles) => {
+					onRunRawStory={async (
+						prompt,
+						modelName,
+						roleId,
+						selectedAttachments,
+					) => {
 						if (firstColumnId) {
 							await handleQuickRunRawStory(firstColumnId, prompt, {
 								modelName,
 								roleId,
-								selectedFiles,
+								selectedAttachments,
 							});
 						}
 					}}

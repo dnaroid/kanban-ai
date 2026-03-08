@@ -17,6 +17,11 @@ interface TaskPromptProject {
 	path: string;
 }
 
+function normalizeText(text: string | null | undefined): string {
+	if (!text) return "";
+	return text.trim().replace(/\s+/g, " ");
+}
+
 export function buildTaskPrompt(
 	task: TaskPromptInput,
 	project: TaskPromptProject,
@@ -27,13 +32,25 @@ export function buildTaskPrompt(
 		.map((skill) => skill.trim())
 		.filter((skill) => skill.length > 0);
 
+	const normalizedTitle = normalizeText(task.title);
+	const normalizedDescription = normalizeText(task.description);
+	const descriptionDiffersFromTitle =
+		normalizedDescription.length > 0 &&
+		normalizedDescription !== normalizedTitle;
+
+	const descriptionLine = descriptionDiffersFromTitle
+		? `Описание: ${task.description}`
+		: "";
+
 	return [
 		rolePrompt,
-		roleSkills.length > 0 ? `Можешь использовать скиллы: ${roleSkills.join(", ")}` : "",
+		roleSkills.length > 0
+			? `Можешь использовать скиллы: ${roleSkills.join(", ")}`
+			: "",
 		"",
 		`ЗАДАЧА: ${task.title}`,
 		"",
-		`Описание: ${task.description ?? "Нет описания"}`,
+		descriptionLine,
 		"",
 		"Контекст проекта:",
 		`- Путь проекта: ${project.path}`,

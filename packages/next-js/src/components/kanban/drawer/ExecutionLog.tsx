@@ -29,6 +29,23 @@ const getPartId = (part: Part): string | undefined => {
 	return typeof maybeId === "string" ? maybeId : undefined;
 };
 
+const mergeUpdatedPart = (existing: Part, incoming: Part): Part => {
+	if (existing.type !== incoming.type) {
+		return incoming;
+	}
+
+	if (existing.type === "tool" && incoming.type === "tool") {
+		return {
+			...existing,
+			...incoming,
+			input: incoming.input !== undefined ? incoming.input : existing.input,
+			output: incoming.output !== undefined ? incoming.output : existing.output,
+		};
+	}
+
+	return { ...existing, ...incoming };
+};
+
 const isRenderablePart = (part: Part): boolean => {
 	switch (part.type) {
 		case "reasoning":
@@ -451,7 +468,10 @@ export function ExecutionLog({
 					newParts = [...existingParts, part];
 				} else {
 					newParts = [...existingParts];
-					newParts[partIndex] = part;
+					newParts[partIndex] = mergeUpdatedPart(
+						existingParts[partIndex],
+						part,
+					);
 				}
 
 				const updatedEvent = buildMessageEvent(
