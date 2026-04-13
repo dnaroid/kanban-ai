@@ -5,9 +5,9 @@ import type { WorkflowIconKey } from "@/types/workflow";
 import { normalizeWorkflowIconKey } from "@/types/workflow";
 
 export const WORKFLOW_COLUMN_SYSTEM_KEYS = [
+	"deferred",
 	"backlog",
 	"ready",
-	"deferred",
 	"in_progress",
 	"blocked",
 	"review",

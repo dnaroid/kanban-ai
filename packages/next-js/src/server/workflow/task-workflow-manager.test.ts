@@ -20,16 +20,16 @@ describe("task-workflow-manager runtime config", () => {
 	it("returns hardcoded default workflow columns", () => {
 		const columns = getDefaultWorkflowColumns();
 		expect(columns[0]).toEqual({
-			name: "Backlog",
-			systemKey: "backlog",
-			color: "#6366f1",
-			icon: "list",
+			name: "Deferred",
+			systemKey: "deferred",
+			color: "#6b7280",
+			icon: "clock",
 		});
 		expect(columns).toHaveLength(7);
 		expect(columns.map((c) => c.systemKey)).toEqual([
+			"deferred",
 			"backlog",
 			"ready",
-			"deferred",
 			"in_progress",
 			"blocked",
 			"review",
