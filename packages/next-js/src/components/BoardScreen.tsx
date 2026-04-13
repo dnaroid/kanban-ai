@@ -29,9 +29,14 @@ import { useToast } from "@/components/common/toast/ToastContext";
 interface BoardScreenProps {
 	projectId: string;
 	projectName: string;
+	projectColor?: string;
 }
 
-export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
+export function BoardScreen({
+	projectId,
+	projectName,
+	projectColor,
+}: BoardScreenProps) {
 	const { addToast } = useToast();
 
 	const [viewMode, setViewMode] = useState<"board" | "list">(() => {
@@ -62,6 +67,7 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 		handleDeleteTask,
 		handleStartSignalRuns,
 		isQueueingSignalRuns,
+		handleContextAction,
 		deleteTaskConfirm,
 		setDeleteTaskConfirm,
 		confirmDeleteTask,
@@ -182,7 +188,11 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 		<div className="flex flex-col h-full overflow-hidden">
 			<div className="relative z-10 flex items-center justify-between px-8 py-2 border-b border-slate-800/50 bg-slate-900/20 backdrop-blur-md shrink-0">
 				<div className="flex items-center gap-4">
-					<ProjectSelect projectId={projectId} projectName={projectName} />
+					<ProjectSelect
+						projectId={projectId}
+						projectName={projectName}
+						projectColor={projectColor}
+					/>
 					<div className="bg-slate-800/50 p-1 rounded-xl flex gap-1">
 						<button
 							type="button"
@@ -268,7 +278,7 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 						title="Queue tasks by workflow signal selectors"
 					>
 						<Play className="w-4 h-4" />
-						{isQueueingSignalRuns ? "Queueing..." : "Queue by Signal"}
+						{isQueueingSignalRuns ? "Queueing..." : "Execute Queue"}
 					</button>
 				</div>
 			</div>
@@ -301,6 +311,7 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 											onTaskClick={handleTaskClick}
 											onDeleteTask={handleDeleteTask}
 											onBulkDelete={handleBulkDelete}
+											onContextAction={handleContextAction}
 										/>
 									))}
 								</SortableContext>

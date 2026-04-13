@@ -1,8 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Trash2 } from "lucide-react";
+import {
+	Trash2,
+	Sparkles,
+	Clock,
+	CheckCircle,
+	GitMerge,
+	Loader2,
+} from "lucide-react";
 import type { KanbanTask, Tag } from "@/types/kanban";
 import { cn } from "@/lib/utils";
 import { priorityConfig, typeConfig } from "../TaskPropertyConfigs";
@@ -13,11 +21,56 @@ import {
 } from "../workflow-display";
 import { useWorkflowDisplayConfig } from "../useWorkflowDisplayConfig";
 
+type ContextActionSystemKey = "backlog" | "ready" | "deferred" | "review";
+
+interface ContextActionConfig {
+	icon: React.ComponentType<{ className?: string }>;
+	label: string;
+	hoverColor: string;
+	hoverBg: string;
+}
+
+const CONTEXT_ACTION_MAP: Record<ContextActionSystemKey, ContextActionConfig> =
+	{
+		backlog: {
+			icon: Sparkles,
+			label: "Generate User Story",
+			hoverColor: "hover:text-violet-400",
+			hoverBg: "hover:bg-violet-500/10",
+		},
+		ready: {
+			icon: Clock,
+			label: "Defer Task",
+			hoverColor: "hover:text-amber-400",
+			hoverBg: "hover:bg-amber-500/10",
+		},
+		deferred: {
+			icon: CheckCircle,
+			label: "Move to Ready",
+			hoverColor: "hover:text-cyan-400",
+			hoverBg: "hover:bg-cyan-500/10",
+		},
+		review: {
+			icon: GitMerge,
+			label: "Commit & Close",
+			hoverColor: "hover:text-emerald-400",
+			hoverBg: "hover:bg-emerald-500/10",
+		},
+	};
+
+const INACTIVE_STATUSES: ReadonlySet<string> = new Set([
+	"running",
+	"generating",
+	"in_progress",
+]);
+
 export interface SortableTaskProps {
 	task: KanbanTask;
 	globalTags: Tag[];
 	onDelete?: (id: string) => void;
 	onClick?: (task: KanbanTask) => void;
+	systemKey?: string;
+	onContextAction?: (taskId: string, systemKey: string) => Promise<void>;
 }
 
 export function SortableTask({
@@ -25,7 +78,10 @@ export function SortableTask({
 	globalTags,
 	onDelete,
 	onClick,
+	systemKey,
+	onContextAction,
 }: SortableTaskProps) {
+	const [isLoading, setIsLoading] = useState(false);
 	const workflowConfig = useWorkflowDisplayConfig();
 	const {
 		attributes,
@@ -64,6 +120,28 @@ export function SortableTask({
 			globalTags.find((t) => t.name.toLowerCase().trim() === normalized)
 				?.color || "#475569"
 		);
+	};
+
+	const actionConfig =
+		systemKey && systemKey in CONTEXT_ACTION_MAP
+			? CONTEXT_ACTION_MAP[systemKey as ContextActionSystemKey]
+			: null;
+
+	const showContextButton = actionConfig && !INACTIVE_STATUSES.has(task.status);
+
+	const handleContextClick = async (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (!systemKey || !onContextAction || isLoading) return;
+		setIsLoading(true);
+		try {
+			await onContextAction(task.id, systemKey);
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
+	const handleContextPointerDown = (e: React.PointerEvent) => {
+		e.stopPropagation();
 	};
 
 	return (
@@ -141,7 +219,30 @@ export function SortableTask({
 					</div>
 				)}
 			</button>
-			<div className="absolute right-2 top-2 z-10">
+			<div className="absolute right-2 top-2 z-10 flex items-center gap-0.5">
+				{showContextButton && (
+					<button
+						type="button"
+						onClick={handleContextClick}
+						onPointerDown={handleContextPointerDown}
+						disabled={isLoading}
+						className={cn(
+							"opacity-0 group-hover:opacity-100 transition-all p-1 rounded-md",
+							actionConfig.hoverBg,
+							actionConfig.hoverColor,
+							isLoading
+								? "text-slate-500 pointer-events-none"
+								: "text-slate-600",
+						)}
+						title={actionConfig.label}
+					>
+						{isLoading ? (
+							<Loader2 className="h-4 w-4 animate-spin" />
+						) : (
+							<actionConfig.icon className="h-4 w-4" />
+						)}
+					</button>
+				)}
 				<button
 					type="button"
 					onClick={(e) => {

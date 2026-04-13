@@ -874,6 +874,86 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		setIsColumnModalOpen(true);
 	};
 
+	const findColumnBySystemKey = (
+		targetSystemKey: string,
+	): BoardColumn | undefined =>
+		(board?.columns || []).find(
+			(column) => column.systemKey === targetSystemKey,
+		);
+
+	const handleContextAction = async (
+		taskId: string,
+		systemKey: string,
+	): Promise<void> => {
+		if (!board) return;
+
+		try {
+			switch (systemKey) {
+				case "backlog": {
+					await api.opencode.generateUserStory({ taskId });
+					await refreshBoardTasksFromServer();
+					addToast("User story generation started", "success");
+					break;
+				}
+				case "ready": {
+					const targetColumn = findColumnBySystemKey("deferred");
+					if (!targetColumn) {
+						addToast("Deferred column not found", "error");
+						return;
+					}
+					const newIndex = tasks.filter(
+						(task) => task.columnId === targetColumn.id,
+					).length;
+					await api.moveTask(taskId, targetColumn.id, newIndex);
+					await refreshBoardTasksFromServer();
+					addToast("Task moved to Deferred", "success");
+					break;
+				}
+				case "deferred": {
+					const targetColumn = findColumnBySystemKey("ready");
+					if (!targetColumn) {
+						addToast("Ready column not found", "error");
+						return;
+					}
+					const newIndex = tasks.filter(
+						(task) => task.columnId === targetColumn.id,
+					).length;
+					await api.moveTask(taskId, targetColumn.id, newIndex);
+					await refreshBoardTasksFromServer();
+					addToast("Task moved to Ready", "success");
+					break;
+				}
+				case "review": {
+					const { runs } = await api.run.listByTask({ taskId });
+					const completedRun = runs.find((run) => run.status === "completed");
+					if (!completedRun) {
+						addToast("No completed run found for this task", "error");
+						return;
+					}
+					await api.run.merge({ runId: completedRun.id });
+					const closedColumn = findColumnBySystemKey("closed");
+					if (closedColumn) {
+						const newIndex = tasks.filter(
+							(task) => task.columnId === closedColumn.id,
+						).length;
+						await api.moveTask(taskId, closedColumn.id, newIndex);
+					}
+					await refreshBoardTasksFromServer();
+					addToast("Run merged, task moved to Closed", "success");
+					break;
+				}
+				default:
+					break;
+			}
+		} catch (actionError) {
+			console.error("Context action failed:", actionError);
+			addToast(
+				actionError instanceof Error ? actionError.message : "Action failed",
+				"error",
+			);
+		}
+	};
+
 	return {
 		board,
 		tasks,
@@ -896,6 +976,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		handleColumnSubmit,
 		handleDeleteColumn,
 		handleTaskUpdate,
+		handleContextAction,
 		closeColumnModal,
 		openEditColumnModal,
 		openCreateColumnModal,

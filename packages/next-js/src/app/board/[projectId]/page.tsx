@@ -50,6 +50,10 @@ export default function BoardPage() {
 	}
 
 	return (
-		<BoardScreen projectId={projectId} projectName={project.name} />
+		<BoardScreen
+			projectId={projectId}
+			projectName={project.name}
+			projectColor={project.color}
+		/>
 	);
 }

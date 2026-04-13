@@ -73,7 +73,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
 		}
 
 		if (typeof window === "undefined") {
-			addToast({ type: "error", message: "Speech input is not available." });
+			addToast("Speech input is not available.", "error");
 			return;
 		}
 
@@ -86,10 +86,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
 			speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
 
 		if (!RecognitionCtor) {
-			addToast({
-				type: "error",
-				message: "STT is not supported in this browser.",
-			});
+			addToast("STT is not supported in this browser.", "error");
 			return;
 		}
 
@@ -130,12 +127,12 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
 		};
 
 		recognition.onerror = (event) => {
-			addToast({
-				type: "error",
-				message: event.error
+			addToast(
+				event.error
 					? `Speech recognition error: ${event.error}`
 					: "Speech recognition failed.",
-			});
+				"error",
+			);
 			setIsRecording(false);
 		};
 
@@ -148,7 +145,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
 			recognitionRef.current = recognition;
 			setIsRecording(true);
 		} catch {
-			addToast({ type: "error", message: "Unable to start microphone." });
+			addToast("Unable to start microphone.", "error");
 			setIsRecording(false);
 		}
 	}, [isRecording, stopDictation, addToast, onTranscript, onDelta, language]);

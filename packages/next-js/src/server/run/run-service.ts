@@ -291,7 +291,7 @@ export class RunService {
 
 		const currentVcs = run.metadata?.vcs;
 		if (!currentVcs) {
-			throw new Error("Run does not have a provisioned worktree.");
+			return this.mergeWithoutWorktree(run);
 		}
 
 		try {
@@ -331,6 +331,61 @@ export class RunService {
 			publishRunUpdate(updatedRun);
 			throw error instanceof Error ? error : new Error(message);
 		}
+	}
+
+	private async mergeWithoutWorktree(run: Run): Promise<{ run: Run }> {
+		const task = taskRepo.getById(run.taskId);
+		if (!task) {
+			throw new Error(`Task not found for run: ${run.taskId}`);
+		}
+
+		const project = projectRepo.getById(task.projectId);
+		if (!project?.path) {
+			throw new Error(`Project path not found for task: ${task.projectId}`);
+		}
+
+		const commitMessage =
+			task.commitMessage?.trim() ||
+			`Merge run ${run.id.slice(0, 8)} for task ${task.title || task.id}`;
+
+		const { commitHash } = await this.vcsManager.commitAllChanges(
+			project.path,
+			commitMessage,
+		);
+
+		const updatedRun = runRepo.update(run.id, {
+			metadata: {
+				...(run.metadata ?? {}),
+				vcs: {
+					repoRoot: project.path,
+					worktreePath: project.path,
+					branchName: "main",
+					baseBranch: "main",
+					baseCommit: commitHash,
+					headCommit: commitHash,
+					hasChanges: false,
+					workspaceStatus: "merged",
+					mergeStatus: "merged",
+					mergedBy: "manual",
+					mergedAt: new Date().toISOString(),
+					mergedCommit: commitHash,
+					cleanupStatus: "cleaned",
+				},
+			},
+		});
+
+		runEventRepo.create({
+			runId: run.id,
+			eventType: "status",
+			payload: {
+				status: updatedRun.status,
+				message: `Committed all changes (${commitHash.slice(0, 8)})`,
+				mergedCommit: commitHash,
+			},
+		});
+		publishRunUpdate(updatedRun);
+
+		return { run: updatedRun };
 	}
 
 	public async generateUserStory(taskId: string): Promise<{ runId: string }> {

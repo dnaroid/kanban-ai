@@ -308,6 +308,31 @@ export class VcsManager {
 		};
 	}
 
+	public async commitAllChanges(
+		projectPath: string,
+		commitMessage: string,
+	): Promise<{ commitHash: string }> {
+		const repoRoot = await this.resolveRepoRoot(projectPath);
+
+		await this.gitWithConfig(repoRoot, ["add", "-A"]);
+
+		const hasChanges = await this.hasUncommittedChanges(repoRoot);
+		if (!hasChanges) {
+			const headCommit = await this.git(repoRoot, ["rev-parse", "HEAD"]);
+			return { commitHash: headCommit };
+		}
+
+		await this.gitWithConfig(repoRoot, ["commit", "-m", commitMessage]);
+		const commitHash = await this.git(repoRoot, ["rev-parse", "HEAD"]);
+
+		log.info("Committed all changes on main branch", {
+			projectPath,
+			commitHash,
+		});
+
+		return { commitHash };
+	}
+
 	private async resolveRepoRoot(projectPath: string): Promise<string> {
 		return this.git(projectPath, ["rev-parse", "--show-toplevel"]);
 	}
