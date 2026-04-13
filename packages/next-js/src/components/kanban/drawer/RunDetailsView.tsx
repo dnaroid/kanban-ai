@@ -45,6 +45,7 @@ export function RunDetailsView({
 	const runVcs = run?.metadata?.vcs;
 	const canMerge =
 		Boolean(onMerge) &&
+		Boolean(runVcs) &&
 		run?.status === "completed" &&
 		runVcs?.mergeStatus !== "merged" &&
 		runVcs?.workspaceStatus !== "missing";

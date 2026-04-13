@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
 	Bot,
 	Brain,
@@ -271,11 +271,14 @@ export function ReasoningPart({
 }) {
 	const [localExpanded, setLocalExpanded] = useState(expanded ?? false);
 
-	const isExpanded = expanded !== undefined ? expanded : localExpanded;
-	const toggleExpanded = () => {
-		if (expanded === undefined) {
-			setLocalExpanded(!localExpanded);
+	useEffect(() => {
+		if (expanded !== undefined) {
+			setLocalExpanded(expanded);
 		}
+	}, [expanded]);
+
+	const toggleExpanded = () => {
+		setLocalExpanded(!localExpanded);
 	};
 
 	return (
@@ -291,13 +294,13 @@ export function ReasoningPart({
 					<span className="text-[10px] font-bold uppercase tracking-wider">
 						Reasoning
 					</span>
-					{isExpanded ? (
+					{localExpanded ? (
 						<ChevronDown className="w-3 h-3" />
 					) : (
 						<ChevronRight className="w-3 h-3" />
 					)}
 				</button>
-				{isExpanded && (
+				{localExpanded && (
 					<LightMarkdown
 						text={part.text}
 						className="text-xs text-slate-400/60 leading-relaxed font-serif italic border-l border-violet-500/10 pl-3 py-1 bg-violet-500/[0.02] rounded-r-lg"
