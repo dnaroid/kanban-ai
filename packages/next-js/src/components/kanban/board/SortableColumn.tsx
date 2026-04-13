@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
 	useSortable,
 	SortableContext,
@@ -70,7 +71,7 @@ export function SortableColumn({
 	const isEmpty = tasks.length === 0;
 	const isOver = isColumnOver || isTaskOverThisColumn;
 	const isMinimized = isEmpty;
-	const isHovered = false;
+	const [isHovered, setIsHovered] = useState(false);
 	const columnWidthClass = !isMinimized
 		? "w-[344px]"
 		: isOver
@@ -88,6 +89,8 @@ export function SortableColumn({
 				columnWidthClass,
 				isDragging && "opacity-50 scale-95",
 			)}
+			onMouseEnter={() => setIsHovered(true)}
+			onMouseLeave={() => setIsHovered(false)}
 		>
 			<div
 				style={{
