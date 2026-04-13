@@ -89,6 +89,16 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		message: null,
 	});
 
+	const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState<{
+		isOpen: boolean;
+		columnId: string | null;
+		taskCount: number;
+	}>({
+		isOpen: false,
+		columnId: null,
+		taskCount: 0,
+	});
+
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
 		useSensor(KeyboardSensor, {
@@ -648,6 +658,31 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		}
 	};
 
+	const handleBulkDelete = (columnId: string, taskCount: number) => {
+		if (taskCount === 0) return;
+		setBulkDeleteConfirm({ isOpen: true, columnId, taskCount });
+	};
+
+	const confirmBulkDelete = async () => {
+		if (!bulkDeleteConfirm.columnId) return;
+		const columnTasks = tasks.filter(
+			(task) => task.columnId === bulkDeleteConfirm.columnId,
+		);
+		try {
+			await Promise.all(columnTasks.map((task) => api.deleteTask(task.id)));
+			await loadBoard();
+			addToast(
+				`Deleted ${columnTasks.length} task${columnTasks.length === 1 ? "" : "s"} successfully`,
+				"success",
+			);
+		} catch (deleteError) {
+			console.error("Failed to bulk delete tasks:", deleteError);
+			addToast("Failed to delete tasks", "error");
+		} finally {
+			setBulkDeleteConfirm({ isOpen: false, columnId: null, taskCount: 0 });
+		}
+	};
+
 	const handleStartSignalRuns = async () => {
 		setIsQueueingSignalRuns(true);
 		try {
@@ -876,5 +911,9 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		setColumnHasTasksConfirm,
 		signalErrorConfirm,
 		setSignalErrorConfirm,
+		bulkDeleteConfirm,
+		setBulkDeleteConfirm,
+		handleBulkDelete,
+		confirmBulkDelete,
 	};
 }

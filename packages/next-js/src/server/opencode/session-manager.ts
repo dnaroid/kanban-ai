@@ -748,12 +748,30 @@ export class OpencodeSessionManager {
 		if (!raw) return null;
 		const type = raw.type;
 
+		// Preserve PartBase identity fields so the client can match
+		// incremental updates (e.g. tool state changes) to existing parts.
+		const id = asString(raw.id) ?? undefined;
+		const messageID = asString(raw.messageID) ?? undefined;
+		const ignored = raw.ignored === true || undefined;
+
 		if (type === "text") {
-			return { type: "text", text: asString(raw.text) ?? "" };
+			return {
+				id,
+				messageID,
+				ignored,
+				type: "text",
+				text: asString(raw.text) ?? "",
+			};
 		}
 
 		if (type === "reasoning") {
-			return { type: "reasoning", text: asString(raw.text) ?? "" };
+			return {
+				id,
+				messageID,
+				ignored,
+				type: "reasoning",
+				text: asString(raw.text) ?? "",
+			};
 		}
 
 		if (type === "tool") {
@@ -768,6 +786,9 @@ export class OpencodeSessionManager {
 					: null;
 
 			return {
+				id,
+				messageID,
+				ignored,
 				type: "tool",
 				tool: asString(raw.tool) ?? "",
 				state: normalizedState,
@@ -779,6 +800,9 @@ export class OpencodeSessionManager {
 
 		if (type === "file") {
 			return {
+				id,
+				messageID,
+				ignored,
 				type: "file",
 				url: asString(raw.url) ?? "",
 				mime: asString(raw.mime) ?? "",
@@ -787,18 +811,24 @@ export class OpencodeSessionManager {
 		}
 
 		if (type === "agent") {
-			return { type: "agent", name: asString(raw.name) ?? "" };
+			return {
+				id,
+				messageID,
+				ignored,
+				type: "agent",
+				name: asString(raw.name) ?? "",
+			};
 		}
 
 		if (type === "step-start") {
-			return { type: "step-start" };
+			return { id, messageID, ignored, type: "step-start" };
 		}
 
 		if (type === "snapshot") {
-			return { type: "snapshot" };
+			return { id, messageID, ignored, type: "snapshot" };
 		}
 
-		return { type: "other" };
+		return { id, messageID, ignored, type: "other" };
 	}
 
 	private normalizeToolState(

@@ -72,6 +72,10 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 		setColumnHasTasksConfirm,
 		signalErrorConfirm,
 		setSignalErrorConfirm,
+		bulkDeleteConfirm,
+		setBulkDeleteConfirm,
+		handleBulkDelete,
+		confirmBulkDelete,
 	} = useBoardModel({ projectId });
 
 	const [expandedColumns, setExpandedColumns] = useState<
@@ -289,12 +293,14 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 											id={column.id}
 											name={column.name}
 											color={column.color || ""}
+											systemKey={column.systemKey}
 											globalTags={globalTags}
 											tasks={tasks
 												.filter((t) => t.columnId === column.id)
 												.sort((a, b) => a.orderInColumn - b.orderInColumn)}
 											onTaskClick={handleTaskClick}
 											onDeleteTask={handleDeleteTask}
+											onBulkDelete={handleBulkDelete}
 										/>
 									))}
 								</SortableContext>
@@ -316,6 +322,7 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 								}));
 							}}
 							projectId={projectId}
+							onBulkDeleteColumn={handleBulkDelete}
 						/>
 					)}
 
@@ -422,6 +429,22 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 						"An error occurred while queueing tasks by signal."
 					}
 					confirmLabel="Close"
+					variant="danger"
+				/>
+
+				<ConfirmationModal
+					isOpen={bulkDeleteConfirm.isOpen}
+					onClose={() =>
+						setBulkDeleteConfirm({
+							isOpen: false,
+							columnId: null,
+							taskCount: 0,
+						})
+					}
+					onConfirm={confirmBulkDelete}
+					title="Удалить все задачи?"
+					description={`Вы уверены, что хотите удалить все задачи (${bulkDeleteConfirm.taskCount}) из колонки «Closed»? Это действие нельзя отменить.`}
+					confirmLabel="Удалить все"
 					variant="danger"
 				/>
 			</main>

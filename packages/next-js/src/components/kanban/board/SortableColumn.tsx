@@ -7,7 +7,7 @@ import {
 } from "@dnd-kit/sortable";
 import { useDndContext } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Trash2 } from "lucide-react";
 import type { KanbanTask, Tag } from "@/types/kanban";
 import { cn } from "@/lib/utils";
 import { SortableTask } from "./SortableTask";
@@ -16,20 +16,24 @@ export interface SortableColumnProps {
 	id: string;
 	name: string;
 	color: string;
+	systemKey?: string;
 	tasks: KanbanTask[];
 	globalTags: Tag[];
 	onDeleteTask: (id: string) => void;
 	onTaskClick?: (task: KanbanTask) => void;
+	onBulkDelete?: (columnId: string, taskCount: number) => void;
 }
 
 export function SortableColumn({
 	id,
 	name,
 	color,
+	systemKey,
 	tasks,
 	globalTags,
 	onDeleteTask,
 	onTaskClick,
+	onBulkDelete,
 }: SortableColumnProps) {
 	const { active, over } = useDndContext();
 	const isDraggingAnyTask = active?.data.current?.type === "task";
@@ -129,6 +133,20 @@ export function SortableColumn({
 							<span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-0.5 rounded-full shrink-0">
 								{tasks.length}
 							</span>
+							{systemKey === "closed" && (
+								<button
+									type="button"
+									onClick={(e) => {
+										e.stopPropagation();
+										onBulkDelete?.(id, tasks.length);
+									}}
+									disabled={tasks.length === 0}
+									className="ml-auto p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors disabled:opacity-50 disabled:pointer-events-none shrink-0"
+									title="Empty trash"
+								>
+									<Trash2 className="w-4 h-4" />
+								</button>
+							)}
 						</div>
 
 						<div
