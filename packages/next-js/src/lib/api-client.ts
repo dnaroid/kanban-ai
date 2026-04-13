@@ -581,6 +581,25 @@ class ApiClient {
 				consideredRoles: number;
 			}>(payload);
 		},
+		getWebUrl: async ({
+			projectId,
+		}: {
+			projectId: string;
+		}): Promise<{ url: string }> => {
+			const query = new URLSearchParams({ projectId });
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/web-url?${query.toString()}`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to get OpenCode web URL",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ url: string }>(payload);
+		},
 		listEnabledModels: async (): Promise<{ models: OpencodeModel[] }> => {
 			const response = await fetch(
 				`${this.baseUrl}/api/opencode/models/enabled`,

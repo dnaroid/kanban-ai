@@ -1,8 +1,17 @@
 "use client";
 
-import { Circle, Clock, FolderKanban, Hash, Settings } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+	Circle,
+	Clock,
+	ExternalLink,
+	FolderKanban,
+	Hash,
+	Settings,
+} from "lucide-react";
 import { PillSelect } from "@/components/common/PillSelect";
 import type { KanbanTask } from "@/types/kanban";
+import { api } from "@/lib/api";
 import {
 	blockedReasonConfig,
 	closedReasonConfig,
@@ -35,6 +44,46 @@ export function TaskDrawerProperties({
 	task,
 	onUpdate,
 }: TaskDrawerPropertiesProps) {
+	const [latestSessionId, setLatestSessionId] = useState<string | null>(null);
+	const [opencodeWebUrl, setOpencodeWebUrl] = useState<string | null>(null);
+
+	useEffect(() => {
+		let cancelled = false;
+
+		async function fetchData() {
+			try {
+				const [runsResult, urlResult] = await Promise.allSettled([
+					api.run.listByTask({ taskId: task.id }),
+					api.opencode.getWebUrl({ projectId: task.projectId }),
+				]);
+
+				if (cancelled) return;
+
+				if (runsResult.status === "fulfilled") {
+					const runs = runsResult.value.runs;
+					if (runs.length > 0) {
+						const sorted = [...runs].sort(
+							(a, b) =>
+								new Date(b.createdAt).getTime() -
+								new Date(a.createdAt).getTime(),
+						);
+						const latestRun = sorted[0];
+						setLatestSessionId(latestRun?.sessionId || null);
+					}
+				}
+
+				if (urlResult.status === "fulfilled") {
+					setOpencodeWebUrl(urlResult.value.url);
+				}
+			} catch {}
+		}
+
+		fetchData();
+		return () => {
+			cancelled = true;
+		};
+	}, [task.id, task.projectId]);
+
 	const formatDate = (dateString: string | undefined) => {
 		if (!dateString) return "—";
 		const date = new Date(dateString);
@@ -211,6 +260,34 @@ export function TaskDrawerProperties({
 					) : (
 						<span className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
 							{task.closedReason ?? "—"}
+						</span>
+					)}
+				</div>
+				<div className="space-y-2">
+					<p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+						<ExternalLink className="w-2.5 h-2.5" />
+						OpenCode Session
+					</p>
+					{latestSessionId ? (
+						<div className="space-y-1.5">
+							<span className="block text-xs text-slate-400 font-mono bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner break-all">
+								{latestSessionId}
+							</span>
+							{opencodeWebUrl && (
+								<a
+									href={`${opencodeWebUrl}/session/${latestSessionId}`}
+									target="_blank"
+									rel="noopener noreferrer"
+									className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+								>
+									<ExternalLink className="w-3 h-3" />
+									Open in OpenCode
+								</a>
+							)}
+						</div>
+					) : (
+						<span className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
+							—
 						</span>
 					)}
 				</div>

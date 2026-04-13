@@ -101,7 +101,7 @@ function ListColumn({
 		<div
 			ref={setNodeRef}
 			className={cn(
-				"bg-slate-900/40 border border-slate-800/50 rounded-2xl overflow-hidden backdrop-blur-md shadow-lg shadow-black/10 w-full transition-all",
+				"bg-slate-900/40 border border-slate-800/50 rounded-2xl overflow-hidden backdrop-blur-md shadow-lg shadow-black/10 w-full shrink-0 transition-all",
 				isOver && "border-blue-500/50 bg-blue-500/5 ring-1 ring-blue-500/20",
 			)}
 		>
