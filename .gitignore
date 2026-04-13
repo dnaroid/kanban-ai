@@ -43,3 +43,5 @@ packages/server/dist/
 /.opencode/
 /.gemini-clipboard/
 /.playwright-cli/
+.indexer-cli/
+.claude/

@@ -246,6 +246,8 @@ export class RunsQueueManager {
 		process.env.RUNS_BLOCKED_RETRY_MS,
 		5000,
 	);
+	private readonly worktreeEnabled =
+		process.env.RUNS_WORKTREE_ENABLED === "true";
 	private blockedRetryTimer: ReturnType<typeof setTimeout> | null = null;
 	private draining = false;
 
@@ -689,9 +691,6 @@ export class RunsQueueManager {
 			durationSec: this.durationSec(run.startedAt ?? finishedAt, finishedAt),
 		});
 		nextRun = await this.syncRunWorkspaceState(nextRun);
-		if (status === "completed") {
-			nextRun = await this.tryAutomaticMerge(nextRun);
-		}
 
 		log.info("Run finalized", {
 			runId,
@@ -1060,50 +1059,52 @@ export class RunsQueueManager {
 
 		let queuedExecutionRun = executionRun;
 		let executionProjectPath = project.path;
-		try {
-			const vcsMetadata = await this.vcsManager.provisionRunWorkspace({
-				projectPath: project.path,
-				runId: executionRun.id,
-				taskId: task.id,
-				taskTitle: task.title,
-			});
-			queuedExecutionRun = runRepo.update(executionRun.id, {
-				metadata: {
-					...(executionRun.metadata ?? {}),
-					vcs: vcsMetadata,
-				},
-			});
-			runEventRepo.create({
-				runId: executionRun.id,
-				eventType: "status",
-				payload: {
-					status: queuedExecutionRun.status,
-					message: `Worktree ready: ${vcsMetadata.branchName}`,
-					worktreePath: vcsMetadata.worktreePath,
-				},
-			});
-			publishRunUpdate(queuedExecutionRun);
-			executionProjectPath = vcsMetadata.worktreePath;
-		} catch (error) {
-			const message =
-				error instanceof Error
-					? error.message
-					: "Failed to provision git worktree";
-			const failedRun = runRepo.update(executionRun.id, {
-				status: "failed",
-				finishedAt: new Date().toISOString(),
-				errorText: message,
-			});
-			runEventRepo.create({
-				runId: executionRun.id,
-				eventType: "status",
-				payload: {
+		if (this.worktreeEnabled) {
+			try {
+				const vcsMetadata = await this.vcsManager.provisionRunWorkspace({
+					projectPath: project.path,
+					runId: executionRun.id,
+					taskId: task.id,
+					taskTitle: task.title,
+				});
+				queuedExecutionRun = runRepo.update(executionRun.id, {
+					metadata: {
+						...(executionRun.metadata ?? {}),
+						vcs: vcsMetadata,
+					},
+				});
+				runEventRepo.create({
+					runId: executionRun.id,
+					eventType: "status",
+					payload: {
+						status: queuedExecutionRun.status,
+						message: `Worktree ready: ${vcsMetadata.branchName}`,
+						worktreePath: vcsMetadata.worktreePath,
+					},
+				});
+				publishRunUpdate(queuedExecutionRun);
+				executionProjectPath = vcsMetadata.worktreePath;
+			} catch (error) {
+				const message =
+					error instanceof Error
+						? error.message
+						: "Failed to provision git worktree";
+				const failedRun = runRepo.update(executionRun.id, {
 					status: "failed",
-					message,
-				},
-			});
-			publishRunUpdate(failedRun);
-			return;
+					finishedAt: new Date().toISOString(),
+					errorText: message,
+				});
+				runEventRepo.create({
+					runId: executionRun.id,
+					eventType: "status",
+					payload: {
+						status: "failed",
+						message,
+					},
+				});
+				publishRunUpdate(failedRun);
+				return;
+			}
 		}
 
 		this.enqueue(queuedExecutionRun.id, {
