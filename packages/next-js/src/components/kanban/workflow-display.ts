@@ -6,7 +6,7 @@ import type {
 	WorkflowColumnConfig,
 	WorkflowConfig,
 	WorkflowStatusConfig,
-} from "@/lib/api-client";
+} from "@/server/workflow/task-workflow-manager";
 import {
 	normalizeWorkflowIconKey,
 	type WorkflowIconKey,

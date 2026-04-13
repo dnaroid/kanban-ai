@@ -1,253 +1,64 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-vi.mock("@/server/db", () => ({
-	dbManager: {
-		connect: vi.fn(),
-	},
-}));
-
-import { dbManager } from "@/server/db";
 import {
+	canTransitionColumn,
 	canTransitionStatus,
 	getDefaultWorkflowColumns,
+	getDefaultStatusForWorkflowColumn,
 	getPreferredColumnIdForStatus,
+	isStatusAllowedInWorkflowColumn,
+	isWorkflowTaskStatus,
 	resetWorkflowRuntimeConfigForTests,
+	resolveTaskStatusBySignal,
 } from "./task-workflow-manager";
-
-type StatementResult = {
-	all: (...args: unknown[]) => unknown[];
-};
-
-type FakeDb = {
-	prepare: (sql: string) => StatementResult;
-};
-
-function createWorkflowDbMock(options: {
-	tablesExist: boolean;
-	backlogName: string;
-}): FakeDb {
-	const statusRows = [
-		{
-			status: "pending",
-			orderIndex: 0,
-			preferredColumnSystemKey: "ready",
-			blockedReason: null,
-			closedReason: null,
-			color: "#f59e0b",
-			icon: "clock",
-		},
-		{
-			status: "running",
-			orderIndex: 1,
-			preferredColumnSystemKey: "in_progress",
-			blockedReason: null,
-			closedReason: null,
-			color: "#3b82f6",
-			icon: "play",
-		},
-		{
-			status: "question",
-			orderIndex: 2,
-			preferredColumnSystemKey: "blocked",
-			blockedReason: "question",
-			closedReason: null,
-			color: "#f97316",
-			icon: "help-circle",
-		},
-		{
-			status: "paused",
-			orderIndex: 3,
-			preferredColumnSystemKey: "blocked",
-			blockedReason: "paused",
-			closedReason: null,
-			color: "#eab308",
-			icon: "pause",
-		},
-		{
-			status: "done",
-			orderIndex: 4,
-			preferredColumnSystemKey: "review",
-			blockedReason: null,
-			closedReason: "done",
-			color: "#10b981",
-			icon: "check-circle",
-		},
-		{
-			status: "failed",
-			orderIndex: 5,
-			preferredColumnSystemKey: "blocked",
-			blockedReason: "failed",
-			closedReason: "failed",
-			color: "#ef4444",
-			icon: "x-circle",
-		},
-		{
-			status: "generating",
-			orderIndex: 6,
-			preferredColumnSystemKey: "in_progress",
-			blockedReason: null,
-			closedReason: null,
-			color: "#8b5cf6",
-			icon: "sparkles",
-		},
-	];
-
-	const templateRows = [
-		{
-			systemKey: "backlog",
-			name: options.backlogName,
-			color: "#6366f1",
-			icon: "list",
-			orderIndex: 0,
-			defaultStatus: "pending",
-		},
-		{
-			systemKey: "ready",
-			name: "Ready",
-			color: "#0ea5e9",
-			icon: "check-circle",
-			orderIndex: 1,
-			defaultStatus: "pending",
-		},
-		{
-			systemKey: "deferred",
-			name: "Deferred",
-			color: "#6b7280",
-			icon: "clock",
-			orderIndex: 2,
-			defaultStatus: "pending",
-		},
-		{
-			systemKey: "in_progress",
-			name: "In Progress",
-			color: "#f59e0b",
-			icon: "play",
-			orderIndex: 3,
-			defaultStatus: "running",
-		},
-		{
-			systemKey: "blocked",
-			name: "Blocked",
-			color: "#ef4444",
-			icon: "shield-alert",
-			orderIndex: 4,
-			defaultStatus: "paused",
-		},
-		{
-			systemKey: "review",
-			name: "Review / QA",
-			color: "#8b5cf6",
-			icon: "eye",
-			orderIndex: 5,
-			defaultStatus: "done",
-		},
-		{
-			systemKey: "closed",
-			name: "Closed",
-			color: "#10b981",
-			icon: "archive",
-			orderIndex: 6,
-			defaultStatus: "done",
-		},
-	];
-
-	const allowedStatusRows = [
-		{ systemKey: "backlog", status: "pending" },
-		{ systemKey: "ready", status: "pending" },
-		{ systemKey: "deferred", status: "pending" },
-		{ systemKey: "in_progress", status: "running" },
-		{ systemKey: "in_progress", status: "generating" },
-		{ systemKey: "blocked", status: "question" },
-		{ systemKey: "blocked", status: "paused" },
-		{ systemKey: "blocked", status: "failed" },
-		{ systemKey: "review", status: "done" },
-		{ systemKey: "closed", status: "done" },
-		{ systemKey: "closed", status: "failed" },
-	];
-
-	const statusTransitionRows = [
-		{ fromStatus: "pending", toStatus: "running" },
-		{ fromStatus: "running", toStatus: "pending" },
-		{ fromStatus: "running", toStatus: "done" },
-		{ fromStatus: "question", toStatus: "pending" },
-		{ fromStatus: "paused", toStatus: "pending" },
-		{ fromStatus: "done", toStatus: "running" },
-		{ fromStatus: "failed", toStatus: "pending" },
-		{ fromStatus: "generating", toStatus: "pending" },
-	];
-
-	const columnTransitionRows = [
-		{ fromSystemKey: "backlog", toSystemKey: "ready" },
-		{ fromSystemKey: "ready", toSystemKey: "in_progress" },
-		{ fromSystemKey: "deferred", toSystemKey: "ready" },
-		{ fromSystemKey: "in_progress", toSystemKey: "review" },
-		{ fromSystemKey: "blocked", toSystemKey: "in_progress" },
-		{ fromSystemKey: "review", toSystemKey: "closed" },
-		{ fromSystemKey: "closed", toSystemKey: "backlog" },
-	];
-
-	return {
-		prepare: (sql: string) => ({
-			all: (...args: unknown[]) => {
-				if (sql.includes("sqlite_master")) {
-					if (!options.tablesExist) {
-						return [];
-					}
-
-					return (args as string[]).map((name) => ({ name }));
-				}
-
-				if (sql.includes("FROM workflow_statuses")) {
-					return statusRows;
-				}
-
-				if (sql.includes("FROM workflow_column_templates")) {
-					return templateRows;
-				}
-
-				if (sql.includes("FROM workflow_column_allowed_statuses")) {
-					return allowedStatusRows;
-				}
-
-				if (sql.includes("FROM workflow_status_transitions")) {
-					return statusTransitionRows;
-				}
-
-				if (sql.includes("FROM workflow_column_transitions")) {
-					return columnTransitionRows;
-				}
-
-				return [];
-			},
-		}),
-	};
-}
 
 describe("task-workflow-manager runtime config", () => {
 	beforeEach(() => {
-		vi.mocked(dbManager.connect).mockReset();
 		resetWorkflowRuntimeConfigForTests();
 	});
 
-	it("loads workflow templates and transitions from database", () => {
-		vi.mocked(dbManager.connect).mockReturnValue(
-			createWorkflowDbMock({
-				tablesExist: true,
-				backlogName: "Backlog from DB",
-			}) as unknown as ReturnType<typeof dbManager.connect>,
-		);
-
+	it("returns hardcoded default workflow columns", () => {
 		const columns = getDefaultWorkflowColumns();
 		expect(columns[0]).toEqual({
-			name: "Backlog from DB",
+			name: "Backlog",
 			systemKey: "backlog",
 			color: "#6366f1",
 			icon: "list",
 		});
+		expect(columns).toHaveLength(7);
+		expect(columns.map((c) => c.systemKey)).toEqual([
+			"backlog",
+			"ready",
+			"deferred",
+			"in_progress",
+			"blocked",
+			"review",
+			"closed",
+		]);
+	});
 
+	it("validates status transitions from hardcoded config", () => {
 		expect(canTransitionStatus("pending", "running")).toBe(true);
-		expect(canTransitionStatus("pending", "done")).toBe(false);
+		expect(canTransitionStatus("pending", "done")).toBe(true);
+		expect(canTransitionStatus("pending", "generating")).toBe(true);
+		expect(canTransitionStatus("running", "done")).toBe(true);
+		expect(canTransitionStatus("done", "running")).toBe(true);
+		expect(canTransitionStatus("done", "pending")).toBe(true);
+		expect(canTransitionStatus("failed", "done")).toBe(false);
+		expect(canTransitionStatus("generating", "done")).toBe(true);
+	});
 
+	it("validates column transitions from hardcoded config", () => {
+		expect(canTransitionColumn("backlog", "ready")).toBe(true);
+		expect(canTransitionColumn("ready", "in_progress")).toBe(true);
+		expect(canTransitionColumn("in_progress", "review")).toBe(true);
+		expect(canTransitionColumn("review", "closed")).toBe(true);
+		expect(canTransitionColumn("closed", "backlog")).toBe(true);
+		expect(canTransitionColumn("closed", "ready")).toBe(true);
+		expect(canTransitionColumn("backlog", "closed")).toBe(false);
+	});
+
+	it("maps status to preferred column via board lookup", () => {
 		const board = {
 			id: "b1",
 			projectId: "p1",
@@ -273,28 +84,81 @@ describe("task-workflow-manager runtime config", () => {
 					updatedAt: "",
 					systemKey: "ready",
 				},
+				{
+					id: "c3",
+					boardId: "b1",
+					name: "In Progress",
+					orderIndex: 2,
+					createdAt: "",
+					updatedAt: "",
+					systemKey: "in_progress",
+				},
 			],
 		};
 
 		expect(getPreferredColumnIdForStatus(board, "pending")).toBe("c2");
+		expect(getPreferredColumnIdForStatus(board, "running")).toBe("c3");
+		expect(getPreferredColumnIdForStatus(board, "unknown_status")).toBeNull();
 	});
 
-	it("falls back to built-in workflow when tables are missing", () => {
-		vi.mocked(dbManager.connect).mockReturnValue(
-			createWorkflowDbMock({
-				tablesExist: false,
-				backlogName: "Ignored",
-			}) as unknown as ReturnType<typeof dbManager.connect>,
-		);
-
-		const columns = getDefaultWorkflowColumns();
-		expect(columns[0]).toEqual({
-			name: "Backlog",
-			systemKey: "backlog",
-			color: "#6366f1",
-			icon: "list",
+	it("resolves task status by signal", () => {
+		const result = resolveTaskStatusBySignal({
+			signalKey: "run_started",
+			currentStatus: "pending",
+			runStatus: "running",
 		});
+		expect(result).toBe("running");
+	});
 
-		expect(canTransitionStatus("pending", "done")).toBe(true);
+	it("resolves user action signals", () => {
+		const result = resolveTaskStatusBySignal({
+			signalKey: "pause_run",
+			currentStatus: "running",
+		});
+		expect(result).toBe("paused");
+	});
+
+	it("returns null for unknown signal", () => {
+		const result = resolveTaskStatusBySignal({
+			signalKey: "nonexistent_signal",
+			currentStatus: "pending",
+		});
+		expect(result).toBeNull();
+	});
+
+	it("checks if status is allowed in workflow column", () => {
+		expect(isStatusAllowedInWorkflowColumn("pending", "backlog")).toBe(true);
+		expect(isStatusAllowedInWorkflowColumn("running", "in_progress")).toBe(
+			true,
+		);
+		expect(isStatusAllowedInWorkflowColumn("done", "review")).toBe(true);
+		expect(isStatusAllowedInWorkflowColumn("running", "backlog")).toBe(false);
+		expect(isStatusAllowedInWorkflowColumn("pending", "in_progress")).toBe(
+			false,
+		);
+	});
+
+	it("returns default status for workflow column", () => {
+		expect(getDefaultStatusForWorkflowColumn("backlog")).toBe("pending");
+		expect(getDefaultStatusForWorkflowColumn("in_progress")).toBe("running");
+		expect(getDefaultStatusForWorkflowColumn("review")).toBe("done");
+		expect(getDefaultStatusForWorkflowColumn("blocked")).toBe("paused");
+	});
+
+	it("preserves current status if allowed in target column", () => {
+		expect(getDefaultStatusForWorkflowColumn("in_progress", "running")).toBe(
+			"running",
+		);
+		expect(getDefaultStatusForWorkflowColumn("backlog", "running")).toBe(
+			"pending",
+		);
+	});
+
+	it("recognizes valid workflow task statuses", () => {
+		expect(isWorkflowTaskStatus("pending")).toBe(true);
+		expect(isWorkflowTaskStatus("running")).toBe(true);
+		expect(isWorkflowTaskStatus("done")).toBe(true);
+		expect(isWorkflowTaskStatus("generating")).toBe(true);
+		expect(isWorkflowTaskStatus("unknown")).toBe(false);
 	});
 });

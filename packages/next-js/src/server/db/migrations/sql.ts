@@ -309,3 +309,13 @@ export const v025RunMetadataSql = `
 ALTER TABLE runs
 ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}';
 `;
+
+export const v026DropWorkflowTablesSql = `
+DROP TABLE IF EXISTS workflow_signal_rules;
+DROP TABLE IF EXISTS workflow_signals;
+DROP TABLE IF EXISTS workflow_column_allowed_statuses;
+DROP TABLE IF EXISTS workflow_status_transitions;
+DROP TABLE IF EXISTS workflow_column_transitions;
+DROP TABLE IF EXISTS workflow_column_templates;
+DROP TABLE IF EXISTS workflow_statuses;
+`;

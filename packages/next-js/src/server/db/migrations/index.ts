@@ -8,6 +8,7 @@ import {
 	v023WorkflowSignalsSql,
 	v024AgentRoleSessionPreferencesSql,
 	v025RunMetadataSql,
+	v026DropWorkflowTablesSql,
 } from "./sql";
 export {
 	v017SystemKeySql,
@@ -19,6 +20,7 @@ export {
 	v023WorkflowSignalsSql,
 	v024AgentRoleSessionPreferencesSql,
 	v025RunMetadataSql,
+	v026DropWorkflowTablesSql,
 };
 
 export const INIT_DB_SQL = `
@@ -522,6 +524,10 @@ export const migrations = [
 	{
 		version: 25,
 		sql: v025RunMetadataSql,
+	},
+	{
+		version: 26,
+		sql: v026DropWorkflowTablesSql,
 	},
 ] as const;
 
