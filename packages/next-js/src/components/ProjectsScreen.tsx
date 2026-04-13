@@ -35,10 +35,12 @@ function CreateProjectModal({
 	isOpen,
 	onClose,
 	onCreate,
+	initialPath,
 }: {
 	isOpen: boolean;
 	onClose: () => void;
 	onCreate: (name: string, path: string, color: string) => void;
+	initialPath?: string;
 }) {
 	const [selectedFolder, setSelectedFolder] = useState<{
 		path: string;
@@ -166,6 +168,7 @@ function CreateProjectModal({
 			<FileSystemPicker
 				isOpen={isBrowserOpen}
 				mode="folder"
+				initialPath={initialPath}
 				onSelect={(paths) => {
 					if (paths[0]) {
 						const folderName = paths[0].split("/").pop() || paths[0];
@@ -383,6 +386,28 @@ export function ProjectsScreen({ onProjectSelect }: ProjectsScreenProps) {
 		}
 	};
 
+	const getInitialPathForNewProject = () => {
+		if (!projects || projects.length === 0) return undefined;
+
+		const latestProject = projects.reduce((latest, current) => {
+			if (
+				new Date(current.createdAt).getTime() >
+				new Date(latest.createdAt).getTime()
+			) {
+				return current;
+			}
+			return latest;
+		}, projects[0]);
+
+		const path = latestProject.path;
+		if (path === "/") return undefined;
+
+		const lastSlashIndex = path.lastIndexOf("/");
+		if (lastSlashIndex === -1) return undefined;
+
+		return path.substring(0, lastSlashIndex) || "/";
+	};
+
 	return (
 		<div className="flex flex-col min-h-screen animate-in fade-in duration-500">
 			<div className="flex items-center justify-between px-8 py-6 border-b border-slate-800/60 bg-[#0B0E14] sticky top-0 z-40">
@@ -457,6 +482,7 @@ export function ProjectsScreen({ onProjectSelect }: ProjectsScreenProps) {
 					isOpen={isModalOpen}
 					onClose={() => setIsModalOpen(false)}
 					onCreate={handleCreateProject}
+					initialPath={getInitialPathForNewProject()}
 				/>
 			</div>
 		</div>
