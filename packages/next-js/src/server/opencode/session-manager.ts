@@ -759,13 +759,21 @@ export class OpencodeSessionManager {
 		if (type === "tool") {
 			const normalizedState = this.normalizeToolState(raw.state);
 
+			// OpenCode SDK nests input/output/error inside the state object.
+			// Fallback to top-level for backward compatibility (e.g. old format
+			// where state was a plain string and fields lived at root level).
+			const stateObj =
+				typeof raw.state === "object" && raw.state !== null
+					? (raw.state as Record<string, unknown>)
+					: null;
+
 			return {
 				type: "tool",
 				tool: asString(raw.tool) ?? "",
 				state: normalizedState,
-				input: raw.input,
-				output: raw.output,
-				error: asString(raw.error) ?? undefined,
+				input: stateObj?.input ?? raw.input,
+				output: stateObj?.output ?? raw.output,
+				error: asString(stateObj?.error ?? raw.error) ?? undefined,
 			};
 		}
 

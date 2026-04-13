@@ -161,13 +161,19 @@ export class OpencodeStorageReader {
 
 		if (type === "tool") {
 			const state = this.normalizeToolState(raw.state);
+
+			const stateObj =
+				typeof raw.state === "object" && raw.state !== null
+					? (raw.state as Record<string, unknown>)
+					: null;
+
 			return {
 				type: "tool",
 				tool: this.toStringValue(raw.tool),
 				state,
-				input: raw.input,
-				output: raw.output,
-				error: this.optionalStringValue(raw.error),
+				input: stateObj?.input ?? raw.input,
+				output: stateObj?.output ?? raw.output,
+				error: this.optionalStringValue(stateObj?.error ?? raw.error),
 			};
 		}
 
