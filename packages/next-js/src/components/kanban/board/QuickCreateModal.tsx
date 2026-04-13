@@ -214,7 +214,7 @@ export function QuickCreateModal({
 		}
 
 		const recognition = new RecognitionCtor();
-		recognition.lang = navigator.language || "en-US";
+		recognition.lang = navigator.language || "ru-RU";
 		recognition.continuous = true;
 		recognition.interimResults = true;
 

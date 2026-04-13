@@ -1,18 +1,41 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Mic, MicOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-// We'll mock these for now or need to port them too if they are critical logic
-// Assuming WebSpeechController and singleton are portable or we use browser API directly for next-js
-// For now, I will comment them out and provide a dummy implementation or assume they are available if ported.
-// Wait, the user said "no other packages". I should probably port the voice logic too if it's custom.
-// But for now let's just create the component and maybe stub the controller if it's complex.
-// Actually, I should check if `web/voice` exists and port it.
-// Let's assume for a second we can't port the whole voice engine right now without more context.
-// I'll create a simplified version or comment out the missing parts to make it compile, or I need to read `web/voice` too.
-// Given the user constraint "no other packages", I assume `web/voice` is local code.
-// I will just create the UI component and stub the logic for now to avoid compilation errors,
-// as the user's immediate request is about the drawer structure.
-// I'll add a todo to port voice controller later if needed.
+import { useToast } from "@/components/common/toast/ToastContext";
+
+type SpeechRecognitionResultLike = {
+	isFinal: boolean;
+	0: {
+		transcript: string;
+	};
+};
+
+type SpeechRecognitionResultListLike = {
+	length: number;
+	[index: number]: SpeechRecognitionResultLike;
+};
+
+type SpeechRecognitionEventLike = Event & {
+	resultIndex: number;
+	results: SpeechRecognitionResultListLike;
+};
+
+type SpeechRecognitionErrorEventLike = Event & {
+	error?: string;
+};
+
+type BrowserSpeechRecognition = {
+	lang: string;
+	continuous: boolean;
+	interimResults: boolean;
+	onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+	onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+	onend: (() => void) | null;
+	start: () => void;
+	stop: () => void;
+};
+
+type BrowserSpeechRecognitionCtor = new () => BrowserSpeechRecognition;
 
 interface VoiceInputButtonProps {
 	onTranscript?: (text: string) => void;
@@ -21,19 +44,114 @@ interface VoiceInputButtonProps {
 }
 
 export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
-	onTranscript: _onTranscript,
-	onDelta: _onDelta,
+	onTranscript,
+	onDelta,
 	className,
 }) => {
 	const [isRecording, setIsRecording] = useState(false);
-	// simplified state for now
-	const status = isRecording ? "speech" : "idle";
+	const { addToast } = useToast();
+	const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+
+	const stopDictation = useCallback(() => {
+		recognitionRef.current?.stop();
+		recognitionRef.current = null;
+		setIsRecording(false);
+	}, []);
+
+	useEffect(() => {
+		return () => {
+			stopDictation();
+		};
+	}, [stopDictation]);
 
 	const handleToggleRecording = useCallback(() => {
-		setIsRecording(!isRecording);
-		// Stub implementation
-		console.warn("Voice input not yet fully ported to Next.js");
-	}, [isRecording]);
+		if (isRecording) {
+			stopDictation();
+			return;
+		}
+
+		if (typeof window === "undefined") {
+			addToast({ type: "error", message: "Speech input is not available." });
+			return;
+		}
+
+		const speechWindow = window as Window & {
+			SpeechRecognition?: BrowserSpeechRecognitionCtor;
+			webkitSpeechRecognition?: BrowserSpeechRecognitionCtor;
+		};
+
+		const RecognitionCtor =
+			speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+
+		if (!RecognitionCtor) {
+			addToast({
+				type: "error",
+				message: "STT is not supported in this browser.",
+			});
+			return;
+		}
+
+		const recognition = new RecognitionCtor();
+		recognition.lang = navigator.language || "ru-RU";
+		recognition.continuous = true;
+		recognition.interimResults = true;
+
+		recognition.onresult = (event) => {
+			let interimText = "";
+			const finalized: string[] = [];
+
+			for (
+				let index = event.resultIndex;
+				index < event.results.length;
+				index += 1
+			) {
+				const result = event.results[index];
+				const transcript = result?.[0]?.transcript?.trim() ?? "";
+
+				if (!transcript) {
+					continue;
+				}
+
+				if (result.isFinal) {
+					finalized.push(transcript);
+				} else {
+					interimText += `${transcript} `;
+				}
+			}
+
+			if (finalized.length > 0) {
+				const nextChunk = finalized.join(" ");
+				if (onTranscript) onTranscript(nextChunk);
+			}
+
+			if (onDelta) onDelta(interimText.trim());
+		};
+
+		recognition.onerror = (event) => {
+			addToast({
+				type: "error",
+				message: event.error
+					? `Speech recognition error: ${event.error}`
+					: "Speech recognition failed.",
+			});
+			setIsRecording(false);
+		};
+
+		recognition.onend = () => {
+			setIsRecording(false);
+		};
+
+		try {
+			recognition.start();
+			recognitionRef.current = recognition;
+			setIsRecording(true);
+		} catch {
+			addToast({ type: "error", message: "Unable to start microphone." });
+			setIsRecording(false);
+		}
+	}, [isRecording, stopDictation, addToast, onTranscript, onDelta]);
+
+	const status = isRecording ? "speech" : "idle";
 
 	return (
 		<div className={cn("flex items-center gap-2", className)}>
