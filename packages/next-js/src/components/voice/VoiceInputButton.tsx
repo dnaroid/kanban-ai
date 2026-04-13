@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Mic, MicOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/common/toast/ToastContext";
+import { useSTTLanguage } from "./useSTTLanguage";
 
 type SpeechRecognitionResultLike = {
 	isFinal: boolean;
@@ -50,6 +51,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
 }) => {
 	const [isRecording, setIsRecording] = useState(false);
 	const { addToast } = useToast();
+	const { language, toggleLanguage } = useSTTLanguage();
 	const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
 
 	const stopDictation = useCallback(() => {
@@ -92,7 +94,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
 		}
 
 		const recognition = new RecognitionCtor();
-		recognition.lang = navigator.language || "ru-RU";
+		recognition.lang = language;
 		recognition.continuous = true;
 		recognition.interimResults = true;
 
@@ -149,7 +151,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
 			addToast({ type: "error", message: "Unable to start microphone." });
 			setIsRecording(false);
 		}
-	}, [isRecording, stopDictation, addToast, onTranscript, onDelta]);
+	}, [isRecording, stopDictation, addToast, onTranscript, onDelta, language]);
 
 	const status = isRecording ? "speech" : "idle";
 
@@ -177,6 +179,20 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
 					)}
 				</button>
 			</div>
+			{!isRecording && (
+				<button
+					type="button"
+					onClick={toggleLanguage}
+					className="w-8 h-8 rounded-lg text-xs font-bold transition-all duration-200 flex items-center justify-center border bg-slate-800/50 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+					title={
+						language === "ru-RU"
+							? "Switch to English"
+							: "Переключить на русский"
+					}
+				>
+					{language === "ru-RU" ? "RU" : "EN"}
+				</button>
+			)}
 		</div>
 	);
 };

@@ -23,6 +23,7 @@ import { ModelPicker } from "@/components/common/ModelPicker";
 import { FileSystemPicker } from "@/components/common/FileSystemPicker";
 import { api } from "@/lib/api-client";
 import type { OpencodeModel } from "@/types/kanban";
+import { useSTTLanguage } from "@/components/voice/useSTTLanguage";
 
 type SpeechRecognitionResultLike = {
 	isFinal: boolean;
@@ -100,6 +101,7 @@ export function QuickCreateModal({
 	const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+	const { language, toggleLanguage } = useSTTLanguage();
 
 	const stopDictation = useCallback(() => {
 		recognitionRef.current?.stop();
@@ -214,7 +216,7 @@ export function QuickCreateModal({
 		}
 
 		const recognition = new RecognitionCtor();
-		recognition.lang = navigator.language || "ru-RU";
+		recognition.lang = language;
 		recognition.continuous = true;
 		recognition.interimResults = true;
 
@@ -510,6 +512,22 @@ export function QuickCreateModal({
 								title="Add context files"
 							>
 								<Paperclip className="w-4 h-4" />
+							</button>
+
+							<button
+								type="button"
+								onClick={toggleLanguage}
+								disabled={isSubmitting}
+								className="w-9 h-9 rounded-lg border border-slate-700/80 bg-slate-800/60 hover:bg-slate-700/60 text-slate-400 flex items-center justify-center transition-all hover:text-slate-200"
+								title={
+									language === "ru-RU"
+										? "Switch to English"
+										: "Переключить на русский"
+								}
+							>
+								<span className="text-[10px] font-bold">
+									{language === "ru-RU" ? "RU" : "EN"}
+								</span>
 							</button>
 
 							<button
