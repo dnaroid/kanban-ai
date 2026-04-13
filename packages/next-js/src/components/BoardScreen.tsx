@@ -116,7 +116,7 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 
 	return (
 		<div className="flex flex-col h-full overflow-hidden">
-			<div className="flex items-center justify-between px-8 py-2 border-b border-slate-800/50 bg-slate-900/20 backdrop-blur-md shrink-0">
+			<div className="relative z-10 flex items-center justify-between px-8 py-2 border-b border-slate-800/50 bg-slate-900/20 backdrop-blur-md shrink-0">
 				<div className="flex items-center gap-4">
 					<ProjectSelect projectId={projectId} projectName={projectName} />
 					<div className="bg-slate-800/50 p-1 rounded-xl flex gap-1">
