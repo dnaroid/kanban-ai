@@ -191,7 +191,6 @@ export function createServerContainer(
 | `deps:*`        | Dependency service не скопирован |
 | `plugins:*`     | Плагин runtime требует доработки |
 | `schedule:*`    | Task schedules не скопированы    |
-| `vosk:*`        | Vosk STT не скопирован           |
 
 ---
 

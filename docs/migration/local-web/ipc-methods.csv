@@ -41,7 +41,6 @@ run,get,src/main/ipc/handlers/run.handlers.ts,Yes,No
 search,query,src/main/ipc/handlers/search.handlers.ts,Yes,No
 schedule,get,src/main/ipc/handlers/schedule.handlers.ts,Yes,No
 schedule,update,src/main/ipc/handlers/schedule.handlers.ts,Yes,No
-vosk,downloadModel,src/main/ipc/handlers/vosk.handlers.ts,Yes,No
 backup,exportProject,src/main/ipc/handlers/backup.handlers.ts,Yes,No
 backup,importProject,src/main/ipc/handlers/backup.handlers.ts,Yes,No
 deps,list,src/main/ipc/handlers/deps.handlers.ts,Yes,No
