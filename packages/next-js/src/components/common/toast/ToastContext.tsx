@@ -15,10 +15,20 @@ export interface Toast {
 	message: string;
 	type: ToastType;
 	duration?: number;
+	onClick?: () => void;
+}
+
+export interface ToastOptions {
+	duration?: number;
+	onClick?: () => void;
 }
 
 interface ToastContextType {
-	addToast: (message: string, type: ToastType, duration?: number) => void;
+	addToast: (
+		message: string,
+		type: ToastType,
+		durationOrOptions?: number | ToastOptions,
+	) => void;
 	removeToast: (id: string) => void;
 	toasts: Toast[];
 }
@@ -33,9 +43,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 	}, []);
 
 	const addToast = useCallback(
-		(message: string, type: ToastType = "info", duration = 5000) => {
+		(
+			message: string,
+			type: ToastType = "info",
+			durationOrOptions?: number | ToastOptions,
+		) => {
 			const id = Math.random().toString(36).substring(2, 9);
-			setToasts((prev) => [...prev, { id, message, type, duration }]);
+			const opts: ToastOptions =
+				typeof durationOrOptions === "object"
+					? durationOrOptions
+					: { duration: durationOrOptions };
+			const duration = opts.duration ?? 5000;
+			setToasts((prev) => [
+				...prev,
+				{ id, message, type, duration, onClick: opts.onClick },
+			]);
 
 			if (duration > 0) {
 				setTimeout(() => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
 import {
@@ -88,6 +88,8 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		isOpen: false,
 		message: null,
 	});
+
+	const pendingStoryGenerations = useRef<Map<string, string>>(new Map());
 
 	const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState<{
 		isOpen: boolean;
@@ -271,9 +273,28 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			try {
 				const payload = JSON.parse(event.data) as {
 					taskId?: string;
+					runId?: string;
+					status?: string;
 				};
 				if (!payload.taskId) {
 					return;
+				}
+
+				if (
+					payload.runId &&
+					payload.status === "completed" &&
+					pendingStoryGenerations.current.has(payload.runId)
+				) {
+					const storyTaskId = pendingStoryGenerations.current.get(
+						payload.runId,
+					)!;
+					pendingStoryGenerations.current.delete(payload.runId);
+					addToast("User story generated — click to view", "success", {
+						duration: 8000,
+						onClick: () => {
+							router.push(`/board/${projectId}/task/${storyTaskId}`);
+						},
+					});
 				}
 
 				void refreshTaskFromServer(payload.taskId);
@@ -294,7 +315,14 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			eventSource.removeEventListener("run:event", onRunEvent);
 			eventSource.close();
 		};
-	}, [board, projectId, refreshTaskFromServer, refreshBoardTasksFromServer]);
+	}, [
+		board,
+		projectId,
+		refreshTaskFromServer,
+		refreshBoardTasksFromServer,
+		addToast,
+		router,
+	]);
 
 	const handleDragStart = (event: DragStartEvent) => {
 		if (event.active.data.current?.type === "task") {
@@ -515,9 +543,12 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 				tags: [],
 			});
 
-			await api.opencode.generateUserStory({ taskId: createdTask.id });
+			const { runId } = await api.opencode.generateUserStory({
+				taskId: createdTask.id,
+			});
+			pendingStoryGenerations.current.set(runId, createdTask.id);
 			await loadBoard();
-			addToast("User story generated successfully", "success");
+			addToast("User story generation started", "info");
 		} catch (generateError) {
 			console.error("Failed to quick-create generated story:", generateError);
 			addToast("Failed to generate user story", "error");
@@ -890,9 +921,10 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		try {
 			switch (systemKey) {
 				case "backlog": {
-					await api.opencode.generateUserStory({ taskId });
+					const { runId } = await api.opencode.generateUserStory({ taskId });
+					pendingStoryGenerations.current.set(runId, taskId);
 					await refreshBoardTasksFromServer();
-					addToast("User story generation started", "success");
+					addToast("User story generation started", "info");
 					break;
 				}
 				case "ready": {
