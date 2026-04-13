@@ -175,6 +175,15 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 				<div className="flex items-center gap-2">
 					<button
 						type="button"
+						onClick={() => setIsQuickCreateModalOpen(true)}
+						className="flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20"
+						title="Quick Create Task"
+					>
+						<Plus className="w-4 h-4" />
+						Add Task
+					</button>
+					<button
+						type="button"
 						onClick={() => {
 							void handleStartSignalRuns().catch((startError) => {
 								const message =
@@ -281,16 +290,6 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 						) : null}
 					</DragOverlay>
 				</DndContext>
-
-				{/* Floating Action Button */}
-				<button
-					type="button"
-					onClick={() => setIsQuickCreateModalOpen(true)}
-					className="fixed bottom-8 right-8 w-16 h-16 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-2xl shadow-blue-600/40 flex items-center justify-center transition-all hover:scale-110 active:scale-95 group z-40"
-					title="Quick Create Task"
-				>
-					<Plus className="w-8 h-8 group-hover:rotate-90 transition-transform duration-300" />
-				</button>
 
 				<QuickCreateModal
 					projectId={projectId}
