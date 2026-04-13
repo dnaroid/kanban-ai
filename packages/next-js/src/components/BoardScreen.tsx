@@ -20,6 +20,7 @@ import { SortableColumn } from "./kanban/board/SortableColumn";
 import { SortableTask } from "./kanban/board/SortableTask";
 import { ListView, ListItemView } from "./kanban/board/ListView";
 import { QuickCreateModal } from "./kanban/board/QuickCreateModal";
+import { ProjectSelect } from "./ProjectSelect";
 import { useBoardModel } from "@/features/board/model/use-board-model";
 import { cn } from "@/lib/utils";
 import { ConfirmationModal } from "@/components/common/ConfirmationModal";
@@ -117,7 +118,7 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 		<div className="flex flex-col h-full overflow-hidden">
 			<div className="flex items-center justify-between px-8 py-2 border-b border-slate-800/50 bg-slate-900/20 backdrop-blur-md shrink-0">
 				<div className="flex items-center gap-4">
-					<h2 className="text-lg font-bold text-slate-200">{projectName}</h2>
+					<ProjectSelect projectId={projectId} projectName={projectName} />
 					<div className="bg-slate-800/50 p-1 rounded-xl flex gap-1">
 						<button
 							type="button"
