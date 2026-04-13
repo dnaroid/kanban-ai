@@ -1,5 +1,5 @@
 import { execFileSync } from "child_process";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	access,
 	mkdtemp,
@@ -12,6 +12,15 @@ import {
 import { tmpdir } from "os";
 import { join } from "path";
 import type { Run, RunVcsMetadata } from "@/types/ipc";
+
+const mockTaskRepo = vi.hoisted(() => ({
+	getById: vi.fn().mockReturnValue(null),
+}));
+
+vi.mock("@/server/repositories/task", () => ({
+	taskRepo: mockTaskRepo,
+}));
+
 import { VcsManager } from "@/server/vcs/vcs-manager";
 
 const tempRoots: string[] = [];
@@ -67,6 +76,7 @@ function buildRun(runId: string, vcs: RunVcsMetadata): Run {
 }
 
 afterEach(async () => {
+	vi.clearAllMocks();
 	await Promise.all(
 		tempRoots
 			.splice(0)
@@ -261,5 +271,89 @@ describe("VcsManager", () => {
 		await expect(
 			manager.mergeRunWorkspace(buildRun("run-staged-base-1234", metadata)),
 		).rejects.toThrow("Base project worktree has staged changes");
+	});
+
+	it("uses task commitMessage for capture commit when available", async () => {
+		const { repoPath } = await createRepo();
+		const manager = new VcsManager();
+		const metadata = await manager.provisionRunWorkspace({
+			projectPath: repoPath,
+			runId: "run-commitmsg-1234",
+			taskId: "task-1",
+			taskTitle: "Commit Message Test",
+		});
+
+		await writeFile(
+			join(metadata.worktreePath, "README.md"),
+			"base\ncommitmsg\n",
+			"utf8",
+		);
+
+		mockTaskRepo.getById.mockReturnValue({
+			commitMessage: "feat(auth): add user login",
+		});
+
+		const merged = await manager.mergeRunWorkspace(
+			buildRun("run-commitmsg-1234", metadata),
+		);
+
+		expect(merged.mergeStatus).toBe("merged");
+
+		const captureLog = git(repoPath, ["log", "--merges", "--format=%s", "-1"]);
+		expect(captureLog).toContain("Merge: feat(auth): add user login");
+	});
+
+	it("falls back to default format when task has no commitMessage", async () => {
+		const { repoPath } = await createRepo();
+		const manager = new VcsManager();
+		const metadata = await manager.provisionRunWorkspace({
+			projectPath: repoPath,
+			runId: "run-fallback-1234",
+			taskId: "task-1",
+			taskTitle: "Fallback Test",
+		});
+
+		await writeFile(
+			join(metadata.worktreePath, "README.md"),
+			"base\nfallback\n",
+			"utf8",
+		);
+
+		mockTaskRepo.getById.mockReturnValue({ commitMessage: null });
+
+		const merged = await manager.mergeRunWorkspace(
+			buildRun("run-fallback-1234", metadata),
+		);
+
+		expect(merged.mergeStatus).toBe("merged");
+		const mergeLog = git(repoPath, ["log", "--merges", "--format=%s", "-1"]);
+		expect(mergeLog).toContain("Merge run run-fall");
+	});
+
+	it("falls back to default format when task is not found", async () => {
+		const { repoPath } = await createRepo();
+		const manager = new VcsManager();
+		const metadata = await manager.provisionRunWorkspace({
+			projectPath: repoPath,
+			runId: "run-nofound-1234",
+			taskId: "task-1",
+			taskTitle: "Not Found Test",
+		});
+
+		await writeFile(
+			join(metadata.worktreePath, "README.md"),
+			"base\nnotfound\n",
+			"utf8",
+		);
+
+		mockTaskRepo.getById.mockReturnValue(null);
+
+		const merged = await manager.mergeRunWorkspace(
+			buildRun("run-nofound-1234", metadata),
+		);
+
+		expect(merged.mergeStatus).toBe("merged");
+		const mergeLog = git(repoPath, ["log", "--merges", "--format=%s", "-1"]);
+		expect(mergeLog).toContain("Merge run run-nofo");
 	});
 });

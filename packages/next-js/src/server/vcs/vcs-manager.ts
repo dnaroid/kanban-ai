@@ -3,6 +3,7 @@ import { access, mkdir } from "fs/promises";
 import { basename, dirname, join } from "path";
 import { promisify } from "util";
 import { createLogger } from "@/lib/logger";
+import { taskRepo } from "@/server/repositories/task";
 import type { Run, RunMergeMode, RunVcsMetadata } from "@/types/ipc";
 
 const execFileAsync = promisify(execFile);
@@ -212,11 +213,12 @@ export class VcsManager {
 		}
 
 		try {
-			await this.git(repoRoot, [
-				"commit",
-				"-m",
-				`Merge run ${run.id.slice(0, 8)} for task ${run.taskId}`,
-			]);
+			const mergeFallback = `Merge run ${run.id.slice(0, 8)} for task ${run.taskId}`;
+			const task = taskRepo.getById(run.taskId);
+			const commitMsg = task?.commitMessage?.trim();
+			const mergeMessage = commitMsg ? `Merge: ${commitMsg}` : mergeFallback;
+
+			await this.git(repoRoot, ["commit", "-m", mergeMessage]);
 		} catch (error) {
 			await this.abortMerge(repoRoot);
 			throw this.wrapGitError(error, "Merge commit failed");
@@ -249,11 +251,15 @@ export class VcsManager {
 			return vcs;
 		}
 
+		const captureFallback = `Capture run ${run.id.slice(0, 8)} changes for task ${run.taskId}`;
+		const task = taskRepo.getById(run.taskId);
+		const captureMessage = task?.commitMessage?.trim() || captureFallback;
+
 		await this.git(vcs.worktreePath, ["add", "-A"]);
 		await this.gitWithConfig(vcs.worktreePath, [
 			"commit",
 			"-m",
-			`Capture run ${run.id.slice(0, 8)} changes for task ${run.taskId}`,
+			captureMessage,
 		]);
 
 		const headCommit = await this.git(vcs.worktreePath, ["rev-parse", "HEAD"]);

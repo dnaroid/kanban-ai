@@ -9,6 +9,7 @@ import {
 	v024AgentRoleSessionPreferencesSql,
 	v025RunMetadataSql,
 	v026DropWorkflowTablesSql,
+	v027TaskCommitMessageSql,
 } from "./sql";
 export {
 	v017SystemKeySql,
@@ -21,6 +22,7 @@ export {
 	v024AgentRoleSessionPreferencesSql,
 	v025RunMetadataSql,
 	v026DropWorkflowTablesSql,
+	v027TaskCommitMessageSql,
 };
 
 export const INIT_DB_SQL = `
@@ -105,6 +107,7 @@ CREATE TABLE IF NOT EXISTS tasks (
 
   -- model assignment (migration 15)
   model_name TEXT,
+  commit_message TEXT,
 
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -528,6 +531,10 @@ export const migrations = [
 	{
 		version: 26,
 		sql: v026DropWorkflowTablesSql,
+	},
+	{
+		version: 27,
+		sql: v027TaskCommitMessageSql,
 	},
 ] as const;
 

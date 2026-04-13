@@ -70,6 +70,7 @@ export interface Task {
 	estimateHours: number | null;
 	assignee: string | null;
 	modelName: string | null;
+	commitMessage: string | null;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -89,6 +90,7 @@ export interface CreateTaskInput {
 	tags?: string[];
 	dueDate?: string;
 	modelName?: string | null;
+	commitMessage?: string;
 }
 
 export interface UpdateTaskInput {
@@ -110,6 +112,7 @@ export interface UpdateTaskInput {
 	estimateHours?: number | null;
 	assignee?: string | null;
 	modelName?: string | null;
+	commitMessage?: string | null;
 }
 
 export interface Run {

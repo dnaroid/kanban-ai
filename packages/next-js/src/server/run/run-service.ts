@@ -204,7 +204,8 @@ export class RunService {
 		publishRunUpdate(run);
 
 		let executionProjectPath = project.path;
-		if ((input.mode ?? "execute") === "execute") {
+		const worktreeEnabled = process.env.RUNS_WORKTREE_ENABLED === "true";
+		if (worktreeEnabled && (input.mode ?? "execute") === "execute") {
 			try {
 				const vcsMetadata = await this.vcsManager.provisionRunWorkspace({
 					projectPath: project.path,

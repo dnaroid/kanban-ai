@@ -33,10 +33,10 @@ export class TaskRepository {
       INSERT INTO tasks (
 				id, project_id, board_id, column_id, title, description, description_md,
 				status, blocked_reason, closed_reason, priority, difficulty, type, order_in_column, tags_json,
-				start_date, due_date, estimate_points, estimate_hours, assignee, model_name,
+				start_date, due_date, estimate_points, estimate_hours, assignee, model_name, commit_message,
 				created_at, updated_at
 			)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
 		stmt.run(
@@ -61,6 +61,7 @@ export class TaskRepository {
 			null, // estimate_hours
 			null, // assignee
 			input.modelName ?? null,
+			input.commitMessage ?? null,
 			now,
 			now,
 		);
@@ -93,6 +94,7 @@ export class TaskRepository {
         estimate_hours as estimateHours,
         assignee,
         model_name as modelName,
+        commit_message as commitMessage,
         created_at as createdAt,
         updated_at as updatedAt
       FROM tasks
@@ -128,6 +130,7 @@ export class TaskRepository {
         estimate_hours as estimateHours,
         assignee,
         model_name as modelName,
+        commit_message as commitMessage,
         created_at as createdAt,
         updated_at as updatedAt
       FROM tasks
@@ -215,6 +218,10 @@ export class TaskRepository {
 		if (updates.modelName !== undefined) {
 			sets.push("model_name = ?");
 			values.push(updates.modelName);
+		}
+		if (updates.commitMessage !== undefined) {
+			sets.push("commit_message = ?");
+			values.push(updates.commitMessage);
 		}
 
 		if (sets.length === 0) return this.getById(id);

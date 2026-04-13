@@ -51,3 +51,7 @@ ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}';
 export const v026DropWorkflowTablesSql = `
 -- no-op: tables no longer exist; v021-v023 are also no-ops now
 `;
+
+export const v027TaskCommitMessageSql = `
+ALTER TABLE tasks ADD COLUMN commit_message TEXT;
+`;

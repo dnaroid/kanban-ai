@@ -28,6 +28,7 @@ type ParsedUserStoryResponse = {
 	type?: AllowedTaskType;
 	difficulty?: AllowedDifficulty;
 	agentRoleId?: string;
+	commitMessage?: string;
 };
 
 function parseTaskTags(rawTags: unknown): string[] {
@@ -111,6 +112,7 @@ function parseUserStoryResponse(content: string): ParsedUserStoryResponse {
 			type?: unknown;
 			difficulty?: unknown;
 			agentRoleId?: unknown;
+			commitMessage?: unknown;
 		};
 
 		if (Array.isArray(meta.tags)) {
@@ -143,6 +145,13 @@ function parseUserStoryResponse(content: string): ParsedUserStoryResponse {
 			const roleId = meta.agentRoleId.trim();
 			if (/^[a-z0-9_-]+$/i.test(roleId)) {
 				result.agentRoleId = roleId;
+			}
+		}
+
+		if (typeof meta.commitMessage === "string") {
+			const msg = meta.commitMessage.trim().slice(0, 200);
+			if (msg.length > 0) {
+				result.commitMessage = msg;
 			}
 		}
 	} catch {
@@ -321,7 +330,9 @@ export class RunTaskProjector {
 			const statusPatch = nextStatus
 				? this.buildStatusPatch(task, nextStatus)
 				: {};
-			const patch: Parameters<typeof taskRepo.update>[1] = {
+			const patch: Parameters<typeof taskRepo.update>[1] & {
+				commitMessage?: string | null;
+			} = {
 				...statusPatch,
 				description: parsed.description,
 				descriptionMd: parsed.description,
@@ -344,6 +355,9 @@ export class RunTaskProjector {
 			}
 			if (parsed.difficulty) {
 				patch.difficulty = parsed.difficulty;
+			}
+			if (parsed.commitMessage) {
+				patch.commitMessage = parsed.commitMessage;
 			}
 
 			this.updateTaskAndPublish(run.taskId, patch);

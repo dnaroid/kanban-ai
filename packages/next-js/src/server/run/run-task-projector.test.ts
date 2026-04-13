@@ -70,6 +70,7 @@ function buildTask(columnId: string, status: string) {
 		estimateHours: null,
 		assignee: null,
 		modelName: null,
+		commitMessage: null,
 		createdAt: now,
 		updatedAt: now,
 	};
@@ -241,5 +242,112 @@ describe("RunTaskProjector user-story projection", () => {
 				projectId: "project-1",
 			}),
 		);
+	});
+
+	it("parses and saves commitMessage from META block", () => {
+		const task = buildTask("col-in-progress", "running");
+		mockTaskRepo.getById.mockReturnValue(task);
+		mockTaskRepo.update.mockImplementation(
+			(_taskId: string, patch: Record<string, unknown>) => ({
+				...task,
+				...patch,
+				updatedAt: "2026-01-01T00:00:00.000Z",
+			}),
+		);
+
+		const assistantContent = [
+			'<META>{"type":"feature","commitMessage":"feat(core): add user authentication"}</META>',
+			"<STORY>",
+			"## Название",
+			"Add auth",
+			"",
+			"## Цель",
+			"Implement user auth.",
+			"</STORY>",
+		].join("\n");
+
+		const projector = new RunTaskProjector();
+		projector.projectRunOutcome(
+			buildRun("task-description-improve"),
+			"completed",
+			"test_ok",
+			assistantContent,
+		);
+
+		expect(mockTaskRepo.update).toHaveBeenCalledTimes(1);
+		const patch = mockTaskRepo.update.mock.calls[0]?.[1] as Record<
+			string,
+			unknown
+		>;
+		expect(patch.commitMessage).toBe("feat(core): add user authentication");
+	});
+
+	it("truncates commitMessage to 200 characters", () => {
+		const task = buildTask("col-in-progress", "running");
+		mockTaskRepo.getById.mockReturnValue(task);
+		mockTaskRepo.update.mockImplementation(
+			(_taskId: string, patch: Record<string, unknown>) => ({
+				...task,
+				...patch,
+				updatedAt: "2026-01-01T00:00:00.000Z",
+			}),
+		);
+
+		const longMessage = "feat(core): " + "a".repeat(200);
+		const assistantContent = [
+			`<META>{"type":"feature","commitMessage":"${longMessage}"}</META>`,
+			"<STORY>",
+			"## Название",
+			"Long commit",
+			"</STORY>",
+		].join("\n");
+
+		const projector = new RunTaskProjector();
+		projector.projectRunOutcome(
+			buildRun("task-description-improve"),
+			"completed",
+			"test_ok",
+			assistantContent,
+		);
+
+		const patch = mockTaskRepo.update.mock.calls[0]?.[1] as Record<
+			string,
+			unknown
+		>;
+		expect((patch.commitMessage as string).length).toBeLessThanOrEqual(200);
+	});
+
+	it("skips commitMessage when empty in META", () => {
+		const task = buildTask("col-in-progress", "running");
+		mockTaskRepo.getById.mockReturnValue(task);
+		mockTaskRepo.update.mockImplementation(
+			(_taskId: string, patch: Record<string, unknown>) => ({
+				...task,
+				...patch,
+				updatedAt: "2026-01-01T00:00:00.000Z",
+			}),
+		);
+
+		const assistantContent = [
+			'<META>{"type":"feature","commitMessage":"   "}</META>',
+			"<STORY>",
+			"## Название",
+			"Empty commit msg",
+			"</STORY>",
+		].join("\n");
+
+		const projector = new RunTaskProjector();
+		projector.projectRunOutcome(
+			buildRun("task-description-improve"),
+			"completed",
+			"test_ok",
+			assistantContent,
+		);
+
+		const patch = mockTaskRepo.update.mock.calls[0]?.[1] as Record<
+			string,
+			unknown
+		>;
+		expect(patch.commitMessage).toBeUndefined();
 	});
 });
