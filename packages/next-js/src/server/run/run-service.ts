@@ -317,6 +317,14 @@ export class RunService {
 				},
 			});
 			publishRunUpdate(updatedRun);
+			getRunsQueueManager()
+				.startNextReadyTaskAfterMerge(run.taskId)
+				.catch((err) =>
+					log.error("startNextReadyTaskAfterMerge failed after merge", {
+						runId: run.id,
+						error: err instanceof Error ? err.message : String(err),
+					}),
+				);
 			return { run: updatedRun };
 		} catch (error) {
 			const message =
@@ -384,6 +392,18 @@ export class RunService {
 			},
 		});
 		publishRunUpdate(updatedRun);
+
+		getRunsQueueManager()
+			.startNextReadyTaskAfterMerge(run.taskId)
+			.catch((err) =>
+				log.error(
+					"startNextReadyTaskAfterMerge failed after mergeWithoutWorktree",
+					{
+						runId: run.id,
+						error: err instanceof Error ? err.message : String(err),
+					},
+				),
+			);
 
 		return { run: updatedRun };
 	}

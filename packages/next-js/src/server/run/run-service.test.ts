@@ -15,6 +15,7 @@ const {
 		enqueue: vi.fn(),
 		getQueueStats: vi.fn(),
 		cancel: vi.fn(),
+		startNextReadyTaskAfterMerge: vi.fn().mockResolvedValue(undefined),
 	},
 	mockTaskRepo: {
 		getById: vi.fn(),

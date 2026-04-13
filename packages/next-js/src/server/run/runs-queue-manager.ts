@@ -15,11 +15,14 @@ import { runEventRepo } from "@/server/repositories/run-event";
 import { runRepo } from "@/server/repositories/run";
 import { taskLinkRepo } from "@/server/repositories/task-link";
 import { taskRepo } from "@/server/repositories/task";
+import { boardRepo } from "@/server/repositories/board";
+import { getWorkflowColumnIdBySystemKey } from "@/server/workflow/task-workflow-manager";
 import { getRunTaskProjector } from "@/server/run/run-task-projector";
 import { publishRunUpdate } from "@/server/run/run-publisher";
 import { getVcsManager } from "@/server/vcs/vcs-manager";
 import type { TaskPriority } from "@/types/kanban";
 import type { Run, RunStatus, RunVcsMetadata } from "@/types/ipc";
+import type { Task } from "@/server/types";
 
 const generationRunKind = "task-description-improve";
 const agentRoleTagPrefix = "agent:";
@@ -816,6 +819,14 @@ export class RunsQueueManager {
 			) {
 				await this.enqueueExecutionForGeneratedTask(nextRun.taskId);
 			}
+
+			if (status === "completed" && !this.isGenerationRun(nextRun)) {
+				const mergedRun = await this.tryAutomaticMerge(nextRun);
+				const mergeStatus = mergedRun.metadata?.vcs?.mergeStatus;
+				if (mergeStatus === "merged") {
+					await this.startNextReadyTaskAfterMerge(nextRun.taskId);
+				}
+			}
 		} catch (error) {
 			log.error("Failed to project run outcome", {
 				runId,
@@ -1054,6 +1065,127 @@ export class RunsQueueManager {
 		}, this.blockedRetryDelayMs);
 	}
 
+	public pickNextReadyTask(boardId: string): Task | null {
+		const board = boardRepo.getById(boardId);
+		if (!board) {
+			log.warn("pickNextReadyTask: board not found", { boardId });
+			return null;
+		}
+
+		const readyColumnId = getWorkflowColumnIdBySystemKey(board, "ready");
+		if (!readyColumnId) {
+			log.warn("pickNextReadyTask: ready column not found on board", {
+				boardId,
+			});
+			return null;
+		}
+
+		const allTasks = taskRepo.listByBoard(boardId);
+		const readyTasks = allTasks.filter(
+			(task) =>
+				task.columnId === readyColumnId &&
+				task.priority !== "postpone" &&
+				task.status === "pending",
+		);
+
+		if (readyTasks.length === 0) {
+			log.info("pickNextReadyTask: no ready tasks found", { boardId });
+			return null;
+		}
+
+		readyTasks.sort((a, b) => {
+			const scoreA =
+				runPriorityScore[a.priority as TaskPriority] ?? runPriorityScore.normal;
+			const scoreB =
+				runPriorityScore[b.priority as TaskPriority] ?? runPriorityScore.normal;
+			if (scoreA !== scoreB) return scoreB - scoreA;
+			return a.orderInColumn - b.orderInColumn;
+		});
+
+		for (const task of readyTasks) {
+			if (this.areDependenciesResolved(task.id)) {
+				return task;
+			}
+			log.info(
+				"pickNextReadyTask: skipping task with unresolved dependencies",
+				{
+					taskId: task.id,
+					taskTitle: task.title,
+				},
+			);
+		}
+
+		log.info(
+			"pickNextReadyTask: all ready tasks have unresolved dependencies",
+			{
+				boardId,
+			},
+		);
+		return null;
+	}
+
+	public async startNextReadyTaskAfterMerge(
+		mergedTaskId: string,
+	): Promise<void> {
+		if (process.env.RUNS_AUTO_START_NEXT_AFTER_MERGE !== "1") {
+			return;
+		}
+
+		try {
+			const mergedTask = taskRepo.getById(mergedTaskId);
+			if (!mergedTask) {
+				log.warn("startNextReadyTaskAfterMerge: merged task not found", {
+					mergedTaskId,
+				});
+				return;
+			}
+
+			const nextTask = this.pickNextReadyTask(mergedTask.boardId);
+			if (!nextTask) {
+				log.info(
+					"startNextReadyTaskAfterMerge: no suitable next task in Ready",
+					{ boardId: mergedTask.boardId, mergedTaskId },
+				);
+				return;
+			}
+
+			const activeRun = runRepo
+				.listByTask(nextTask.id)
+				.find(
+					(run) =>
+						!this.isGenerationRun(run) &&
+						(run.status === "queued" ||
+							run.status === "running" ||
+							run.status === "paused"),
+				);
+			if (activeRun) {
+				log.info(
+					"startNextReadyTaskAfterMerge: next task already has active run",
+					{
+						taskId: nextTask.id,
+						runId: activeRun.id,
+						status: activeRun.status,
+					},
+				);
+				return;
+			}
+
+			log.info("startNextReadyTaskAfterMerge: starting next task from Ready", {
+				mergedTaskId,
+				nextTaskId: nextTask.id,
+				nextTaskTitle: nextTask.title,
+				boardId: mergedTask.boardId,
+			});
+
+			await this.enqueueExecutionForNextTask(nextTask.id);
+		} catch (error) {
+			log.error("startNextReadyTaskAfterMerge: failed", {
+				mergedTaskId,
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
+	}
+
 	private isGenerationRun(run: Run): boolean {
 		return run.metadata?.kind === generationRunKind;
 	}
@@ -1151,6 +1283,169 @@ export class RunsQueueManager {
 			payload: {
 				status: executionRun.status,
 				message: "Execution run queued after BA story generation",
+			},
+		});
+		publishRunUpdate(executionRun);
+
+		let queuedExecutionRun = executionRun;
+		let executionProjectPath = project.path;
+		if (this.worktreeEnabled) {
+			try {
+				const vcsMetadata = await this.vcsManager.provisionRunWorkspace({
+					projectPath: project.path,
+					runId: executionRun.id,
+					taskId: task.id,
+					taskTitle: task.title,
+				});
+				queuedExecutionRun = runRepo.update(executionRun.id, {
+					metadata: {
+						...(executionRun.metadata ?? {}),
+						vcs: vcsMetadata,
+					},
+				});
+				runEventRepo.create({
+					runId: executionRun.id,
+					eventType: "status",
+					payload: {
+						status: queuedExecutionRun.status,
+						message: `Worktree ready: ${vcsMetadata.branchName}`,
+						worktreePath: vcsMetadata.worktreePath,
+					},
+				});
+				publishRunUpdate(queuedExecutionRun);
+				executionProjectPath = vcsMetadata.worktreePath;
+			} catch (error) {
+				const message =
+					error instanceof Error
+						? error.message
+						: "Failed to provision git worktree";
+				const failedRun = runRepo.update(executionRun.id, {
+					status: "failed",
+					finishedAt: new Date().toISOString(),
+					errorText: message,
+				});
+				runEventRepo.create({
+					runId: executionRun.id,
+					eventType: "status",
+					payload: {
+						status: "failed",
+						message,
+					},
+				});
+				publishRunUpdate(failedRun);
+				return;
+			}
+		}
+
+		this.enqueue(queuedExecutionRun.id, {
+			projectPath: executionProjectPath,
+			projectId: project.id,
+			sessionTitle: task.title.slice(0, 120),
+			sessionPreferences: this.toSessionPreferences(
+				selectedRole,
+				selectedRole?.preset_json,
+			),
+			prompt: buildTaskPrompt(
+				{ title: task.title, description: task.description },
+				{
+					id: project.id,
+					path: executionProjectPath,
+				},
+				{
+					id: roleId,
+					name: selectedRole?.name ?? roleId,
+					systemPrompt: selectedRolePreset?.systemPrompt,
+					skills: selectedRolePreset?.skills,
+				},
+			),
+		});
+	}
+
+	private async enqueueExecutionForNextTask(taskId: string): Promise<void> {
+		const task = taskRepo.getById(taskId);
+		if (!task) {
+			log.warn("enqueueExecutionForNextTask: task not found", { taskId });
+			return;
+		}
+
+		if (task.priority === "postpone") {
+			log.info("enqueueExecutionForNextTask: skipping postponed task", {
+				taskId,
+			});
+			return;
+		}
+
+		const activeExecutionRun = runRepo
+			.listByTask(task.id)
+			.find(
+				(run) =>
+					!this.isGenerationRun(run) &&
+					(run.status === "queued" ||
+						run.status === "running" ||
+						run.status === "paused"),
+			);
+		if (activeExecutionRun) {
+			log.info("enqueueExecutionForNextTask: execution run already active", {
+				taskId: task.id,
+				runId: activeExecutionRun.id,
+				status: activeExecutionRun.status,
+			});
+			return;
+		}
+
+		const project = projectRepo.getById(task.projectId);
+		if (!project) {
+			log.warn("enqueueExecutionForNextTask: project not found", {
+				taskId: task.id,
+				projectId: task.projectId,
+			});
+			return;
+		}
+
+		const availableRoles = roleRepo.listWithPresets();
+		const taskTags = this.parseTaskTags(task.tags);
+		const assignedRoleId = this.resolveAssignedRoleIdFromTags(taskTags);
+		const roleId = assignedRoleId ?? availableRoles[0]?.id;
+		if (!roleId) {
+			log.warn("enqueueExecutionForNextTask: no roles configured", {
+				taskId: task.id,
+			});
+			return;
+		}
+
+		const selectedRole =
+			availableRoles.find((role) => role.id === roleId) ?? null;
+		const selectedRolePreset = this.parseRolePreset(
+			roleRepo.getPresetJson(roleId),
+		);
+
+		const snapshotId = contextSnapshotRepo.create({
+			taskId: task.id,
+			kind: "run-start",
+			summary: `Auto-started after merge for ${task.title}`,
+			payload: {
+				taskId: task.id,
+				title: task.title,
+				description: task.description,
+				mode: "execute",
+				roleId,
+				reason: "auto-start-after-merge",
+			},
+		});
+
+		const executionRun = runRepo.create({
+			taskId: task.id,
+			roleId,
+			mode: "execute",
+			contextSnapshotId: snapshotId,
+		});
+
+		runEventRepo.create({
+			runId: executionRun.id,
+			eventType: "status",
+			payload: {
+				status: executionRun.status,
+				message: "Execution run auto-started after previous task merge",
 			},
 		});
 		publishRunUpdate(executionRun);
