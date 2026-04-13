@@ -66,7 +66,7 @@ const STATUS_TO_COLUMN: Record<WorkflowTaskStatus, WorkflowColumnSystemKey> = {
 	paused: "blocked",
 	done: "review",
 	failed: "blocked",
-	generating: "in_progress",
+	generating: "backlog",
 };
 
 const COLUMN_TEMPLATES: Record<
@@ -99,10 +99,10 @@ const COLUMN_ALLOWED_STATUSES: Record<
 	WorkflowColumnSystemKey,
 	readonly WorkflowTaskStatus[]
 > = {
-	backlog: ["pending"],
+	backlog: ["pending", "generating"],
 	ready: ["pending"],
 	deferred: ["pending"],
-	in_progress: ["running", "generating"],
+	in_progress: ["running"],
 	blocked: ["question", "paused", "failed"],
 	review: ["done"],
 	closed: ["done", "failed"],

@@ -206,7 +206,7 @@ const STATUS_TO_WORKFLOW_COLUMN_FALLBACK: Record<
 	paused: "blocked",
 	done: "review",
 	failed: "blocked",
-	generating: "in_progress",
+	generating: "backlog",
 };
 
 const COLUMN_DEFAULT_STATUS_FALLBACK: Record<
@@ -226,10 +226,10 @@ const COLUMN_ALLOWED_STATUSES_FALLBACK: Record<
 	WorkflowColumnSystemKey,
 	readonly WorkflowTaskStatus[]
 > = {
-	backlog: ["pending"],
+	backlog: ["pending", "generating"],
 	ready: ["pending"],
 	deferred: ["pending"],
-	in_progress: ["running", "generating"],
+	in_progress: ["running"],
 	blocked: ["question", "paused", "failed"],
 	review: ["done"],
 	closed: ["done", "failed"],
