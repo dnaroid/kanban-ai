@@ -190,10 +190,18 @@ export interface ProviderQueueStats {
 	concurrency: number;
 }
 
+export interface ProjectQueueStats {
+	projectScope: string;
+	queued: number;
+	running: number;
+	providers: ProviderQueueStats[];
+}
+
 export interface QueueStatsResponse {
 	totalQueued: number;
 	totalRunning: number;
 	providers: ProviderQueueStats[];
+	byProject: ProjectQueueStats[];
 }
 
 export interface OpenCodeGenerateUserStoryResponse {

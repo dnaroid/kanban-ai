@@ -15,7 +15,7 @@ import {
 	Plus,
 	Play,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { SortableColumn } from "./kanban/board/SortableColumn";
 import { SortableTask } from "./kanban/board/SortableTask";
 import { ListView, ListItemView } from "./kanban/board/ListView";
@@ -77,16 +77,75 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 	const [expandedColumns, setExpandedColumns] = useState<
 		Record<string, boolean>
 	>({});
+	const manualTogglesRef = useRef<Record<string, boolean>>({});
+	const prevTaskCountsRef = useRef<Record<string, number>>({});
+
 	const [isQuickCreateModalOpen, setIsQuickCreateModalOpen] = useState(false);
 
 	useEffect(() => {
 		localStorage.setItem("boardViewMode", viewMode);
 	}, [viewMode]);
 
+	useEffect(() => {
+		if (viewMode !== "list") return;
+
+		const newTaskCounts: Record<string, number> = {};
+		for (const col of columns) {
+			newTaskCounts[col.id] = 0;
+		}
+		for (const t of tasks) {
+			if (newTaskCounts[t.columnId] !== undefined) {
+				newTaskCounts[t.columnId]++;
+			}
+		}
+
+		const prevCounts = prevTaskCountsRef.current;
+		const manualToggles = manualTogglesRef.current;
+		const isFirstLoad =
+			Object.keys(prevCounts).length === 0 && columns.length > 0;
+
+		let needUpdate = false;
+		for (const col of columns) {
+			if (prevCounts[col.id] !== newTaskCounts[col.id] || isFirstLoad) {
+				needUpdate = true;
+				break;
+			}
+		}
+
+		if (!needUpdate) return;
+
+		setExpandedColumns((prevExpanded) => {
+			let hasChanges = false;
+			const nextExpanded = { ...prevExpanded };
+
+			for (const col of columns) {
+				const id = col.id;
+				const count = newTaskCounts[id];
+				const prevCount = prevCounts[id];
+
+				if (prevCount !== count || isFirstLoad) {
+					if (manualToggles[id]) {
+						manualToggles[id] = false;
+					}
+
+					const shouldBeExpanded = count > 0;
+					if (nextExpanded[id] !== shouldBeExpanded && !manualToggles[id]) {
+						nextExpanded[id] = shouldBeExpanded;
+						hasChanges = true;
+					}
+				}
+			}
+			return hasChanges ? nextExpanded : prevExpanded;
+		});
+
+		prevTaskCountsRef.current = newTaskCounts;
+	}, [tasks, columns, viewMode]);
+
 	const expandAll = () => {
 		const next: Record<string, boolean> = {};
 		for (const col of columns) {
 			next[col.id] = true;
+			manualTogglesRef.current[col.id] = true;
 		}
 		setExpandedColumns(next);
 	};
@@ -95,6 +154,7 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 		const next: Record<string, boolean> = {};
 		for (const col of columns) {
 			next[col.id] = false;
+			manualTogglesRef.current[col.id] = true;
 		}
 		setExpandedColumns(next);
 	};
@@ -248,7 +308,13 @@ export function BoardScreen({ projectId, projectName }: BoardScreenProps) {
 							onAddTask={handleAddTask}
 							onDeleteTask={handleDeleteTask}
 							expandedColumns={expandedColumns}
-							setExpandedColumns={setExpandedColumns}
+							onToggleColumn={(columnId) => {
+								manualTogglesRef.current[columnId] = true;
+								setExpandedColumns((prev) => ({
+									...prev,
+									[columnId]: !prev[columnId],
+								}));
+							}}
 							projectId={projectId}
 						/>
 					)}

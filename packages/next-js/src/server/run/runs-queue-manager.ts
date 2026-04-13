@@ -37,9 +37,15 @@ const log = createLogger("runs-queue");
 
 interface QueuedRunInput {
 	projectPath: string;
+	projectId?: string;
 	sessionTitle: string;
 	prompt: string;
 	sessionPreferences?: SessionStartPreferences;
+}
+
+interface QueueMeta {
+	projectScope: string;
+	providerKey: string;
 }
 
 interface AssistantRunSignal {
@@ -54,10 +60,18 @@ export interface ProviderQueueStats {
 	concurrency: number;
 }
 
+export interface ProjectQueueStats {
+	projectScope: string;
+	queued: number;
+	running: number;
+	providers: ProviderQueueStats[];
+}
+
 export interface QueueStats {
 	totalQueued: number;
 	totalRunning: number;
 	providers: ProviderQueueStats[];
+	byProject: ProjectQueueStats[];
 }
 
 function resolveAssistantRunSignal(text: string): AssistantRunSignal | null {
@@ -226,9 +240,10 @@ function parseProviderConcurrencyConfig(
 }
 
 export class RunsQueueManager {
-	private readonly providerQueues = new Map<string, string[]>();
-	private readonly providerRunning = new Map<string, Set<string>>();
-	private readonly providerByRunId = new Map<string, string>();
+	private readonly queues = new Map<string, string[]>();
+	private readonly running = new Map<string, Set<string>>();
+	private readonly queueMetaByQueueKey = new Map<string, QueueMeta>();
+	private readonly queueKeyByRunId = new Map<string, string>();
 	private readonly runInputs = new Map<string, QueuedRunInput>();
 	private readonly sessionSubscribers = new Map<string, string>();
 	private readonly opencodeService = getOpencodeService();
@@ -326,19 +341,23 @@ export class RunsQueueManager {
 	}
 
 	public enqueue(runId: string, input: QueuedRunInput): void {
-		if (this.providerByRunId.has(runId)) {
+		if (this.queueKeyByRunId.has(runId)) {
 			log.warn("Run already queued", { runId });
 			return;
 		}
 
 		const providerKey = this.resolveProviderKey(runId);
-		const queue = this.ensureProviderQueue(providerKey);
+		const projectScope = input.projectId ?? input.projectPath;
+		const queueKey = this.buildQueueKey(projectScope, providerKey);
+		const queue = this.ensureQueue(queueKey);
 
 		this.runInputs.set(runId, input);
-		this.providerByRunId.set(runId, providerKey);
+		this.queueKeyByRunId.set(runId, queueKey);
+		this.queueMetaByQueueKey.set(queueKey, { projectScope, providerKey });
 		queue.push(runId);
 		log.info("Run enqueued", {
 			runId,
+			projectScope,
 			providerKey,
 			projectPath: input.projectPath,
 		});
@@ -397,24 +416,70 @@ export class RunsQueueManager {
 	}
 
 	public getQueueStats(): QueueStats {
-		const providerKeys = new Set<string>([
-			...this.providerQueues.keys(),
-			...this.providerRunning.keys(),
+		const queueKeys = new Set<string>([
+			...this.queues.keys(),
+			...this.running.keys(),
 		]);
 
-		const providers: ProviderQueueStats[] = [];
-		for (const providerKey of providerKeys) {
-			const queue = this.providerQueues.get(providerKey) ?? [];
-			const running = this.providerRunning.get(providerKey);
-			providers.push({
-				providerKey,
-				queued: queue.length,
-				running: running?.size ?? 0,
-				concurrency: this.resolveProviderConcurrency(providerKey),
-			});
+		const providerStatsByProviderKey = new Map<string, ProviderQueueStats>();
+		const projectStatsByProjectScope = new Map<
+			string,
+			{
+				queued: number;
+				running: number;
+				providers: Map<string, ProviderQueueStats>;
+			}
+		>();
+
+		for (const queueKey of queueKeys) {
+			const meta = this.queueMetaByQueueKey.get(queueKey);
+			if (!meta) {
+				continue;
+			}
+
+			const queue = this.queues.get(queueKey) ?? [];
+			const running = this.running.get(queueKey);
+			const queuedCount = queue.length;
+			const runningCount = running?.size ?? 0;
+			const concurrency = this.resolveProviderConcurrency(meta.providerKey);
+
+			const providerStats = providerStatsByProviderKey.get(
+				meta.providerKey,
+			) ?? {
+				providerKey: meta.providerKey,
+				queued: 0,
+				running: 0,
+				concurrency,
+			};
+			providerStats.queued += queuedCount;
+			providerStats.running += runningCount;
+			providerStatsByProviderKey.set(meta.providerKey, providerStats);
+
+			const projectStats = projectStatsByProjectScope.get(
+				meta.projectScope,
+			) ?? {
+				queued: 0,
+				running: 0,
+				providers: new Map<string, ProviderQueueStats>(),
+			};
+			projectStats.queued += queuedCount;
+			projectStats.running += runningCount;
+
+			const projectProviderStats = projectStats.providers.get(
+				meta.providerKey,
+			) ?? {
+				providerKey: meta.providerKey,
+				queued: 0,
+				running: 0,
+				concurrency,
+			};
+			projectProviderStats.queued += queuedCount;
+			projectProviderStats.running += runningCount;
+			projectStats.providers.set(meta.providerKey, projectProviderStats);
+			projectStatsByProjectScope.set(meta.projectScope, projectStats);
 		}
 
-		providers.sort((a, b) => {
+		const providers = [...providerStatsByProviderKey.values()].sort((a, b) => {
 			if (a.providerKey < b.providerKey) {
 				return -1;
 			}
@@ -424,6 +489,31 @@ export class RunsQueueManager {
 			return 0;
 		});
 
+		const byProject = [...projectStatsByProjectScope.entries()]
+			.map(([projectScope, stats]) => ({
+				projectScope,
+				queued: stats.queued,
+				running: stats.running,
+				providers: [...stats.providers.values()].sort((a, b) => {
+					if (a.providerKey < b.providerKey) {
+						return -1;
+					}
+					if (a.providerKey > b.providerKey) {
+						return 1;
+					}
+					return 0;
+				}),
+			}))
+			.sort((a, b) => {
+				if (a.projectScope < b.projectScope) {
+					return -1;
+				}
+				if (a.projectScope > b.projectScope) {
+					return 1;
+				}
+				return 0;
+			});
+
 		const totalQueued = providers.reduce((sum, item) => sum + item.queued, 0);
 		const totalRunning = providers.reduce((sum, item) => sum + item.running, 0);
 
@@ -431,6 +521,7 @@ export class RunsQueueManager {
 			totalQueued,
 			totalRunning,
 			providers,
+			byProject,
 		};
 	}
 
@@ -452,13 +543,19 @@ export class RunsQueueManager {
 		while (progressed) {
 			progressed = false;
 
-			for (const [providerKey, queue] of this.providerQueues.entries()) {
-				const running = this.ensureProviderRunning(providerKey);
-				const concurrency = this.resolveProviderConcurrency(providerKey);
+			for (const [queueKey, queue] of this.queues.entries()) {
+				const meta = this.queueMetaByQueueKey.get(queueKey);
+				if (!meta) {
+					continue;
+				}
+
+				const running = this.ensureRunning(queueKey);
+				const concurrency = this.resolveProviderConcurrency(meta.providerKey);
 
 				while (running.size < concurrency) {
 					const runId = this.selectNextRunnableRun(queue);
 					if (!runId) {
+						this.cleanupQueueState(queueKey);
 						break;
 					}
 
@@ -467,7 +564,8 @@ export class RunsQueueManager {
 
 					void this.executeRun(runId).finally(() => {
 						running.delete(runId);
-						this.providerByRunId.delete(runId);
+						this.queueKeyByRunId.delete(runId);
+						this.cleanupQueueState(queueKey);
 						this.scheduleDrain();
 					});
 				}
@@ -842,7 +940,7 @@ export class RunsQueueManager {
 			if (!run) {
 				queue.splice(index, 1);
 				index -= 1;
-				this.providerByRunId.delete(runId);
+				this.queueKeyByRunId.delete(runId);
 				this.runInputs.delete(runId);
 				continue;
 			}
@@ -936,7 +1034,7 @@ export class RunsQueueManager {
 	}
 
 	private hasQueuedRuns(): boolean {
-		for (const queue of this.providerQueues.values()) {
+		for (const queue of this.queues.values()) {
 			if (queue.length > 0) {
 				return true;
 			}
@@ -1109,6 +1207,7 @@ export class RunsQueueManager {
 
 		this.enqueue(queuedExecutionRun.id, {
 			projectPath: executionProjectPath,
+			projectId: project.id,
 			sessionTitle: task.title.slice(0, 120),
 			sessionPreferences: this.toSessionPreferences(
 				selectedRole,
@@ -1301,28 +1400,34 @@ export class RunsQueueManager {
 	}
 
 	private removeFromQueue(runId: string): void {
-		const providerKey = this.providerByRunId.get(runId);
+		const queueKey = this.queueKeyByRunId.get(runId);
 
-		if (providerKey) {
-			const queue = this.providerQueues.get(providerKey);
+		if (queueKey) {
+			const queue = this.queues.get(queueKey);
 			if (queue) {
 				const index = queue.indexOf(runId);
 				if (index >= 0) {
 					queue.splice(index, 1);
 				}
 			}
+			this.cleanupQueueState(queueKey);
 		} else {
-			for (const queue of this.providerQueues.values()) {
+			for (const [currentQueueKey, queue] of this.queues.entries()) {
 				const index = queue.indexOf(runId);
 				if (index >= 0) {
 					queue.splice(index, 1);
+					this.cleanupQueueState(currentQueueKey);
 					break;
 				}
 			}
 		}
 
-		this.providerByRunId.delete(runId);
+		this.queueKeyByRunId.delete(runId);
 		this.runInputs.delete(runId);
+	}
+
+	private buildQueueKey(projectScope: string, providerKey: string): string {
+		return `${projectScope}\0${providerKey}`;
 	}
 
 	private resolveProviderKey(runId: string): string {
@@ -1336,26 +1441,42 @@ export class RunsQueueManager {
 		return buildProviderKey(roleId, presetJson);
 	}
 
-	private ensureProviderQueue(providerKey: string): string[] {
-		const existing = this.providerQueues.get(providerKey);
+	private ensureQueue(queueKey: string): string[] {
+		const existing = this.queues.get(queueKey);
 		if (existing) {
 			return existing;
 		}
 
 		const queue: string[] = [];
-		this.providerQueues.set(providerKey, queue);
+		this.queues.set(queueKey, queue);
 		return queue;
 	}
 
-	private ensureProviderRunning(providerKey: string): Set<string> {
-		const existing = this.providerRunning.get(providerKey);
+	private ensureRunning(queueKey: string): Set<string> {
+		const existing = this.running.get(queueKey);
 		if (existing) {
 			return existing;
 		}
 
 		const running = new Set<string>();
-		this.providerRunning.set(providerKey, running);
+		this.running.set(queueKey, running);
 		return running;
+	}
+
+	private cleanupQueueState(queueKey: string): void {
+		const queue = this.queues.get(queueKey);
+		if (queue && queue.length === 0) {
+			this.queues.delete(queueKey);
+		}
+
+		const running = this.running.get(queueKey);
+		if (running && running.size === 0) {
+			this.running.delete(queueKey);
+		}
+
+		if (!this.queues.has(queueKey) && !this.running.has(queueKey)) {
+			this.queueMetaByQueueKey.delete(queueKey);
+		}
 	}
 
 	private resolveProviderConcurrency(providerKey: string): number {

@@ -28,9 +28,7 @@ interface ListViewProps {
 	onAddTask: (columnId: string) => void;
 	onDeleteTask: (taskId: string) => void;
 	expandedColumns: Record<string, boolean>;
-	setExpandedColumns: React.Dispatch<
-		React.SetStateAction<Record<string, boolean>>
-	>;
+	onToggleColumn: (columnId: string) => void;
 	projectId: string;
 }
 
@@ -41,16 +39,9 @@ export function ListView({
 	onAddTask,
 	onDeleteTask,
 	expandedColumns,
-	setExpandedColumns,
+	onToggleColumn,
 	projectId,
 }: ListViewProps) {
-	const toggleColumn = (columnId: string) => {
-		setExpandedColumns((prev) => ({
-			...prev,
-			[columnId]: !prev[columnId],
-		}));
-	};
-
 	return (
 		<div className="flex flex-col gap-4 p-8 w-full overflow-y-auto custom-scrollbar h-full">
 			{columns.map((column) => {
@@ -65,7 +56,7 @@ export function ListView({
 						column={column}
 						columnTasks={columnTasks}
 						isExpanded={isExpanded}
-						onToggle={() => toggleColumn(column.id)}
+						onToggle={() => onToggleColumn(column.id)}
 						onAddTask={onAddTask}
 						globalTags={globalTags}
 						onDeleteTask={onDeleteTask}

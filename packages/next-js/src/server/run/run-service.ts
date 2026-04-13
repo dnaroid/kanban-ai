@@ -256,6 +256,7 @@ export class RunService {
 		});
 		this.queueManager.enqueue(run.id, {
 			projectPath: executionProjectPath,
+			projectId: project.id,
 			sessionTitle: task.title.slice(0, 120),
 			sessionPreferences: this.toSessionPreferences(
 				selectedRole,
@@ -433,6 +434,7 @@ export class RunService {
 		});
 		this.queueManager.enqueue(run.id, {
 			projectPath: project.path,
+			projectId: project.id,
 			sessionTitle: `User Story: ${task.title}`.slice(0, 120),
 			sessionPreferences: this.toSessionPreferences(
 				selectedRole,
@@ -559,6 +561,7 @@ export class RunService {
 		});
 		this.queueManager.enqueue(run.id, {
 			projectPath: project.path,
+			projectId: project.id,
 			sessionTitle: `QA Testing: ${task.title}`.slice(0, 120),
 			sessionPreferences: this.toSessionPreferences(
 				selectedRole,
