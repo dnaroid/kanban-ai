@@ -19,6 +19,8 @@ import { extractOpencodeStatus } from "@/lib/opencode-status";
 import { LightMarkdown } from "@/components/LightMarkdown";
 import { EditToolDiffView } from "./EditToolDiffView";
 import type { EditToolInput } from "./EditToolDiffView";
+import { ApplyPatchDiffView } from "./ApplyPatchDiffView";
+import type { ApplyPatchToolInput } from "./ApplyPatchDiffView";
 
 function isEditToolInput(input: unknown): input is EditToolInput {
 	if (!input || typeof input !== "object") return false;
@@ -29,6 +31,17 @@ function isEditToolInput(input: unknown): input is EditToolInput {
 		typeof record.oldString === "string" &&
 		typeof record.newString === "string"
 	);
+}
+
+function isApplyPatchToolInput(input: unknown): input is ApplyPatchToolInput {
+	if (!input || typeof input !== "object") return false;
+
+	const record = input as Record<string, unknown>;
+	return typeof record.patchText === "string";
+}
+
+function hasRenderableApplyPatchSections(patchText: string): boolean {
+	return /\*\*\* (Add|Update|Delete) File: /u.test(patchText);
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -195,8 +208,17 @@ export function ToolPart({
 
 	const config = statusConfig[part.state ?? "pending"];
 	const editToolInput = isEditToolInput(part.input) ? part.input : null;
+	const applyPatchToolInput = isApplyPatchToolInput(part.input)
+		? part.input
+		: null;
 	const isCompletedEditTool =
 		part.tool === "edit" && part.state === "completed" && editToolInput != null;
+	const isCompletedApplyPatchTool =
+		part.tool === "apply_patch" &&
+		part.state === "completed" &&
+		applyPatchToolInput != null &&
+		hasRenderableApplyPatchSections(applyPatchToolInput.patchText);
+	const shouldShowCustomDiff = isCompletedEditTool || isCompletedApplyPatchTool;
 
 	const renderQuestionContent = (input: unknown) => {
 		if (!input || typeof input !== "object") return null;
@@ -298,10 +320,13 @@ export function ToolPart({
 					{isCompletedEditTool && editToolInput && (
 						<EditToolDiffView input={editToolInput} />
 					)}
+					{isCompletedApplyPatchTool && applyPatchToolInput && (
+						<ApplyPatchDiffView input={applyPatchToolInput} />
+					)}
 					{part.tool === "question" &&
 						part.state === "pending" &&
 						renderQuestionContent(part.input)}
-					{!isCompletedEditTool &&
+					{!shouldShowCustomDiff &&
 						part.input != null &&
 						part.tool !== "question" && (
 							<div className="space-y-1">
@@ -315,7 +340,7 @@ export function ToolPart({
 								</pre>
 							</div>
 						)}
-					{!isCompletedEditTool && part.output != null && (
+					{!shouldShowCustomDiff && part.output != null && (
 						<div className="space-y-1">
 							<span className="text-[10px] font-semibold text-slate-500 uppercase px-1">
 								Output
