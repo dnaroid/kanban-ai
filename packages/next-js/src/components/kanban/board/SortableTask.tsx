@@ -77,9 +77,12 @@ export function SortableTask({
 	};
 
 	const actionConfig = getContextActionConfig(systemKey);
+	const shouldBypassInactiveStatus = systemKey === "in_progress";
 
 	const showContextButton =
-		actionConfig && !INACTIVE_CONTEXT_ACTION_STATUSES.has(task.status);
+		actionConfig &&
+		(shouldBypassInactiveStatus ||
+			!INACTIVE_CONTEXT_ACTION_STATUSES.has(task.status));
 
 	const handleContextClick = async (e: React.MouseEvent) => {
 		e.stopPropagation();

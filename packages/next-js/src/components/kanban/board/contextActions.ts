@@ -2,6 +2,7 @@ import {
 	CheckCircle,
 	Clock,
 	GitMerge,
+	Square,
 	Sparkles,
 	type LucideIcon,
 } from "lucide-react";
@@ -10,7 +11,8 @@ export type ContextActionSystemKey =
 	| "backlog"
 	| "ready"
 	| "deferred"
-	| "review";
+	| "review"
+	| "in_progress";
 
 export interface ContextActionConfig {
 	icon: LucideIcon;
@@ -36,6 +38,10 @@ export const CONTEXT_ACTION_MAP: Record<
 	review: {
 		icon: GitMerge,
 		label: "Commit & Close",
+	},
+	in_progress: {
+		icon: Square,
+		label: "Cancel",
 	},
 };
 

@@ -955,6 +955,22 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 					addToast("Task moved to Ready", "success");
 					break;
 				}
+				case "in_progress": {
+					const { runs } = await api.run.listByTask({ taskId });
+					const activeRun = runs.find(
+						(run) => run.status === "running" || run.status === "queued",
+					);
+
+					if (!activeRun) {
+						addToast("No active run found for this task", "error");
+						return;
+					}
+
+					await api.run.cancel({ runId: activeRun.id });
+					await refreshBoardTasksFromServer();
+					addToast("Run cancelled, task moved to Ready", "success");
+					break;
+				}
 				case "review": {
 					const { runs } = await api.run.listByTask({ taskId });
 					const completedRun = runs.find((run) => run.status === "completed");
