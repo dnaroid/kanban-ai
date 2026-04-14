@@ -60,6 +60,18 @@ export interface OtherPart extends PartBase {
 	type: "other";
 }
 
+export interface PermissionData {
+	id: string;
+	permissionType: string;
+	pattern?: string | string[];
+	sessionId: string;
+	messageId: string;
+	callId?: string;
+	title: string;
+	metadata: Record<string, unknown>;
+	createdAt: number;
+}
+
 export type Part =
 	| TextPart
 	| FilePart

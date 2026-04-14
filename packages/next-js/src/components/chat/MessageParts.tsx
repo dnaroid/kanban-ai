@@ -14,7 +14,7 @@ import {
 	XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Part, ToolState } from "@/types/ipc";
+import type { Part, PermissionData, ToolState } from "@/types/ipc";
 import { extractOpencodeStatus } from "@/lib/opencode-status";
 import { LightMarkdown } from "@/components/LightMarkdown";
 
@@ -182,6 +182,63 @@ export function ToolPart({
 
 	const config = statusConfig[part.state ?? "pending"];
 
+	const renderQuestionContent = (input: unknown) => {
+		if (!input || typeof input !== "object") return null;
+		const qInput = input as Record<string, unknown>;
+		const questionText =
+			typeof qInput.question === "string"
+				? qInput.question
+				: typeof qInput.header === "string"
+					? qInput.header
+					: null;
+		const options = Array.isArray(qInput.options)
+			? qInput.options.filter(
+					(o): o is { label: string; description?: string } =>
+						typeof o === "object" && o !== null && "label" in o,
+				)
+			: null;
+
+		return (
+			<div className="space-y-2">
+				{questionText && (
+					<div className="flex items-start gap-2 px-1">
+						<HelpCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+						<span className="text-xs text-slate-200 leading-relaxed">
+							{questionText}
+						</span>
+					</div>
+				)}
+				{options && options.length > 0 && (
+					<div className="space-y-1 px-1">
+						<span className="text-[10px] font-semibold text-slate-500 uppercase">
+							Options
+						</span>
+						<div className="space-y-1">
+							{options.map((opt, idx) => (
+								<div
+									key={`opt-${idx}-${opt.label}`}
+									className="flex items-start gap-2 px-2 py-1.5 bg-slate-950/50 rounded-lg border border-slate-800/30"
+								>
+									<span className="text-[10px] font-mono text-amber-400/80 shrink-0 mt-0.5">
+										{idx + 1}.
+									</span>
+									<div className="min-w-0">
+										<span className="text-xs text-slate-300">{opt.label}</span>
+										{opt.description && (
+											<p className="text-[10px] text-slate-500 mt-0.5">
+												{opt.description}
+											</p>
+										)}
+									</div>
+								</div>
+							))}
+						</div>
+					</div>
+				)}
+			</div>
+		);
+	};
+
 	return (
 		<div
 			className={cn(
@@ -222,7 +279,10 @@ export function ToolPart({
 
 			{isExpanded && (
 				<div className="px-3 pb-3 space-y-2 border-t border-white/5 pt-2">
-					{part.input != null && (
+					{part.tool === "question" &&
+						part.state === "pending" &&
+						renderQuestionContent(part.input)}
+					{part.input != null && part.tool !== "question" && (
 						<div className="space-y-1">
 							<span className="text-[10px] font-semibold text-slate-500 uppercase px-1">
 								Input
@@ -258,6 +318,41 @@ export function ToolPart({
 					)}
 				</div>
 			)}
+		</div>
+	);
+}
+
+export function ConfirmationPart({
+	permission,
+}: {
+	permission: PermissionData;
+}) {
+	return (
+		<div className="flex items-center gap-3 px-4 py-2 my-1 bg-amber-500/[0.06] border border-amber-500/20 rounded-xl">
+			<div className="flex items-center justify-center w-7 h-7 rounded-lg bg-amber-500/10 shrink-0">
+				<HelpCircle className="w-4 h-4 text-amber-400 animate-pulse" />
+			</div>
+			<div className="flex-1 min-w-0">
+				<p className="text-xs font-medium text-amber-200 leading-snug truncate">
+					{permission.title}
+				</p>
+				<p className="text-[10px] text-amber-400/60 font-mono mt-0.5">
+					{permission.permissionType}
+					{permission.pattern
+						? ` · ${
+								Array.isArray(permission.pattern)
+									? permission.pattern.join(", ")
+									: permission.pattern
+							}`
+						: ""}
+				</p>
+			</div>
+			<div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 shrink-0">
+				<Circle className="w-2.5 h-2.5 text-amber-400 animate-pulse" />
+				<span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">
+					Awaiting
+				</span>
+			</div>
 		</div>
 	);
 }

@@ -13,13 +13,19 @@ import {
 } from "lucide-react";
 import {
 	AgentPart,
+	ConfirmationPart,
 	FilePart,
 	ReasoningPart,
 	TextPart,
 	ToolPart,
 } from "@/components/chat/MessageParts";
 import { cn } from "@/lib/utils";
-import type { OpenCodeMessage, Part, RunEvent } from "@/types/ipc";
+import type {
+	OpenCodeMessage,
+	Part,
+	PermissionData,
+	RunEvent,
+} from "@/types/ipc";
 import { extractOpencodeStatus } from "@/lib/opencode-status";
 import { LightMarkdown } from "@/components/LightMarkdown";
 import { api } from "@/lib/api";
@@ -152,6 +158,9 @@ export function ExecutionLog({
 	const refreshMessagesRef = useRef<(() => Promise<void>) | null>(null);
 	const streamingTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 	const hiddenUserMessageIdRef = useRef<string | null>(null);
+	const [pendingPermissions, setPendingPermissions] = useState<
+		Map<string, PermissionData>
+	>(new Map());
 
 	const coerceText = (value: unknown): string => {
 		if (typeof value === "string") return value;
@@ -309,6 +318,7 @@ export function ExecutionLog({
 		setStreamingMessageIds(new Set());
 		setIsLoading(true);
 		setAutoScroll(true);
+		setPendingPermissions(new Map());
 		seenMessageIdsRef.current.clear();
 		hiddenUserMessageIdRef.current = null;
 		for (const timeout of streamingTimeoutsRef.current.values()) {
@@ -599,7 +609,61 @@ export function ExecutionLog({
 				) {
 					eventSource.close();
 				}
+				return;
 			}
+
+			if (eventType === "permission.updated") {
+				const permRaw = typedEvent as unknown as {
+					permission?: unknown;
+				};
+				if (!permRaw.permission || typeof permRaw.permission !== "object") {
+					return;
+				}
+				const perm = permRaw.permission as PermissionData;
+				const permSessionId =
+					perm.sessionId ?? getSessionIdFromValue(typedEvent);
+				if (permSessionId && permSessionId !== effectiveSessionId) {
+					return;
+				}
+				console.log("[ExecutionLog] Processing permission.updated:", perm);
+				setPendingPermissions((prev) => {
+					const next = new Map(prev);
+					next.set(perm.id, perm);
+					return next;
+				});
+				setIsLoading(false);
+				return;
+			}
+
+			if (eventType === "permission.replied") {
+				const permReply = typedEvent as unknown as {
+					permissionId?: unknown;
+					permissionID?: unknown;
+					response?: unknown;
+				};
+				const replyPermId =
+					typeof permReply.permissionId === "string"
+						? permReply.permissionId
+						: typeof permReply.permissionID === "string"
+							? permReply.permissionID
+							: undefined;
+				if (!replyPermId) return;
+				console.log(
+					"[ExecutionLog] Processing permission.replied:",
+					replyPermId,
+				);
+				setPendingPermissions((prev) => {
+					const next = new Map(prev);
+					next.delete(replyPermId);
+					return next;
+				});
+				return;
+			}
+
+			console.warn(
+				`[ExecutionLog] Unhandled SSE event type: ${eventType}`,
+				typedEvent,
+			);
 		});
 
 		eventSource.onerror = (err) => {
@@ -741,6 +805,17 @@ export function ExecutionLog({
 			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
 		}
 	}, [events, autoScroll]);
+
+	const renderPermissions = () => {
+		if (pendingPermissions.size === 0) return null;
+		const elements: React.ReactNode[] = [];
+		for (const [permId, perm] of pendingPermissions) {
+			elements.push(
+				<ConfirmationPart key={`perm-${permId}`} permission={perm} />,
+			);
+		}
+		return elements;
+	};
 
 	const renderEvent = (event: RunEvent) => {
 		const time = new Date(event.ts).toLocaleTimeString("en-US", {
@@ -1004,7 +1079,10 @@ export function ExecutionLog({
 							</p>
 						</div>
 					) : (
-						<div className="space-y-0.5">{events.map(renderEvent)}</div>
+						<div className="space-y-0.5">
+							{renderPermissions()}
+							{events.map(renderEvent)}
+						</div>
 					)}
 				</div>
 

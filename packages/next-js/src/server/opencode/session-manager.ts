@@ -7,6 +7,18 @@ type OpenCodeClient = ReturnType<typeof createOpencodeClient>;
 
 type Subscriber = (event: SessionEvent) => void;
 
+export interface PermissionData {
+	id: string;
+	permissionType: string;
+	pattern?: string | string[];
+	sessionId: string;
+	messageId: string;
+	callId?: string;
+	title: string;
+	metadata: Record<string, unknown>;
+	createdAt: number;
+}
+
 export type SessionEvent =
 	| { type: "message.updated"; sessionId: string; message: OpenCodeMessage }
 	| {
@@ -18,6 +30,17 @@ export type SessionEvent =
 	  }
 	| { type: "message.removed"; sessionId: string; messageId: string }
 	| { type: "todo.updated"; sessionId: string; todos: OpenCodeTodo[] }
+	| {
+			type: "permission.updated";
+			sessionId: string;
+			permission: PermissionData;
+	  }
+	| {
+			type: "permission.replied";
+			sessionId: string;
+			permissionId: string;
+			response: string;
+	  }
 	| { type: "error"; sessionId: string; error: string };
 
 export interface SessionStartPreferences {
@@ -534,6 +557,33 @@ export class OpencodeSessionManager {
 			return { type, sessionId, messageId };
 		}
 
+		if (type === "permission.updated") {
+			const sessionId =
+				this.pickSessionId(properties, data) ?? asString(properties.sessionID);
+			if (!sessionId) return null;
+
+			const permission = this.normalizePermission(properties);
+			if (!permission) return null;
+			return { type, sessionId, permission };
+		}
+
+		if (type === "permission.replied") {
+			const sessionId =
+				this.pickSessionId(properties, data) ?? asString(properties.sessionID);
+			if (!sessionId) return null;
+
+			const permissionId =
+				asString(properties.permissionID) ?? asString(properties.permissionId);
+			const response = asString(properties.response);
+			if (!permissionId || !response) return null;
+			return { type, sessionId, permissionId, response };
+		}
+
+		console.warn(
+			`[session-manager] Unhandled event type: ${type}`,
+			JSON.stringify(data).slice(0, 200),
+		);
+
 		return null;
 	}
 
@@ -829,6 +879,44 @@ export class OpencodeSessionManager {
 		}
 
 		return { id, messageID, ignored, type: "other" };
+	}
+
+	private normalizePermission(
+		raw: Record<string, unknown>,
+	): PermissionData | null {
+		const id = asString(raw.id);
+		if (!id) return null;
+
+		const sessionId = asString(raw.sessionID) ?? asString(raw.sessionId) ?? "";
+		const messageId = asString(raw.messageID) ?? asString(raw.messageId) ?? "";
+
+		const pattern = Array.isArray(raw.pattern)
+			? raw.pattern.every((v) => typeof v === "string")
+				? (raw.pattern as string[])
+				: undefined
+			: typeof raw.pattern === "string"
+				? raw.pattern
+				: undefined;
+
+		const metadata =
+			typeof raw.metadata === "object" && raw.metadata !== null
+				? (raw.metadata as Record<string, unknown>)
+				: {};
+
+		const timeRecord = asRecord(raw.time);
+		const createdAt = asNumber(timeRecord?.created) ?? Date.now();
+
+		return {
+			id,
+			permissionType: asString(raw.type) ?? "unknown",
+			pattern,
+			sessionId,
+			messageId,
+			callId: asString(raw.callID) ?? undefined,
+			title: asString(raw.title) ?? "Permission request",
+			metadata,
+			createdAt,
+		};
 	}
 
 	private normalizeToolState(
