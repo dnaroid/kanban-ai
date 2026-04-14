@@ -435,7 +435,7 @@ const WORKFLOW_SIGNAL_RULES_FALLBACK: readonly WorkflowSignalRuleConfig[] = [
 		runKind: "task-description-improve",
 		runStatus: "paused",
 	}),
-	createSignalRule("rule-question-default", "question", "paused", {
+	createSignalRule("rule-question-default", "question", "question", {
 		runStatus: "paused",
 	}),
 	createSignalRule("rule-timeout-default", "timeout", "failed", {

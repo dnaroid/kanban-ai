@@ -910,6 +910,12 @@ export class RunsQueueManager {
 			},
 		});
 		publishRunUpdate(resumedRun);
+		this.taskProjector.projectRunOutcome(
+			resumedRun,
+			"running",
+			"resume_run",
+			`Permission approved: ${permissionId}`,
+		);
 	}
 
 	private async finalizeRunFromSession(
