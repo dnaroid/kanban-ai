@@ -1128,6 +1128,19 @@ class ApiClient {
 			}
 			return { success: true };
 		},
+		shutdown: async (): Promise<{ success: true }> => {
+			const response = await fetch(`${this.baseUrl}/api/app/shutdown`, {
+				method: "POST",
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to shutdown application",
+				);
+				throw new Error(message);
+			}
+			return { success: true };
+		},
 	};
 
 	constructor(baseUrl: string = "") {

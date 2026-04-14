@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
 	Activity,
 	CalendarRange,
@@ -7,11 +8,14 @@ import {
 	ChevronRight,
 	FolderKanban,
 	Layout,
+	LogOut,
 	Settings,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { LAST_PROJECT_ID_KEY } from "@/components/ClientLayout";
+import { ConfirmationModal } from "@/components/common/ConfirmationModal";
+import { api } from "@/lib/api-client";
 
 interface SidebarProps {
 	isSidebarCollapsed: boolean;
@@ -27,6 +31,8 @@ export function Sidebar({
 }: SidebarProps) {
 	const pathname = usePathname();
 	const router = useRouter();
+	const [isQuitModalOpen, setIsQuitModalOpen] = useState(false);
+	const [isQuitting, setIsQuitting] = useState(false);
 
 	const navItems = [
 		{
@@ -170,26 +176,63 @@ export function Sidebar({
 			<div
 				className={`border-t border-slate-800/50 ${isSidebarCollapsed ? "p-2" : "p-4"}`}
 			>
-				<button
-					type="button"
-					onClick={() => {
-						router.push("/settings");
-					}}
-					className={cn(
-						"w-full flex items-center rounded-xl transition-all duration-200 group",
-						isSidebarCollapsed
-							? "justify-center w-12 h-12"
-							: "gap-3 px-4 py-3 w-full",
-						currentScreenId === "settings"
-							? "bg-blue-600/10 text-blue-400 ring-1 ring-inset ring-blue-500/20"
-							: "text-slate-500 hover:bg-slate-800/50 hover:text-slate-300",
-					)}
-					title="Settings"
-				>
-					<Settings className="w-5 h-5" />
-					{!isSidebarCollapsed && <span className="font-medium">Settings</span>}
-				</button>
+				<div className="flex flex-col gap-1">
+					<button
+						type="button"
+						onClick={() => {
+							router.push("/settings");
+						}}
+						className={cn(
+							"w-full flex items-center rounded-xl transition-all duration-200 group",
+							isSidebarCollapsed
+								? "justify-center w-12 h-12"
+								: "gap-3 px-4 py-3 w-full",
+							currentScreenId === "settings"
+								? "bg-blue-600/10 text-blue-400 ring-1 ring-inset ring-blue-500/20"
+								: "text-slate-500 hover:bg-slate-800/50 hover:text-slate-300",
+						)}
+						title="Settings"
+					>
+						<Settings className="w-5 h-5" />
+						{!isSidebarCollapsed && (
+							<span className="font-medium">Settings</span>
+						)}
+					</button>
+
+					<button
+						type="button"
+						onClick={() => setIsQuitModalOpen(true)}
+						className={cn(
+							"w-full flex items-center rounded-xl transition-all duration-200 group text-slate-500 hover:bg-slate-800/50 hover:text-slate-300",
+							isSidebarCollapsed
+								? "justify-center w-12 h-12"
+								: "gap-3 px-4 py-3 w-full",
+						)}
+						title="Quit"
+					>
+						<LogOut className="w-5 h-5" />
+						{!isSidebarCollapsed && <span className="font-medium">Quit</span>}
+					</button>
+				</div>
 			</div>
+
+			<ConfirmationModal
+				isOpen={isQuitModalOpen}
+				onClose={() => setIsQuitModalOpen(false)}
+				onConfirm={async () => {
+					setIsQuitting(true);
+					try {
+						await api.app.shutdown();
+					} catch {
+						setIsQuitting(false);
+					}
+				}}
+				title="Quit application"
+				description="Are you sure you want to quit? OpenCode and the application will be stopped."
+				confirmLabel="Quit"
+				variant="warning"
+				isLoading={isQuitting}
+			/>
 		</aside>
 	);
 }
