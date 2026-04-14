@@ -77,7 +77,7 @@ export function SortableColumn({
 		: isOver
 			? "w-[344px]"
 			: isDraggingAnyTask
-				? "w-[152px] hover:w-[344px]"
+				? "w-[152px]"
 				: "w-[80px] hover:w-[344px]";
 
 	return (

@@ -49,6 +49,7 @@ interface QueuedRunInput {
 interface QueueMeta {
 	projectScope: string;
 	providerKey: string;
+	isGeneration: boolean;
 }
 
 interface AssistantRunSignal {
@@ -257,6 +258,10 @@ export class RunsQueueManager {
 		process.env.RUNS_DEFAULT_CONCURRENCY,
 		1,
 	);
+	private readonly generationDefaultConcurrency = parsePositiveInt(
+		process.env.GENERATION_DEFAULT_CONCURRENCY,
+		5,
+	);
 	private readonly providerConcurrency = parseProviderConcurrencyConfig(
 		process.env.RUNS_PROVIDER_CONCURRENCY,
 	);
@@ -351,18 +356,29 @@ export class RunsQueueManager {
 
 		const providerKey = this.resolveProviderKey(runId);
 		const projectScope = input.projectId ?? input.projectPath;
-		const queueKey = this.buildQueueKey(projectScope, providerKey);
+		const currentRun = runRepo.getById(runId);
+		const isGeneration = currentRun ? this.isGenerationRun(currentRun) : false;
+		const queueKey = this.buildQueueKey(
+			projectScope,
+			providerKey,
+			isGeneration,
+		);
 		const queue = this.ensureQueue(queueKey);
 
 		this.runInputs.set(runId, input);
 		this.queueKeyByRunId.set(runId, queueKey);
-		this.queueMetaByQueueKey.set(queueKey, { projectScope, providerKey });
+		this.queueMetaByQueueKey.set(queueKey, {
+			projectScope,
+			providerKey,
+			isGeneration,
+		});
 		queue.push(runId);
 		log.info("Run enqueued", {
 			runId,
 			projectScope,
 			providerKey,
 			projectPath: input.projectPath,
+			isGeneration,
 		});
 		this.scheduleDrain();
 	}
@@ -444,7 +460,10 @@ export class RunsQueueManager {
 			const running = this.running.get(queueKey);
 			const queuedCount = queue.length;
 			const runningCount = running?.size ?? 0;
-			const concurrency = this.resolveProviderConcurrency(meta.providerKey);
+			const concurrency = this.resolveProviderConcurrency(
+				meta.providerKey,
+				meta.isGeneration,
+			);
 
 			const providerStats = providerStatsByProviderKey.get(
 				meta.providerKey,
@@ -553,7 +572,10 @@ export class RunsQueueManager {
 				}
 
 				const running = this.ensureRunning(queueKey);
-				const concurrency = this.resolveProviderConcurrency(meta.providerKey);
+				const concurrency = this.resolveProviderConcurrency(
+					meta.providerKey,
+					meta.isGeneration,
+				);
 
 				while (running.size < concurrency) {
 					const runId = this.selectNextRunnableRun(queue);
@@ -1717,8 +1739,13 @@ export class RunsQueueManager {
 		this.runInputs.delete(runId);
 	}
 
-	private buildQueueKey(projectScope: string, providerKey: string): string {
-		return `${projectScope}\0${providerKey}`;
+	private buildQueueKey(
+		projectScope: string,
+		providerKey: string,
+		isGeneration: boolean,
+	): string {
+		const suffix = isGeneration ? ":gen" : "";
+		return `${projectScope}\0${providerKey}${suffix}`;
 	}
 
 	private resolveProviderKey(runId: string): string {
@@ -1770,7 +1797,14 @@ export class RunsQueueManager {
 		}
 	}
 
-	private resolveProviderConcurrency(providerKey: string): number {
+	private resolveProviderConcurrency(
+		providerKey: string,
+		isGeneration: boolean = false,
+	): number {
+		if (isGeneration) {
+			return this.generationDefaultConcurrency;
+		}
+
 		const configured = this.providerConcurrency.get(providerKey);
 		if (configured && configured > 0) {
 			return configured;
