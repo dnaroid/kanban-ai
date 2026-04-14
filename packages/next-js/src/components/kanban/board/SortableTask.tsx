@@ -177,7 +177,6 @@ export function SortableTask({
 					{onUpdate ? (
 						<div onPointerDown={(e) => e.stopPropagation()}>
 							<PillSelect
-								label="Priority"
 								value={task.priority}
 								options={priorityConfig}
 								onChange={(priority) =>

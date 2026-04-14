@@ -20,7 +20,7 @@ interface PillSelectOption {
 }
 
 interface PillSelectProps {
-	label: string;
+	label?: string;
 	value: string;
 	options: Record<string, PillSelectOption>;
 	onChange: (value: string) => void;
@@ -97,9 +97,11 @@ export function PillSelect({
 
 	return (
 		<div className={cn("flex flex-col gap-1.5", className)}>
-			<span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-				{label}
-			</span>
+			{label && (
+				<span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+					{label}
+				</span>
+			)}
 			<div className="relative">
 				<button
 					ref={triggerRef}

@@ -432,7 +432,6 @@ export function ListItemView({
 					className="flex-shrink-0"
 				>
 					<PillSelect
-						label="Priority"
 						value={task.priority}
 						options={priorityConfig}
 						onChange={(priority) =>
