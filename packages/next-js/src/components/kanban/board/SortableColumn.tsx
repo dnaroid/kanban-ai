@@ -77,6 +77,7 @@ export function SortableColumn({
 		<div
 			ref={setNodeRef}
 			style={style}
+			title={isMinimized ? name : undefined}
 			className={cn(
 				"flex-shrink-0 h-full px-3 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
 				columnWidthClass,

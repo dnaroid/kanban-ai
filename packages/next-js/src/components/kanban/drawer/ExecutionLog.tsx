@@ -134,6 +134,61 @@ const getEventMessageId = (event: unknown): string | undefined => {
 	return undefined;
 };
 
+const parseModelIdentifier = (
+	modelID: string | undefined,
+): { provider?: string; model?: string } => {
+	if (!modelID) {
+		return {};
+	}
+
+	const normalized = modelID.trim();
+	if (normalized.length === 0) {
+		return {};
+	}
+
+	const segments = normalized
+		.split("/")
+		.filter((segment) => segment.length > 0);
+	if (segments.length === 0) {
+		return {};
+	}
+
+	if (segments.length === 1) {
+		return { model: segments[0] };
+	}
+
+	return {
+		provider: segments[0],
+		model: segments.slice(1).join("/"),
+	};
+};
+
+const formatAssistantLabel = ({
+	modelID,
+	parts,
+	showFallback,
+}: {
+	modelID: string | undefined;
+	parts: Part[];
+	showFallback: boolean;
+}): string => {
+	if (showFallback) {
+		return "Assistant";
+	}
+
+	const { provider, model } = parseModelIdentifier(modelID);
+	if (!provider && !model) {
+		return "Assistant";
+	}
+
+	const hasReasoning = parts.some((part) => part.type === "reasoning");
+	const baseLabel = provider
+		? `${provider.toUpperCase()} / ${(model ?? "").toUpperCase()}`
+		: (model ?? "").toUpperCase();
+
+	return hasReasoning ? `${baseLabel} 🧠` : baseLabel;
+};
+
 export function ExecutionLog({
 	runId,
 	sessionId,
@@ -743,6 +798,7 @@ export function ExecutionLog({
 									role: msg.role,
 									content: msg.content,
 									parts: msg.parts,
+									modelID: msg.modelID,
 								},
 							};
 
@@ -893,6 +949,13 @@ export function ExecutionLog({
 			const renderableParts = parts.filter(isRenderablePart);
 
 			const isUser = role === "user";
+			const assistantLabel = isUser
+				? "User"
+				: formatAssistantLabel({
+						modelID,
+						parts,
+						showFallback: renderableParts.length === 0,
+					});
 
 			// Extract messageId from event.id (format: "msg-<messageId>")
 			const messageId = event.id.replace(/^msg-/, "");
@@ -936,7 +999,7 @@ export function ExecutionLog({
 									isUser ? "text-indigo-400/80" : "text-blue-500/80",
 								)}
 							>
-								{isUser ? "User" : modelID || "Assistant"}
+								{assistantLabel}
 							</span>
 							<span className="text-[10px] font-mono text-slate-600/60 select-none">
 								{time}
