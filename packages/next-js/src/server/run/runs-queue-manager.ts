@@ -1127,10 +1127,6 @@ export class RunsQueueManager {
 	public async startNextReadyTaskAfterMerge(
 		mergedTaskId: string,
 	): Promise<void> {
-		if (process.env.RUNS_AUTO_START_NEXT_AFTER_MERGE !== "1") {
-			return;
-		}
-
 		try {
 			const mergedTask = taskRepo.getById(mergedTaskId);
 			if (!mergedTask) {
