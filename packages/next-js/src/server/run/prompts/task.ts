@@ -1,5 +1,11 @@
 import { buildOpencodeStatusLine } from "@/lib/opencode-status";
 
+/**
+ * When true, role skills are included in generated task prompts.
+ * Default: false — skills are not injected into prompts.
+ */
+export const ENABLE_SKILLS_IN_PROMPTS = false;
+
 interface TaskPromptInput {
 	title: string;
 	description: string | null;
@@ -28,9 +34,11 @@ export function buildTaskPrompt(
 	role?: TaskPromptRole,
 ): string {
 	const rolePrompt = role?.systemPrompt?.trim();
-	const roleSkills = (role?.skills ?? [])
-		.map((skill) => skill.trim())
-		.filter((skill) => skill.length > 0);
+	const roleSkills = ENABLE_SKILLS_IN_PROMPTS
+		? (role?.skills ?? [])
+				.map((skill) => skill.trim())
+				.filter((skill) => skill.length > 0)
+		: [];
 
 	const normalizedTitle = normalizeText(task.title);
 	const normalizedDescription = normalizeText(task.description);

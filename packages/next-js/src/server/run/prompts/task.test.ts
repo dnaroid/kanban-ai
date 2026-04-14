@@ -83,7 +83,7 @@ describe("buildTaskPrompt", () => {
 			expect(prompt).toContain("Ты инженер.");
 		});
 
-		it("includes skills when provided", () => {
+		it("omits skills when provided but ENABLE_SKILLS_IN_PROMPTS is false (default)", () => {
 			const prompt = buildTaskPrompt(
 				{ title: "задача", description: "описание" },
 				mockProject,
@@ -94,9 +94,7 @@ describe("buildTaskPrompt", () => {
 				},
 			);
 
-			expect(prompt).toContain(
-				"Можешь использовать скиллы: architect-reviewer, code-reviewer",
-			);
+			expect(prompt).not.toContain("Можешь использовать скиллы:");
 		});
 
 		it("omits skills line when skills array is empty", () => {

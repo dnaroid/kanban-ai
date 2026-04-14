@@ -1,4 +1,5 @@
 import { buildOpencodeStatusLine } from "@/lib/opencode-status";
+import { ENABLE_SKILLS_IN_PROMPTS } from "./task";
 
 interface UserStoryPromptTask {
 	title: string;
@@ -53,9 +54,11 @@ export function buildUserStoryPrompt(
 			? availableRoles.map((role) => `${role.id} (${role.name})`).join(", ")
 			: "(нет доступных ролей)";
 	const rolePrompt = options.role?.systemPrompt?.trim() ?? "";
-	const roleSkills = (options.role?.skills ?? [])
-		.map((skill) => skill.trim())
-		.filter((skill) => skill.length > 0);
+	const roleSkills = ENABLE_SKILLS_IN_PROMPTS
+		? (options.role?.skills ?? [])
+				.map((skill) => skill.trim())
+				.filter((skill) => skill.length > 0)
+		: [];
 	const rolePromptLine = rolePrompt.length > 0 ? rolePrompt : "(не задан)";
 	const roleSkillsLine =
 		roleSkills.length > 0 ? roleSkills.join(", ") : "(не заданы)";
