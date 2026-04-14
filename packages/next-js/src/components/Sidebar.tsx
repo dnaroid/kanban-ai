@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { LAST_PROJECT_ID_KEY } from "@/components/ClientLayout";
 import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 import { api } from "@/lib/api-client";
+import type { QueueStatsResponse } from "@/types/ipc";
 
 interface SidebarProps {
 	isSidebarCollapsed: boolean;
@@ -33,6 +34,23 @@ export function Sidebar({
 	const router = useRouter();
 	const [isQuitModalOpen, setIsQuitModalOpen] = useState(false);
 	const [isQuitting, setIsQuitting] = useState(false);
+	const [isActiveRunsModalOpen, setIsActiveRunsModalOpen] = useState(false);
+	const [activeQueueStats, setActiveQueueStats] =
+		useState<QueueStatsResponse | null>(null);
+
+	const handleQuitClick = async () => {
+		try {
+			const stats = await api.run.queueStats();
+			if (stats.totalRunning > 0 || stats.totalQueued > 0) {
+				setActiveQueueStats(stats);
+				setIsActiveRunsModalOpen(true);
+				return;
+			}
+		} catch {
+			// Fail-open: if stats check fails, show standard quit modal
+		}
+		setIsQuitModalOpen(true);
+	};
 
 	const navItems = [
 		{
@@ -201,7 +219,7 @@ export function Sidebar({
 
 					<button
 						type="button"
-						onClick={() => setIsQuitModalOpen(true)}
+						onClick={handleQuitClick}
 						className={cn(
 							"w-full flex items-center rounded-xl transition-all duration-200 group text-slate-500 hover:bg-slate-800/50 hover:text-slate-300",
 							isSidebarCollapsed
@@ -233,6 +251,52 @@ export function Sidebar({
 				variant="warning"
 				isLoading={isQuitting}
 			/>
+
+			<ConfirmationModal
+				isOpen={isActiveRunsModalOpen}
+				onClose={() => {
+					setIsActiveRunsModalOpen(false);
+					setActiveQueueStats(null);
+				}}
+				onConfirm={async () => {
+					setIsQuitting(true);
+					try {
+						await api.app.shutdown({ force: true });
+					} catch {
+						setIsQuitting(false);
+					}
+				}}
+				title="Active runs in progress"
+				description="There are active tasks running or queued. Quitting will interrupt them."
+				confirmLabel="Quit anyway"
+				variant="danger"
+				isLoading={isQuitting}
+			>
+				{activeQueueStats && (
+					<div className="mt-3 flex gap-3">
+						{activeQueueStats.totalRunning > 0 && (
+							<div className="flex-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-center">
+								<div className="text-lg font-bold text-emerald-400 font-mono">
+									{activeQueueStats.totalRunning}
+								</div>
+								<div className="text-[10px] text-emerald-400/70 uppercase tracking-wider font-semibold">
+									Running
+								</div>
+							</div>
+						)}
+						{activeQueueStats.totalQueued > 0 && (
+							<div className="flex-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-center">
+								<div className="text-lg font-bold text-amber-400 font-mono">
+									{activeQueueStats.totalQueued}
+								</div>
+								<div className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold">
+									Queued
+								</div>
+							</div>
+						)}
+					</div>
+				)}
+			</ConfirmationModal>
 		</aside>
 	);
 }

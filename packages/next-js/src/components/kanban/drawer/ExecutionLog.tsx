@@ -737,13 +737,29 @@ export function ExecutionLog({
 		const fetchSessionMessages = async () => {
 			if (!effectiveSessionId || !isActive) return;
 			try {
-				const response = await api.opencode.getSessionMessages({
-					sessionId: effectiveSessionId,
-					limit: 200,
-				});
+				const [messagesResponse, pendingPerms] = await Promise.all([
+					api.opencode.getSessionMessages({
+						sessionId: effectiveSessionId,
+						limit: 200,
+					}),
+					api.opencode.getPendingPermissions({
+						sessionId: effectiveSessionId,
+					}),
+				]);
 				if (!isActive) return;
-				if (response.messages.length > 0) {
-					const latestStatusMessage = [...response.messages]
+
+				if (pendingPerms.length > 0) {
+					setPendingPermissions((prev) => {
+						const next = new Map(prev);
+						for (const perm of pendingPerms) {
+							next.set(perm.id, perm);
+						}
+						return next;
+					});
+				}
+
+				if (messagesResponse.messages.length > 0) {
+					const latestStatusMessage = [...messagesResponse.messages]
 						.reverse()
 						.find((msg: OpenCodeMessage) => {
 							if (msg.role !== "assistant") return false;
@@ -763,7 +779,7 @@ export function ExecutionLog({
 
 					if (!hiddenUserMessageIdRef.current) {
 						let firstUserMessage: OpenCodeMessage | null = null;
-						for (const message of response.messages) {
+						for (const message of messagesResponse.messages) {
 							if (message.role !== "user") continue;
 							if (
 								!firstUserMessage ||
@@ -784,7 +800,7 @@ export function ExecutionLog({
 							indexById.set(event.id, index);
 						});
 
-						response.messages.forEach((msg: OpenCodeMessage) => {
+						messagesResponse.messages.forEach((msg: OpenCodeMessage) => {
 							if (hiddenUserMessageIdRef.current === msg.id) {
 								return;
 							}
@@ -858,12 +874,28 @@ export function ExecutionLog({
 		}
 	}, [events, autoScroll]);
 
+	const handlePermissionReply = async (
+		permissionId: string,
+		response: "once" | "always" | "reject",
+	) => {
+		if (!runId) return;
+		try {
+			await api.run.replyPermission({ runId, permissionId, response });
+		} catch (error) {
+			console.error("Failed to reply to permission:", error);
+		}
+	};
+
 	const renderPermissions = () => {
 		if (pendingPermissions.size === 0) return null;
 		const elements: React.ReactNode[] = [];
 		for (const [permId, perm] of pendingPermissions) {
 			elements.push(
-				<ConfirmationPart key={`perm-${permId}`} permission={perm} />,
+				<ConfirmationPart
+					key={`perm-${permId}`}
+					permission={perm}
+					onDecide={handlePermissionReply}
+				/>,
 			);
 		}
 		return elements;
@@ -1139,8 +1171,8 @@ export function ExecutionLog({
 						</div>
 					) : (
 						<div className="space-y-0.5">
-							{renderPermissions()}
 							{events.map(renderEvent)}
+							{renderPermissions()}
 						</div>
 					)}
 				</div>

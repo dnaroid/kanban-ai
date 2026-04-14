@@ -257,6 +257,52 @@ export class OpencodeSessionManager {
 		return typeof data === "boolean" ? data : true;
 	}
 
+	public async listPendingPermissions(
+		sessionId: string,
+	): Promise<PermissionData[]> {
+		try {
+			const client = await this.getSessionClient(sessionId);
+			const directory = await this.resolveSessionDirectory(sessionId);
+
+			const result = await client.permission.list({
+				directory: directory ?? undefined,
+			});
+			const data = getData<unknown>(result);
+			if (!Array.isArray(data)) {
+				return [];
+			}
+
+			return data
+				.filter(
+					(req: unknown) =>
+						req &&
+						typeof req === "object" &&
+						(req as Record<string, unknown>).sessionID === sessionId,
+				)
+				.map((req: Record<string, unknown>) => ({
+					id: asString(req.id) ?? "",
+					permissionType: asString(req.permission) ?? "",
+					pattern: Array.isArray(req.patterns)
+						? (req.patterns as string[])
+						: undefined,
+					sessionId: asString(req.sessionID) ?? sessionId,
+					messageId:
+						asString(
+							(req.tool as Record<string, unknown> | undefined)?.messageID,
+						) ?? "",
+					callId:
+						asString(
+							(req.tool as Record<string, unknown> | undefined)?.callID,
+						) ?? undefined,
+					title: asString(req.permission) ?? "Permission request",
+					metadata: (req.metadata ?? {}) as Record<string, unknown>,
+					createdAt: Date.now(),
+				}));
+		} catch {
+			return [];
+		}
+	}
+
 	public async subscribe(
 		sessionId: string,
 		subscriberId: string,
@@ -597,10 +643,10 @@ export class OpencodeSessionManager {
 			return { type, sessionId, permissionId, response };
 		}
 
-		console.warn(
-			`[session-manager] Unhandled event type: ${type}`,
-			JSON.stringify(data).slice(0, 200),
-		);
+		// console.warn(
+		// 	`[session-manager] Unhandled event type: ${type}`,
+		// 	JSON.stringify(data).slice(0, 200),
+		// );
 
 		return null;
 	}

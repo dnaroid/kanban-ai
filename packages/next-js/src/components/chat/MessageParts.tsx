@@ -324,9 +324,22 @@ export function ToolPart({
 
 export function ConfirmationPart({
 	permission,
+	onDecide,
 }: {
 	permission: PermissionData;
+	onDecide?: (
+		permissionId: string,
+		response: "once" | "always" | "reject",
+	) => void;
 }) {
+	const [responding, setResponding] = useState(false);
+
+	const handleDecide = (response: "once" | "always" | "reject") => {
+		if (responding || !onDecide) return;
+		setResponding(true);
+		onDecide(permission.id, response);
+	};
+
 	return (
 		<div className="flex items-center gap-3 px-4 py-2 my-1 bg-amber-500/[0.06] border border-amber-500/20 rounded-xl">
 			<div className="flex items-center justify-center w-7 h-7 rounded-lg bg-amber-500/10 shrink-0">
@@ -347,12 +360,57 @@ export function ConfirmationPart({
 						: ""}
 				</p>
 			</div>
-			<div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 shrink-0">
-				<Circle className="w-2.5 h-2.5 text-amber-400 animate-pulse" />
-				<span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">
-					Awaiting
-				</span>
-			</div>
+			{onDecide ? (
+				<div className="flex items-center gap-1.5 shrink-0">
+					<button
+						type="button"
+						onClick={() => handleDecide("reject")}
+						disabled={responding}
+						className={cn(
+							"flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all",
+							responding
+								? "bg-slate-800 text-slate-600 cursor-not-allowed"
+								: "bg-transparent border border-slate-600/40 text-slate-400 hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-300 cursor-pointer",
+						)}
+					>
+						Deny
+					</button>
+					<button
+						type="button"
+						onClick={() => handleDecide("always")}
+						disabled={responding}
+						className={cn(
+							"flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all",
+							responding
+								? "bg-slate-800 text-slate-600 cursor-not-allowed"
+								: "bg-blue-500/20 border border-blue-500/30 text-blue-300 hover:bg-blue-500/30 hover:border-blue-500/50 cursor-pointer",
+						)}
+					>
+						Always allow
+					</button>
+					<button
+						type="button"
+						onClick={() => handleDecide("once")}
+						disabled={responding}
+						className={cn(
+							"flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all",
+							responding
+								? "bg-slate-800 text-slate-600 cursor-not-allowed"
+								: "bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/30 hover:border-emerald-500/50 cursor-pointer",
+						)}
+					>
+						<CheckCircle2 className="w-3 h-3" />
+						Allow
+					</button>
+				</div>
+			) : (
+				<div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 shrink-0">
+					<Circle className="w-2.5 h-2.5 text-amber-400 animate-pulse" />
+					<span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">
+						Awaiting
+					</span>
+				</div>
+			)}
 		</div>
 	);
 }

@@ -14,6 +14,7 @@ import {
 	ChevronUp,
 	Plus,
 	Play,
+	Upload,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { SortableColumn } from "./kanban/board/SortableColumn";
@@ -25,6 +26,7 @@ import { useBoardModel } from "@/features/board/model/use-board-model";
 import { cn } from "@/lib/utils";
 import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 import { useToast } from "@/components/common/toast/ToastContext";
+import { api } from "@/lib/api-client";
 
 interface BoardScreenProps {
 	projectId: string;
@@ -92,6 +94,7 @@ export function BoardScreen({
 	const prevTaskCountsRef = useRef<Record<string, number>>({});
 
 	const [isQuickCreateModalOpen, setIsQuickCreateModalOpen] = useState(false);
+	const [isPushing, setIsPushing] = useState(false);
 
 	useEffect(() => {
 		localStorage.setItem("boardViewMode", viewMode);
@@ -280,6 +283,38 @@ export function BoardScreen({
 					>
 						<Play className="w-4 h-4" />
 						{isQueueingSignalRuns ? "Queueing..." : "Execute Queue"}
+					</button>
+					<button
+						type="button"
+						onClick={() => {
+							setIsPushing(true);
+							api.git
+								.push({ projectId })
+								.then(() => {
+									addToast("Pushed successfully", "success");
+								})
+								.catch((pushError) => {
+									const message =
+										pushError instanceof Error
+											? pushError.message
+											: "Failed to push";
+									addToast(message, "error");
+								})
+								.finally(() => {
+									setIsPushing(false);
+								});
+						}}
+						disabled={isPushing}
+						className={cn(
+							"flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all",
+							isPushing
+								? "bg-slate-800 text-slate-500 cursor-not-allowed"
+								: "bg-slate-700 text-slate-200 hover:bg-slate-600",
+						)}
+						title="Push current branch to origin"
+					>
+						<Upload className="w-4 h-4" />
+						{isPushing ? "Pushing..." : "Push"}
 					</button>
 				</div>
 			</div>

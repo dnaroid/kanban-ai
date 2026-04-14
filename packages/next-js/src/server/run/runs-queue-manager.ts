@@ -8,6 +8,7 @@ import type {
 } from "@/server/opencode/session-manager";
 import { getOpencodeService } from "@/server/opencode/opencode-service";
 import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
+import { ensureSessionLive } from "@/server/opencode/session-store";
 import { contextSnapshotRepo } from "@/server/repositories/context-snapshot";
 import { projectRepo } from "@/server/repositories/project";
 import type { AgentRolePreset } from "@/server/repositories/role";
@@ -654,6 +655,8 @@ export class RunsQueueManager {
 				runInput.projectPath,
 			);
 			log.info("OpenCode session created", { runId, sessionId });
+
+			await ensureSessionLive(sessionId);
 
 			runningRun = runRepo.update(runId, { sessionId });
 			runEventRepo.create({

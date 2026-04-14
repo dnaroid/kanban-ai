@@ -1,7 +1,7 @@
-import React from 'react';
-import { Modal } from './Modal';
-import { AlertCircle, Trash2, HelpCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import React from "react";
+import { Modal } from "./Modal";
+import { AlertCircle, Trash2, HelpCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 /**
  * Common Confirmation Modal for safe delete or important actions
@@ -15,8 +15,9 @@ interface ConfirmationModalProps {
 	description: string;
 	confirmLabel?: string;
 	cancelLabel?: string;
-	variant?: 'danger' | 'warning' | 'info';
+	variant?: "danger" | "warning" | "info";
 	isLoading?: boolean;
+	children?: React.ReactNode;
 }
 
 export const ConfirmationModal = ({
@@ -25,33 +26,34 @@ export const ConfirmationModal = ({
 	onConfirm,
 	title,
 	description,
-	confirmLabel = 'Confirm',
-	cancelLabel = 'Cancel',
-	variant = 'danger',
+	confirmLabel = "Confirm",
+	cancelLabel = "Cancel",
+	variant = "danger",
 	isLoading = false,
+	children,
 }: ConfirmationModalProps) => {
 	const getVariantStyles = () => {
 		switch (variant) {
-			case 'danger':
+			case "danger":
 				return {
 					icon: Trash2,
-					iconBg: 'bg-red-500/10',
-					iconText: 'text-red-400',
-					confirmBtn: 'bg-red-600 hover:bg-red-500 shadow-red-600/20',
+					iconBg: "bg-red-500/10",
+					iconText: "text-red-400",
+					confirmBtn: "bg-red-600 hover:bg-red-500 shadow-red-600/20",
 				};
-			case 'warning':
+			case "warning":
 				return {
 					icon: AlertCircle,
-					iconBg: 'bg-amber-500/10',
-					iconText: 'text-amber-400',
-					confirmBtn: 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/20',
+					iconBg: "bg-amber-500/10",
+					iconText: "text-amber-400",
+					confirmBtn: "bg-amber-600 hover:bg-amber-500 shadow-amber-600/20",
 				};
 			default:
 				return {
 					icon: HelpCircle,
-					iconBg: 'bg-blue-500/10',
-					iconText: 'text-blue-400',
-					confirmBtn: 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/20',
+					iconBg: "bg-blue-500/10",
+					iconText: "text-blue-400",
+					confirmBtn: "bg-blue-600 hover:bg-blue-500 shadow-blue-600/20",
 				};
 		}
 	};
@@ -67,10 +69,17 @@ export const ConfirmationModal = ({
 			className="max-w-md"
 			title={
 				<div className="flex items-center gap-3">
-					<div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", styles.iconBg)}>
+					<div
+						className={cn(
+							"w-10 h-10 rounded-xl flex items-center justify-center",
+							styles.iconBg,
+						)}
+					>
 						<Icon className={cn("w-5 h-5", styles.iconText)} />
 					</div>
-					<h3 className="text-lg font-bold text-white tracking-tight">{title}</h3>
+					<h3 className="text-lg font-bold text-white tracking-tight">
+						{title}
+					</h3>
 				</div>
 			}
 			footer={
@@ -93,10 +102,10 @@ export const ConfirmationModal = ({
 						className={cn(
 							"flex-1 px-4 py-2.5 text-xs font-bold uppercase tracking-wide rounded-lg shadow-lg transition-all text-white",
 							styles.confirmBtn,
-							"active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+							"active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed",
 						)}
 					>
-						{isLoading ? 'Processing...' : confirmLabel}
+						{isLoading ? "Processing..." : confirmLabel}
 					</button>
 				</div>
 			}
@@ -104,6 +113,7 @@ export const ConfirmationModal = ({
 			<p className="text-sm text-slate-400 leading-relaxed px-1">
 				{description}
 			</p>
+			{children}
 		</Modal>
 	);
 };

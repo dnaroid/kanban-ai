@@ -18,6 +18,7 @@ import type {
 	OpenCodeMessage,
 	OpenCodeTodo,
 	OpencodeAgent,
+	PermissionData,
 	Run,
 	QueueStatsResponse,
 } from "@/types/ipc";
@@ -255,6 +256,28 @@ class ApiClient {
 				taskIds: string[];
 				runIds: string[];
 			}>(payload);
+		},
+		replyPermission: async ({
+			runId,
+			permissionId,
+			response,
+		}: {
+			runId: string;
+			permissionId: string;
+			response: "once" | "always" | "reject";
+		}): Promise<void> => {
+			const res = await fetch(`${this.baseUrl}/api/run/permission/reply`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ runId, permissionId, response }),
+			});
+			if (!res.ok) {
+				const message = await this.getErrorMessage(
+					res,
+					"Failed to reply to permission",
+				);
+				throw new Error(message);
+			}
 		},
 	};
 
@@ -760,10 +783,18 @@ class ApiClient {
 				hashMismatch: boolean;
 			}>(payload);
 		},
-		restartServe: async (): Promise<{ restarted: boolean }> => {
-			const response = await fetch(`${this.baseUrl}/api/opencode/restart`, {
-				method: "POST",
-			});
+		restartServe: async (options?: {
+			force?: boolean;
+		}): Promise<{ restarted: boolean }> => {
+			const params = new URLSearchParams();
+			if (options?.force) params.set("force", "true");
+			const qs = params.toString() ? `?${params.toString()}` : "";
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/restart${qs}`,
+				{
+					method: "POST",
+				},
+			);
 			if (!response.ok) {
 				const message = await this.getErrorMessage(
 					response,
@@ -843,6 +874,21 @@ class ApiClient {
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ messages: OpenCodeMessage[] }>(payload);
 			return { messages: data.messages ?? [] };
+		},
+		getPendingPermissions: async ({
+			sessionId,
+		}: {
+			sessionId: string;
+		}): Promise<PermissionData[]> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/sessions/${sessionId}/permissions`,
+			);
+			if (!response.ok) {
+				return [];
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<PermissionData[]>(payload);
+			return Array.isArray(data) ? data : [];
 		},
 	};
 
@@ -1024,6 +1070,26 @@ class ApiClient {
 		},
 	};
 
+	readonly git = {
+		push: async ({
+			projectId,
+		}: {
+			projectId: string;
+		}): Promise<{ success: boolean; output?: string }> => {
+			const response = await fetch(`${this.baseUrl}/api/git/push`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ projectId }),
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(response, "Failed to push");
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ success: boolean; output?: string }>(payload);
+		},
+	};
+
 	readonly database = {
 		delete: async (_: Record<string, never>): Promise<{ ok: boolean }> => {
 			const response = await fetch(`${this.baseUrl}/api/database/delete`, {
@@ -1128,8 +1194,13 @@ class ApiClient {
 			}
 			return { success: true };
 		},
-		shutdown: async (): Promise<{ success: true }> => {
-			const response = await fetch(`${this.baseUrl}/api/app/shutdown`, {
+		shutdown: async (options?: {
+			force?: boolean;
+		}): Promise<{ success: true }> => {
+			const params = new URLSearchParams();
+			if (options?.force) params.set("force", "true");
+			const qs = params.toString() ? `?${params.toString()}` : "";
+			const response = await fetch(`${this.baseUrl}/api/app/shutdown${qs}`, {
 				method: "POST",
 			});
 			if (!response.ok) {

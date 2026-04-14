@@ -17,6 +17,7 @@ import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import type { QueueStatsResponse } from "@/types/ipc";
+import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 
 const getUtilizationColor = (percent: number) => {
 	if (percent >= 90) return "bg-red-500";
@@ -45,6 +46,9 @@ export default function DiagnosticsPage() {
 	const [error, setError] = useState<string | null>(null);
 	const [isPolling, setIsPolling] = useState(false);
 	const [isRestarting, setIsRestarting] = useState(false);
+	const [isRestartWarningOpen, setIsRestartWarningOpen] = useState(false);
+	const [restartQueueStats, setRestartQueueStats] =
+		useState<QueueStatsResponse | null>(null);
 
 	const loadStats = useCallback(
 		async (silent = false) => {
@@ -79,9 +83,23 @@ export default function DiagnosticsPage() {
 	}, [loadStats]);
 
 	const handleRestart = async () => {
+		try {
+			const stats = await api.run.queueStats();
+			if (stats.totalRunning > 0 || stats.totalQueued > 0) {
+				setRestartQueueStats(stats);
+				setIsRestartWarningOpen(true);
+				return;
+			}
+		} catch {
+			// Fail-open: if stats check fails, proceed with restart
+		}
+		await performRestart();
+	};
+
+	const performRestart = async (force = false) => {
 		setIsRestarting(true);
 		try {
-			await api.opencode.restartServe();
+			await api.opencode.restartServe({ force });
 			await loadStats();
 		} catch (err) {
 			console.error("Failed to restart opencode serve:", err);
@@ -365,6 +383,48 @@ export default function DiagnosticsPage() {
 					</div>
 				</div>
 			</div>
+
+			<ConfirmationModal
+				isOpen={isRestartWarningOpen}
+				onClose={() => {
+					setIsRestartWarningOpen(false);
+					setRestartQueueStats(null);
+				}}
+				onConfirm={async () => {
+					setIsRestartWarningOpen(false);
+					await performRestart(true);
+				}}
+				title="Active runs in progress"
+				description="There are active tasks running or queued. Restarting OpenCode will interrupt them."
+				confirmLabel="Restart anyway"
+				variant="danger"
+				isLoading={isRestarting}
+			>
+				{restartQueueStats && (
+					<div className="mt-3 flex gap-3">
+						{restartQueueStats.totalRunning > 0 && (
+							<div className="flex-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-center">
+								<div className="text-lg font-bold text-emerald-400 font-mono">
+									{restartQueueStats.totalRunning}
+								</div>
+								<div className="text-[10px] text-emerald-400/70 uppercase tracking-wider font-semibold">
+									Running
+								</div>
+							</div>
+						)}
+						{restartQueueStats.totalQueued > 0 && (
+							<div className="flex-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-center">
+								<div className="text-lg font-bold text-amber-400 font-mono">
+									{restartQueueStats.totalQueued}
+								</div>
+								<div className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold">
+									Queued
+								</div>
+							</div>
+						)}
+					</div>
+				)}
+			</ConfirmationModal>
 		</div>
 	);
 }

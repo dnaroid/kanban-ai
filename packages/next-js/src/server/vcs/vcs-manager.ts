@@ -333,6 +333,16 @@ export class VcsManager {
 		return { commitHash };
 	}
 
+	public async push(
+		projectPath: string,
+	): Promise<{ success: boolean; output: string }> {
+		const repoRoot = await this.resolveRepoRoot(projectPath);
+		const branch = await this.resolveCurrentBranch(repoRoot);
+		const output = await this.git(repoRoot, ["push", "origin", branch]);
+		log.info("Pushed to remote", { projectPath, branch });
+		return { success: true, output };
+	}
+
 	private async resolveRepoRoot(projectPath: string): Promise<string> {
 		return this.git(projectPath, ["rev-parse", "--show-toplevel"]);
 	}

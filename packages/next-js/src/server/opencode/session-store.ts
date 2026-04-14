@@ -1,4 +1,8 @@
-import type { OpenCodeMessage, OpenCodeTodo } from "@/types/ipc";
+import type {
+	OpenCodeMessage,
+	OpenCodeTodo,
+	PermissionData,
+} from "@/types/ipc";
 import { bootstrapOpencodeService } from "@/server/opencode/opencode-bootstrap";
 import {
 	getOpencodeSessionManager,
@@ -49,7 +53,7 @@ async function ensureSseBridge(sessionId: string): Promise<void> {
 	sseBridgedSessions.add(sessionId);
 }
 
-async function ensureSessionLive(sessionId: string): Promise<void> {
+export async function ensureSessionLive(sessionId: string): Promise<void> {
 	await ensureServiceStarted();
 	await sessionTracker.ensureTracking(sessionId);
 	await ensureSseBridge(sessionId);
@@ -92,4 +96,11 @@ export async function unsubscribeSessionEvents(
 	subscriberId: string,
 ): Promise<void> {
 	await sessionTracker.unsubscribe(sessionId, subscriberId);
+}
+
+export async function listPendingPermissions(
+	sessionId: string,
+): Promise<PermissionData[]> {
+	await ensureSessionLive(sessionId);
+	return sessionManager.listPendingPermissions(sessionId);
 }
