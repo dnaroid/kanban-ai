@@ -367,15 +367,11 @@ export function ExecutionLog({
 				upsertStatusEvent(statusLine);
 			}
 
-			if (hiddenUserMessageIdRef.current) {
-				if (hiddenUserMessageIdRef.current === payloadId) {
-					setEvents((prev) =>
-						prev.filter((item) => item.id !== `msg-${payloadId}`),
-					);
-					return;
-				}
-			} else if (payload.role === "user") {
+			if (payload.role === "user" && !hiddenUserMessageIdRef.current) {
 				hiddenUserMessageIdRef.current = payloadId;
+			}
+
+			if (hiddenUserMessageIdRef.current === payloadId) {
 				setEvents((prev) =>
 					prev.filter((item) => item.id !== `msg-${payloadId}`),
 				);
