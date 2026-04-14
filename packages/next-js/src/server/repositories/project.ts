@@ -23,24 +23,54 @@ export class ProjectRepository {
 			color,
 			createdAt: now,
 			updatedAt: now,
+			lastActivityAt: null,
 		};
 	}
 
 	getAll(): Project[] {
 		const db = dbManager.connect();
 		const stmt = db.prepare(`
-      SELECT id, name, path, color, created_at as createdAt, updated_at as updatedAt
-      FROM projects
-      ORDER BY updated_at DESC
+      SELECT
+        p.id,
+        p.name,
+        p.path,
+        p.color,
+        p.created_at as createdAt,
+        p.updated_at as updatedAt,
+        MAX(t.updated_at) as last_activity_at
+      FROM projects p
+      LEFT JOIN tasks t ON t.project_id = p.id
+      GROUP BY p.id, p.name, p.path, p.color, p.created_at, p.updated_at
+      ORDER BY
+        CASE WHEN MAX(t.updated_at) IS NULL THEN 1 ELSE 0 END ASC,
+        COALESCE(MAX(t.updated_at), p.updated_at) DESC
     `);
 
-		return stmt.all() as Project[];
+		const rows = stmt.all() as Array<{
+			id: string;
+			name: string;
+			path: string;
+			color: string;
+			createdAt: string;
+			updatedAt: string;
+			last_activity_at: string | null;
+		}>;
+
+		return rows.map((row) => ({
+			id: row.id,
+			name: row.name,
+			path: row.path,
+			color: row.color,
+			createdAt: row.createdAt,
+			updatedAt: row.updatedAt,
+			lastActivityAt: row.last_activity_at,
+		}));
 	}
 
 	getById(id: string): Project | null {
 		const db = dbManager.connect();
 		const stmt = db.prepare(`
-      SELECT id, name, path, color, created_at as createdAt, updated_at as updatedAt
+      SELECT id, name, path, color, created_at as createdAt, updated_at as updatedAt, NULL as lastActivityAt
       FROM projects
       WHERE id = ?
     `);

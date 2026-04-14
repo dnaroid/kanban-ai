@@ -17,6 +17,19 @@ import { cn } from "@/lib/utils";
 import type { Part, PermissionData, ToolState } from "@/types/ipc";
 import { extractOpencodeStatus } from "@/lib/opencode-status";
 import { LightMarkdown } from "@/components/LightMarkdown";
+import { EditToolDiffView } from "./EditToolDiffView";
+import type { EditToolInput } from "./EditToolDiffView";
+
+function isEditToolInput(input: unknown): input is EditToolInput {
+	if (!input || typeof input !== "object") return false;
+
+	const record = input as Record<string, unknown>;
+	return (
+		typeof record.filePath === "string" &&
+		typeof record.oldString === "string" &&
+		typeof record.newString === "string"
+	);
+}
 
 function StatusBadge({ status }: { status: string }) {
 	const config = {
@@ -181,6 +194,9 @@ export function ToolPart({
 	};
 
 	const config = statusConfig[part.state ?? "pending"];
+	const editToolInput = isEditToolInput(part.input) ? part.input : null;
+	const isCompletedEditTool =
+		part.tool === "edit" && part.state === "completed" && editToolInput != null;
 
 	const renderQuestionContent = (input: unknown) => {
 		if (!input || typeof input !== "object") return null;
@@ -279,22 +295,27 @@ export function ToolPart({
 
 			{isExpanded && (
 				<div className="px-3 pb-3 space-y-2 border-t border-white/5 pt-2">
+					{isCompletedEditTool && editToolInput && (
+						<EditToolDiffView input={editToolInput} />
+					)}
 					{part.tool === "question" &&
 						part.state === "pending" &&
 						renderQuestionContent(part.input)}
-					{part.input != null && part.tool !== "question" && (
-						<div className="space-y-1">
-							<span className="text-[10px] font-semibold text-slate-500 uppercase px-1">
-								Input
-							</span>
-							<pre className="p-2 bg-slate-950/50 rounded-lg text-[10px] text-slate-400 font-mono overflow-x-auto custom-scrollbar">
-								{typeof part.input === "string"
-									? part.input
-									: JSON.stringify(part.input, null, 2)}
-							</pre>
-						</div>
-					)}
-					{part.output != null && (
+					{!isCompletedEditTool &&
+						part.input != null &&
+						part.tool !== "question" && (
+							<div className="space-y-1">
+								<span className="text-[10px] font-semibold text-slate-500 uppercase px-1">
+									Input
+								</span>
+								<pre className="p-2 bg-slate-950/50 rounded-lg text-[10px] text-slate-400 font-mono overflow-x-auto custom-scrollbar">
+									{typeof part.input === "string"
+										? part.input
+										: JSON.stringify(part.input, null, 2)}
+								</pre>
+							</div>
+						)}
+					{!isCompletedEditTool && part.output != null && (
 						<div className="space-y-1">
 							<span className="text-[10px] font-semibold text-slate-500 uppercase px-1">
 								Output

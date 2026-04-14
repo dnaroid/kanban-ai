@@ -7,6 +7,7 @@ export interface Project {
 	color: string;
 	createdAt: string;
 	updatedAt: string;
+	lastActivityAt: string | null;
 }
 
 export interface CreateProjectInput {
