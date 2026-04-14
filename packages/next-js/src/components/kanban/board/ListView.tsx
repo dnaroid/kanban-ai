@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, Plus, Trash2 } from "lucide-react";
 import {
 	useSortable,
 	SortableContext,
@@ -20,6 +20,10 @@ import {
 	toneOverlayStyle,
 } from "../workflow-display";
 import { useWorkflowDisplayConfig } from "../useWorkflowDisplayConfig";
+import {
+	getContextActionConfig,
+	INACTIVE_CONTEXT_ACTION_STATUSES,
+} from "./contextActions";
 
 interface ListViewProps {
 	columns: BoardColumn[];
@@ -27,6 +31,7 @@ interface ListViewProps {
 	globalTags: Tag[];
 	onAddTask: (columnId: string) => void;
 	onDeleteTask: (taskId: string) => void;
+	onContextAction?: (taskId: string, systemKey: string) => Promise<void>;
 	expandedColumns: Record<string, boolean>;
 	onToggleColumn: (columnId: string) => void;
 	projectId: string;
@@ -39,6 +44,7 @@ export function ListView({
 	globalTags,
 	onAddTask,
 	onDeleteTask,
+	onContextAction,
 	expandedColumns,
 	onToggleColumn,
 	projectId,
@@ -62,6 +68,7 @@ export function ListView({
 						onAddTask={onAddTask}
 						globalTags={globalTags}
 						onDeleteTask={onDeleteTask}
+						onContextAction={onContextAction}
 						projectId={projectId}
 						onBulkDeleteColumn={onBulkDeleteColumn}
 					/>
@@ -79,6 +86,7 @@ interface ListColumnProps {
 	onAddTask: (columnId: string) => void;
 	globalTags: Tag[];
 	onDeleteTask: (taskId: string) => void;
+	onContextAction?: (taskId: string, systemKey: string) => Promise<void>;
 	projectId: string;
 	onBulkDeleteColumn?: (columnId: string, taskCount: number) => void;
 }
@@ -91,6 +99,7 @@ function ListColumn({
 	onAddTask,
 	globalTags,
 	onDeleteTask,
+	onContextAction,
 	projectId,
 	onBulkDeleteColumn,
 }: ListColumnProps) {
@@ -191,6 +200,8 @@ function ListColumn({
 										task={task}
 										globalTags={globalTags}
 										onDeleteTask={onDeleteTask}
+										onContextAction={onContextAction}
+										systemKey={column.systemKey}
 										projectId={projectId}
 									/>
 								))}
@@ -207,6 +218,8 @@ interface ListItemProps {
 	task: KanbanTask;
 	globalTags: Tag[];
 	onDeleteTask: (taskId: string) => void;
+	onContextAction?: (taskId: string, systemKey: string) => Promise<void>;
+	systemKey?: string;
 	projectId: string;
 }
 
@@ -214,6 +227,8 @@ function ListItem({
 	task,
 	globalTags,
 	onDeleteTask,
+	onContextAction,
+	systemKey,
 	projectId,
 }: ListItemProps) {
 	const {
@@ -242,6 +257,8 @@ function ListItem({
 				task={task}
 				globalTags={globalTags}
 				onDeleteTask={onDeleteTask}
+				onContextAction={onContextAction}
+				systemKey={systemKey}
 				isDragging={isDragging}
 				projectId={projectId}
 				dragListeners={listeners}
@@ -254,6 +271,8 @@ export interface ListItemViewProps {
 	task: KanbanTask;
 	globalTags: Tag[];
 	onDeleteTask?: (taskId: string) => void;
+	onContextAction?: (taskId: string, systemKey: string) => Promise<void>;
+	systemKey?: string;
 	isDragging?: boolean;
 	isOverlay?: boolean;
 	projectId?: string;
@@ -264,11 +283,14 @@ export function ListItemView({
 	task,
 	globalTags,
 	onDeleteTask,
+	onContextAction,
+	systemKey,
 	isDragging,
 	isOverlay,
 	projectId,
 	dragListeners,
 }: ListItemViewProps) {
+	const [isLoading, setIsLoading] = React.useState(false);
 	const router = useRouter();
 	const workflowConfig = useWorkflowDisplayConfig();
 	const pConfig =
@@ -295,9 +317,23 @@ export function ListItemView({
 		}
 	};
 
+	const actionConfig = getContextActionConfig(systemKey);
+	const showContextButton =
+		actionConfig && !INACTIVE_CONTEXT_ACTION_STATUSES.has(task.status);
+
+	const handleContextClick = async (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (!systemKey || !onContextAction || isLoading) return;
+		setIsLoading(true);
+		try {
+			await onContextAction(task.id, systemKey);
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
 	return (
 		<div
-			onClick={handleRowClick}
 			{...(!isOverlay && dragListeners)}
 			className={cn(
 				"group flex items-center gap-4 p-4 hover:bg-slate-800/40 transition-all relative overflow-hidden cursor-grab active:cursor-grabbing",
@@ -314,7 +350,11 @@ export function ListItemView({
 				/>
 			)}
 
-			<div className="flex-1 min-w-0">
+			<button
+				type="button"
+				onClick={handleRowClick}
+				className="flex-1 min-w-0 text-left"
+			>
 				<div className="flex items-center gap-3 mb-1.5">
 					<span className="text-sm font-semibold text-slate-200 truncate group-hover:text-white transition-colors">
 						{task.title}
@@ -370,10 +410,31 @@ export function ListItemView({
 						})}
 					</div>
 				)}
-			</div>
+			</button>
 
 			{!isOverlay && (
-				<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+				<div className="flex items-center gap-1.5">
+					{showContextButton && (
+						<button
+							type="button"
+							onClick={handleContextClick}
+							onPointerDown={(e) => e.stopPropagation()}
+							disabled={isLoading}
+							className={cn(
+								"inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
+								"text-blue-500/85 hover:text-blue-400 hover:bg-blue-500/10 active:bg-blue-500/20",
+								isLoading ? "pointer-events-none opacity-80" : "opacity-90",
+							)}
+							title={actionConfig.label}
+						>
+							{isLoading ? (
+								<Loader2 className="h-3.5 w-3.5 animate-spin" />
+							) : (
+								<actionConfig.icon className="h-3.5 w-3.5" />
+							)}
+							<span>{actionConfig.label}</span>
+						</button>
+					)}
 					<button
 						type="button"
 						onClick={(e) => {
@@ -381,10 +442,11 @@ export function ListItemView({
 							onDeleteTask?.(task.id);
 						}}
 						onPointerDown={(e) => e.stopPropagation()}
-						className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
+						className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-blue-500/80 transition-colors hover:bg-blue-500/10 hover:text-blue-400 active:bg-blue-500/20"
 						title="Delete Task"
 					>
-						<Trash2 className="w-4 h-4" />
+						<Trash2 className="h-3.5 w-3.5" />
+						<span>Delete</span>
 					</button>
 				</div>
 			)}

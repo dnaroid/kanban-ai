@@ -324,6 +324,7 @@ export function BoardScreen({
 							globalTags={globalTags}
 							onAddTask={handleAddTask}
 							onDeleteTask={handleDeleteTask}
+							onContextAction={handleContextAction}
 							expandedColumns={expandedColumns}
 							onToggleColumn={(columnId) => {
 								manualTogglesRef.current[columnId] = true;

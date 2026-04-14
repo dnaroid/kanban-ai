@@ -3,14 +3,7 @@
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import {
-	Trash2,
-	Sparkles,
-	Clock,
-	CheckCircle,
-	GitMerge,
-	Loader2,
-} from "lucide-react";
+import { Trash2, Loader2 } from "lucide-react";
 import type { KanbanTask, Tag } from "@/types/kanban";
 import { cn } from "@/lib/utils";
 import { priorityConfig, typeConfig } from "../TaskPropertyConfigs";
@@ -20,49 +13,10 @@ import {
 	toneBadgeStyle,
 } from "../workflow-display";
 import { useWorkflowDisplayConfig } from "../useWorkflowDisplayConfig";
-
-type ContextActionSystemKey = "backlog" | "ready" | "deferred" | "review";
-
-interface ContextActionConfig {
-	icon: React.ComponentType<{ className?: string }>;
-	label: string;
-	hoverColor: string;
-	hoverBg: string;
-}
-
-const CONTEXT_ACTION_MAP: Record<ContextActionSystemKey, ContextActionConfig> =
-	{
-		backlog: {
-			icon: Sparkles,
-			label: "Generate User Story",
-			hoverColor: "hover:text-violet-400",
-			hoverBg: "hover:bg-violet-500/10",
-		},
-		ready: {
-			icon: Clock,
-			label: "Defer Task",
-			hoverColor: "hover:text-amber-400",
-			hoverBg: "hover:bg-amber-500/10",
-		},
-		deferred: {
-			icon: CheckCircle,
-			label: "Move to Ready",
-			hoverColor: "hover:text-cyan-400",
-			hoverBg: "hover:bg-cyan-500/10",
-		},
-		review: {
-			icon: GitMerge,
-			label: "Commit & Close",
-			hoverColor: "hover:text-emerald-400",
-			hoverBg: "hover:bg-emerald-500/10",
-		},
-	};
-
-const INACTIVE_STATUSES: ReadonlySet<string> = new Set([
-	"running",
-	"generating",
-	"in_progress",
-]);
+import {
+	getContextActionConfig,
+	INACTIVE_CONTEXT_ACTION_STATUSES,
+} from "./contextActions";
 
 export interface SortableTaskProps {
 	task: KanbanTask;
@@ -122,12 +76,10 @@ export function SortableTask({
 		);
 	};
 
-	const actionConfig =
-		systemKey && systemKey in CONTEXT_ACTION_MAP
-			? CONTEXT_ACTION_MAP[systemKey as ContextActionSystemKey]
-			: null;
+	const actionConfig = getContextActionConfig(systemKey);
 
-	const showContextButton = actionConfig && !INACTIVE_STATUSES.has(task.status);
+	const showContextButton =
+		actionConfig && !INACTIVE_CONTEXT_ACTION_STATUSES.has(task.status);
 
 	const handleContextClick = async (e: React.MouseEvent) => {
 		e.stopPropagation();
@@ -219,7 +171,8 @@ export function SortableTask({
 					</div>
 				)}
 			</button>
-			<div className="absolute right-2 top-2 z-10 flex items-center gap-0.5">
+
+			<div className="px-4 pb-4 flex flex-wrap items-center gap-2 border-t border-slate-700/60 pt-3">
 				{showContextButton && (
 					<button
 						type="button"
@@ -227,20 +180,18 @@ export function SortableTask({
 						onPointerDown={handleContextPointerDown}
 						disabled={isLoading}
 						className={cn(
-							"opacity-0 group-hover:opacity-100 transition-all p-1 rounded-md",
-							actionConfig.hoverBg,
-							actionConfig.hoverColor,
-							isLoading
-								? "text-slate-500 pointer-events-none"
-								: "text-slate-600",
+							"inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
+							"text-blue-500/85 hover:text-blue-400 hover:bg-blue-500/10 active:bg-blue-500/20",
+							isLoading ? "pointer-events-none opacity-80" : "opacity-90",
 						)}
 						title={actionConfig.label}
 					>
 						{isLoading ? (
-							<Loader2 className="h-4 w-4 animate-spin" />
+							<Loader2 className="h-3.5 w-3.5 animate-spin" />
 						) : (
-							<actionConfig.icon className="h-4 w-4" />
+							<actionConfig.icon className="h-3.5 w-3.5" />
 						)}
+						<span>{actionConfig.label}</span>
 					</button>
 				)}
 				<button
@@ -250,10 +201,11 @@ export function SortableTask({
 						onDelete?.(task.id);
 					}}
 					onPointerDown={(e) => e.stopPropagation()}
-					className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all p-1 rounded-md hover:bg-red-500/10"
+					className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-blue-500/80 transition-colors hover:bg-blue-500/10 hover:text-blue-400 active:bg-blue-500/20"
 					title="Delete Task"
 				>
-					<Trash2 className="h-4 w-4" />
+					<Trash2 className="h-3.5 w-3.5" />
+					<span>Delete</span>
 				</button>
 			</div>
 		</div>

@@ -41,7 +41,6 @@ export function SortableColumn({
 	const { active, over } = useDndContext();
 	const isDraggingAnyTask = active?.data.current?.type === "task";
 
-	// Determine if a task is being dragged over this specific column
 	const isTaskOverThisColumn =
 		isDraggingAnyTask &&
 		(over?.id === id ||
@@ -72,13 +71,7 @@ export function SortableColumn({
 	const isOver = isColumnOver || isTaskOverThisColumn;
 	const isMinimized = isEmpty;
 	const [isHovered, setIsHovered] = useState(false);
-	const columnWidthClass = !isMinimized
-		? "w-[344px]"
-		: isOver
-			? "w-[344px]"
-			: isDraggingAnyTask
-				? "w-[152px]"
-				: "w-[80px] hover:w-[344px]";
+	const columnWidthClass = !isMinimized ? "w-[344px]" : "w-[80px]";
 
 	return (
 		<div
@@ -121,13 +114,13 @@ export function SortableColumn({
 					{...attributes}
 					{...listeners}
 					className="p-4 border-b border-slate-800/50 cursor-grab active:cursor-grabbing select-none shrink-0"
-					title={isMinimized && !isOver && !isHovered ? name : undefined}
+					title={isMinimized ? name : undefined}
 				>
 					<div className="flex items-center justify-between relative min-h-[32px]">
 						<div
 							className={cn(
 								"flex items-center gap-2 flex-1 min-w-0 transition-all duration-500 ease-in-out",
-								isMinimized && !isOver && !isHovered && !isDraggingAnyTask
+								isMinimized
 									? "opacity-0 translate-x-4 pointer-events-none"
 									: "opacity-100 translate-x-0 pointer-events-auto",
 							)}
@@ -157,9 +150,7 @@ export function SortableColumn({
 						<div
 							className={cn(
 								"absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-500 ease-in-out",
-								isMinimized && !isOver && !isHovered && !isDraggingAnyTask
-									? "opacity-100 scale-100"
-									: "opacity-0 scale-150",
+								isMinimized ? "opacity-100 scale-100" : "opacity-0 scale-150",
 							)}
 						>
 							<span className="text-lg font-black text-slate-500/50 uppercase tracking-tighter">
@@ -172,7 +163,7 @@ export function SortableColumn({
 				<div
 					className={cn(
 						"flex-1 overflow-y-auto custom-scrollbar p-3 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
-						isMinimized && !isOver && !isHovered
+						isMinimized
 							? "opacity-0 translate-y-8 pointer-events-none"
 							: "opacity-100 translate-y-0",
 					)}
