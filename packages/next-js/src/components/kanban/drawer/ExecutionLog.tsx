@@ -881,6 +881,11 @@ export function ExecutionLog({
 		if (!runId) return;
 		try {
 			await api.run.replyPermission({ runId, permissionId, response });
+			setPendingPermissions((prev) => {
+				const next = new Map(prev);
+				next.delete(permissionId);
+				return next;
+			});
 		} catch (error) {
 			console.error("Failed to reply to permission:", error);
 		}

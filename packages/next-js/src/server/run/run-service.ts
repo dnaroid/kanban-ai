@@ -778,12 +778,6 @@ export class RunService {
 			throw new Error(`Run not found: ${runId}`);
 		}
 
-		if (run.status !== "paused") {
-			throw new Error(
-				`Run is not paused (current status: ${run.status}), cannot reply to permission`,
-			);
-		}
-
 		if (!run.sessionId) {
 			throw new Error(`Run has no session ID, cannot reply to permission`);
 		}
