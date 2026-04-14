@@ -239,6 +239,24 @@ export class OpencodeSessionManager {
 		}
 	}
 
+	public async replyToPermission(
+		sessionId: string,
+		permissionId: string,
+		response: "once" | "always" | "reject",
+	): Promise<boolean> {
+		const client = await this.getSessionClient(sessionId);
+		const directory = await this.resolveSessionDirectory(sessionId);
+
+		const result = await client.permission.reply({
+			requestID: permissionId,
+			reply: response,
+			directory: directory ?? undefined,
+		});
+
+		const data = getData<unknown>(result);
+		return typeof data === "boolean" ? data : true;
+	}
+
 	public async subscribe(
 		sessionId: string,
 		subscriberId: string,

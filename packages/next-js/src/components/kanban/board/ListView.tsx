@@ -13,6 +13,7 @@ import { CSS } from "@dnd-kit/utilities";
 import type { KanbanTask, Tag } from "@/types/kanban";
 import type { BoardColumn } from "@/server/types";
 import { cn } from "@/lib/utils";
+import { PillSelect } from "@/components/common/PillSelect";
 import { priorityConfig, typeConfig } from "../TaskPropertyConfigs";
 import {
 	getWorkflowStatusVisual,
@@ -36,6 +37,7 @@ interface ListViewProps {
 	onToggleColumn: (columnId: string) => void;
 	projectId: string;
 	onBulkDeleteColumn?: (columnId: string, taskCount: number) => void;
+	onUpdateTask?: (id: string, patch: Partial<KanbanTask>) => void;
 }
 
 export function ListView({
@@ -49,6 +51,7 @@ export function ListView({
 	onToggleColumn,
 	projectId,
 	onBulkDeleteColumn,
+	onUpdateTask,
 }: ListViewProps) {
 	return (
 		<div className="flex flex-col gap-4 p-8 w-full overflow-y-auto custom-scrollbar h-full">
@@ -71,6 +74,7 @@ export function ListView({
 						onContextAction={onContextAction}
 						projectId={projectId}
 						onBulkDeleteColumn={onBulkDeleteColumn}
+						onUpdateTask={onUpdateTask}
 					/>
 				);
 			})}
@@ -89,6 +93,7 @@ interface ListColumnProps {
 	onContextAction?: (taskId: string, systemKey: string) => Promise<void>;
 	projectId: string;
 	onBulkDeleteColumn?: (columnId: string, taskCount: number) => void;
+	onUpdateTask?: (id: string, patch: Partial<KanbanTask>) => void;
 }
 
 function ListColumn({
@@ -102,6 +107,7 @@ function ListColumn({
 	onContextAction,
 	projectId,
 	onBulkDeleteColumn,
+	onUpdateTask,
 }: ListColumnProps) {
 	const { setNodeRef, isOver } = useDroppable({
 		id: column.id,
@@ -203,6 +209,7 @@ function ListColumn({
 										onContextAction={onContextAction}
 										systemKey={column.systemKey}
 										projectId={projectId}
+										onUpdateTask={onUpdateTask}
 									/>
 								))}
 							</div>
@@ -221,6 +228,7 @@ interface ListItemProps {
 	onContextAction?: (taskId: string, systemKey: string) => Promise<void>;
 	systemKey?: string;
 	projectId: string;
+	onUpdateTask?: (id: string, patch: Partial<KanbanTask>) => void;
 }
 
 function ListItem({
@@ -230,6 +238,7 @@ function ListItem({
 	onContextAction,
 	systemKey,
 	projectId,
+	onUpdateTask,
 }: ListItemProps) {
 	const {
 		attributes,
@@ -262,6 +271,7 @@ function ListItem({
 				isDragging={isDragging}
 				projectId={projectId}
 				dragListeners={listeners}
+				onUpdateTask={onUpdateTask}
 			/>
 		</div>
 	);
@@ -277,6 +287,7 @@ export interface ListItemViewProps {
 	isOverlay?: boolean;
 	projectId?: string;
 	dragListeners?: Record<string, unknown>;
+	onUpdateTask?: (id: string, patch: Partial<KanbanTask>) => void;
 }
 
 export function ListItemView({
@@ -289,15 +300,16 @@ export function ListItemView({
 	isOverlay,
 	projectId,
 	dragListeners,
+	onUpdateTask,
 }: ListItemViewProps) {
 	const [isLoading, setIsLoading] = React.useState(false);
 	const router = useRouter();
 	const workflowConfig = useWorkflowDisplayConfig();
+	const tConfig =
+		typeConfig[task.type as keyof typeof typeConfig] || typeConfig.chore;
 	const pConfig =
 		priorityConfig[task.priority as keyof typeof priorityConfig] ||
 		priorityConfig.normal;
-	const tConfig =
-		typeConfig[task.type as keyof typeof typeConfig] || typeConfig.chore;
 	const statusVisual = task.status
 		? getWorkflowStatusVisual(workflowConfig, task.status)
 		: null;
@@ -360,15 +372,17 @@ export function ListItemView({
 						{task.title}
 					</span>
 					<div className="flex items-center gap-1.5 flex-shrink-0">
-						<span
-							className={cn(
-								"px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
-								pConfig.bg,
-								pConfig.color,
-							)}
-						>
-							{task.priority}
-						</span>
+						{isOverlay && (
+							<span
+								className={cn(
+									"px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+									pConfig.bg,
+									pConfig.color,
+								)}
+							>
+								{task.priority}
+							</span>
+						)}
 						<span
 							className={cn(
 								"px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
@@ -411,6 +425,24 @@ export function ListItemView({
 					</div>
 				)}
 			</button>
+
+			{!isOverlay && (
+				<div
+					onPointerDown={(e) => e.stopPropagation()}
+					className="flex-shrink-0"
+				>
+					<PillSelect
+						label="Priority"
+						value={task.priority}
+						options={priorityConfig}
+						onChange={(priority) =>
+							onUpdateTask?.(task.id, {
+								priority: priority as KanbanTask["priority"],
+							})
+						}
+					/>
+				</div>
+			)}
 
 			{!isOverlay && (
 				<div className="flex items-center gap-1.5">

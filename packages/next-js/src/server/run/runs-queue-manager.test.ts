@@ -218,6 +218,10 @@ vi.mock("@/server/run/run-publisher", () => ({
 	publishRunUpdate: vi.fn(),
 }));
 
+vi.mock("@/server/events/sse-broker", () => ({
+	publishSseEvent: vi.fn(),
+}));
+
 vi.mock("@/server/vcs/vcs-manager", () => ({
 	getVcsManager: () => mockVcsManager,
 }));
@@ -1063,5 +1067,286 @@ describe("RunsQueueManager scheduling", () => {
 			"done",
 			buildOpencodeStatusLine("done"),
 		);
+	});
+});
+
+describe("RunsQueueManager permission handling", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		runMap.clear();
+		taskMap.clear();
+		state.sessionCounter = 0;
+		process.env.RUNS_DEFAULT_CONCURRENCY = "1";
+		process.env.RUNS_PROVIDER_CONCURRENCY = "";
+		process.env.RUNS_BLOCKED_RETRY_MS = "10";
+		mockSessionManager.getMessages.mockResolvedValue([]);
+		mockTaskLinkRepo.listByTaskId.mockReturnValue([]);
+		mockVcsManager.syncRunWorkspace.mockResolvedValue(null);
+	});
+
+	async function setupRunningRun(
+		runId: string,
+		taskId: string,
+	): Promise<RunsQueueManager> {
+		taskMap.set(taskId, buildTask(taskId, "normal"));
+		const run = buildRun(
+			runId,
+			taskId,
+			"execution",
+			"2026-01-01T00:00:00.000Z",
+		);
+		runMap.set(runId, run);
+
+		const manager = new RunsQueueManager();
+		manager.enqueue(runId, {
+			projectPath: "/tmp/project",
+			sessionTitle: "permission test",
+			prompt: "test prompt",
+		});
+		await waitForDrain();
+
+		return manager;
+	}
+
+	function getLastSessionHandler(): (event: Record<string, unknown>) => void {
+		const subscribeCalls = (
+			mockSessionManager.subscribe as unknown as {
+				mock: { calls: unknown[][] };
+			}
+		).mock.calls;
+		const lastCall = subscribeCalls[subscribeCalls.length - 1];
+		return lastCall?.[2] as (event: Record<string, unknown>) => void;
+	}
+
+	it("pauses run on permission.updated event", async () => {
+		await setupRunningRun("run-perm-1", "task-perm-1");
+		const sessionHandler = getLastSessionHandler();
+		expect(sessionHandler).toBeDefined();
+
+		await sessionHandler({
+			type: "permission.updated",
+			sessionId: "session-1",
+			permission: {
+				id: "perm-1",
+				permissionType: "bash",
+				pattern: "*.sh",
+				sessionId: "session-1",
+				messageId: "msg-1",
+				title: "Execute shell script",
+				metadata: {},
+				createdAt: Date.now(),
+			},
+		});
+
+		await waitForDrain();
+
+		expect(runMap.get("run-perm-1")?.status).toBe("paused");
+		expect(mockRunEventRepo.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				runId: "run-perm-1",
+				eventType: "permission",
+			}),
+		);
+	});
+
+	it("publishes SSE permission event on permission.updated", async () => {
+		const { publishSseEvent } = await import("@/server/events/sse-broker");
+		await setupRunningRun("run-perm-2", "task-perm-2");
+		const sessionHandler = getLastSessionHandler();
+
+		await sessionHandler({
+			type: "permission.updated",
+			sessionId: "session-1",
+			permission: {
+				id: "perm-2",
+				permissionType: "edit",
+				pattern: ".env",
+				sessionId: "session-1",
+				messageId: "msg-2",
+				title: "Edit .env file",
+				metadata: {},
+				createdAt: Date.now(),
+			},
+		});
+
+		await waitForDrain();
+
+		expect(publishSseEvent).toHaveBeenCalledWith(
+			"run:permission",
+			expect.objectContaining({
+				runId: "run-perm-2",
+				permissionId: "perm-2",
+				permissionType: "edit",
+				title: "Edit .env file",
+			}),
+		);
+	});
+
+	it("resumes run on permission.replied with approve response", async () => {
+		await setupRunningRun("run-perm-3", "task-perm-3");
+		const sessionHandler = getLastSessionHandler();
+
+		await sessionHandler({
+			type: "permission.updated",
+			sessionId: "session-1",
+			permission: {
+				id: "perm-3",
+				permissionType: "read",
+				sessionId: "session-1",
+				messageId: "msg-3",
+				title: "Read file",
+				metadata: {},
+				createdAt: Date.now(),
+			},
+		});
+		await waitForDrain();
+
+		expect(runMap.get("run-perm-3")?.status).toBe("paused");
+
+		await sessionHandler({
+			type: "permission.replied",
+			sessionId: "session-1",
+			permissionId: "perm-3",
+			response: "once",
+		});
+		await waitForDrain();
+
+		expect(runMap.get("run-perm-3")?.status).toBe("running");
+		expect(mockRunEventRepo.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				runId: "run-perm-3",
+				eventType: "permission",
+				payload: expect.objectContaining({
+					status: "approved",
+					permissionId: "perm-3",
+				}),
+			}),
+		);
+	});
+
+	it("fails run on permission.replied with reject response", async () => {
+		await setupRunningRun("run-perm-4", "task-perm-4");
+		const sessionHandler = getLastSessionHandler();
+
+		await sessionHandler({
+			type: "permission.updated",
+			sessionId: "session-1",
+			permission: {
+				id: "perm-4",
+				permissionType: "bash",
+				sessionId: "session-1",
+				messageId: "msg-4",
+				title: "Run command",
+				metadata: {},
+				createdAt: Date.now(),
+			},
+		});
+		await waitForDrain();
+
+		expect(runMap.get("run-perm-4")?.status).toBe("paused");
+
+		await sessionHandler({
+			type: "permission.replied",
+			sessionId: "session-1",
+			permissionId: "perm-4",
+			response: "reject",
+		});
+		await waitForDrain();
+
+		expect(runMap.get("run-perm-4")?.status).toBe("failed");
+		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "run-perm-4" }),
+			"failed",
+			"fail",
+			expect.stringContaining("perm-4"),
+		);
+	});
+
+	it("ignores permission.updated for non-running run", async () => {
+		taskMap.set("task-perm-5", buildTask("task-perm-5", "normal"));
+		const run = buildRun(
+			"run-perm-5",
+			"task-perm-5",
+			"execution",
+			"2026-01-01T00:00:00.000Z",
+		);
+		run.status = "completed";
+		runMap.set("run-perm-5", run);
+
+		const manager = new RunsQueueManager();
+		manager.enqueue("run-perm-5", {
+			projectPath: "/tmp/project",
+			sessionTitle: "permission test",
+			prompt: "test prompt",
+		});
+		await waitForDrain();
+
+		const sessionHandler = getLastSessionHandler();
+		if (!sessionHandler) return;
+
+		await sessionHandler({
+			type: "permission.updated",
+			sessionId: "session-1",
+			permission: {
+				id: "perm-5",
+				permissionType: "read",
+				sessionId: "session-1",
+				messageId: "msg-5",
+				title: "Read",
+				metadata: {},
+				createdAt: Date.now(),
+			},
+		});
+		await waitForDrain();
+
+		expect(mockRunRepo.update).not.toHaveBeenCalledWith(
+			"run-perm-5",
+			expect.objectContaining({ status: "paused" }),
+		);
+	});
+
+	it("still handles message.updated events after permission handling", async () => {
+		await setupRunningRun("run-perm-6", "task-perm-6");
+		const sessionHandler = getLastSessionHandler();
+
+		await sessionHandler({
+			type: "permission.updated",
+			sessionId: "session-1",
+			permission: {
+				id: "perm-6",
+				permissionType: "read",
+				sessionId: "session-1",
+				messageId: "msg-6",
+				title: "Read file",
+				metadata: {},
+				createdAt: Date.now(),
+			},
+		});
+		await waitForDrain();
+		expect(runMap.get("run-perm-6")?.status).toBe("paused");
+
+		await sessionHandler({
+			type: "permission.replied",
+			sessionId: "session-1",
+			permissionId: "perm-6",
+			response: "once",
+		});
+		await waitForDrain();
+		expect(runMap.get("run-perm-6")?.status).toBe("running");
+
+		await sessionHandler({
+			type: "message.updated",
+			sessionId: "session-1",
+			message: {
+				id: "msg-final",
+				role: "assistant",
+				content: buildOpencodeStatusLine("done"),
+				parts: [],
+				timestamp: Date.now(),
+			},
+		});
+		await waitForDrain();
+
+		expect(runMap.get("run-perm-6")?.status).toBe("completed");
 	});
 });

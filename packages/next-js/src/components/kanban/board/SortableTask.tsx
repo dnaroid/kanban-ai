@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Trash2, Loader2 } from "lucide-react";
+import { Trash2, Loader2, ExternalLink } from "lucide-react";
 import type { KanbanTask, Tag } from "@/types/kanban";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { PillSelect } from "@/components/common/PillSelect";
 import { priorityConfig, typeConfig } from "../TaskPropertyConfigs";
 import {
 	getWorkflowStatusVisual,
@@ -25,6 +27,7 @@ export interface SortableTaskProps {
 	onClick?: (task: KanbanTask) => void;
 	systemKey?: string;
 	onContextAction?: (taskId: string, systemKey: string) => Promise<void>;
+	onUpdate?: (id: string, patch: Partial<KanbanTask>) => void;
 }
 
 export function SortableTask({
@@ -34,8 +37,11 @@ export function SortableTask({
 	onClick,
 	systemKey,
 	onContextAction,
+	onUpdate,
 }: SortableTaskProps) {
 	const [isLoading, setIsLoading] = useState(false);
+	const [latestSessionId, setLatestSessionId] = useState<string | null>(null);
+	const [opencodeWebUrl, setOpencodeWebUrl] = useState<string | null>(null);
 	const workflowConfig = useWorkflowDisplayConfig();
 	const {
 		attributes,
@@ -63,11 +69,11 @@ export function SortableTask({
 		borderColor: statusBadge?.borderColor,
 	};
 
+	const tConfig =
+		typeConfig[task.type as keyof typeof typeConfig] || typeConfig.chore;
 	const pConfig =
 		priorityConfig[task.priority as keyof typeof priorityConfig] ||
 		priorityConfig.normal;
-	const tConfig =
-		typeConfig[task.type as keyof typeof typeConfig] || typeConfig.chore;
 	const getTagColor = (tagName: string) => {
 		const normalized = tagName.toLowerCase().trim();
 		return (
@@ -99,6 +105,53 @@ export function SortableTask({
 		e.stopPropagation();
 	};
 
+	useEffect(() => {
+		let cancelled = false;
+
+		async function fetchData() {
+			try {
+				const [runsResult, urlResult] = await Promise.allSettled([
+					api.run.listByTask({ taskId: task.id }),
+					api.opencode.getWebUrl({ projectId: task.projectId }),
+				]);
+
+				if (cancelled) return;
+
+				if (runsResult.status === "fulfilled") {
+					const runs = runsResult.value.runs;
+					if (runs.length > 0) {
+						const sorted = [...runs].sort(
+							(a, b) =>
+								new Date(b.createdAt).getTime() -
+								new Date(a.createdAt).getTime(),
+						);
+						const latestRun = sorted[0];
+						setLatestSessionId(latestRun?.sessionId || null);
+					} else {
+						setLatestSessionId(null);
+					}
+				} else {
+					setLatestSessionId(null);
+				}
+
+				if (urlResult.status === "fulfilled") {
+					setOpencodeWebUrl(urlResult.value.url);
+				} else {
+					setOpencodeWebUrl(null);
+				}
+			} catch {
+				if (cancelled) return;
+				setLatestSessionId(null);
+				setOpencodeWebUrl(null);
+			}
+		}
+
+		fetchData();
+		return () => {
+			cancelled = true;
+		};
+	}, [task.id, task.projectId]);
+
 	return (
 		<div
 			ref={setNodeRef}
@@ -119,25 +172,32 @@ export function SortableTask({
 					style={toneOverlayStyle(statusVisual.tone)}
 				/>
 			)}
-			<button
-				type="button"
-				onClick={() => onClick?.(task)}
-				className="block w-full min-w-0 p-4 text-left"
-			>
-				<h4 className="mb-2 text-sm font-semibold leading-snug text-slate-200">
-					{task.title}
-				</h4>
-
+			<div className="block w-full min-w-0 p-4 text-left">
 				<div className="mb-2 flex flex-wrap items-center gap-2">
-					<span
-						className={cn(
-							"inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all",
-							pConfig.bg,
-							pConfig.color,
-						)}
-					>
-						{task.priority}
-					</span>
+					{onUpdate ? (
+						<div onPointerDown={(e) => e.stopPropagation()}>
+							<PillSelect
+								label="Priority"
+								value={task.priority}
+								options={priorityConfig}
+								onChange={(priority) =>
+									onUpdate(task.id, {
+										priority: priority as KanbanTask["priority"],
+									})
+								}
+							/>
+						</div>
+					) : (
+						<span
+							className={cn(
+								"inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all",
+								pConfig.bg,
+								pConfig.color,
+							)}
+						>
+							{task.priority}
+						</span>
+					)}
 					<span
 						className={cn(
 							"inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all",
@@ -149,33 +209,57 @@ export function SortableTask({
 					</span>
 				</div>
 
-				{task.tags.length > 0 && (
-					<div className="mt-1 flex flex-wrap gap-1.5">
-						{task.tags.slice(0, 3).map((tag) => {
-							const color = getTagColor(tag);
-							return (
-								<span
-									key={tag}
-									className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-bold transition-all"
-									style={{
-										backgroundColor: `${color}15`,
-										color: color,
-									}}
-								>
-									{tag}
+				<button
+					type="button"
+					onClick={() => onClick?.(task)}
+					className="block w-full min-w-0 text-left"
+				>
+					<h4 className="mb-2 text-sm font-semibold leading-snug text-slate-200">
+						{task.title}
+					</h4>
+
+					{task.tags.length > 0 && (
+						<div className="mt-1 flex flex-wrap gap-1.5">
+							{task.tags.slice(0, 3).map((tag) => {
+								const color = getTagColor(tag);
+								return (
+									<span
+										key={tag}
+										className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-bold transition-all"
+										style={{
+											backgroundColor: `${color}15`,
+											color: color,
+										}}
+									>
+										{tag}
+									</span>
+								);
+							})}
+							{task.tags.length > 3 && (
+								<span className="text-[10px] text-slate-500 font-medium">
+									+{task.tags.length - 3}
 								</span>
-							);
-						})}
-						{task.tags.length > 3 && (
-							<span className="text-[10px] text-slate-500 font-medium">
-								+{task.tags.length - 3}
-							</span>
-						)}
-					</div>
-				)}
-			</button>
+							)}
+						</div>
+					)}
+				</button>
+			</div>
 
 			<div className="px-4 pb-4 flex flex-wrap items-center gap-2 border-t border-slate-700/60 pt-3">
+				{latestSessionId && opencodeWebUrl && (
+					<a
+						href={`${opencodeWebUrl}/session/${latestSessionId}`}
+						target="_blank"
+						rel="noopener noreferrer"
+						onClick={(e) => e.stopPropagation()}
+						onPointerDown={(e) => e.stopPropagation()}
+						className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-blue-500/85 transition-colors hover:bg-blue-500/10 hover:text-blue-400 active:bg-blue-500/20"
+						title="Open in OpenCode"
+					>
+						<ExternalLink className="h-3.5 w-3.5" />
+						<span>Open in OpenCode</span>
+					</a>
+				)}
 				{showContextButton && (
 					<button
 						type="button"

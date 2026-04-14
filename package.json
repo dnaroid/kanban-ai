@@ -1,7 +1,7 @@
 {
 	"name": "kanban-ai",
 	"version": "0.1.0",
-	"description": "Kanban for Headless OpenCode + oh-my-opencode",
+	"description": "Kanban for Headless OpenCode + oh-my-openagent",
 	"private": true,
 	"type": "module",
 	"workspaces": [

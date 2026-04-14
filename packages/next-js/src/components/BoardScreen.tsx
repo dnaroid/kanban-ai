@@ -65,6 +65,7 @@ export function BoardScreen({
 		handleQuickGenerateStory,
 		handleQuickRunRawStory,
 		handleDeleteTask,
+		handleTaskUpdate,
 		handleStartSignalRuns,
 		isQueueingSignalRuns,
 		handleContextAction,
@@ -312,6 +313,7 @@ export function BoardScreen({
 											onDeleteTask={handleDeleteTask}
 											onBulkDelete={handleBulkDelete}
 											onContextAction={handleContextAction}
+											onUpdateTask={handleTaskUpdate}
 										/>
 									))}
 								</SortableContext>
@@ -325,6 +327,7 @@ export function BoardScreen({
 							onAddTask={handleAddTask}
 							onDeleteTask={handleDeleteTask}
 							onContextAction={handleContextAction}
+							onUpdateTask={handleTaskUpdate}
 							expandedColumns={expandedColumns}
 							onToggleColumn={(columnId) => {
 								manualTogglesRef.current[columnId] = true;

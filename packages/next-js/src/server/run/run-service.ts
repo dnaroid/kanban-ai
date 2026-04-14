@@ -4,6 +4,7 @@ import { buildQaTestingPrompt } from "@/server/run/prompts/qa-testing";
 import { buildUserStoryPrompt } from "@/server/run/prompts/user-story";
 import { publishSseEvent } from "@/server/events/sse-broker";
 import type { SessionStartPreferences } from "@/server/opencode/session-manager";
+import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
 import { publishRunUpdate } from "@/server/run/run-publisher";
 import type { QueueStats } from "@/server/run/runs-queue-manager";
 import { getRunsQueueManager } from "@/server/run/runs-queue-manager";
@@ -759,6 +760,41 @@ export class RunService {
 	public async cancel(runId: string): Promise<void> {
 		log.info("Cancelling run via service", { runId });
 		await this.queueManager.cancel(runId);
+	}
+
+	public async replyPermission(
+		runId: string,
+		permissionId: string,
+		response: "once" | "always" | "reject",
+	): Promise<void> {
+		log.info("Replying to permission request", {
+			runId,
+			permissionId,
+			response,
+		});
+
+		const run = runRepo.getById(runId);
+		if (!run) {
+			throw new Error(`Run not found: ${runId}`);
+		}
+
+		if (run.status !== "paused") {
+			throw new Error(
+				`Run is not paused (current status: ${run.status}), cannot reply to permission`,
+			);
+		}
+
+		if (!run.sessionId) {
+			throw new Error(`Run has no session ID, cannot reply to permission`);
+		}
+
+		const sessionManager = getOpencodeSessionManager();
+		await sessionManager.replyToPermission(
+			run.sessionId,
+			permissionId,
+			response,
+		);
+		log.info("Permission reply sent", { runId, permissionId, response });
 	}
 
 	public async delete(runId: string): Promise<void> {

@@ -2,6 +2,7 @@ import { createLogger } from "@/lib/logger";
 import { extractOpencodeStatus } from "@/lib/opencode-status";
 import { buildTaskPrompt } from "@/server/run/prompts/task";
 import type {
+	PermissionData,
 	SessionEvent,
 	SessionStartPreferences,
 } from "@/server/opencode/session-manager";
@@ -19,6 +20,7 @@ import { boardRepo } from "@/server/repositories/board";
 import { getWorkflowColumnIdBySystemKey } from "@/server/workflow/task-workflow-manager";
 import { getRunTaskProjector } from "@/server/run/run-task-projector";
 import { publishRunUpdate } from "@/server/run/run-publisher";
+import { publishSseEvent } from "@/server/events/sse-broker";
 import { getVcsManager } from "@/server/vcs/vcs-manager";
 import type { TaskPriority } from "@/types/kanban";
 import type { Run, RunStatus, RunVcsMetadata } from "@/types/ipc";
@@ -743,6 +745,21 @@ export class RunsQueueManager {
 		event: SessionEvent,
 	): Promise<void> {
 		log.debug("Session event received", { runId, eventType: event.type });
+
+		if (event.type === "permission.updated") {
+			await this.handlePermissionUpdated(runId, event.permission);
+			return;
+		}
+
+		if (event.type === "permission.replied") {
+			await this.handlePermissionReplied(
+				runId,
+				event.permissionId,
+				event.response,
+			);
+			return;
+		}
+
 		if (event.type !== "message.updated") {
 			return;
 		}
@@ -767,6 +784,129 @@ export class RunsQueueManager {
 			runSignal.signalKey,
 			event.message.content,
 		);
+	}
+
+	private async handlePermissionUpdated(
+		runId: string,
+		permission: PermissionData,
+	): Promise<void> {
+		log.info("Permission request received, pausing run", {
+			runId,
+			permissionId: permission.id,
+			permissionType: permission.permissionType,
+			title: permission.title,
+		});
+
+		const run = runRepo.getById(runId);
+		if (!run || run.status !== "running") {
+			log.warn("Run not found or not running, cannot pause for permission", {
+				runId,
+				currentStatus: run?.status,
+			});
+			return;
+		}
+
+		const pausedRun = runRepo.update(runId, { status: "paused" });
+		runEventRepo.create({
+			runId,
+			eventType: "permission",
+			payload: {
+				status: "paused",
+				permissionId: permission.id,
+				permissionType: permission.permissionType,
+				pattern: permission.pattern,
+				title: permission.title,
+				sessionId: permission.sessionId,
+				messageId: permission.messageId,
+				message: `Permission requested: ${permission.title}`,
+			},
+		});
+
+		publishSseEvent("run:permission", {
+			runId,
+			taskId: pausedRun.taskId,
+			permissionId: permission.id,
+			permissionType: permission.permissionType,
+			pattern: permission.pattern,
+			title: permission.title,
+			sessionId: permission.sessionId,
+			messageId: permission.messageId,
+			createdAt: permission.createdAt,
+		});
+		publishRunUpdate(pausedRun);
+
+		this.taskProjector.projectRunOutcome(
+			pausedRun,
+			"paused",
+			"question",
+			`Permission requested: ${permission.title}`,
+		);
+	}
+
+	private async handlePermissionReplied(
+		runId: string,
+		permissionId: string,
+		response: string,
+	): Promise<void> {
+		log.info("Permission replied, resuming run", {
+			runId,
+			permissionId,
+			response,
+		});
+
+		const run = runRepo.getById(runId);
+		if (!run || run.status !== "paused") {
+			log.debug("Run not found or not paused, skipping permission reply", {
+				runId,
+				currentStatus: run?.status,
+			});
+			return;
+		}
+
+		if (response === "reject") {
+			log.info("Permission denied, failing run", { runId, permissionId });
+			const finishedAt = new Date().toISOString();
+			const failedRun = runRepo.update(runId, {
+				status: "failed",
+				finishedAt,
+				errorText: `Permission denied: ${permissionId}`,
+				durationSec: this.durationSec(run.startedAt ?? finishedAt, finishedAt),
+			});
+			const syncedRun = await this.syncRunWorkspaceState(failedRun);
+			runEventRepo.create({
+				runId,
+				eventType: "permission",
+				payload: {
+					status: "denied",
+					permissionId,
+					response,
+					message: `Permission denied: ${permissionId}`,
+				},
+			});
+			publishRunUpdate(syncedRun);
+			this.taskProjector.projectRunOutcome(
+				syncedRun,
+				"failed",
+				"fail",
+				`Permission denied: ${permissionId}`,
+			);
+			this.runInputs.delete(runId);
+			await this.unsubscribeRunSession(runId);
+			return;
+		}
+
+		const resumedRun = runRepo.update(runId, { status: "running" });
+		runEventRepo.create({
+			runId,
+			eventType: "permission",
+			payload: {
+				status: "approved",
+				permissionId,
+				response,
+				message: `Permission approved: ${permissionId}`,
+			},
+		});
+		publishRunUpdate(resumedRun);
 	}
 
 	private async finalizeRunFromSession(

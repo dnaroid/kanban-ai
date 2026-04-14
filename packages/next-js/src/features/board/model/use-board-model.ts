@@ -421,7 +421,9 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 	};
 
 	const handleTaskClick = (task: KanbanTask) => {
-		const tab = task.status === "question" ? "?tab=runs" : "";
+		const tab = ["question", "running", "in_progress"].includes(task.status)
+			? "?tab=runs"
+			: "";
 		router.push(`/board/${projectId}/task/${task.id}${tab}`);
 	};
 
@@ -845,6 +847,12 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		taskId: string,
 		patch: Partial<KanbanTask>,
 	) => {
+		const previousTask = tasks.find((task) => task.id === taskId);
+		if (!previousTask) {
+			addToast("Task not found", "error");
+			return false;
+		}
+
 		const updateData: Record<string, unknown> = {};
 
 		if (patch.title !== undefined) updateData.title = patch.title;
@@ -874,19 +882,32 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		if (patch.assignee !== undefined) updateData.assignee = patch.assignee;
 		if (patch.modelName !== undefined) updateData.modelName = patch.modelName;
 
+		const optimisticTask: KanbanTask = {
+			...previousTask,
+			...patch,
+			updatedAt: new Date().toISOString(),
+		};
+
+		setTasks((prev) =>
+			prev.map((task) => (task.id === taskId ? optimisticTask : task)),
+		);
+
 		try {
-			await api.updateTask(taskId, updateData);
+			const updatedTask = await api.updateTask(taskId, updateData);
 			setTasks((prev) =>
 				prev.map((task) =>
-					task.id === taskId
-						? { ...task, ...patch, updatedAt: new Date().toISOString() }
-						: task,
+					task.id === taskId ? { ...task, ...updatedTask } : task,
 				),
 			);
 			addToast("Task updated", "success");
+			return true;
 		} catch (updateError) {
+			setTasks((prev) =>
+				prev.map((task) => (task.id === taskId ? previousTask : task)),
+			);
 			console.error("Failed to update task:", updateError);
 			addToast("Failed to update task", "error");
+			return false;
 		}
 	};
 
