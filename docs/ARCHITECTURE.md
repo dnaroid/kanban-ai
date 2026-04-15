@@ -1010,7 +1010,7 @@ graph TB
     
     subgraph FileSystem["File System"]
         Project[Project Directory]
-        OMC[oh-my-opencode.json]
+        OMC[oh-my-openagent.json]
     end
     
     RS --> RQ --> OS
@@ -1326,7 +1326,7 @@ type ClosedReason =
 | `OPENCODE_URL` | `http://127.0.0.1:4096` | URL OpenCode сервера |
 | `DATABASE_PATH` | `./data/kanban.db` | Путь к SQLite |
 
-### oh-my-opencode.json
+### oh-my-openagent.json
 
 ```json
 {

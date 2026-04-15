@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
 		const presetName = body.presetName
 			.trim()
-			.replace(/\.oh-my-opencode\.json$/i, "");
+			.replace(/\.oh-my-openagent\.json$/i, "");
 		const presetPath = buildPresetPath(pathToConfig, presetName);
 
 		await fs.writeFile(

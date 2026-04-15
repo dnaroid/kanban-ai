@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOpencodeService } from "@/server/opencode/opencode-service";
-import { runService } from "@/server/run/run-service";
+import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
 
 export async function POST(request: Request): Promise<Response> {
 	try {
@@ -22,14 +22,15 @@ export async function POST(request: Request): Promise<Response> {
 		}
 
 		if (!force) {
-			const stats = runService.getQueueStats();
-			if (stats.totalRunning > 0 || stats.totalQueued > 0) {
+			const manager = getOpencodeSessionManager();
+			const sessionStats = await manager.getActiveSessionCount();
+			if (sessionStats.busySessions > 0) {
 				return NextResponse.json(
 					{
 						success: false,
-						error: "Cannot restart: active runs in queue",
-						totalRunning: stats.totalRunning,
-						totalQueued: stats.totalQueued,
+						error: "Cannot restart: active OpenCode sessions in progress",
+						busySessions: sessionStats.busySessions,
+						totalSessions: sessionStats.totalSessions,
 					},
 					{ status: 409 },
 				);

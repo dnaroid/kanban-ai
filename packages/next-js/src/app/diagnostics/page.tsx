@@ -47,8 +47,7 @@ export default function DiagnosticsPage() {
 	const [isPolling, setIsPolling] = useState(false);
 	const [isRestarting, setIsRestarting] = useState(false);
 	const [isRestartWarningOpen, setIsRestartWarningOpen] = useState(false);
-	const [restartQueueStats, setRestartQueueStats] =
-		useState<QueueStatsResponse | null>(null);
+	const [restartBusySessionCount, setRestartBusySessionCount] = useState(0);
 
 	const loadStats = useCallback(
 		async (silent = false) => {
@@ -84,14 +83,14 @@ export default function DiagnosticsPage() {
 
 	const handleRestart = async () => {
 		try {
-			const stats = await api.run.queueStats();
-			if (stats.totalRunning > 0 || stats.totalQueued > 0) {
-				setRestartQueueStats(stats);
+			const sessionStats = await api.opencode.activeSessionStats();
+			if (sessionStats.busySessions > 0) {
+				setRestartBusySessionCount(sessionStats.busySessions);
 				setIsRestartWarningOpen(true);
 				return;
 			}
 		} catch {
-			// Fail-open: if stats check fails, proceed with restart
+			// Fail-open: if session check fails, proceed with restart
 		}
 		await performRestart();
 	};
@@ -388,40 +387,28 @@ export default function DiagnosticsPage() {
 				isOpen={isRestartWarningOpen}
 				onClose={() => {
 					setIsRestartWarningOpen(false);
-					setRestartQueueStats(null);
+					setRestartBusySessionCount(0);
 				}}
 				onConfirm={async () => {
 					setIsRestartWarningOpen(false);
 					await performRestart(true);
 				}}
-				title="Active runs in progress"
-				description="There are active tasks running or queued. Restarting OpenCode will interrupt them."
+				title="Active sessions in progress"
+				description="There are OpenCode sessions currently running. Restarting will interrupt them."
 				confirmLabel="Restart anyway"
 				variant="danger"
 				isLoading={isRestarting}
 			>
-				{restartQueueStats && (
-					<div className="mt-3 flex gap-3">
-						{restartQueueStats.totalRunning > 0 && (
-							<div className="flex-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-center">
-								<div className="text-lg font-bold text-emerald-400 font-mono">
-									{restartQueueStats.totalRunning}
-								</div>
-								<div className="text-[10px] text-emerald-400/70 uppercase tracking-wider font-semibold">
-									Running
-								</div>
+				{restartBusySessionCount > 0 && (
+					<div className="mt-3">
+						<div className="flex-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-center">
+							<div className="text-lg font-bold text-amber-400 font-mono">
+								{restartBusySessionCount}
 							</div>
-						)}
-						{restartQueueStats.totalQueued > 0 && (
-							<div className="flex-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-center">
-								<div className="text-lg font-bold text-amber-400 font-mono">
-									{restartQueueStats.totalQueued}
-								</div>
-								<div className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold">
-									Queued
-								</div>
+							<div className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold">
+								Active sessions
 							</div>
-						)}
+						</div>
 					</div>
 				)}
 			</ConfirmationModal>

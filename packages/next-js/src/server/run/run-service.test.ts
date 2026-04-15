@@ -352,6 +352,7 @@ describe("RunService.generateUserStory", () => {
 describe("RunService.start", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		process.env.RUNS_WORKTREE_ENABLED = "true";
 		mockTaskRepo.getById.mockReturnValue(buildTask());
 		mockRunRepo.listByTask.mockReturnValue([]);
 		mockRoleRepo.listWithPresets.mockReturnValue([

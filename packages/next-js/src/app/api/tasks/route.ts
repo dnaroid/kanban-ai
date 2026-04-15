@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { boardRepo, taskRepo } from "@/server/repositories";
+import { projectRepo } from "@/server/repositories/project";
+import { getOpencodeService } from "@/server/opencode/opencode-service";
+import { runService } from "@/server/run/run-service";
 import type { CreateTaskInput } from "@/server/types";
 import { publishSseEvent } from "@/server/events/sse-broker";
 import {
@@ -9,6 +12,18 @@ import {
 	isWorkflowTaskStatus,
 	resolveTaskStatusReasons,
 } from "@/server/workflow/task-workflow-manager";
+
+function getLatestSessionId(taskId: string): string | null {
+	const runs = runService.listByTask(taskId);
+	if (runs.length === 0) {
+		return null;
+	}
+
+	const sorted = [...runs].sort(
+		(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+	);
+	return sorted[0]?.sessionId || null;
+}
 
 export async function GET(request: NextRequest) {
 	try {
@@ -23,7 +38,29 @@ export async function GET(request: NextRequest) {
 		}
 
 		const tasks = taskRepo.listByBoard(boardId);
-		return NextResponse.json({ success: true, data: tasks });
+
+		let opencodeWebUrl: string | null = null;
+		if (tasks.length > 0) {
+			const project = projectRepo.getById(tasks[0].projectId);
+			if (project) {
+				try {
+					const service = getOpencodeService();
+					const port = service.getPort();
+					const base64Path = Buffer.from(project.path).toString("base64");
+					opencodeWebUrl = `http://localhost:${port}/${base64Path}`;
+				} catch {
+					opencodeWebUrl = null;
+				}
+			}
+		}
+
+		const enrichedTasks = tasks.map((task) => ({
+			...task,
+			latestSessionId: getLatestSessionId(task.id),
+			opencodeWebUrl,
+		}));
+
+		return NextResponse.json({ success: true, data: enrichedTasks });
 	} catch (error) {
 		console.error("[API] Error fetching tasks:", error);
 		return NextResponse.json(

@@ -20,7 +20,6 @@ import { runEventRepo } from "@/server/repositories/run-event";
 import { runRepo } from "@/server/repositories/run";
 import { tagRepo } from "@/server/repositories/tag";
 import { taskRepo } from "@/server/repositories/task";
-import { resolveTaskStatusBySignal } from "@/server/workflow/task-workflow-manager";
 import { getVcsManager } from "@/server/vcs/vcs-manager";
 import type { Run, RunVcsMetadata, DiffFile } from "@/types/ipc";
 
@@ -44,8 +43,7 @@ const behaviorSkillsFallback = {
 	preferredForStoryGeneration: "business-analyst",
 	preferredForQaTesting: "qa-expert",
 } as const;
-const allowedStoryLanguages = ["en", "ru"] as const;
-type StoryLanguage = (typeof allowedStoryLanguages)[number];
+type StoryLanguage = "en" | "ru";
 
 interface StartRunsBySignalResult {
 	startedCount: number;
@@ -685,54 +683,36 @@ export class RunService {
 		return { runId: run.id };
 	}
 
-	public async startRunsBySignal(
+	public async startReadyTasks(
 		projectId: string,
-		signalKey: string,
 	): Promise<StartRunsBySignalResult> {
 		const board = boardRepo.getByProjectId(projectId);
 		if (!board) {
 			throw new Error(`Board not found for project: ${projectId}`);
 		}
 
-		const columnSystemKeyById = new Map(
-			board.columns.map((column) => [column.id, column.systemKey] as const),
-		);
-		const columnOrderById = new Map(
-			board.columns.map((column, index) => [column.id, index] as const),
-		);
+		const readyColumn = board.columns.find((col) => col.systemKey === "ready");
+		if (!readyColumn) {
+			return {
+				startedCount: 0,
+				skippedNoRuleCount: 0,
+				skippedActiveRunCount: 0,
+				taskIds: [],
+				runIds: [],
+			};
+		}
 
-		const candidateTasks = [...taskRepo.listByBoard(board.id)].sort((a, b) => {
-			const leftColumnOrder =
-				columnOrderById.get(a.columnId) ?? Number.MAX_SAFE_INTEGER;
-			const rightColumnOrder =
-				columnOrderById.get(b.columnId) ?? Number.MAX_SAFE_INTEGER;
-			if (leftColumnOrder !== rightColumnOrder) {
-				return leftColumnOrder - rightColumnOrder;
-			}
-			return a.orderInColumn - b.orderInColumn;
-		});
+		const candidateTasks = [...taskRepo.listByBoard(board.id)]
+			.filter(
+				(task) => task.columnId === readyColumn.id && task.status === "pending",
+			)
+			.sort((a, b) => a.orderInColumn - b.orderInColumn);
 
-		let skippedNoRuleCount = 0;
 		let skippedActiveRunCount = 0;
 		const taskIds: string[] = [];
 		const runIds: string[] = [];
 
 		for (const task of candidateTasks) {
-			const currentColumnSystemKey =
-				columnSystemKeyById.get(task.columnId) ?? null;
-			const nextStatus = resolveTaskStatusBySignal({
-				scope: "user_action",
-				signalKey,
-				runKind: null,
-				runStatus: null,
-				currentStatus: task.status,
-				currentColumnSystemKey,
-			});
-			if (!nextStatus) {
-				skippedNoRuleCount += 1;
-				continue;
-			}
-
 			const hasActiveRun = runRepo
 				.listByTask(task.id)
 				.some((run) => activeExecutionRunStatuses.has(run.status));
@@ -748,7 +728,7 @@ export class RunService {
 
 		return {
 			startedCount: runIds.length,
-			skippedNoRuleCount,
+			skippedNoRuleCount: 0,
 			skippedActiveRunCount,
 			taskIds,
 			runIds,

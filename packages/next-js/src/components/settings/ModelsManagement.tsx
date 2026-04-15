@@ -5,12 +5,12 @@ import { api } from "@/lib/api-client";
 import type { OpencodeModel } from "@/types/kanban";
 import { AllModelsTab } from "./AllModelsTab";
 import { MyModelsTab } from "./MyModelsTab";
-import { OhMyOpencodeSettings } from "./OhMyOpencodeSettings";
+import { OhMyOpenagentSettings } from "./OhMyOpenagentSettings";
 
 type Difficulty = "easy" | "medium" | "hard" | "epic";
 
 type ModelsManagementProps = {
-	activeSubTab: "all" | "my" | "oh-my-opencode";
+	activeSubTab: "all" | "my" | "oh-my-openagent";
 	onStatusChangeAction: (status: {
 		message: string;
 		type: "info" | "error" | "success";
@@ -194,8 +194,8 @@ export function ModelsManagement({
 					/>
 				)}
 
-				{activeSubTab === "oh-my-opencode" && (
-					<OhMyOpencodeSettings onStatusChangeAction={onStatusChangeAction} />
+				{activeSubTab === "oh-my-openagent" && (
+					<OhMyOpenagentSettings onStatusChangeAction={onStatusChangeAction} />
 				)}
 			</div>
 		</div>

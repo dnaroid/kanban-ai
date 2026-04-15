@@ -19,7 +19,6 @@ const { mockBoardRepo, mockTaskRepo, mockPublishSseEvent, mockWorkflow } =
 			getWorkflowColumnSystemKey: vi.fn(),
 			isStatusAllowedInWorkflowColumn: vi.fn(),
 			isWorkflowTaskStatus: vi.fn(),
-			resolveTaskStatusBySignal: vi.fn(),
 			resolveTaskStatusReasons: vi.fn(),
 		},
 	}));
@@ -44,7 +43,6 @@ vi.mock("@/server/workflow/task-workflow-manager", () => ({
 	getWorkflowColumnSystemKey: mockWorkflow.getWorkflowColumnSystemKey,
 	isStatusAllowedInWorkflowColumn: mockWorkflow.isStatusAllowedInWorkflowColumn,
 	isWorkflowTaskStatus: mockWorkflow.isWorkflowTaskStatus,
-	resolveTaskStatusBySignal: mockWorkflow.resolveTaskStatusBySignal,
 	resolveTaskStatusReasons: mockWorkflow.resolveTaskStatusReasons,
 }));
 
@@ -98,7 +96,6 @@ describe("RunTaskProjector column selection on status change", () => {
 		vi.clearAllMocks();
 		mockBoardRepo.getById.mockReturnValue({ id: "board-1", columns: [] });
 		mockWorkflow.isWorkflowTaskStatus.mockReturnValue(true);
-		mockWorkflow.resolveTaskStatusBySignal.mockReturnValue("pending");
 		mockWorkflow.resolveTaskStatusReasons.mockReturnValue({
 			blockedReason: null,
 			closedReason: null,
@@ -128,7 +125,7 @@ describe("RunTaskProjector column selection on status change", () => {
 		mockWorkflow.canTransitionColumn.mockReturnValue(false);
 		mockWorkflow.isStatusAllowedInWorkflowColumn.mockImplementation(
 			(status: string, columnKey: string) =>
-				status === "pending" && columnKey === "backlog",
+				status === "running" && columnKey === "backlog",
 		);
 
 		const projector = new RunTaskProjector();
@@ -136,7 +133,7 @@ describe("RunTaskProjector column selection on status change", () => {
 
 		expect(mockTaskRepo.update).toHaveBeenCalledWith(
 			"task-1",
-			expect.objectContaining({ status: "pending", columnId: "col-backlog" }),
+			expect.objectContaining({ status: "running", columnId: "col-backlog" }),
 		);
 		expect(mockWorkflow.canTransitionColumn).toHaveBeenCalledWith(
 			"backlog",
@@ -153,7 +150,6 @@ describe("RunTaskProjector column selection on status change", () => {
 				...patch,
 			}),
 		);
-		mockWorkflow.resolveTaskStatusBySignal.mockReturnValue("done");
 		mockWorkflow.getPreferredColumnIdForStatus.mockReturnValue("col-review");
 		mockWorkflow.isStatusAllowedInWorkflowColumn.mockReturnValue(false);
 
@@ -166,7 +162,7 @@ describe("RunTaskProjector column selection on status change", () => {
 		);
 		expect(mockTaskRepo.update).toHaveBeenCalledWith(
 			"task-1",
-			expect.objectContaining({ status: "done", columnId: "col-review" }),
+			expect.objectContaining({ status: "running", columnId: "col-review" }),
 		);
 	});
 });
@@ -176,7 +172,6 @@ describe("RunTaskProjector user-story projection", () => {
 		vi.clearAllMocks();
 		mockBoardRepo.getById.mockReturnValue({ id: "board-1", columns: [] });
 		mockWorkflow.isWorkflowTaskStatus.mockReturnValue(true);
-		mockWorkflow.resolveTaskStatusBySignal.mockReturnValue("pending");
 		mockWorkflow.resolveTaskStatusReasons.mockReturnValue({
 			blockedReason: null,
 			closedReason: null,
@@ -216,12 +211,10 @@ describe("RunTaskProjector user-story projection", () => {
 		].join("\n");
 
 		const projector = new RunTaskProjector();
-		projector.projectRunOutcome(
-			buildRun("task-description-improve"),
-			"completed",
-			"test_ok",
-			assistantContent,
-		);
+		projector.projectRunOutcome(buildRun("task-description-improve"), {
+			marker: "test_ok",
+			content: assistantContent,
+		});
 
 		expect(mockTaskRepo.update).toHaveBeenCalledTimes(1);
 		const patch = mockTaskRepo.update.mock.calls[0]?.[1] as Record<
@@ -271,12 +264,10 @@ describe("RunTaskProjector user-story projection", () => {
 		].join("\n");
 
 		const projector = new RunTaskProjector();
-		projector.projectRunOutcome(
-			buildRun("task-description-improve"),
-			"completed",
-			"test_ok",
-			assistantContent,
-		);
+		projector.projectRunOutcome(buildRun("task-description-improve"), {
+			marker: "test_ok",
+			content: assistantContent,
+		});
 
 		expect(mockTaskRepo.update).toHaveBeenCalledTimes(1);
 		const patch = mockTaskRepo.update.mock.calls[0]?.[1] as Record<
@@ -307,12 +298,10 @@ describe("RunTaskProjector user-story projection", () => {
 		].join("\n");
 
 		const projector = new RunTaskProjector();
-		projector.projectRunOutcome(
-			buildRun("task-description-improve"),
-			"completed",
-			"test_ok",
-			assistantContent,
-		);
+		projector.projectRunOutcome(buildRun("task-description-improve"), {
+			marker: "test_ok",
+			content: assistantContent,
+		});
 
 		const patch = mockTaskRepo.update.mock.calls[0]?.[1] as Record<
 			string,
@@ -341,12 +330,10 @@ describe("RunTaskProjector user-story projection", () => {
 		].join("\n");
 
 		const projector = new RunTaskProjector();
-		projector.projectRunOutcome(
-			buildRun("task-description-improve"),
-			"completed",
-			"test_ok",
-			assistantContent,
-		);
+		projector.projectRunOutcome(buildRun("task-description-improve"), {
+			marker: "test_ok",
+			content: assistantContent,
+		});
 
 		const patch = mockTaskRepo.update.mock.calls[0]?.[1] as Record<
 			string,

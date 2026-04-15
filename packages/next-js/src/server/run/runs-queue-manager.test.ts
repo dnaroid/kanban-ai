@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildOpencodeStatusLine } from "@/lib/opencode-status";
+import type {
+	PermissionData,
+	SessionInspectionResult,
+} from "@/server/opencode/session-manager";
+import type { RunOutcome } from "@/server/run/run-task-projector";
 
 type MockRecord = Record<string, unknown>;
 
@@ -40,12 +45,23 @@ const {
 				return `session-${hoistedState.sessionCounter}`;
 			}),
 			sendPrompt: vi.fn(async () => undefined),
+			inspectSession: vi.fn<
+				(sessionId: string) => Promise<SessionInspectionResult>
+			>(async () => ({
+				probeStatus: "alive",
+				messages: [],
+				todos: [],
+				pendingPermissions: [],
+				pendingQuestions: [],
+				completionMarker: null,
+			})),
 			getMessages: vi.fn(
 				async (_sessionId?: string, _limit?: number) => [] as Array<MockRecord>,
 			),
-			listPendingPermissions: vi.fn(
-				async (_sessionId?: string) => [] as Array<MockRecord>,
-			),
+			listPendingPermissions: vi.fn<
+				(sessionId?: string) => Promise<PermissionData[]>
+			>(async (_sessionId?: string) => []),
+			listPendingQuestions: vi.fn(async (_sessionId?: string) => []),
 			unsubscribe: vi.fn(async () => undefined),
 			abortSession: vi.fn(async () => undefined),
 		},
@@ -138,7 +154,8 @@ const {
 		},
 		mockTaskProjector: {
 			projectRunStarted: vi.fn(),
-			projectRunOutcome: vi.fn(),
+			projectRunOutcome:
+				vi.fn<(run: MockRecord, outcome: RunOutcome) => void>(),
 		},
 		mockVcsManager: {
 			provisionRunWorkspace: vi.fn(async () => ({
@@ -308,6 +325,44 @@ function buildRun(
 	};
 }
 
+function buildInspection(options?: {
+	marker?: RunOutcome["marker"];
+	content?: string;
+	pendingPermissions?: SessionInspectionResult["pendingPermissions"];
+	pendingQuestions?: SessionInspectionResult["pendingQuestions"];
+	probeStatus?: SessionInspectionResult["probeStatus"];
+}): SessionInspectionResult {
+	const marker = options?.marker;
+	const content = options?.content ?? "";
+	const messages: SessionInspectionResult["messages"] = content
+		? [
+				{
+					id: "msg-1",
+					role: "assistant",
+					content,
+					parts: [],
+					timestamp: Date.now(),
+				},
+			]
+		: [];
+	return {
+		probeStatus: options?.probeStatus ?? "alive",
+		messages,
+		todos: [],
+		pendingPermissions: options?.pendingPermissions ?? [],
+		pendingQuestions: options?.pendingQuestions ?? [],
+		completionMarker: marker
+			? {
+					runStatus:
+						marker === "fail" || marker === "test_fail"
+							? "failed"
+							: "completed",
+					signalKey: marker,
+				}
+			: null,
+	};
+}
+
 async function waitForDrain(): Promise<void> {
 	await new Promise((resolve) => setTimeout(resolve, 0));
 	await new Promise((resolve) => setTimeout(resolve, 0));
@@ -315,12 +370,10 @@ async function waitForDrain(): Promise<void> {
 
 function withPrivateAccess(manager: RunsQueueManager): {
 	pollActiveRuns: () => Promise<void>;
-	checkRunCompletion: (runId: string, sessionId: string) => Promise<void>;
 	activeRunSessions: Map<string, string>;
 } {
 	return manager as unknown as {
 		pollActiveRuns: () => Promise<void>;
-		checkRunCompletion: (runId: string, sessionId: string) => Promise<void>;
 		activeRunSessions: Map<string, string>;
 	};
 }
@@ -337,7 +390,9 @@ describe("RunsQueueManager scheduling", () => {
 		process.env.RUNS_BLOCKED_RETRY_MS = "10";
 		process.env.RUNS_WORKTREE_ENABLED = "";
 		mockSessionManager.getMessages.mockResolvedValue([]);
+		mockSessionManager.inspectSession.mockResolvedValue(buildInspection());
 		mockSessionManager.listPendingPermissions.mockResolvedValue([]);
+		mockSessionManager.listPendingQuestions.mockResolvedValue([]);
 		mockTaskLinkRepo.listByTaskId.mockReturnValue([]);
 		mockVcsManager.syncRunWorkspace.mockResolvedValue(null);
 	});
@@ -523,13 +578,12 @@ describe("RunsQueueManager scheduling", () => {
 			),
 		);
 
-		mockSessionManager.getMessages.mockImplementation(async () => [
-			{
-				id: "msg-1",
-				role: "assistant",
+		mockSessionManager.inspectSession.mockResolvedValue(
+			buildInspection({
+				marker: "generated",
 				content: buildOpencodeStatusLine("generated"),
-			},
-		]);
+			}),
+		);
 
 		const manager = new RunsQueueManager();
 		manager.enqueue("run-generation", {
@@ -549,9 +603,7 @@ describe("RunsQueueManager scheduling", () => {
 		);
 		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "run-generation" }),
-			"completed",
-			"generated",
-			buildOpencodeStatusLine("generated"),
+			{ marker: "generated", content: buildOpencodeStatusLine("generated") },
 		);
 	});
 
@@ -572,13 +624,12 @@ describe("RunsQueueManager scheduling", () => {
 			),
 		);
 
-		mockSessionManager.getMessages.mockImplementation(async () => [
-			{
-				id: "msg-1",
-				role: "assistant",
+		mockSessionManager.inspectSession.mockResolvedValue(
+			buildInspection({
+				marker: "generated",
 				content: buildOpencodeStatusLine("generated"),
-			},
-		]);
+			}),
+		);
 		mockVcsManager.provisionRunWorkspace.mockResolvedValueOnce({
 			repoRoot: "/tmp/project",
 			worktreePath: "/tmp/project.worktrees/generated-exec",
@@ -722,16 +773,14 @@ describe("RunsQueueManager scheduling", () => {
 			finalizeRunFromSession: (
 				runId: string,
 				status: "completed" | "failed" | "paused",
-				signalKey: string,
-				assistantContent: string,
+				outcome: RunOutcome,
 			) => Promise<void>;
 		};
 
 		await withPrivateAccess.finalizeRunFromSession(
 			"run-auto-merge",
 			"completed",
-			"done",
-			buildOpencodeStatusLine("done"),
+			{ marker: "done", content: buildOpencodeStatusLine("done") },
 		);
 
 		expect(mockVcsManager.mergeRunWorkspace).toHaveBeenCalledWith(
@@ -802,16 +851,14 @@ describe("RunsQueueManager scheduling", () => {
 			finalizeRunFromSession: (
 				runId: string,
 				status: "completed" | "failed" | "paused",
-				signalKey: string,
-				assistantContent: string,
+				outcome: RunOutcome,
 			) => Promise<void>;
 		};
 
 		await withPrivateAccess.finalizeRunFromSession(
 			"run-auto-merge-fail",
 			"completed",
-			"done",
-			buildOpencodeStatusLine("done"),
+			{ marker: "done", content: buildOpencodeStatusLine("done") },
 		);
 
 		expect(mockVcsManager.cleanupRunWorkspace).not.toHaveBeenCalled();
@@ -885,16 +932,14 @@ describe("RunsQueueManager scheduling", () => {
 			finalizeRunFromSession: (
 				runId: string,
 				status: "completed" | "failed" | "paused",
-				signalKey: string,
-				assistantContent: string,
+				outcome: RunOutcome,
 			) => Promise<void>;
 		};
 
 		await withPrivateAccess.finalizeRunFromSession(
 			"run-auto-cleanup-fail",
 			"completed",
-			"done",
-			buildOpencodeStatusLine("done"),
+			{ marker: "done", content: buildOpencodeStatusLine("done") },
 		);
 
 		expect(mockVcsManager.syncVcsMetadata).toHaveBeenCalled();
@@ -952,13 +997,12 @@ describe("RunsQueueManager scheduling", () => {
 			),
 		);
 
-		mockSessionManager.getMessages.mockImplementation(async () => [
-			{
-				id: "msg-qa-ok",
-				role: "assistant",
+		mockSessionManager.inspectSession.mockResolvedValue(
+			buildInspection({
+				marker: "test_ok",
 				content: buildOpencodeStatusLine("test_ok"),
-			},
-		]);
+			}),
+		);
 
 		const manager = new RunsQueueManager();
 		manager.enqueue("run-qa-ok", {
@@ -972,9 +1016,7 @@ describe("RunsQueueManager scheduling", () => {
 
 		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "run-qa-ok" }),
-			"completed",
-			"test_ok",
-			buildOpencodeStatusLine("test_ok"),
+			{ marker: "test_ok", content: buildOpencodeStatusLine("test_ok") },
 		);
 	});
 
@@ -990,13 +1032,12 @@ describe("RunsQueueManager scheduling", () => {
 			),
 		);
 
-		mockSessionManager.getMessages.mockImplementation(async () => [
-			{
-				id: "msg-qa-fail",
-				role: "assistant",
+		mockSessionManager.inspectSession.mockResolvedValue(
+			buildInspection({
+				marker: "test_fail",
 				content: buildOpencodeStatusLine("test_fail"),
-			},
-		]);
+			}),
+		);
 
 		const manager = new RunsQueueManager();
 		manager.enqueue("run-qa-fail", {
@@ -1010,13 +1051,11 @@ describe("RunsQueueManager scheduling", () => {
 
 		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "run-qa-fail" }),
-			"failed",
-			"test_fail",
-			buildOpencodeStatusLine("test_fail"),
+			{ marker: "test_fail", content: buildOpencodeStatusLine("test_fail") },
 		);
 	});
 
-	it("does not project task failure when executeRun hits fetch failed", async () => {
+	it("projects task failure when executeRun hits fetch failed", async () => {
 		taskMap.set("task-fetch-failed", buildTask("task-fetch-failed", "normal"));
 		runMap.set(
 			"run-fetch-failed",
@@ -1047,11 +1086,9 @@ describe("RunsQueueManager scheduling", () => {
 				errorText: "fetch failed",
 			}),
 		);
-		expect(mockTaskProjector.projectRunOutcome).not.toHaveBeenCalledWith(
-			expect.objectContaining({ id: "run-fetch-failed" }),
-			"failed",
-			"fail",
-			"fetch failed",
+		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "run-fetch-failed", status: "failed" }),
+			{ marker: "fail", content: "fetch failed" },
 		);
 	});
 
@@ -1088,9 +1125,7 @@ describe("RunsQueueManager scheduling", () => {
 		);
 		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "run-real-error", status: "failed" }),
-			"failed",
-			"fail",
-			"Something broke",
+			{ marker: "fail", content: "Something broke" },
 		);
 	});
 
@@ -1120,24 +1155,20 @@ describe("RunsQueueManager scheduling", () => {
 			finalizeRunFromSession: (
 				runId: string,
 				status: "completed" | "failed" | "paused",
-				signalKey: string,
-				assistantContent: string,
+				outcome: RunOutcome,
 			) => Promise<void>;
 		};
 
 		await withPrivateAccess.finalizeRunFromSession(
 			"run-late-done",
 			"completed",
-			"done",
-			buildOpencodeStatusLine("done"),
+			{ marker: "done", content: buildOpencodeStatusLine("done") },
 		);
 
 		expect(runMap.get("run-late-done")?.status).toBe("completed");
 		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "run-late-done", status: "completed" }),
-			"completed",
-			"done",
-			buildOpencodeStatusLine("done"),
+			{ marker: "done", content: buildOpencodeStatusLine("done") },
 		);
 	});
 
@@ -1167,24 +1198,20 @@ describe("RunsQueueManager scheduling", () => {
 			finalizeRunFromSession: (
 				runId: string,
 				status: "completed" | "failed" | "paused",
-				signalKey: string,
-				assistantContent: string,
+				outcome: RunOutcome,
 			) => Promise<void>;
 		};
 
 		await withPrivateAccess.finalizeRunFromSession(
 			"run-late-done-no-recover",
 			"completed",
-			"done",
-			buildOpencodeStatusLine("done"),
+			{ marker: "done", content: buildOpencodeStatusLine("done") },
 		);
 
 		expect(runMap.get("run-late-done-no-recover")?.status).toBe("failed");
 		expect(mockTaskProjector.projectRunOutcome).not.toHaveBeenCalledWith(
 			expect.objectContaining({ id: "run-late-done-no-recover" }),
-			"completed",
-			"done",
-			buildOpencodeStatusLine("done"),
+			{ marker: "done", content: buildOpencodeStatusLine("done") },
 		);
 	});
 
@@ -1209,20 +1236,18 @@ describe("RunsQueueManager scheduling", () => {
 				errorText: "fetch failed",
 			},
 		});
-		mockSessionManager.getMessages.mockResolvedValue([
-			{
-				id: "msg-done",
-				role: "assistant",
+		mockSessionManager.inspectSession.mockResolvedValue(
+			buildInspection({
+				marker: "done",
 				content: buildOpencodeStatusLine("done"),
-			},
-		]);
+			}),
+		);
 
 		const manager = new RunsQueueManager();
 		await manager.recoverOrphanedRuns();
 
-		expect(mockSessionManager.getMessages).toHaveBeenCalledWith(
+		expect(mockSessionManager.inspectSession).toHaveBeenCalledWith(
 			"session-orphaned-fetch-failed",
-			200,
 		);
 		expect(runMap.get("run-orphaned-fetch-failed")?.status).toBe("completed");
 		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
@@ -1230,9 +1255,7 @@ describe("RunsQueueManager scheduling", () => {
 				id: "run-orphaned-fetch-failed",
 				status: "completed",
 			}),
-			"completed",
-			"done",
-			buildOpencodeStatusLine("done"),
+			{ marker: "done", content: buildOpencodeStatusLine("done") },
 		);
 	});
 
@@ -1257,7 +1280,9 @@ describe("RunsQueueManager permission handling", () => {
 		process.env.RUNS_BLOCKED_RETRY_MS = "10";
 		process.env.RUNS_WORKTREE_ENABLED = "";
 		mockSessionManager.getMessages.mockResolvedValue([]);
+		mockSessionManager.inspectSession.mockResolvedValue(buildInspection());
 		mockSessionManager.listPendingPermissions.mockResolvedValue([]);
+		mockSessionManager.listPendingQuestions.mockResolvedValue([]);
 		mockTaskLinkRepo.listByTaskId.mockReturnValue([]);
 		mockVcsManager.syncRunWorkspace.mockResolvedValue(null);
 	});
@@ -1294,18 +1319,22 @@ describe("RunsQueueManager permission handling", () => {
 			"run-perm-1",
 			"task-perm-1",
 		);
-		mockSessionManager.listPendingPermissions.mockResolvedValueOnce([
-			{
-				id: "perm-1",
-				permissionType: "bash",
-				pattern: "*.sh",
-				sessionId,
-				messageId: "msg-1",
-				title: "Execute shell script",
-				metadata: {},
-				createdAt: Date.now(),
-			},
-		]);
+		mockSessionManager.inspectSession.mockResolvedValueOnce(
+			buildInspection({
+				pendingPermissions: [
+					{
+						id: "perm-1",
+						permissionType: "bash",
+						pattern: "*.sh",
+						sessionId,
+						messageId: "msg-1",
+						title: "Execute shell script",
+						metadata: {},
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
 
 		await withPrivateAccess(manager).pollActiveRuns();
 
@@ -1324,18 +1353,22 @@ describe("RunsQueueManager permission handling", () => {
 			"run-perm-2",
 			"task-perm-2",
 		);
-		mockSessionManager.listPendingPermissions.mockResolvedValueOnce([
-			{
-				id: "perm-2",
-				permissionType: "edit",
-				pattern: ".env",
-				sessionId,
-				messageId: "msg-2",
-				title: "Edit .env file",
-				metadata: {},
-				createdAt: Date.now(),
-			},
-		]);
+		mockSessionManager.inspectSession.mockResolvedValueOnce(
+			buildInspection({
+				pendingPermissions: [
+					{
+						id: "perm-2",
+						permissionType: "edit",
+						pattern: ".env",
+						sessionId,
+						messageId: "msg-2",
+						title: "Edit .env file",
+						metadata: {},
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
 
 		await withPrivateAccess(manager).pollActiveRuns();
 
@@ -1355,19 +1388,22 @@ describe("RunsQueueManager permission handling", () => {
 			"run-perm-3",
 			"task-perm-3",
 		);
-		mockSessionManager.listPendingPermissions
-			.mockResolvedValueOnce([
-				{
-					id: "perm-3",
-					permissionType: "read",
-					sessionId,
-					messageId: "msg-3",
-					title: "Read file",
-					metadata: {},
-					createdAt: Date.now(),
-				},
-			])
-			.mockResolvedValueOnce([]);
+		mockSessionManager.inspectSession.mockResolvedValueOnce(
+			buildInspection({
+				pendingPermissions: [
+					{
+						id: "perm-3",
+						permissionType: "read",
+						sessionId,
+						messageId: "msg-3",
+						title: "Read file",
+						metadata: {},
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
+		mockSessionManager.listPendingPermissions.mockResolvedValueOnce([]);
 
 		await withPrivateAccess(manager).pollActiveRuns();
 
@@ -1399,7 +1435,7 @@ describe("RunsQueueManager permission handling", () => {
 			isolatedSessionId,
 		);
 		mockRunRepo.update("run-perm-4", { sessionId: isolatedSessionId });
-		let pendingPermissionsState: Array<MockRecord> = [
+		let pendingPermissionsState: PermissionData[] = [
 			{
 				id: "perm-4",
 				permissionType: "bash",
@@ -1410,8 +1446,23 @@ describe("RunsQueueManager permission handling", () => {
 				createdAt: Date.now(),
 			},
 		];
+		mockSessionManager.inspectSession.mockResolvedValueOnce(
+			buildInspection({
+				pendingPermissions: [
+					{
+						id: "perm-4",
+						permissionType: "bash",
+						sessionId: isolatedSessionId,
+						messageId: "msg-4",
+						title: "Run command",
+						metadata: {},
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
 		mockSessionManager.listPendingPermissions.mockImplementation(
-			async (currentSessionId?: string) => {
+			async (currentSessionId?: string): Promise<PermissionData[]> => {
 				return currentSessionId === isolatedSessionId
 					? pendingPermissionsState
 					: [];
@@ -1426,17 +1477,14 @@ describe("RunsQueueManager permission handling", () => {
 		await withPrivateAccess(manager).pollActiveRuns();
 		expect(runMap.get("run-perm-4")?.status).toBe("running");
 
-		mockSessionManager.getMessages.mockImplementation(
-			async (currentSessionId?: string, _limit?: number) => {
+		mockSessionManager.inspectSession.mockImplementation(
+			async (currentSessionId?: string) => {
 				return currentSessionId === isolatedSessionId
-					? [
-							{
-								id: "msg-fail",
-								role: "assistant",
-								content: buildOpencodeStatusLine("fail"),
-							},
-						]
-					: [];
+					? buildInspection({
+							marker: "fail",
+							content: buildOpencodeStatusLine("fail"),
+						})
+					: buildInspection();
 			},
 		);
 
@@ -1445,9 +1493,7 @@ describe("RunsQueueManager permission handling", () => {
 		expect(runMap.get("run-perm-4")?.status).toBe("failed");
 		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "run-perm-4" }),
-			"failed",
-			"fail",
-			buildOpencodeStatusLine("fail"),
+			{ marker: "fail", content: buildOpencodeStatusLine("fail") },
 		);
 	});
 
@@ -1497,7 +1543,7 @@ describe("RunsQueueManager permission handling", () => {
 			isolatedSessionId,
 		);
 		mockRunRepo.update("run-perm-6", { sessionId: isolatedSessionId });
-		let pendingPermissionsState: Array<MockRecord> = [
+		let pendingPermissionsState: PermissionData[] = [
 			{
 				id: "perm-6",
 				permissionType: "read",
@@ -1508,8 +1554,23 @@ describe("RunsQueueManager permission handling", () => {
 				createdAt: Date.now(),
 			},
 		];
+		mockSessionManager.inspectSession.mockResolvedValueOnce(
+			buildInspection({
+				pendingPermissions: [
+					{
+						id: "perm-6",
+						permissionType: "read",
+						sessionId: isolatedSessionId,
+						messageId: "msg-6",
+						title: "Read file",
+						metadata: {},
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
 		mockSessionManager.listPendingPermissions.mockImplementation(
-			async (currentSessionId?: string) => {
+			async (currentSessionId?: string): Promise<PermissionData[]> => {
 				return currentSessionId === isolatedSessionId
 					? pendingPermissionsState
 					: [];
@@ -1523,19 +1584,14 @@ describe("RunsQueueManager permission handling", () => {
 		await withPrivateAccess(manager).pollActiveRuns();
 		expect(runMap.get("run-perm-6")?.status).toBe("running");
 
-		mockSessionManager.getMessages.mockImplementation(
-			async (currentSessionId?: string, _limit?: number) => {
+		mockSessionManager.inspectSession.mockImplementation(
+			async (currentSessionId?: string) => {
 				return currentSessionId === isolatedSessionId
-					? [
-							{
-								id: "msg-final",
-								role: "assistant",
-								content: buildOpencodeStatusLine("done"),
-								parts: [],
-								timestamp: Date.now(),
-							},
-						]
-					: [];
+					? buildInspection({
+							marker: "done",
+							content: buildOpencodeStatusLine("done"),
+						})
+					: buildInspection();
 			},
 		);
 

@@ -1015,6 +1015,34 @@ export class OpencodeSessionManager {
 		return null;
 	}
 
+	/**
+	 * Count active (busy) OpenCode sessions across all projects.
+	 * Calls GET /session/status on the OpenCode instance.
+	 */
+	public async getActiveSessionCount(): Promise<{
+		totalSessions: number;
+		busySessions: number;
+		busySessionIds: string[];
+	}> {
+		const client = this.getRootClient();
+		const response = await client.session.status();
+		const data = getData<Record<string, { type: string }>>(response);
+
+		const entries = Object.entries(data);
+		const busySessionIds: string[] = [];
+		for (const [sessionId, status] of entries) {
+			if (status?.type === "busy") {
+				busySessionIds.push(sessionId);
+			}
+		}
+
+		return {
+			totalSessions: entries.length,
+			busySessions: busySessionIds.length,
+			busySessionIds,
+		};
+	}
+
 	private emit(sessionId: string, event: SessionEvent): void {
 		const sessionSubscribers = this.subscribers.get(sessionId);
 		if (!sessionSubscribers) {

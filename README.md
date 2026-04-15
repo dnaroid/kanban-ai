@@ -1,6 +1,6 @@
 # Kanban AI
 
-Веб-приложение для управления проектами с интеграцией Headless OpenCode и oh-my-opencode.
+Веб-приложение для управления проектами с интеграцией Headless OpenCode и oh-my-openagent.
 
 ## Phase 0: Каркас приложения
 

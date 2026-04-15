@@ -16,7 +16,6 @@ import { cn } from "@/lib/utils";
 import { LAST_PROJECT_ID_KEY } from "@/components/ClientLayout";
 import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 import { api } from "@/lib/api-client";
-import type { QueueStatsResponse } from "@/types/ipc";
 
 interface SidebarProps {
 	isSidebarCollapsed: boolean;
@@ -34,20 +33,20 @@ export function Sidebar({
 	const router = useRouter();
 	const [isQuitModalOpen, setIsQuitModalOpen] = useState(false);
 	const [isQuitting, setIsQuitting] = useState(false);
-	const [isActiveRunsModalOpen, setIsActiveRunsModalOpen] = useState(false);
-	const [activeQueueStats, setActiveQueueStats] =
-		useState<QueueStatsResponse | null>(null);
+	const [isActiveSessionsModalOpen, setIsActiveSessionsModalOpen] =
+		useState(false);
+	const [busySessionCount, setBusySessionCount] = useState(0);
 
 	const handleQuitClick = async () => {
 		try {
-			const stats = await api.run.queueStats();
-			if (stats.totalRunning > 0 || stats.totalQueued > 0) {
-				setActiveQueueStats(stats);
-				setIsActiveRunsModalOpen(true);
+			const stats = await api.opencode.activeSessionStats();
+			if (stats.busySessions > 0) {
+				setBusySessionCount(stats.busySessions);
+				setIsActiveSessionsModalOpen(true);
 				return;
 			}
 		} catch {
-			// Fail-open: if stats check fails, show standard quit modal
+			// Fail-open: if session check fails, show standard quit modal
 		}
 		setIsQuitModalOpen(true);
 	};
@@ -253,10 +252,10 @@ export function Sidebar({
 			/>
 
 			<ConfirmationModal
-				isOpen={isActiveRunsModalOpen}
+				isOpen={isActiveSessionsModalOpen}
 				onClose={() => {
-					setIsActiveRunsModalOpen(false);
-					setActiveQueueStats(null);
+					setIsActiveSessionsModalOpen(false);
+					setBusySessionCount(0);
 				}}
 				onConfirm={async () => {
 					setIsQuitting(true);
@@ -266,34 +265,22 @@ export function Sidebar({
 						setIsQuitting(false);
 					}
 				}}
-				title="Active runs in progress"
-				description="There are active tasks running or queued. Quitting will interrupt them."
+				title="Active sessions in progress"
+				description="There are OpenCode sessions currently running. Quitting will interrupt them."
 				confirmLabel="Quit anyway"
 				variant="danger"
 				isLoading={isQuitting}
 			>
-				{activeQueueStats && (
-					<div className="mt-3 flex gap-3">
-						{activeQueueStats.totalRunning > 0 && (
-							<div className="flex-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-center">
-								<div className="text-lg font-bold text-emerald-400 font-mono">
-									{activeQueueStats.totalRunning}
-								</div>
-								<div className="text-[10px] text-emerald-400/70 uppercase tracking-wider font-semibold">
-									Running
-								</div>
+				{busySessionCount > 0 && (
+					<div className="mt-3">
+						<div className="flex-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-center">
+							<div className="text-lg font-bold text-amber-400 font-mono">
+								{busySessionCount}
 							</div>
-						)}
-						{activeQueueStats.totalQueued > 0 && (
-							<div className="flex-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-center">
-								<div className="text-lg font-bold text-amber-400 font-mono">
-									{activeQueueStats.totalQueued}
-								</div>
-								<div className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold">
-									Queued
-								</div>
+							<div className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold">
+								Active sessions
 							</div>
-						)}
+						</div>
 					</div>
 				)}
 			</ConfirmationModal>

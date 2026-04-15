@@ -10,12 +10,10 @@ import {
 	getPreferredColumnIdForStatus,
 	getWorkflowColumnSystemKey,
 	isStatusAllowedInWorkflowColumn,
-	isWorkflowTaskStatus,
-	resolveTaskStatusBySignal,
 	resolveTaskStatusReasons,
 } from "@/server/workflow/task-workflow-manager";
 import type { TaskStatus } from "@/types/kanban";
-import type { Run, RunStatus } from "@/types/ipc";
+import type { Run } from "@/types/ipc";
 
 const allowedTaskTypes = ["feature", "bug", "chore", "improvement"] as const;
 const allowedDifficulties = ["easy", "medium", "hard", "epic"] as const;
@@ -25,6 +23,23 @@ const log = createLogger("run-task-projector");
 
 type AllowedTaskType = (typeof allowedTaskTypes)[number];
 type AllowedDifficulty = (typeof allowedDifficulties)[number];
+
+export type RunOutcomeMarker =
+	| "done"
+	| "generated"
+	| "fail"
+	| "test_ok"
+	| "test_fail"
+	| "dead"
+	| "question"
+	| "resumed"
+	| "cancelled"
+	| "timeout";
+
+export interface RunOutcome {
+	marker: RunOutcomeMarker;
+	content: string;
+}
 
 type ParsedUserStoryResponse = {
 	description: string;
@@ -174,6 +189,51 @@ function isQaTestingRun(run: Run): boolean {
 	return run.metadata?.kind === "task-qa-testing";
 }
 
+function resolveTaskStatusFromOutcome(
+	outcome: RunOutcome,
+	runKind: string | null,
+): TaskStatus | null {
+	switch (outcome.marker) {
+		case "resumed":
+			return "running";
+		case "cancelled":
+			return "pending";
+		case "timeout":
+			return "failed";
+		case "dead":
+			return "failed";
+	}
+
+	if (runKind === "task-description-improve") {
+		switch (outcome.marker) {
+			case "generated":
+			case "done":
+			case "test_ok":
+				return "pending";
+			case "fail":
+			case "test_fail":
+				return "failed";
+			case "question":
+				return "question";
+		}
+	}
+
+	switch (outcome.marker) {
+		case "done":
+		case "test_ok":
+			return "done";
+		case "fail":
+		case "test_fail":
+			return "failed";
+		case "question":
+			return "question";
+		case "generated":
+			return "pending";
+	}
+
+	return null;
+}
+
 export class RunTaskProjector {
 	private resolveColumnIdForStatus(task: Task, status: TaskStatus): string {
 		const board = boardRepo.getById(task.boardId);
@@ -264,92 +324,51 @@ export class RunTaskProjector {
 		};
 	}
 
-	private resolveStatusBySignal(
-		task: Task,
-		run: Run,
-		runStatus: RunStatus,
-		signalKey: string,
-	): TaskStatus | null {
-		if (!isWorkflowTaskStatus(task.status)) {
-			return null;
-		}
-
-		const runKind =
-			typeof run.metadata?.kind === "string" ? run.metadata.kind : null;
-
-		return resolveTaskStatusBySignal({
-			signalKey,
-			currentStatus: task.status,
-			runKind,
-			runStatus,
-		});
-	}
-
 	public projectRunStarted(run: Run): void {
 		const task = taskRepo.getById(run.taskId);
 		if (!task) {
 			return;
 		}
 
-		const signalKey = isTaskDescriptionImproveRun(run)
-			? "generation_started"
-			: isQaTestingRun(run)
-				? "testing_started"
-				: "run_started";
-		const nextStatus = this.resolveStatusBySignal(
-			task,
-			run,
-			"running",
-			signalKey,
-		);
-		if (!nextStatus) {
-			log.info("Run started signal did not resolve", {
-				runId: run.id,
-				taskId: task.id,
-				signalKey,
-				currentStatus: task.status,
-			});
-			return;
+		let nextStatus: TaskStatus;
+		if (isTaskDescriptionImproveRun(run)) {
+			nextStatus = "generating";
+		} else if (isQaTestingRun(run)) {
+			nextStatus = "running";
+		} else {
+			nextStatus = "running";
 		}
 
 		this.updateTaskAndPublish(task.id, this.buildStatusPatch(task, nextStatus));
 	}
 
-	public projectRunOutcome(
-		run: Run,
-		runStatus: RunStatus,
-		signalKey: string,
-		assistantContent: string,
-	): void {
+	public projectRunOutcome(run: Run, outcome: RunOutcome): void {
 		const task = taskRepo.getById(run.taskId);
 		if (!task) {
 			log.warn("Task not found for run", { runId: run.id, taskId: run.taskId });
 			return;
 		}
-		const nextStatus = this.resolveStatusBySignal(
-			task,
-			run,
-			runStatus,
-			signalKey,
+		const nextStatus = resolveTaskStatusFromOutcome(
+			outcome,
+			run.metadata?.kind ?? null,
 		);
 
 		if (!nextStatus) {
-			log.info("Signal did not resolve to a status change", {
+			log.info("Run outcome did not resolve to a status change", {
 				runId: run.id,
 				taskId: task.id,
-				signalKey,
-				runStatus,
+				marker: outcome.marker,
 				currentStatus: task.status,
 			});
 		}
 
 		if (
 			isTaskDescriptionImproveRun(run) &&
-			(signalKey === "generated" ||
-				signalKey === "done" ||
-				signalKey === "test_ok")
+			(outcome.marker === "generated" ||
+				outcome.marker === "done" ||
+				outcome.marker === "test_ok")
 		) {
-			const parsed = parseUserStoryResponse(assistantContent);
+			const parsed = parseUserStoryResponse(outcome.content);
 			const currentTags = parseTaskTags(task.tags);
 			const statusPatch = nextStatus
 				? this.buildStatusPatch(task, nextStatus)
@@ -393,8 +412,7 @@ export class RunTaskProjector {
 			log.info("Applying status patch", {
 				runId: run.id,
 				taskId: task.id,
-				signalKey,
-				runStatus,
+				marker: outcome.marker,
 				fromStatus: task.status,
 				toStatus: nextStatus,
 				columnId: patch.columnId,

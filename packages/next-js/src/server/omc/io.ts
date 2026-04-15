@@ -3,7 +3,7 @@ import path from "path";
 import { parse as parseJsonc, ParseError } from "jsonc-parser";
 import { appSettingsRepo } from "@/server/repositories";
 
-export const OMC_PRESET_SUFFIX = ".oh-my-opencode.json";
+export const OMC_PRESET_SUFFIX = ".oh-my-openagent.json";
 export const OMC_ORIGINAL_PRESET_NAME = `_original${OMC_PRESET_SUFFIX}`;
 
 export function parseMaybeJsonc(content: string): unknown {

@@ -16,22 +16,22 @@ import { FileSystemPicker } from "@/components/common/FileSystemPicker";
 import { api } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import type { OpencodeModel } from "@/types/kanban";
-import type { OhMyOpencodeConfig } from "./OhMyOpencodeTypes";
+import type { OhMyOpenagentConfig } from "./OhMyOpenagentTypes";
 import { DynamicFormFields, validateSchema } from "./DynamicFormFields";
 import type { JSONSchema } from "@/lib/json-schema-types";
 
-type OhMyOpencodeSettingsProps = {
+type OhMyOpenagentSettingsProps = {
 	onStatusChangeAction: (status: {
 		message: string;
 		type: "info" | "error" | "success";
 	}) => void;
 };
 
-export function OhMyOpencodeSettings({
+export function OhMyOpenagentSettings({
 	onStatusChangeAction,
-}: OhMyOpencodeSettingsProps) {
+}: OhMyOpenagentSettingsProps) {
 	const [configPath, setConfigPath] = useState<string | null>(null);
-	const [config, setConfig] = useState<OhMyOpencodeConfig | null>(null);
+	const [config, setConfig] = useState<OhMyOpenagentConfig | null>(null);
 	const [models, setModels] = useState<OpencodeModel[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
 	const [hasBackup, setHasBackup] = useState(false);
@@ -81,7 +81,7 @@ export function OhMyOpencodeSettings({
 			try {
 				setIsLoading(true);
 				const response = await api.omc.readConfig({ path });
-				const config = response.config as OhMyOpencodeConfig;
+				const config = response.config as OhMyOpenagentConfig;
 				setConfig(config);
 				setUnsavedChanges(false);
 				if (config.$schema) {
@@ -221,7 +221,7 @@ export function OhMyOpencodeSettings({
 		if (!config || !configPath || !newPresetName.trim()) return;
 		const presetName = newPresetName
 			.trim()
-			.replace(/\.oh-my-opencode\.json$/i, "");
+			.replace(/\.oh-my-openagent\.json$/i, "");
 		try {
 			await api.omc.savePreset({ path: configPath, presetName, config });
 			setNewPresetName("");
@@ -245,7 +245,7 @@ export function OhMyOpencodeSettings({
 				path: configPath,
 				presetName: selectedPreset,
 			});
-			setConfig(response.config as OhMyOpencodeConfig);
+			setConfig(response.config as OhMyOpenagentConfig);
 			setUnsavedChanges(true);
 			onStatusChangeAction({
 				message: `Preset loaded: ${selectedPreset}`,
@@ -344,7 +344,7 @@ export function OhMyOpencodeSettings({
 					isOpen={isFilePickerOpen}
 					mode="file"
 					initialPath={pickerInitialPath}
-					title="Select oh-my-opencode.json"
+					title="Select oh-my-openagent.json"
 					selectLabel="Select Config File"
 					allowedExtensions={["json"]}
 					onSelect={(paths) => {
@@ -549,7 +549,7 @@ export function OhMyOpencodeSettings({
 			<FileSystemPicker
 				isOpen={isFilePickerOpen}
 				mode="file"
-				title="Select oh-my-opencode.json"
+				title="Select oh-my-openagent.json"
 				selectLabel="Select Config File"
 				allowedExtensions={["json"]}
 				initialPath={pickerInitialPath}

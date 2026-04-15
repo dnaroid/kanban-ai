@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { boardRepo, taskRepo } from "@/server/repositories";
+import { projectRepo } from "@/server/repositories/project";
+import { getOpencodeService } from "@/server/opencode/opencode-service";
+import { runService } from "@/server/run/run-service";
 import type { UpdateTaskInput } from "@/server/types";
 import { publishSseEvent } from "@/server/events/sse-broker";
 import {
@@ -19,6 +22,34 @@ interface RouteParams {
 	params: Promise<{ id: string }>;
 }
 
+function getLatestSessionId(taskId: string): string | null {
+	const runs = runService.listByTask(taskId);
+	if (runs.length === 0) {
+		return null;
+	}
+
+	const sorted = [...runs].sort(
+		(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+	);
+	return sorted[0]?.sessionId || null;
+}
+
+function getOpencodeWebUrl(projectId: string): string | null {
+	const project = projectRepo.getById(projectId);
+	if (!project) {
+		return null;
+	}
+
+	try {
+		const service = getOpencodeService();
+		const port = service.getPort();
+		const base64Path = Buffer.from(project.path).toString("base64");
+		return `http://localhost:${port}/${base64Path}`;
+	} catch {
+		return null;
+	}
+}
+
 export async function GET(_request: NextRequest, { params }: RouteParams) {
 	try {
 		const { id } = await params;
@@ -31,7 +62,14 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 			);
 		}
 
-		return NextResponse.json({ success: true, data: task });
+		return NextResponse.json({
+			success: true,
+			data: {
+				...task,
+				latestSessionId: getLatestSessionId(task.id),
+				opencodeWebUrl: getOpencodeWebUrl(task.projectId),
+			},
+		});
 	} catch (error) {
 		console.error("[API] Error fetching task:", error);
 		return NextResponse.json(

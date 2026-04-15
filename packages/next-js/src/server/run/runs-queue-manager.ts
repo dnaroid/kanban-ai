@@ -1,5 +1,4 @@
 import { createLogger } from "@/lib/logger";
-import { extractOpencodeStatus } from "@/lib/opencode-status";
 import { buildTaskPrompt } from "@/server/run/prompts/task";
 import type {
 	PermissionData,
@@ -21,6 +20,10 @@ import { taskRepo } from "@/server/repositories/task";
 import { boardRepo } from "@/server/repositories/board";
 import { getWorkflowColumnIdBySystemKey } from "@/server/workflow/task-workflow-manager";
 import { getRunTaskProjector } from "@/server/run/run-task-projector";
+import type {
+	RunOutcome,
+	RunOutcomeMarker,
+} from "@/server/run/run-task-projector";
 import { publishRunUpdate } from "@/server/run/run-publisher";
 import { publishSseEvent } from "@/server/events/sse-broker";
 import { getVcsManager } from "@/server/vcs/vcs-manager";
@@ -56,10 +59,17 @@ interface QueueMeta {
 	isGeneration: boolean;
 }
 
-interface AssistantRunSignal {
-	runStatus: RunStatus;
-	signalKey: string;
-}
+type SessionMetaStatus =
+	| {
+			kind: "completed";
+			marker: "done" | "generated" | "test_ok";
+			content: string;
+	  }
+	| { kind: "failed"; marker: "fail" | "test_fail"; content: string }
+	| { kind: "question"; questions: QuestionData[] }
+	| { kind: "permission"; permission: PermissionData }
+	| { kind: "running" }
+	| { kind: "dead" };
 
 export interface ProviderQueueStats {
 	providerKey: string;
@@ -82,32 +92,55 @@ export interface QueueStats {
 	byProject: ProjectQueueStats[];
 }
 
-function resolveAssistantRunSignal(text: string): AssistantRunSignal | null {
-	const parsed = extractOpencodeStatus(text);
-	if (!parsed) {
-		return null;
+function deriveMetaStatus(
+	inspection: SessionInspectionResult,
+): SessionMetaStatus {
+	if (inspection.completionMarker) {
+		const marker = inspection.completionMarker.signalKey as RunOutcomeMarker;
+		const content = findCompletionContent(inspection);
+		if (marker === "done" || marker === "generated" || marker === "test_ok") {
+			return { kind: "completed", marker, content };
+		}
+		if (marker === "fail" || marker === "test_fail") {
+			return { kind: "failed", marker, content };
+		}
+		if (marker === "question") {
+			if (inspection.pendingQuestions.length > 0) {
+				return { kind: "question", questions: inspection.pendingQuestions };
+			}
+			return { kind: "running" };
+		}
 	}
 
-	if (parsed.status === "done") {
-		return { runStatus: "completed", signalKey: "done" };
-	}
-	if (parsed.status === "generated") {
-		return { runStatus: "completed", signalKey: "generated" };
-	}
-	if (parsed.status === "fail") {
-		return { runStatus: "failed", signalKey: "fail" };
-	}
-	if (parsed.status === "question") {
-		return { runStatus: "paused", signalKey: "question" };
-	}
-	if (parsed.status === "test_ok") {
-		return { runStatus: "completed", signalKey: "test_ok" };
-	}
-	if (parsed.status === "test_fail") {
-		return { runStatus: "failed", signalKey: "test_fail" };
+	if (inspection.probeStatus === "not_found") {
+		return { kind: "dead" };
 	}
 
-	return null;
+	if (inspection.probeStatus === "transient_error") {
+		return { kind: "running" };
+	}
+
+	const permission = inspection.pendingPermissions[0];
+	if (permission) {
+		return { kind: "permission", permission };
+	}
+
+	const question = inspection.pendingQuestions[0];
+	if (question) {
+		return { kind: "question", questions: inspection.pendingQuestions };
+	}
+
+	return { kind: "running" };
+}
+
+function findCompletionContent(inspection: SessionInspectionResult): string {
+	for (let i = inspection.messages.length - 1; i >= 0; i--) {
+		const msg = inspection.messages[i];
+		if (msg.role === "assistant") {
+			return msg.content;
+		}
+	}
+	return "";
 }
 
 function getRunErrorText(run: Run): string {
@@ -294,6 +327,14 @@ export class RunsQueueManager {
 		process.env.RUNS_BLOCKED_RETRY_MS,
 		5000,
 	);
+	private readonly maxRetryCount = parsePositiveInt(
+		process.env.RUNS_MAX_RETRY_COUNT,
+		3,
+	);
+	private readonly retryBaseDelayMs = parsePositiveInt(
+		process.env.RUNS_RETRY_BASE_DELAY_MS,
+		5000,
+	);
 	private readonly worktreeEnabled =
 		process.env.RUNS_WORKTREE_ENABLED === "true";
 	private blockedRetryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -303,6 +344,10 @@ export class RunsQueueManager {
 	private readonly reconciling = new Set<string>();
 	private reconciliationTimer: ReturnType<typeof setTimeout> | null = null;
 	private readonly reconciliationIntervalMs = 30_000;
+	private readonly retryTimers = new Map<
+		string,
+		ReturnType<typeof setTimeout>
+	>();
 
 	public constructor() {
 		queueMicrotask(() => {
@@ -422,6 +467,7 @@ export class RunsQueueManager {
 
 	public async cancel(runId: string): Promise<void> {
 		log.info("Cancelling run", { runId });
+		this.clearRetryTimer(runId);
 		this.removeFromQueue(runId);
 
 		const run = runRepo.getById(runId);
@@ -461,12 +507,10 @@ export class RunsQueueManager {
 			payload: { status: "cancelled", message: "Run cancelled" },
 		});
 		publishRunUpdate(cancelled);
-		this.taskProjector.projectRunOutcome(
-			cancelled,
-			"cancelled",
-			"cancelled",
-			"",
-		);
+		this.taskProjector.projectRunOutcome(cancelled, {
+			marker: "cancelled",
+			content: "",
+		});
 
 		this.activeRunSessions.delete(runId);
 		if (this.activeRunSessions.size === 0) {
@@ -731,8 +775,20 @@ export class RunsQueueManager {
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : "Run execution failed";
-			const networkError = isNetworkError(error);
-			log.error("Run execution failed", { runId, error: message });
+
+			if (isNetworkError(error)) {
+				const retried = this.scheduleRetryAfterNetworkError(runId, message);
+				if (retried) {
+					return;
+				}
+				log.warn("Max retries exhausted for run after network errors", {
+					runId,
+					error: message,
+				});
+			} else {
+				log.error("Run execution failed", { runId, error: message });
+			}
+
 			const finishedAt = new Date().toISOString();
 			let failedRun = runRepo.update(runId, {
 				status: "failed",
@@ -751,25 +807,92 @@ export class RunsQueueManager {
 				},
 			});
 			publishRunUpdate(failedRun);
-			if (!networkError) {
-				this.taskProjector.projectRunOutcome(
-					failedRun,
-					"failed",
-					"fail",
-					message,
-				);
-			} else {
-				log.info("Skipping task failure projection for network run error", {
-					runId,
-					error: message,
-				});
-			}
+			this.taskProjector.projectRunOutcome(failedRun, {
+				marker: "fail",
+				content: message,
+			});
 			this.activeRunSessions.delete(runId);
 			if (this.activeRunSessions.size === 0) {
 				this.stopPolling();
 			}
 			this.runInputs.delete(runId);
 		}
+	}
+
+	private scheduleRetryAfterNetworkError(
+		runId: string,
+		errorMessage: string,
+	): boolean {
+		const run = runRepo.getById(runId);
+		if (!run) {
+			return false;
+		}
+
+		// If a session was already created, don't re-enqueue a fresh attempt.
+		// The existing session may still be alive — rely on polling/reconciliation
+		// to recover it instead of starting a duplicate session.
+		if (run.sessionId?.trim()) {
+			return false;
+		}
+
+		const currentRetryCount =
+			typeof run.metadata?._retryCount === "number" &&
+			Number.isFinite(run.metadata._retryCount)
+				? run.metadata._retryCount
+				: 0;
+		if (currentRetryCount >= this.maxRetryCount) {
+			return false;
+		}
+
+		const retryCount = currentRetryCount + 1;
+		const delayMs = this.retryBaseDelayMs * Math.pow(2, currentRetryCount);
+		const queuedRun = runRepo.update(runId, {
+			status: "queued",
+			startedAt: null,
+			finishedAt: null,
+			errorText: "",
+			metadata: {
+				...run.metadata,
+				_retryCount: retryCount,
+				_lastRetryError: errorMessage,
+			},
+		});
+		publishRunUpdate(queuedRun);
+
+		log.info("Scheduling retry for run after network error", {
+			runId,
+			retryCount,
+			delayMs,
+		});
+		runEventRepo.create({
+			runId,
+			eventType: "status",
+			payload: {
+				status: "queued",
+				message: `Retrying after network error (attempt ${retryCount} of ${this.maxRetryCount})`,
+			},
+		});
+
+		this.activeRunSessions.delete(runId);
+		if (this.activeRunSessions.size === 0) {
+			this.stopPolling();
+		}
+
+		const timer = setTimeout(() => {
+			this.retryTimers.delete(runId);
+			// Re-read from DB to guard against cancellation during the delay
+			const current = runRepo.getById(runId);
+			if (!current || current.status !== "queued") {
+				return;
+			}
+			const input = this.runInputs.get(runId);
+			if (input) {
+				this.enqueue(runId, input);
+			}
+		}, delayMs);
+		this.retryTimers.set(runId, timer);
+
+		return true;
 	}
 
 	private ensurePollingActive(): void {
@@ -818,24 +941,35 @@ export class RunsQueueManager {
 				}
 
 				if (run.status === "running") {
-					await this.checkRunCompletion(runId, sessionId);
-					if (!this.activeRunSessions.has(runId)) {
-						continue;
-					}
+					const inspection =
+						await this.sessionManager.inspectSession(sessionId);
+					const meta = deriveMetaStatus(inspection);
 
-					const pendingPermissions =
-						await this.sessionManager.listPendingPermissions(sessionId);
-					const permission = pendingPermissions[0];
-					if (permission) {
-						await this.pauseRunForPendingPermission(runId, permission);
-						continue;
-					}
-
-					const pendingQuestions =
-						await this.sessionManager.listPendingQuestions(sessionId);
-					const question = pendingQuestions[0];
-					if (question) {
-						await this.pauseRunForPendingQuestion(runId, question);
+					switch (meta.kind) {
+						case "completed":
+						case "failed": {
+							const runStatus =
+								meta.kind === "completed"
+									? ("completed" as RunStatus)
+									: ("failed" as RunStatus);
+							const outcome: RunOutcome = {
+								marker: meta.marker,
+								content: meta.content,
+							};
+							await this.finalizeRunFromSession(runId, runStatus, outcome);
+							break;
+						}
+						case "dead":
+							await this.finalizeDeadRun(runId);
+							break;
+						case "question":
+							await this.pauseRunForPendingQuestion(runId, meta.questions[0]);
+							break;
+						case "permission":
+							await this.pauseRunForPendingPermission(runId, meta.permission);
+							break;
+						case "running":
+							break;
 					}
 					continue;
 				}
@@ -900,36 +1034,47 @@ export class RunsQueueManager {
 		}
 	}
 
-	private async checkRunCompletion(
-		runId: string,
-		sessionId: string,
-	): Promise<void> {
-		const messages = await this.sessionManager.getMessages(sessionId, 200);
-		const lastAssistantMessage = [...messages]
-			.reverse()
-			.find((message) => message.role === "assistant");
-		if (!lastAssistantMessage) {
+	private async finalizeDeadRun(runId: string): Promise<void> {
+		const run = runRepo.getById(runId);
+		if (!run) {
 			return;
 		}
 
-		const runSignal = resolveAssistantRunSignal(lastAssistantMessage.content);
-		if (!runSignal) {
+		if (
+			run.status === "completed" ||
+			run.status === "failed" ||
+			run.status === "cancelled"
+		) {
+			this.activeRunSessions.delete(runId);
 			return;
 		}
 
-		log.info("Finalizing run from polled session messages", {
-			runId,
-			sessionId,
-			status: runSignal.runStatus,
-			signalKey: runSignal.signalKey,
-			messageId: lastAssistantMessage.id,
+		const finishedAt = new Date().toISOString();
+		let failedRun = runRepo.update(runId, {
+			status: "failed",
+			finishedAt,
+			errorText: "Session not found or unreachable",
+			durationSec: this.durationSec(run.startedAt ?? finishedAt, finishedAt),
 		});
-		await this.finalizeRunFromSession(
+		failedRun = await this.syncRunWorkspaceState(failedRun);
+
+		runEventRepo.create({
 			runId,
-			runSignal.runStatus,
-			runSignal.signalKey,
-			lastAssistantMessage.content,
-		);
+			eventType: "status",
+			payload: { status: "failed", message: "Session not found" },
+		});
+
+		this.taskProjector.projectRunOutcome(failedRun, {
+			marker: "dead",
+			content: "Session not found or unreachable",
+		});
+
+		publishRunUpdate(failedRun);
+		this.activeRunSessions.delete(runId);
+		if (this.activeRunSessions.size === 0) {
+			this.stopPolling();
+		}
+		this.runInputs.delete(runId);
 	}
 
 	private async pauseRunForPendingPermission(
@@ -981,12 +1126,10 @@ export class RunsQueueManager {
 		});
 		publishRunUpdate(pausedRun);
 
-		this.taskProjector.projectRunOutcome(
-			pausedRun,
-			"paused",
-			"question",
-			`Permission requested: ${permission.title}`,
-		);
+		this.taskProjector.projectRunOutcome(pausedRun, {
+			marker: "question",
+			content: `Permission requested: ${permission.title}`,
+		});
 	}
 
 	private async pauseRunForPendingQuestion(
@@ -1032,12 +1175,10 @@ export class RunsQueueManager {
 		});
 		publishRunUpdate(pausedRun);
 
-		this.taskProjector.projectRunOutcome(
-			pausedRun,
-			"paused",
-			"question",
-			"Question asked",
-		);
+		this.taskProjector.projectRunOutcome(pausedRun, {
+			marker: "question",
+			content: "Question asked",
+		});
 	}
 
 	private async resumeRunAfterPermissionApproval(
@@ -1070,12 +1211,10 @@ export class RunsQueueManager {
 			},
 		});
 		publishRunUpdate(resumedRun);
-		this.taskProjector.projectRunOutcome(
-			resumedRun,
-			"running",
-			"resume_run",
-			`Permission approved: ${permissionId}`,
-		);
+		this.taskProjector.projectRunOutcome(resumedRun, {
+			marker: "resumed",
+			content: `Permission approved: ${permissionId}`,
+		});
 	}
 
 	private async resumeRunAfterQuestionAnswered(
@@ -1108,12 +1247,10 @@ export class RunsQueueManager {
 			},
 		});
 		publishRunUpdate(resumedRun);
-		this.taskProjector.projectRunOutcome(
-			resumedRun,
-			"running",
-			"resume_run",
-			"Question answered",
-		);
+		this.taskProjector.projectRunOutcome(resumedRun, {
+			marker: "resumed",
+			content: "Question answered",
+		});
 	}
 
 	private async resumeOrphanedPausedRun(runId: string): Promise<void> {
@@ -1136,12 +1273,10 @@ export class RunsQueueManager {
 			},
 		});
 		publishRunUpdate(resumedRun);
-		this.taskProjector.projectRunOutcome(
-			resumedRun,
-			"running",
-			"resume_run",
-			"Auto-resumed: no pending user interaction",
-		);
+		this.taskProjector.projectRunOutcome(resumedRun, {
+			marker: "resumed",
+			content: "Resumed orphaned paused run",
+		});
 	}
 
 	private getAwaitingPermissionId(runId: string): string | null {
@@ -1201,8 +1336,7 @@ export class RunsQueueManager {
 	private async finalizeRunFromSession(
 		runId: string,
 		status: RunStatus,
-		signalKey: string,
-		assistantContent: string,
+		outcome: RunOutcome,
 	): Promise<void> {
 		log.info("Finalizing run", { runId, status });
 		const run = runRepo.getById(runId);
@@ -1257,12 +1391,7 @@ export class RunsQueueManager {
 		});
 
 		try {
-			this.taskProjector.projectRunOutcome(
-				nextRun,
-				status,
-				signalKey,
-				assistantContent,
-			);
+			this.taskProjector.projectRunOutcome(nextRun, outcome);
 			if (
 				status === "completed" &&
 				this.isGenerationRun(nextRun) &&
@@ -1316,35 +1445,20 @@ export class RunsQueueManager {
 
 		for (const run of recoverableRuns) {
 			try {
-				const messages = await this.sessionManager.getMessages(
+				const inspection = await this.sessionManager.inspectSession(
 					run.sessionId,
-					200,
 				);
-				for (let index = messages.length - 1; index >= 0; index -= 1) {
-					const message = messages[index];
-					if (message.role !== "assistant") {
-						continue;
-					}
+				const meta = deriveMetaStatus(inspection);
 
-					const runSignal = resolveAssistantRunSignal(message.content);
-					if (!runSignal) {
-						continue;
-					}
-
-					log.info("Recovering orphaned failed run from session markers", {
-						runId: run.id,
-						sessionId: run.sessionId,
-						status: runSignal.runStatus,
-						signalKey: runSignal.signalKey,
-						messageId: message.id,
+				if (meta.kind === "completed" || meta.kind === "failed") {
+					const runStatus =
+						meta.kind === "completed"
+							? ("completed" as RunStatus)
+							: ("failed" as RunStatus);
+					await this.finalizeRunFromSession(run.id, runStatus, {
+						marker: meta.marker,
+						content: meta.content,
 					});
-					await this.finalizeRunFromSession(
-						run.id,
-						runSignal.runStatus,
-						runSignal.signalKey,
-						message.content,
-					);
-					break;
 				}
 			} catch (error) {
 				log.warn("Failed to recover orphaned run from session", {
@@ -1456,68 +1570,40 @@ export class RunsQueueManager {
 		sessionId: string,
 		inspection: SessionInspectionResult,
 	): Promise<void> {
-		if (inspection.completionMarker) {
-			const assistantContent = this.findCompletionAssistantContent(inspection);
-			log.info("Finalizing reconciled run from session inspection", {
-				runId: run.id,
-				sessionId,
-				status: inspection.completionMarker.runStatus,
-				signalKey: inspection.completionMarker.signalKey,
-			});
-			await this.finalizeRunFromSession(
-				run.id,
-				inspection.completionMarker.runStatus,
-				inspection.completionMarker.signalKey,
-				assistantContent,
-			);
-			return;
-		}
+		const meta = deriveMetaStatus(inspection);
 
-		if (inspection.probeStatus === "not_found") {
-			log.warn("Session not found during run reconciliation", {
-				runId: run.id,
-				sessionId,
-				status: run.status,
-			});
-			await this.failRunDuringReconciliation(
-				run,
-				"Session not found during reconciliation",
-				"Session not found",
-			);
-			return;
-		}
-
-		if (inspection.probeStatus === "transient_error") {
-			log.warn("Transient session inspection error during reconciliation", {
-				runId: run.id,
-				sessionId,
-				status: run.status,
-			});
-			return;
-		}
-
-		const pendingPermission = inspection.pendingPermissions[0];
-		if (pendingPermission) {
-			log.info("Reconciled run with pending permission", {
-				runId: run.id,
-				sessionId,
-				permissionId: pendingPermission.id,
-			});
-			const nextRun = this.ensureRunPausedForPermission(run, pendingPermission);
-			this.attachReconciledSession(nextRun.id, sessionId);
-			return;
-		}
-
-		const pendingQuestion = inspection.pendingQuestions[0];
-		if (pendingQuestion) {
-			log.info("Reconciled run with pending question", {
-				runId: run.id,
-				sessionId,
-				questionId: pendingQuestion.id,
-			});
-			const nextRun = this.ensureRunPausedForQuestion(run, pendingQuestion);
-			this.attachReconciledSession(nextRun.id, sessionId);
-			return;
+		switch (meta.kind) {
+			case "completed":
+			case "failed": {
+				const runStatus =
+					meta.kind === "completed"
+						? ("completed" as RunStatus)
+						: ("failed" as RunStatus);
+				await this.finalizeRunFromSession(run.id, runStatus, {
+					marker: meta.marker,
+					content: meta.content,
+				});
+				return;
+			}
+			case "dead":
+				await this.failRunDuringReconciliation(
+					run,
+					"Session not found during reconciliation",
+					"Session not found",
+				);
+				return;
+			case "running":
+				break;
+			case "permission": {
+				const nextRun = this.ensureRunPausedForPermission(run, meta.permission);
+				this.attachReconciledSession(nextRun.id, sessionId);
+				return;
+			}
+			case "question": {
+				const nextRun = this.ensureRunPausedForQuestion(run, meta.questions[0]);
+				this.attachReconciledSession(nextRun.id, sessionId);
+				return;
+			}
 		}
 
 		if (run.status === "queued") {
@@ -1536,12 +1622,10 @@ export class RunsQueueManager {
 				},
 			});
 			publishRunUpdate(resumedRun);
-			this.taskProjector.projectRunOutcome(
-				resumedRun,
-				"running",
-				"resume_run",
-				"Run resumed during reconciliation",
-			);
+			this.taskProjector.projectRunOutcome(resumedRun, {
+				marker: "resumed",
+				content: "Run resumed during reconciliation",
+			});
 			log.info("Reattached queued run as running during reconciliation", {
 				runId: run.id,
 				sessionId,
@@ -1556,23 +1640,6 @@ export class RunsQueueManager {
 			status: run.status,
 		});
 		this.attachReconciledSession(run.id, sessionId);
-	}
-
-	private findCompletionAssistantContent(
-		inspection: SessionInspectionResult,
-	): string {
-		for (let index = inspection.messages.length - 1; index >= 0; index -= 1) {
-			const message = inspection.messages[index];
-			if (message.role !== "assistant") {
-				continue;
-			}
-
-			if (resolveAssistantRunSignal(message.content)) {
-				return message.content;
-			}
-		}
-
-		return "";
 	}
 
 	private ensureRunPausedForPermission(
@@ -1610,12 +1677,10 @@ export class RunsQueueManager {
 			createdAt: permission.createdAt,
 		});
 		publishRunUpdate(pausedRun);
-		this.taskProjector.projectRunOutcome(
-			pausedRun,
-			"paused",
-			"question",
-			`Permission requested: ${permission.title}`,
-		);
+		this.taskProjector.projectRunOutcome(pausedRun, {
+			marker: "question",
+			content: `Permission requested: ${permission.title}`,
+		});
 		return pausedRun;
 	}
 
@@ -1645,12 +1710,10 @@ export class RunsQueueManager {
 			createdAt: question.createdAt,
 		});
 		publishRunUpdate(pausedRun);
-		this.taskProjector.projectRunOutcome(
-			pausedRun,
-			"paused",
-			"question",
-			"Question asked",
-		);
+		this.taskProjector.projectRunOutcome(pausedRun, {
+			marker: "question",
+			content: "Question asked",
+		});
 		return pausedRun;
 	}
 
@@ -1682,12 +1745,10 @@ export class RunsQueueManager {
 			},
 		});
 		publishRunUpdate(failedRun);
-		this.taskProjector.projectRunOutcome(
-			failedRun,
-			"failed",
-			"fail",
-			assistantContent,
-		);
+		this.taskProjector.projectRunOutcome(failedRun, {
+			marker: "fail",
+			content: assistantContent,
+		});
 
 		this.activeRunSessions.delete(run.id);
 		if (this.activeRunSessions.size === 0) {
@@ -2503,47 +2564,27 @@ export class RunsQueueManager {
 			return;
 		}
 
-		const messages = await this.sessionManager.getMessages(sessionId, 200);
-		if (messages.length === 0) {
-			log.warn("No session messages found after prompt completion", {
-				runId,
-				sessionId,
+		const inspection = await this.sessionManager.inspectSession(sessionId);
+		const meta = deriveMetaStatus(inspection);
+
+		if (meta.kind === "completed" || meta.kind === "failed") {
+			const runStatus =
+				meta.kind === "completed"
+					? ("completed" as RunStatus)
+					: ("failed" as RunStatus);
+			await this.finalizeRunFromSession(runId, runStatus, {
+				marker: meta.marker,
+				content: meta.content,
 			});
-			return;
 		}
+	}
 
-		for (let index = messages.length - 1; index >= 0; index -= 1) {
-			const message = messages[index];
-			if (message.role !== "assistant") {
-				continue;
-			}
-
-			const runSignal = resolveAssistantRunSignal(message.content);
-			if (!runSignal) {
-				continue;
-			}
-
-			log.info("Finalizing run from session snapshot", {
-				runId,
-				sessionId,
-				status: runSignal.runStatus,
-				signalKey: runSignal.signalKey,
-				messageId: message.id,
-			});
-			await this.finalizeRunFromSession(
-				runId,
-				runSignal.runStatus,
-				runSignal.signalKey,
-				message.content,
-			);
-			return;
+	private clearRetryTimer(runId: string): void {
+		const timer = this.retryTimers.get(runId);
+		if (timer) {
+			clearTimeout(timer);
+			this.retryTimers.delete(runId);
 		}
-
-		log.warn("No assistant completion marker in session snapshot", {
-			runId,
-			sessionId,
-			messageCount: messages.length,
-		});
 	}
 
 	private removeFromQueue(runId: string): void {
@@ -2571,6 +2612,7 @@ export class RunsQueueManager {
 
 		this.queueKeyByRunId.delete(runId);
 		this.runInputs.delete(runId);
+		this.clearRetryTimer(runId);
 	}
 
 	private buildQueueKey(

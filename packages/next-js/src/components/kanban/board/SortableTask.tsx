@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Trash2, Loader2, ExternalLink } from "lucide-react";
 import type { KanbanTask, Tag } from "@/types/kanban";
-import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { PillSelect } from "@/components/common/PillSelect";
 import { priorityConfig, typeConfig } from "../TaskPropertyConfigs";
@@ -40,8 +39,6 @@ export function SortableTask({
 	onUpdate,
 }: SortableTaskProps) {
 	const [isLoading, setIsLoading] = useState(false);
-	const [latestSessionId, setLatestSessionId] = useState<string | null>(null);
-	const [opencodeWebUrl, setOpencodeWebUrl] = useState<string | null>(null);
 	const workflowConfig = useWorkflowDisplayConfig();
 	const {
 		attributes,
@@ -104,41 +101,6 @@ export function SortableTask({
 	const handleContextPointerDown = (e: React.PointerEvent) => {
 		e.stopPropagation();
 	};
-
-	useEffect(() => {
-		let cancelled = false;
-
-		async function fetchData() {
-			try {
-				const result = await api.run.listByTask({ taskId: task.id });
-
-				if (cancelled) return;
-
-				const runs = result.runs;
-				if (runs.length > 0) {
-					const sorted = [...runs].sort(
-						(a, b) =>
-							new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-					);
-					const latestRun = sorted[0];
-					setLatestSessionId(latestRun?.sessionId || null);
-				} else {
-					setLatestSessionId(null);
-				}
-
-				setOpencodeWebUrl(result.opencodeWebUrl);
-			} catch {
-				if (cancelled) return;
-				setLatestSessionId(null);
-				setOpencodeWebUrl(null);
-			}
-		}
-
-		fetchData();
-		return () => {
-			cancelled = true;
-		};
-	}, [task.id]);
 
 	return (
 		<div
@@ -234,9 +196,9 @@ export function SortableTask({
 			</div>
 
 			<div className="px-4 pb-4 flex flex-wrap items-center gap-2 border-t border-slate-700/60 pt-3">
-				{latestSessionId && opencodeWebUrl && (
+				{task.latestSessionId && task.opencodeWebUrl && (
 					<a
-						href={`${opencodeWebUrl}/session/${latestSessionId}`}
+						href={`${task.opencodeWebUrl}/session/${task.latestSessionId}`}
 						target="_blank"
 						rel="noopener noreferrer"
 						onClick={(e) => e.stopPropagation()}

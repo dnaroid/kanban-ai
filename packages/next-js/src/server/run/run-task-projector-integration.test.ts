@@ -1,12 +1,11 @@
 /**
  * Integration test: uses REAL workflow config + REAL RunTaskProjector.
- * Only repos and SSE are mocked. This tests the full signal → status → column flow.
+ * Only repos and SSE are mocked. This tests the full run outcome → status → column flow.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Run } from "@/types/ipc";
 import {
 	resetWorkflowRuntimeConfigForTests,
-	resolveTaskStatusBySignal,
 	resolveTaskStatusReasons,
 	canTransitionColumn,
 	getPreferredColumnIdForStatus,
@@ -163,7 +162,7 @@ function buildBoard() {
 	};
 }
 
-describe("RunTaskProjector integration: question signal → Blocked column", () => {
+describe("RunTaskProjector integration: question outcome → Blocked column", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		resetWorkflowRuntimeConfigForTests();
@@ -181,18 +180,16 @@ describe("RunTaskProjector integration: question signal → Blocked column", () 
 		);
 	});
 
-	it("resolves question signal → status 'question', column 'blocked', blockedReason 'question'", () => {
+	it("resolves question outcome → status 'question', column 'blocked', blockedReason 'question'", () => {
 		// Task is in "running" status, "in_progress" column
 		const task = buildTask("col-in-progress", "running");
 		mockTaskRepo.getById.mockReturnValue(task);
 
 		const projector = new RunTaskProjector();
-		projector.projectRunOutcome(
-			buildRun("task-run"),
-			"paused", // runStatus
-			"question", // signalKey
-			"Need user input",
-		);
+		projector.projectRunOutcome(buildRun("task-run"), {
+			marker: "question",
+			content: "Need user input",
+		});
 
 		// Verify taskRepo.update was called
 		expect(mockTaskRepo.update).toHaveBeenCalledTimes(1);
@@ -222,12 +219,10 @@ describe("RunTaskProjector integration: question signal → Blocked column", () 
 		mockTaskRepo.getById.mockReturnValue(task);
 
 		const projector = new RunTaskProjector();
-		projector.projectRunOutcome(
-			buildRun("task-run"),
-			"paused",
-			"question",
-			"User input needed",
-		);
+		projector.projectRunOutcome(buildRun("task-run"), {
+			marker: "question",
+			content: "User input needed",
+		});
 
 		expect(mockTaskRepo.update).toHaveBeenCalledTimes(1);
 		const [, patch] = mockTaskRepo.update.mock.calls[0] as [
@@ -244,12 +239,10 @@ describe("RunTaskProjector integration: question signal → Blocked column", () 
 		mockTaskRepo.getById.mockReturnValue(task);
 
 		const projector = new RunTaskProjector();
-		projector.projectRunOutcome(
-			buildRun("task-run"),
-			"paused",
-			"question",
-			"Another question",
-		);
+		projector.projectRunOutcome(buildRun("task-run"), {
+			marker: "question",
+			content: "Another question",
+		});
 
 		// Should still update (idempotent — same status, same column)
 		expect(mockTaskRepo.update).toHaveBeenCalledTimes(1);
@@ -261,17 +254,15 @@ describe("RunTaskProjector integration: question signal → Blocked column", () 
 		expect(patch.columnId).toBe("col-blocked");
 	});
 
-	it("works for generation run with question signal", () => {
+	it("works for generation run with question outcome", () => {
 		const task = buildTask("col-backlog", "generating");
 		mockTaskRepo.getById.mockReturnValue(task);
 
 		const projector = new RunTaskProjector();
-		projector.projectRunOutcome(
-			buildRun("task-description-improve"),
-			"paused",
-			"question",
-			"Need clarification on requirements",
-		);
+		projector.projectRunOutcome(buildRun("task-description-improve"), {
+			marker: "question",
+			content: "Need clarification on requirements",
+		});
 
 		expect(mockTaskRepo.update).toHaveBeenCalledTimes(1);
 		const [, patch] = mockTaskRepo.update.mock.calls[0] as [
@@ -281,28 +272,6 @@ describe("RunTaskProjector integration: question signal → Blocked column", () 
 		expect(patch.status).toBe("question");
 		expect(patch.columnId).toBe("col-blocked");
 		expect(patch.blockedReason).toBe("question");
-	});
-
-	it("verifies real workflow signal resolution", () => {
-		// Direct test of the real resolveTaskStatusBySignal
-		const result = resolveTaskStatusBySignal({
-			scope: "run",
-			signalKey: "question",
-			currentStatus: "running",
-			runKind: null,
-			runStatus: "paused",
-		});
-		expect(result).toBe("question");
-
-		// Also verify from pending
-		const result2 = resolveTaskStatusBySignal({
-			scope: "run",
-			signalKey: "question",
-			currentStatus: "pending",
-			runKind: null,
-			runStatus: "paused",
-		});
-		expect(result2).toBe("question");
 	});
 
 	it("verifies real resolveTaskStatusReasons for question in blocked column", () => {

@@ -716,23 +716,20 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		}
 	};
 
-	const handleStartSignalRuns = async () => {
+	const handleStartReadyTasks = async () => {
 		setIsQueueingSignalRuns(true);
 		try {
-			const result = await api.run.startBySignal({
-				projectId,
-				signalKey: "queue_ready_pending",
-			});
+			const result = await api.run.startReadyTasks({ projectId });
 			await refreshBoardTasksFromServer();
-			addToast("Tasks queued by signal", "success");
+			addToast("Tasks queued for execution", "success");
 			return result;
 		} catch (startError) {
-			console.error("Failed to queue runs by signal:", startError);
+			console.error("Failed to queue runs:", startError);
 			addToast("Failed to queue tasks", "error");
 			throw new Error(
 				startError instanceof Error
 					? startError.message
-					: "Failed to queue runs by signal",
+					: "Failed to queue runs",
 			);
 		} finally {
 			setIsQueueingSignalRuns(false);
@@ -1049,7 +1046,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		closeColumnModal,
 		openEditColumnModal,
 		openCreateColumnModal,
-		handleStartSignalRuns,
+		handleStartReadyTasks,
 		isQueueingSignalRuns,
 		deleteTaskConfirm,
 		setDeleteTaskConfirm,

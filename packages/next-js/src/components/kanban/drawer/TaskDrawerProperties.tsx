@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
 	Circle,
 	Clock,
@@ -11,7 +10,6 @@ import {
 } from "lucide-react";
 import { PillSelect } from "@/components/common/PillSelect";
 import type { KanbanTask } from "@/types/kanban";
-import { api } from "@/lib/api";
 import {
 	blockedReasonConfig,
 	closedReasonConfig,
@@ -44,38 +42,6 @@ export function TaskDrawerProperties({
 	task,
 	onUpdate,
 }: TaskDrawerPropertiesProps) {
-	const [latestSessionId, setLatestSessionId] = useState<string | null>(null);
-	const [opencodeWebUrl, setOpencodeWebUrl] = useState<string | null>(null);
-
-	useEffect(() => {
-		let cancelled = false;
-
-		async function fetchData() {
-			try {
-				const result = await api.run.listByTask({ taskId: task.id });
-
-				if (cancelled) return;
-
-				const runs = result.runs;
-				if (runs.length > 0) {
-					const sorted = [...runs].sort(
-						(a, b) =>
-							new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-					);
-					const latestRun = sorted[0];
-					setLatestSessionId(latestRun?.sessionId || null);
-				}
-
-				setOpencodeWebUrl(result.opencodeWebUrl);
-			} catch {}
-		}
-
-		fetchData();
-		return () => {
-			cancelled = true;
-		};
-	}, [task.id]);
-
 	const formatDate = (dateString: string | undefined) => {
 		if (!dateString) return "—";
 		const date = new Date(dateString);
@@ -260,14 +226,14 @@ export function TaskDrawerProperties({
 						<ExternalLink className="w-2.5 h-2.5" />
 						OpenCode Session
 					</p>
-					{latestSessionId ? (
+					{task.latestSessionId ? (
 						<div className="space-y-1.5">
 							<span className="block text-xs text-slate-400 font-mono bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner break-all">
-								{latestSessionId}
+								{task.latestSessionId}
 							</span>
-							{opencodeWebUrl && (
+							{task.opencodeWebUrl && (
 								<a
-									href={`${opencodeWebUrl}/session/${latestSessionId}`}
+									href={`${task.opencodeWebUrl}/session/${task.latestSessionId}`}
 									target="_blank"
 									rel="noopener noreferrer"
 									className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"

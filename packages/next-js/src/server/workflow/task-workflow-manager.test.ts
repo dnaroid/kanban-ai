@@ -9,7 +9,6 @@ import {
 	isStatusAllowedInWorkflowColumn,
 	isWorkflowTaskStatus,
 	resetWorkflowRuntimeConfigForTests,
-	resolveTaskStatusBySignal,
 } from "./task-workflow-manager";
 
 describe("task-workflow-manager runtime config", () => {
@@ -99,31 +98,6 @@ describe("task-workflow-manager runtime config", () => {
 		expect(getPreferredColumnIdForStatus(board, "pending")).toBe("c2");
 		expect(getPreferredColumnIdForStatus(board, "running")).toBe("c3");
 		expect(getPreferredColumnIdForStatus(board, "unknown_status")).toBeNull();
-	});
-
-	it("resolves task status by signal", () => {
-		const result = resolveTaskStatusBySignal({
-			signalKey: "run_started",
-			currentStatus: "pending",
-			runStatus: "running",
-		});
-		expect(result).toBe("running");
-	});
-
-	it("resolves user action signals", () => {
-		const result = resolveTaskStatusBySignal({
-			signalKey: "pause_run",
-			currentStatus: "running",
-		});
-		expect(result).toBe("paused");
-	});
-
-	it("returns null for unknown signal", () => {
-		const result = resolveTaskStatusBySignal({
-			signalKey: "nonexistent_signal",
-			currentStatus: "pending",
-		});
-		expect(result).toBeNull();
 	});
 
 	it("checks if status is allowed in workflow column", () => {

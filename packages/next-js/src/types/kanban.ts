@@ -35,6 +35,8 @@ export interface KanbanTask {
 	estimateHours: number | null;
 	assignee: string | null;
 	modelName: string | null;
+	latestSessionId: string | null;
+	opencodeWebUrl: string | null;
 	createdAt: string;
 	updatedAt: string;
 }

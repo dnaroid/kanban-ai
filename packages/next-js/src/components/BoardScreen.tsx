@@ -68,7 +68,7 @@ export function BoardScreen({
 		handleQuickRunRawStory,
 		handleDeleteTask,
 		handleTaskUpdate,
-		handleStartSignalRuns,
+		handleStartReadyTasks,
 		isQueueingSignalRuns,
 		handleContextAction,
 		deleteTaskConfirm,
@@ -263,11 +263,11 @@ export function BoardScreen({
 					<button
 						type="button"
 						onClick={() => {
-							void handleStartSignalRuns().catch((startError) => {
+							void handleStartReadyTasks().catch((startError) => {
 								const message =
 									startError instanceof Error
 										? startError.message
-										: "Failed to queue tasks by signal";
+										: "Failed to queue tasks";
 								setSignalErrorConfirm({ isOpen: true, message });
 								addToast(message, "error");
 							});
@@ -279,7 +279,7 @@ export function BoardScreen({
 								? "bg-slate-800 text-slate-500 cursor-not-allowed"
 								: "bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-900/20",
 						)}
-						title="Queue tasks by workflow signal selectors"
+						title="Queue ready tasks for execution"
 					>
 						<Play className="w-4 h-4" />
 						{isQueueingSignalRuns ? "Queueing..." : "Execute Queue"}

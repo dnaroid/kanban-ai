@@ -28,7 +28,12 @@ import type {
 // Uses relative paths to avoid CORS issues
 
 // Helper to convert DB Task to KanbanTask
-function taskToKanban(task: Task): KanbanTask {
+function taskToKanban(
+	task: Task & {
+		latestSessionId?: string | null;
+		opencodeWebUrl?: string | null;
+	},
+): KanbanTask {
 	return {
 		id: task.id,
 		projectId: task.projectId,
@@ -51,6 +56,8 @@ function taskToKanban(task: Task): KanbanTask {
 		estimateHours: task.estimateHours,
 		assignee: task.assignee,
 		modelName: task.modelName,
+		latestSessionId: task.latestSessionId ?? null,
+		opencodeWebUrl: task.opencodeWebUrl ?? null,
 		createdAt: task.createdAt,
 		updatedAt: task.updatedAt,
 	};
@@ -253,12 +260,10 @@ class ApiClient {
 			const payload = await response.json();
 			return this.unwrapApiData<QueueStatsResponse>(payload);
 		},
-		startBySignal: async ({
+		startReadyTasks: async ({
 			projectId,
-			signalKey,
 		}: {
 			projectId: string;
-			signalKey: string;
 		}): Promise<{
 			startedCount: number;
 			skippedNoRuleCount: number;
@@ -266,15 +271,15 @@ class ApiClient {
 			taskIds: string[];
 			runIds: string[];
 		}> => {
-			const response = await fetch(`${this.baseUrl}/api/run/startBySignal`, {
+			const response = await fetch(`${this.baseUrl}/api/run/startReadyTasks`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ projectId, signalKey }),
+				body: JSON.stringify({ projectId }),
 			});
 			if (!response.ok) {
 				const message = await this.getErrorMessage(
 					response,
-					"Failed to start runs by signal",
+					"Failed to start ready tasks",
 				);
 				throw new Error(message);
 			}
@@ -815,6 +820,28 @@ class ApiClient {
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ restarted: boolean }>(payload);
+		},
+		activeSessionStats: async (): Promise<{
+			totalSessions: number;
+			busySessions: number;
+			busySessionIds: string[];
+		}> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/session/active-stats`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to get active session stats",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{
+				totalSessions: number;
+				busySessions: number;
+				busySessionIds: string[];
+			}>(payload);
 		},
 		getSessionTodos: async ({
 			sessionId,
@@ -1377,7 +1404,15 @@ class ApiClient {
 		);
 		if (!response.ok) throw new Error("Failed to fetch tasks");
 		const payload = await response.json();
-		const tasks = this.unwrapApiData<Task[]>(payload);
+		const tasks =
+			this.unwrapApiData<
+				Array<
+					Task & {
+						latestSessionId?: string | null;
+						opencodeWebUrl?: string | null;
+					}
+				>
+			>(payload);
 		return tasks.map(taskToKanban);
 	}
 
@@ -1385,7 +1420,12 @@ class ApiClient {
 		const response = await fetch(`${this.baseUrl}/api/tasks/${id}`);
 		if (!response.ok) return null;
 		const payload = await response.json();
-		const task = this.unwrapApiData<Task>(payload);
+		const task = this.unwrapApiData<
+			Task & {
+				latestSessionId?: string | null;
+				opencodeWebUrl?: string | null;
+			}
+		>(payload);
 		return taskToKanban(task);
 	}
 

@@ -16,8 +16,6 @@ export const WORKFLOW_COLUMN_SYSTEM_KEYS = [
 
 export type WorkflowColumnSystemKey = string;
 
-export const WORKFLOW_SIGNAL_SCOPES = ["run", "user_action"] as const;
-export type WorkflowSignalScope = (typeof WORKFLOW_SIGNAL_SCOPES)[number];
 export type WorkflowRunStatus = RunStatus;
 export type WorkflowTaskStatus = string;
 
@@ -48,32 +46,11 @@ export interface WorkflowColumnConfig {
 	allowedStatuses: WorkflowTaskStatus[];
 }
 
-export interface WorkflowSignalConfig {
-	key: string;
-	scope: WorkflowSignalScope;
-	title: string;
-	description: string;
-	orderIndex: number;
-	isActive: boolean;
-}
-
-export interface WorkflowSignalRuleConfig {
-	key: string;
-	signalKey: string;
-	runKind: string | null;
-	runStatus: WorkflowRunStatus | null;
-	fromColumnSystemKey?: WorkflowColumnSystemKey | null;
-	fromStatus: WorkflowTaskStatus | null;
-	toStatus: WorkflowTaskStatus;
-}
-
 export interface WorkflowConfig {
 	statuses: WorkflowStatusConfig[];
 	columns: WorkflowColumnConfig[];
 	statusTransitions: Record<WorkflowTaskStatus, WorkflowTaskStatus[]>;
 	columnTransitions: Record<string, string[]>;
-	signals: WorkflowSignalConfig[];
-	signalRules: WorkflowSignalRuleConfig[];
 }
 
 const WORKFLOW_COLUMN_SYSTEM_KEY_PATTERN = /^[a-z][a-z0-9_-]*$/;
@@ -85,39 +62,6 @@ function createColumnTemplate(
 	icon: WorkflowIconKey,
 ): WorkflowColumnTemplate {
 	return { name, systemKey, color, icon };
-}
-
-function createSignal(
-	key: string,
-	scope: WorkflowSignalScope,
-	title: string,
-	description: string,
-	orderIndex: number,
-	isActive = true,
-): WorkflowSignalConfig {
-	return { key, scope, title, description, orderIndex, isActive };
-}
-
-function createSignalRule(
-	key: string,
-	signalKey: string,
-	toStatus: WorkflowTaskStatus,
-	options: {
-		runKind?: string | null;
-		runStatus?: WorkflowRunStatus | null;
-		fromColumnSystemKey?: WorkflowColumnSystemKey | null;
-		fromStatus?: WorkflowTaskStatus | null;
-	} = {},
-): WorkflowSignalRuleConfig {
-	return {
-		key,
-		signalKey,
-		runKind: options.runKind ?? null,
-		runStatus: options.runStatus ?? null,
-		fromColumnSystemKey: options.fromColumnSystemKey ?? null,
-		fromStatus: options.fromStatus ?? null,
-		toStatus,
-	};
 }
 
 const DEFAULT_WORKFLOW_COLUMNS_FALLBACK: readonly WorkflowColumnTemplate[] = [
@@ -261,222 +205,6 @@ const COLUMN_TRANSITIONS_FALLBACK: Record<
 	closed: ["ready", "review", "backlog"],
 };
 
-const WORKFLOW_SIGNALS_FALLBACK: readonly WorkflowSignalConfig[] = [
-	createSignal("run_started", "run", "Run Started", "Execution run started", 0),
-	createSignal(
-		"generation_started",
-		"run",
-		"Generation Started",
-		"User story generation run started",
-		1,
-	),
-	createSignal(
-		"testing_started",
-		"run",
-		"Testing Started",
-		"QA testing run started",
-		2,
-	),
-	createSignal(
-		"generated",
-		"run",
-		"Generated",
-		"Generation output produced",
-		3,
-	),
-	createSignal("done", "run", "Done", "Run completed successfully", 4),
-	createSignal("fail", "run", "Fail", "Run failed", 5),
-	createSignal(
-		"question",
-		"run",
-		"Question",
-		"Run paused waiting for user input",
-		6,
-	),
-	createSignal("test_ok", "run", "Test OK", "Tests passed", 7),
-	createSignal("test_fail", "run", "Test Fail", "Tests failed", 8),
-	createSignal("timeout", "run", "Timeout", "Run timed out", 9),
-	createSignal("cancelled", "run", "Cancelled", "Run cancelled", 10),
-	createSignal(
-		"start_generation",
-		"user_action",
-		"Start Generation",
-		"User starts generation flow",
-		20,
-	),
-	createSignal(
-		"start_execution",
-		"user_action",
-		"Start Execution",
-		"User starts execution flow",
-		21,
-	),
-	createSignal(
-		"pause_run",
-		"user_action",
-		"Pause Run",
-		"User pauses execution",
-		22,
-	),
-	createSignal(
-		"resume_run",
-		"user_action",
-		"Resume Run",
-		"User resumes execution",
-		23,
-	),
-	createSignal(
-		"cancel_run",
-		"user_action",
-		"Cancel Run",
-		"User cancels execution",
-		24,
-	),
-	createSignal(
-		"retry_run",
-		"user_action",
-		"Retry Run",
-		"User retries execution",
-		25,
-	),
-	createSignal(
-		"approve_generation",
-		"user_action",
-		"Approve Generation",
-		"User approves generated story",
-		26,
-	),
-	createSignal(
-		"reject_generation",
-		"user_action",
-		"Reject Generation",
-		"User rejects generated story",
-		27,
-	),
-	createSignal(
-		"request_changes",
-		"user_action",
-		"Request Changes",
-		"User requests changes",
-		28,
-	),
-	createSignal(
-		"mark_test_ok",
-		"user_action",
-		"Mark Test OK",
-		"User marks tests as passed",
-		29,
-	),
-	createSignal(
-		"mark_test_fail",
-		"user_action",
-		"Mark Test Fail",
-		"User marks tests as failed",
-		30,
-	),
-	createSignal(
-		"answer_question",
-		"user_action",
-		"Answer Question",
-		"User answers run question",
-		31,
-	),
-	createSignal(
-		"reopen_task",
-		"user_action",
-		"Reopen Task",
-		"User reopens task",
-		32,
-	),
-	createSignal(
-		"queue_ready_pending",
-		"user_action",
-		"Queue Ready Pending",
-		"User queues tasks for execution using rule selectors",
-		33,
-	),
-];
-
-const WORKFLOW_SIGNAL_RULES_FALLBACK: readonly WorkflowSignalRuleConfig[] = [
-	createSignalRule("rule-run-started-default", "run_started", "running", {
-		runStatus: "running",
-	}),
-	createSignalRule(
-		"rule-generation-started",
-		"generation_started",
-		"generating",
-		{ runKind: "task-description-improve", runStatus: "running" },
-	),
-	createSignalRule("rule-testing-started", "testing_started", "running", {
-		runKind: "task-qa-testing",
-		runStatus: "running",
-	}),
-	createSignalRule("rule-generated-default", "generated", "pending", {
-		runKind: "task-description-improve",
-		runStatus: "completed",
-	}),
-	createSignalRule("rule-done-generated", "done", "pending", {
-		runKind: "task-description-improve",
-		runStatus: "completed",
-	}),
-	createSignalRule("rule-done-default", "done", "done", {
-		runStatus: "completed",
-	}),
-	createSignalRule("rule-fail-default", "fail", "failed", {
-		runStatus: "failed",
-	}),
-	createSignalRule("rule-test-ok-default", "test_ok", "done", {
-		runStatus: "completed",
-	}),
-	createSignalRule("rule-test-fail-default", "test_fail", "failed", {
-		runStatus: "failed",
-	}),
-	createSignalRule("rule-question-generated", "question", "question", {
-		runKind: "task-description-improve",
-		runStatus: "paused",
-	}),
-	createSignalRule("rule-question-default", "question", "question", {
-		runStatus: "paused",
-	}),
-	createSignalRule("rule-timeout-default", "timeout", "failed", {
-		runStatus: "timeout",
-	}),
-	createSignalRule("rule-cancelled-default", "cancelled", "pending", {
-		runStatus: "cancelled",
-	}),
-	createSignalRule(
-		"rule-user-start-generation",
-		"start_generation",
-		"generating",
-	),
-	createSignalRule("rule-user-start-execution", "start_execution", "running"),
-	createSignalRule("rule-user-pause-run", "pause_run", "paused"),
-	createSignalRule("rule-user-resume-run", "resume_run", "running"),
-	createSignalRule("rule-user-cancel-run", "cancel_run", "pending"),
-	createSignalRule("rule-user-retry-run", "retry_run", "pending"),
-	createSignalRule(
-		"rule-user-approve-generation",
-		"approve_generation",
-		"pending",
-	),
-	createSignalRule(
-		"rule-user-reject-generation",
-		"reject_generation",
-		"failed",
-	),
-	createSignalRule("rule-user-request-changes", "request_changes", "question"),
-	createSignalRule("rule-user-mark-test-ok", "mark_test_ok", "done"),
-	createSignalRule("rule-user-mark-test-fail", "mark_test_fail", "failed"),
-	createSignalRule("rule-user-answer-question", "answer_question", "pending"),
-	createSignalRule("rule-user-reopen-task", "reopen_task", "pending"),
-	createSignalRule(
-		"rule-user-queue-ready-pending",
-		"queue_ready_pending",
-		"running",
-		{ fromColumnSystemKey: "ready", fromStatus: "pending" },
-	),
-];
-
 interface WorkflowRuntimeConfig {
 	defaultColumns: readonly WorkflowColumnTemplate[];
 	statusToColumn: Record<WorkflowTaskStatus, WorkflowColumnSystemKey>;
@@ -492,11 +220,6 @@ interface WorkflowRuntimeConfig {
 	>;
 	blockedReasonByStatus: Record<WorkflowTaskStatus, BlockedReason | null>;
 	closedReasonByStatus: Record<WorkflowTaskStatus, ClosedReason | null>;
-	signalByKey: ReadonlyMap<string, WorkflowSignalConfig>;
-	signalRulesBySignalKey: ReadonlyMap<
-		string,
-		readonly WorkflowSignalRuleConfig[]
-	>;
 }
 
 let runtimeConfig: WorkflowRuntimeConfig | null = null;
@@ -562,14 +285,6 @@ function createWorkflowConfig(): WorkflowConfig {
 		columns: cloneColumns(),
 		statusTransitions: cloneStatusTransitions(),
 		columnTransitions: cloneColumnTransitions(),
-		signals: WORKFLOW_SIGNALS_FALLBACK.map(function cloneSignalConfig(signal) {
-			return { ...signal };
-		}),
-		signalRules: WORKFLOW_SIGNAL_RULES_FALLBACK.map(
-			function cloneSignalRule(rule) {
-				return { ...rule };
-			},
-		),
 	};
 }
 
@@ -629,83 +344,12 @@ function createRuntimeConfig(): WorkflowRuntimeConfig {
 		columnTransitions,
 		blockedReasonByStatus,
 		closedReasonByStatus,
-		signalByKey: new Map(
-			config.signals.map(function toEntry(signal) {
-				return [signal.key, signal] as const;
-			}),
-		),
-		signalRulesBySignalKey: buildSignalRuleIndex(config.signalRules),
 	};
-}
-
-function buildSignalRuleIndex(
-	rules: readonly WorkflowSignalRuleConfig[],
-): ReadonlyMap<string, readonly WorkflowSignalRuleConfig[]> {
-	const index = new Map<string, WorkflowSignalRuleConfig[]>();
-	for (const rule of rules) {
-		const bucket = index.get(rule.signalKey);
-		if (bucket) bucket.push({ ...rule });
-		else index.set(rule.signalKey, [{ ...rule }]);
-	}
-	return index;
 }
 
 function getRuntimeConfig(): WorkflowRuntimeConfig {
 	if (!runtimeConfig) runtimeConfig = createRuntimeConfig();
 	return runtimeConfig;
-}
-
-export interface ResolveTaskStatusBySignalInput {
-	signalKey: string;
-	currentStatus: WorkflowTaskStatus;
-	runKind?: string | null;
-	runStatus?: WorkflowRunStatus | null;
-	currentColumnSystemKey?: WorkflowColumnSystemKey | null;
-	scope?: WorkflowSignalScope;
-}
-
-export function resolveTaskStatusBySignal(
-	input: ResolveTaskStatusBySignalInput,
-): WorkflowTaskStatus | null {
-	const runtime = getRuntimeConfig();
-	const signal = runtime.signalByKey.get(input.signalKey);
-	if (!signal || !signal.isActive) return null;
-	if (input.scope && signal.scope !== input.scope) return null;
-
-	const rules = runtime.signalRulesBySignalKey.get(input.signalKey);
-	if (!rules || rules.length === 0) return null;
-
-	const runKind = input.runKind ?? null;
-	const runStatus = input.runStatus ?? null;
-	const currentColumnSystemKey = input.currentColumnSystemKey ?? null;
-	let selectedRule: WorkflowSignalRuleConfig | null = null;
-	let selectedScore = Number.NEGATIVE_INFINITY;
-
-	for (const rule of rules) {
-		const ruleFromColumnSystemKey = rule.fromColumnSystemKey ?? null;
-		if (
-			ruleFromColumnSystemKey !== null &&
-			ruleFromColumnSystemKey !== currentColumnSystemKey
-		)
-			continue;
-		if (rule.runKind !== null && rule.runKind !== runKind) continue;
-		if (rule.runStatus !== null && rule.runStatus !== runStatus) continue;
-		if (rule.fromStatus !== null && rule.fromStatus !== input.currentStatus)
-			continue;
-
-		const score =
-			(ruleFromColumnSystemKey !== null ? 8 : 0) +
-			(rule.fromStatus !== null ? 4 : 0) +
-			(rule.runStatus !== null ? 2 : 0) +
-			(rule.runKind !== null ? 1 : 0);
-
-		if (score > selectedScore) {
-			selectedRule = rule;
-			selectedScore = score;
-		}
-	}
-
-	return selectedRule?.toStatus ?? null;
 }
 
 export function canTransitionStatus(
@@ -834,12 +478,6 @@ export function isBlockedReason(value: string): value is BlockedReason {
 
 export function isClosedReason(value: string): value is ClosedReason {
 	return (CLOSED_REASON_VALUES as readonly string[]).includes(value);
-}
-
-export function isWorkflowSignalScope(
-	value: string,
-): value is WorkflowSignalScope {
-	return (WORKFLOW_SIGNAL_SCOPES as readonly string[]).includes(value);
 }
 
 export function isWorkflowRunStatus(value: string): value is WorkflowRunStatus {

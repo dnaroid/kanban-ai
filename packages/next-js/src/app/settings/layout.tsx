@@ -18,7 +18,7 @@ type Tab =
 	| "all-models"
 	| "my-models"
 	| "team"
-	| "oh-my-opencode"
+	| "oh-my-openagent"
 	| "tags"
 	| "danger";
 
@@ -30,7 +30,7 @@ const tabs: {
 	{ id: "all-models", label: "All Models", icon: Cpu },
 	{ id: "my-models", label: "My Models", icon: CheckCircle2 },
 	{ id: "team", label: "Team", icon: Users },
-	{ id: "oh-my-opencode", label: "Oh-My-Opencode", icon: Settings2 },
+	{ id: "oh-my-openagent", label: "Oh-My-Openagent", icon: Settings2 },
 	{ id: "tags", label: "Tags", icon: TagIcon },
 	{ id: "danger", label: "Danger Zone", icon: Trash2 },
 ];

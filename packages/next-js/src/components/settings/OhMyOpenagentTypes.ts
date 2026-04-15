@@ -53,7 +53,7 @@ export interface CategoryConfig {
 	is_unstable_agent?: boolean;
 }
 
-export interface OhMyOpencodeConfig {
+export interface OhMyOpenagentConfig {
 	categories?: Record<string, CategoryConfig>;
 	agents?: Record<string, AgentConfig>;
 	systemDefaultModel?: string;
