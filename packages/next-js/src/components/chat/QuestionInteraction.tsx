@@ -52,6 +52,9 @@ export function QuestionInteraction({
 		return selectedOptions;
 	};
 
+	const hasAnswer =
+		selectedOptions.length > 0 || (useCustom && customText.trim().length > 0);
+
 	const handleSubmit = async () => {
 		if (sending || !onReply) return;
 		setSending(true);
@@ -199,10 +202,10 @@ export function QuestionInteraction({
 				<button
 					type="button"
 					onClick={() => void handleSubmit()}
-					disabled={sending || !onReply}
+					disabled={sending || !onReply || !hasAnswer}
 					className={cn(
 						"flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all",
-						sending || !onReply
+						sending || !onReply || !hasAnswer
 							? "bg-slate-800 text-slate-600 cursor-not-allowed"
 							: "bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/30 hover:border-emerald-500/50 cursor-pointer",
 					)}
