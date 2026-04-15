@@ -6,6 +6,7 @@ type MockRecord = Record<string, unknown>;
 
 const {
 	runMap,
+	runEventMap,
 	taskMap,
 	state,
 	mockOpencodeService,
@@ -21,11 +22,13 @@ const {
 	mockVcsManager,
 } = vi.hoisted(() => {
 	const runs = new Map<string, MockRecord>();
+	const runEvents = new Map<string, MockRecord[]>();
 	const tasks = new Map<string, MockRecord>();
 	const hoistedState = { sessionCounter: 0 };
 
 	return {
 		runMap: runs,
+		runEventMap: runEvents,
 		taskMap: tasks,
 		state: hoistedState,
 		mockOpencodeService: {
@@ -36,9 +39,13 @@ const {
 				hoistedState.sessionCounter += 1;
 				return `session-${hoistedState.sessionCounter}`;
 			}),
-			subscribe: vi.fn(async () => undefined),
 			sendPrompt: vi.fn(async () => undefined),
-			getMessages: vi.fn(async () => [] as Array<MockRecord>),
+			getMessages: vi.fn(
+				async (_sessionId?: string, _limit?: number) => [] as Array<MockRecord>,
+			),
+			listPendingPermissions: vi.fn(
+				async (_sessionId?: string) => [] as Array<MockRecord>,
+			),
 			unsubscribe: vi.fn(async () => undefined),
 			abortSession: vi.fn(async () => undefined),
 		},
@@ -70,7 +77,18 @@ const {
 			getPresetJson: vi.fn(() => null),
 		},
 		mockRunEventRepo: {
-			create: vi.fn(),
+			create: vi.fn((input: MockRecord) => {
+				const runId = input.runId;
+				if (typeof runId !== "string") {
+					return input;
+				}
+
+				const current = runEvents.get(runId) ?? [];
+				current.push(input);
+				runEvents.set(runId, current);
+				return input;
+			}),
+			listByRun: vi.fn((runId: string) => runEvents.get(runId) ?? []),
 		},
 		mockTaskLinkRepo: {
 			listByTaskId: vi.fn(() => [] as Array<MockRecord>),
@@ -289,16 +307,31 @@ async function waitForDrain(): Promise<void> {
 	await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+function withPrivateAccess(manager: RunsQueueManager): {
+	pollActiveRuns: () => Promise<void>;
+	checkRunCompletion: (runId: string, sessionId: string) => Promise<void>;
+	activeRunSessions: Map<string, string>;
+} {
+	return manager as unknown as {
+		pollActiveRuns: () => Promise<void>;
+		checkRunCompletion: (runId: string, sessionId: string) => Promise<void>;
+		activeRunSessions: Map<string, string>;
+	};
+}
+
 describe("RunsQueueManager scheduling", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		runMap.clear();
+		runEventMap.clear();
 		taskMap.clear();
 		state.sessionCounter = 0;
 		process.env.RUNS_DEFAULT_CONCURRENCY = "1";
 		process.env.RUNS_PROVIDER_CONCURRENCY = "";
 		process.env.RUNS_BLOCKED_RETRY_MS = "10";
+		process.env.RUNS_WORKTREE_ENABLED = "";
 		mockSessionManager.getMessages.mockResolvedValue([]);
+		mockSessionManager.listPendingPermissions.mockResolvedValue([]);
 		mockTaskLinkRepo.listByTaskId.mockReturnValue([]);
 		mockVcsManager.syncRunWorkspace.mockResolvedValue(null);
 	});
@@ -518,6 +551,7 @@ describe("RunsQueueManager scheduling", () => {
 
 	it("auto-enqueues generated execution into a provisioned worktree", async () => {
 		process.env.RUNS_AUTO_EXECUTE_AFTER_GENERATION = "1";
+		process.env.RUNS_WORKTREE_ENABLED = "true";
 		taskMap.set(
 			"task-generated",
 			buildTask("task-generated", "normal", "generating"),
@@ -562,6 +596,7 @@ describe("RunsQueueManager scheduling", () => {
 		await waitForDrain();
 		await waitForDrain();
 		await waitForDrain();
+		await withPrivateAccess(manager).pollActiveRuns();
 
 		expect(mockVcsManager.provisionRunWorkspace).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -1074,12 +1109,15 @@ describe("RunsQueueManager permission handling", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		runMap.clear();
+		runEventMap.clear();
 		taskMap.clear();
 		state.sessionCounter = 0;
 		process.env.RUNS_DEFAULT_CONCURRENCY = "1";
 		process.env.RUNS_PROVIDER_CONCURRENCY = "";
 		process.env.RUNS_BLOCKED_RETRY_MS = "10";
+		process.env.RUNS_WORKTREE_ENABLED = "";
 		mockSessionManager.getMessages.mockResolvedValue([]);
+		mockSessionManager.listPendingPermissions.mockResolvedValue([]);
 		mockTaskLinkRepo.listByTaskId.mockReturnValue([]);
 		mockVcsManager.syncRunWorkspace.mockResolvedValue(null);
 	});
@@ -1087,7 +1125,7 @@ describe("RunsQueueManager permission handling", () => {
 	async function setupRunningRun(
 		runId: string,
 		taskId: string,
-	): Promise<RunsQueueManager> {
+	): Promise<{ manager: RunsQueueManager; sessionId: string }> {
 		taskMap.set(taskId, buildTask(taskId, "normal"));
 		const run = buildRun(
 			runId,
@@ -1105,40 +1143,31 @@ describe("RunsQueueManager permission handling", () => {
 		});
 		await waitForDrain();
 
-		return manager;
+		const sessionId = withPrivateAccess(manager).activeRunSessions.get(runId);
+		expect(sessionId).toBeTruthy();
+
+		return { manager, sessionId: sessionId ?? "" };
 	}
 
-	function getLastSessionHandler(): (event: Record<string, unknown>) => void {
-		const subscribeCalls = (
-			mockSessionManager.subscribe as unknown as {
-				mock: { calls: unknown[][] };
-			}
-		).mock.calls;
-		const lastCall = subscribeCalls[subscribeCalls.length - 1];
-		return lastCall?.[2] as (event: Record<string, unknown>) => void;
-	}
-
-	it("pauses run on permission.updated event", async () => {
-		await setupRunningRun("run-perm-1", "task-perm-1");
-		const sessionHandler = getLastSessionHandler();
-		expect(sessionHandler).toBeDefined();
-
-		await sessionHandler({
-			type: "permission.updated",
-			sessionId: "session-1",
-			permission: {
+	it("pauses run when pending permission found via polling", async () => {
+		const { manager, sessionId } = await setupRunningRun(
+			"run-perm-1",
+			"task-perm-1",
+		);
+		mockSessionManager.listPendingPermissions.mockResolvedValueOnce([
+			{
 				id: "perm-1",
 				permissionType: "bash",
 				pattern: "*.sh",
-				sessionId: "session-1",
+				sessionId,
 				messageId: "msg-1",
 				title: "Execute shell script",
 				metadata: {},
 				createdAt: Date.now(),
 			},
-		});
+		]);
 
-		await waitForDrain();
+		await withPrivateAccess(manager).pollActiveRuns();
 
 		expect(runMap.get("run-perm-1")?.status).toBe("paused");
 		expect(mockRunEventRepo.create).toHaveBeenCalledWith(
@@ -1149,27 +1178,26 @@ describe("RunsQueueManager permission handling", () => {
 		);
 	});
 
-	it("publishes SSE permission event on permission.updated", async () => {
+	it("publishes SSE permission event when permission detected via polling", async () => {
 		const { publishSseEvent } = await import("@/server/events/sse-broker");
-		await setupRunningRun("run-perm-2", "task-perm-2");
-		const sessionHandler = getLastSessionHandler();
-
-		await sessionHandler({
-			type: "permission.updated",
-			sessionId: "session-1",
-			permission: {
+		const { manager, sessionId } = await setupRunningRun(
+			"run-perm-2",
+			"task-perm-2",
+		);
+		mockSessionManager.listPendingPermissions.mockResolvedValueOnce([
+			{
 				id: "perm-2",
 				permissionType: "edit",
 				pattern: ".env",
-				sessionId: "session-1",
+				sessionId,
 				messageId: "msg-2",
 				title: "Edit .env file",
 				metadata: {},
 				createdAt: Date.now(),
 			},
-		});
+		]);
 
-		await waitForDrain();
+		await withPrivateAccess(manager).pollActiveRuns();
 
 		expect(publishSseEvent).toHaveBeenCalledWith(
 			"run:permission",
@@ -1182,34 +1210,30 @@ describe("RunsQueueManager permission handling", () => {
 		);
 	});
 
-	it("resumes run on permission.replied with approve response", async () => {
-		await setupRunningRun("run-perm-3", "task-perm-3");
-		const sessionHandler = getLastSessionHandler();
+	it("resumes run when permission is no longer pending via polling", async () => {
+		const { manager, sessionId } = await setupRunningRun(
+			"run-perm-3",
+			"task-perm-3",
+		);
+		mockSessionManager.listPendingPermissions
+			.mockResolvedValueOnce([
+				{
+					id: "perm-3",
+					permissionType: "read",
+					sessionId,
+					messageId: "msg-3",
+					title: "Read file",
+					metadata: {},
+					createdAt: Date.now(),
+				},
+			])
+			.mockResolvedValueOnce([]);
 
-		await sessionHandler({
-			type: "permission.updated",
-			sessionId: "session-1",
-			permission: {
-				id: "perm-3",
-				permissionType: "read",
-				sessionId: "session-1",
-				messageId: "msg-3",
-				title: "Read file",
-				metadata: {},
-				createdAt: Date.now(),
-			},
-		});
-		await waitForDrain();
+		await withPrivateAccess(manager).pollActiveRuns();
 
 		expect(runMap.get("run-perm-3")?.status).toBe("paused");
 
-		await sessionHandler({
-			type: "permission.replied",
-			sessionId: "session-1",
-			permissionId: "perm-3",
-			response: "once",
-		});
-		await waitForDrain();
+		await withPrivateAccess(manager).pollActiveRuns();
 
 		expect(runMap.get("run-perm-3")?.status).toBe("running");
 		expect(mockRunEventRepo.create).toHaveBeenCalledWith(
@@ -1224,45 +1248,70 @@ describe("RunsQueueManager permission handling", () => {
 		);
 	});
 
-	it("fails run on permission.replied with reject response", async () => {
-		await setupRunningRun("run-perm-4", "task-perm-4");
-		const sessionHandler = getLastSessionHandler();
-
-		await sessionHandler({
-			type: "permission.updated",
-			sessionId: "session-1",
-			permission: {
+	it("fails run after permission is rejected and polling sees failure marker", async () => {
+		const { manager, sessionId } = await setupRunningRun(
+			"run-perm-4",
+			"task-perm-4",
+		);
+		const isolatedSessionId = `${sessionId}-perm-4`;
+		withPrivateAccess(manager).activeRunSessions.set(
+			"run-perm-4",
+			isolatedSessionId,
+		);
+		mockRunRepo.update("run-perm-4", { sessionId: isolatedSessionId });
+		let pendingPermissionsState: Array<MockRecord> = [
+			{
 				id: "perm-4",
 				permissionType: "bash",
-				sessionId: "session-1",
+				sessionId: isolatedSessionId,
 				messageId: "msg-4",
 				title: "Run command",
 				metadata: {},
 				createdAt: Date.now(),
 			},
-		});
-		await waitForDrain();
+		];
+		mockSessionManager.listPendingPermissions.mockImplementation(
+			async (currentSessionId?: string) => {
+				return currentSessionId === isolatedSessionId
+					? pendingPermissionsState
+					: [];
+			},
+		);
+
+		await withPrivateAccess(manager).pollActiveRuns();
 
 		expect(runMap.get("run-perm-4")?.status).toBe("paused");
 
-		await sessionHandler({
-			type: "permission.replied",
-			sessionId: "session-1",
-			permissionId: "perm-4",
-			response: "reject",
-		});
-		await waitForDrain();
+		pendingPermissionsState = [];
+		await withPrivateAccess(manager).pollActiveRuns();
+		expect(runMap.get("run-perm-4")?.status).toBe("running");
+
+		mockSessionManager.getMessages.mockImplementation(
+			async (currentSessionId?: string, _limit?: number) => {
+				return currentSessionId === isolatedSessionId
+					? [
+							{
+								id: "msg-fail",
+								role: "assistant",
+								content: buildOpencodeStatusLine("fail"),
+							},
+						]
+					: [];
+			},
+		);
+
+		await withPrivateAccess(manager).pollActiveRuns();
 
 		expect(runMap.get("run-perm-4")?.status).toBe("failed");
 		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "run-perm-4" }),
 			"failed",
 			"fail",
-			expect.stringContaining("perm-4"),
+			buildOpencodeStatusLine("fail"),
 		);
 	});
 
-	it("ignores permission.updated for non-running run", async () => {
+	it("ignores pending permission for non-running run via polling", async () => {
 		taskMap.set("task-perm-5", buildTask("task-perm-5", "normal"));
 		const run = buildRun(
 			"run-perm-5",
@@ -1274,20 +1323,10 @@ describe("RunsQueueManager permission handling", () => {
 		runMap.set("run-perm-5", run);
 
 		const manager = new RunsQueueManager();
-		manager.enqueue("run-perm-5", {
-			projectPath: "/tmp/project",
-			sessionTitle: "permission test",
-			prompt: "test prompt",
-		});
-		await waitForDrain();
-
-		const sessionHandler = getLastSessionHandler();
-		if (!sessionHandler) return;
-
-		await sessionHandler({
-			type: "permission.updated",
-			sessionId: "session-1",
-			permission: {
+		const privateAccess = withPrivateAccess(manager);
+		privateAccess.activeRunSessions.set("run-perm-5", "session-1");
+		mockSessionManager.listPendingPermissions.mockResolvedValueOnce([
+			{
 				id: "perm-5",
 				permissionType: "read",
 				sessionId: "session-1",
@@ -1296,56 +1335,71 @@ describe("RunsQueueManager permission handling", () => {
 				metadata: {},
 				createdAt: Date.now(),
 			},
-		});
-		await waitForDrain();
+		]);
+
+		await privateAccess.pollActiveRuns();
 
 		expect(mockRunRepo.update).not.toHaveBeenCalledWith(
 			"run-perm-5",
 			expect.objectContaining({ status: "paused" }),
 		);
+		expect(privateAccess.activeRunSessions.has("run-perm-5")).toBe(false);
 	});
 
-	it("still handles message.updated events after permission handling", async () => {
-		await setupRunningRun("run-perm-6", "task-perm-6");
-		const sessionHandler = getLastSessionHandler();
-
-		await sessionHandler({
-			type: "permission.updated",
-			sessionId: "session-1",
-			permission: {
+	it("still detects completion marker after permission resolved via polling", async () => {
+		const { manager, sessionId } = await setupRunningRun(
+			"run-perm-6",
+			"task-perm-6",
+		);
+		const isolatedSessionId = `${sessionId}-perm-6`;
+		withPrivateAccess(manager).activeRunSessions.set(
+			"run-perm-6",
+			isolatedSessionId,
+		);
+		mockRunRepo.update("run-perm-6", { sessionId: isolatedSessionId });
+		let pendingPermissionsState: Array<MockRecord> = [
+			{
 				id: "perm-6",
 				permissionType: "read",
-				sessionId: "session-1",
+				sessionId: isolatedSessionId,
 				messageId: "msg-6",
 				title: "Read file",
 				metadata: {},
 				createdAt: Date.now(),
 			},
-		});
-		await waitForDrain();
+		];
+		mockSessionManager.listPendingPermissions.mockImplementation(
+			async (currentSessionId?: string) => {
+				return currentSessionId === isolatedSessionId
+					? pendingPermissionsState
+					: [];
+			},
+		);
+
+		await withPrivateAccess(manager).pollActiveRuns();
 		expect(runMap.get("run-perm-6")?.status).toBe("paused");
 
-		await sessionHandler({
-			type: "permission.replied",
-			sessionId: "session-1",
-			permissionId: "perm-6",
-			response: "once",
-		});
-		await waitForDrain();
+		pendingPermissionsState = [];
+		await withPrivateAccess(manager).pollActiveRuns();
 		expect(runMap.get("run-perm-6")?.status).toBe("running");
 
-		await sessionHandler({
-			type: "message.updated",
-			sessionId: "session-1",
-			message: {
-				id: "msg-final",
-				role: "assistant",
-				content: buildOpencodeStatusLine("done"),
-				parts: [],
-				timestamp: Date.now(),
+		mockSessionManager.getMessages.mockImplementation(
+			async (currentSessionId?: string, _limit?: number) => {
+				return currentSessionId === isolatedSessionId
+					? [
+							{
+								id: "msg-final",
+								role: "assistant",
+								content: buildOpencodeStatusLine("done"),
+								parts: [],
+								timestamp: Date.now(),
+							},
+						]
+					: [];
 			},
-		});
-		await waitForDrain();
+		);
+
+		await withPrivateAccess(manager).pollActiveRuns();
 
 		expect(runMap.get("run-perm-6")?.status).toBe("completed");
 	});

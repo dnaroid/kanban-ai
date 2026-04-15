@@ -3,7 +3,7 @@ import { extractOpencodeStatus } from "@/lib/opencode-status";
 import { buildTaskPrompt } from "@/server/run/prompts/task";
 import type {
 	PermissionData,
-	SessionEvent,
+	QuestionData,
 	SessionStartPreferences,
 } from "@/server/opencode/session-manager";
 import { getOpencodeService } from "@/server/opencode/opencode-service";
@@ -252,7 +252,7 @@ export class RunsQueueManager {
 	private readonly queueMetaByQueueKey = new Map<string, QueueMeta>();
 	private readonly queueKeyByRunId = new Map<string, string>();
 	private readonly runInputs = new Map<string, QueuedRunInput>();
-	private readonly sessionSubscribers = new Map<string, string>();
+	private readonly activeRunSessions = new Map<string, string>();
 	private readonly opencodeService = getOpencodeService();
 	private readonly sessionManager = getOpencodeSessionManager();
 	private readonly taskProjector = getRunTaskProjector();
@@ -275,7 +275,9 @@ export class RunsQueueManager {
 	private readonly worktreeEnabled =
 		process.env.RUNS_WORKTREE_ENABLED === "true";
 	private blockedRetryTimer: ReturnType<typeof setTimeout> | null = null;
+	private pollTimer: ReturnType<typeof setInterval> | null = null;
 	private draining = false;
+	private polling = false;
 
 	private extractSessionPreferencesFromPreset(
 		presetJson: string | null | undefined,
@@ -434,7 +436,10 @@ export class RunsQueueManager {
 			"",
 		);
 
-		await this.unsubscribeRunSession(runId);
+		this.activeRunSessions.delete(runId);
+		if (this.activeRunSessions.size === 0) {
+			this.stopPolling();
+		}
 	}
 
 	public getQueueStats(): QueueStats {
@@ -670,9 +675,8 @@ export class RunsQueueManager {
 			});
 			publishRunUpdate(runningRun);
 
-			// Subscribe BEFORE sending prompt to avoid race condition
-			// (session may complete before subscription is established)
-			await this.subscribeRunSession(runId, sessionId);
+			this.activeRunSessions.set(runId, sessionId);
+			this.ensurePollingActive();
 
 			log.debug("Sending prompt to OpenCode", { runId, sessionId });
 			await this.sessionManager.sendPrompt(
@@ -720,76 +724,175 @@ export class RunsQueueManager {
 				"fail",
 				message,
 			);
+			this.activeRunSessions.delete(runId);
+			if (this.activeRunSessions.size === 0) {
+				this.stopPolling();
+			}
 			this.runInputs.delete(runId);
 		}
 	}
 
-	private async subscribeRunSession(
+	private ensurePollingActive(): void {
+		if (this.pollTimer) {
+			return;
+		}
+
+		this.startPolling();
+	}
+
+	private startPolling(): void {
+		if (this.pollTimer) {
+			return;
+		}
+
+		this.pollTimer = setInterval(() => {
+			void this.pollActiveRuns();
+		}, 2000);
+		log.info("Started run session polling", {
+			activeRuns: this.activeRunSessions.size,
+		});
+	}
+
+	private stopPolling(): void {
+		if (!this.pollTimer) {
+			return;
+		}
+
+		clearInterval(this.pollTimer);
+		this.pollTimer = null;
+		log.info("Stopped run session polling");
+	}
+
+	private async pollActiveRuns(): Promise<void> {
+		if (this.polling) {
+			return;
+		}
+
+		this.polling = true;
+		try {
+			for (const [runId, sessionId] of this.activeRunSessions.entries()) {
+				const run = runRepo.getById(runId);
+				if (!run) {
+					this.activeRunSessions.delete(runId);
+					continue;
+				}
+
+				if (run.status === "running") {
+					await this.checkRunCompletion(runId, sessionId);
+					if (!this.activeRunSessions.has(runId)) {
+						continue;
+					}
+
+					const pendingPermissions =
+						await this.sessionManager.listPendingPermissions(sessionId);
+					const permission = pendingPermissions[0];
+					if (permission) {
+						await this.pauseRunForPendingPermission(runId, permission);
+						continue;
+					}
+
+					const pendingQuestions =
+						await this.sessionManager.listPendingQuestions(sessionId);
+					const question = pendingQuestions[0];
+					if (question) {
+						await this.pauseRunForPendingQuestion(runId, question);
+					}
+					continue;
+				}
+
+				if (run.status === "paused") {
+					const awaitingPermissionId = this.getAwaitingPermissionId(runId);
+					if (awaitingPermissionId) {
+						const pendingPermissions =
+							await this.sessionManager.listPendingPermissions(sessionId);
+						const stillPending = pendingPermissions.some(
+							(permission) => permission.id === awaitingPermissionId,
+						);
+						if (!stillPending) {
+							await this.resumeRunAfterPermissionApproval(
+								runId,
+								awaitingPermissionId,
+							);
+						}
+						continue;
+					}
+
+					const awaitingQuestionId = this.getAwaitingQuestionId(runId);
+					if (awaitingQuestionId) {
+						const pendingQuestions =
+							await this.sessionManager.listPendingQuestions(sessionId);
+						const stillPending = pendingQuestions.some(
+							(q) => q.id === awaitingQuestionId,
+						);
+						if (!stillPending) {
+							await this.resumeRunAfterQuestionAnswered(
+								runId,
+								awaitingQuestionId,
+							);
+						}
+						continue;
+					}
+
+					// No tracked permission/question — check if session is clean
+					// and auto-resume if nothing is pending.
+					const [orphanPermissions, orphanQuestions] = await Promise.all([
+						this.sessionManager.listPendingPermissions(sessionId),
+						this.sessionManager.listPendingQuestions(sessionId),
+					]);
+					if (orphanPermissions.length === 0 && orphanQuestions.length === 0) {
+						await this.resumeOrphanedPausedRun(runId);
+					}
+
+					continue;
+				}
+
+				this.activeRunSessions.delete(runId);
+			}
+		} catch (error) {
+			log.error("Failed to poll active runs", {
+				error: error instanceof Error ? error.message : String(error),
+			});
+		} finally {
+			this.polling = false;
+			if (this.activeRunSessions.size === 0) {
+				this.stopPolling();
+			}
+		}
+	}
+
+	private async checkRunCompletion(
 		runId: string,
 		sessionId: string,
 	): Promise<void> {
-		log.debug("Subscribing to session", { runId, sessionId });
-		const subscriberId = `run:${runId}`;
-		if (this.sessionSubscribers.has(runId)) {
-			log.debug("Already subscribed to session", { runId, sessionId });
+		const messages = await this.sessionManager.getMessages(sessionId, 200);
+		const lastAssistantMessage = [...messages]
+			.reverse()
+			.find((message) => message.role === "assistant");
+		if (!lastAssistantMessage) {
 			return;
 		}
 
-		await this.sessionManager.subscribe(sessionId, subscriberId, (event) => {
-			void this.handleSessionEvent(runId, event);
-		});
-
-		this.sessionSubscribers.set(runId, sessionId);
-		log.info("Subscribed to session", { runId, sessionId });
-	}
-
-	private async handleSessionEvent(
-		runId: string,
-		event: SessionEvent,
-	): Promise<void> {
-		log.debug("Session event received", { runId, eventType: event.type });
-
-		if (event.type === "permission.updated") {
-			await this.handlePermissionUpdated(runId, event.permission);
-			return;
-		}
-
-		if (event.type === "permission.replied") {
-			await this.handlePermissionReplied(
-				runId,
-				event.permissionId,
-				event.response,
-			);
-			return;
-		}
-
-		if (event.type !== "message.updated") {
-			return;
-		}
-
-		if (event.message.role !== "assistant") {
-			return;
-		}
-
-		const runSignal = resolveAssistantRunSignal(event.message.content);
+		const runSignal = resolveAssistantRunSignal(lastAssistantMessage.content);
 		if (!runSignal) {
 			return;
 		}
 
-		log.info("Assistant response received, finalizing run", {
+		log.info("Finalizing run from polled session messages", {
 			runId,
+			sessionId,
 			status: runSignal.runStatus,
 			signalKey: runSignal.signalKey,
+			messageId: lastAssistantMessage.id,
 		});
 		await this.finalizeRunFromSession(
 			runId,
 			runSignal.runStatus,
 			runSignal.signalKey,
-			event.message.content,
+			lastAssistantMessage.content,
 		);
 	}
 
-	private async handlePermissionUpdated(
+	private async pauseRunForPendingPermission(
 		runId: string,
 		permission: PermissionData,
 	): Promise<void> {
@@ -846,55 +949,72 @@ export class RunsQueueManager {
 		);
 	}
 
-	private async handlePermissionReplied(
+	private async pauseRunForPendingQuestion(
 		runId: string,
-		permissionId: string,
-		response: string,
+		question: QuestionData,
 	): Promise<void> {
-		log.info("Permission replied, resuming run", {
+		log.info("Question received, pausing run", {
 			runId,
-			permissionId,
-			response,
+			questionId: question.id,
+			questions: question.questions.map((item) => item.question),
+			sessionId: question.sessionId,
 		});
 
 		const run = runRepo.getById(runId);
-		if (!run || run.status !== "paused") {
-			log.debug("Run not found or not paused, skipping permission reply", {
+		if (!run || run.status !== "running") {
+			log.warn("Run not found or not running, cannot pause for question", {
 				runId,
 				currentStatus: run?.status,
 			});
 			return;
 		}
 
-		if (response === "reject") {
-			log.info("Permission denied, failing run", { runId, permissionId });
-			const finishedAt = new Date().toISOString();
-			const failedRun = runRepo.update(runId, {
-				status: "failed",
-				finishedAt,
-				errorText: `Permission denied: ${permissionId}`,
-				durationSec: this.durationSec(run.startedAt ?? finishedAt, finishedAt),
-			});
-			const syncedRun = await this.syncRunWorkspaceState(failedRun);
-			runEventRepo.create({
+		const pausedRun = runRepo.update(runId, { status: "paused" });
+		runEventRepo.create({
+			runId,
+			eventType: "question",
+			payload: {
+				status: "paused",
+				questionId: question.id,
+				questions: question.questions.map((item) => item.question),
+				sessionId: question.sessionId,
+				message: "Question asked",
+			},
+		});
+
+		publishSseEvent("run:question", {
+			runId,
+			taskId: pausedRun.taskId,
+			questionId: question.id,
+			questions: question.questions,
+			sessionId: question.sessionId,
+			createdAt: question.createdAt,
+		});
+		publishRunUpdate(pausedRun);
+
+		this.taskProjector.projectRunOutcome(
+			pausedRun,
+			"paused",
+			"question",
+			"Question asked",
+		);
+	}
+
+	private async resumeRunAfterPermissionApproval(
+		runId: string,
+		permissionId: string,
+	): Promise<void> {
+		log.info("Permission approved, resuming run", {
+			runId,
+			permissionId,
+		});
+
+		const run = runRepo.getById(runId);
+		if (!run || run.status !== "paused") {
+			log.debug("Run not found or not paused, skipping permission resume", {
 				runId,
-				eventType: "permission",
-				payload: {
-					status: "denied",
-					permissionId,
-					response,
-					message: `Permission denied: ${permissionId}`,
-				},
+				currentStatus: run?.status,
 			});
-			publishRunUpdate(syncedRun);
-			this.taskProjector.projectRunOutcome(
-				syncedRun,
-				"failed",
-				"fail",
-				`Permission denied: ${permissionId}`,
-			);
-			this.runInputs.delete(runId);
-			await this.unsubscribeRunSession(runId);
 			return;
 		}
 
@@ -905,7 +1025,7 @@ export class RunsQueueManager {
 			payload: {
 				status: "approved",
 				permissionId,
-				response,
+				response: "approved",
 				message: `Permission approved: ${permissionId}`,
 			},
 		});
@@ -916,6 +1036,126 @@ export class RunsQueueManager {
 			"resume_run",
 			`Permission approved: ${permissionId}`,
 		);
+	}
+
+	private async resumeRunAfterQuestionAnswered(
+		runId: string,
+		questionId: string,
+	): Promise<void> {
+		log.info("Question answered, resuming run", {
+			runId,
+			questionId,
+		});
+
+		const run = runRepo.getById(runId);
+		if (!run || run.status !== "paused") {
+			log.debug("Run not found or not paused, skipping question resume", {
+				runId,
+				currentStatus: run?.status,
+			});
+			return;
+		}
+
+		const resumedRun = runRepo.update(runId, { status: "running" });
+		runEventRepo.create({
+			runId,
+			eventType: "question",
+			payload: {
+				status: "answered",
+				questionId,
+				response: "answered",
+				message: "Question answered",
+			},
+		});
+		publishRunUpdate(resumedRun);
+		this.taskProjector.projectRunOutcome(
+			resumedRun,
+			"running",
+			"resume_run",
+			"Question answered",
+		);
+	}
+
+	private async resumeOrphanedPausedRun(runId: string): Promise<void> {
+		log.info("Resuming orphaned paused run — no pending interaction", {
+			runId,
+		});
+
+		const run = runRepo.getById(runId);
+		if (!run || run.status !== "paused") {
+			return;
+		}
+
+		const resumedRun = runRepo.update(runId, { status: "running" });
+		runEventRepo.create({
+			runId,
+			eventType: "status",
+			payload: {
+				status: "running",
+				message: "Auto-resumed: no pending user interaction",
+			},
+		});
+		publishRunUpdate(resumedRun);
+		this.taskProjector.projectRunOutcome(
+			resumedRun,
+			"running",
+			"resume_run",
+			"Auto-resumed: no pending user interaction",
+		);
+	}
+
+	private getAwaitingPermissionId(runId: string): string | null {
+		const events = runEventRepo.listByRun(runId, 50);
+		for (let index = events.length - 1; index >= 0; index -= 1) {
+			const event = events[index];
+			if (event.eventType !== "permission") {
+				continue;
+			}
+
+			const payload = asObject(event.payload);
+			if (!payload) {
+				continue;
+			}
+
+			if (payload.status === "paused") {
+				return typeof payload.permissionId === "string"
+					? payload.permissionId
+					: null;
+			}
+
+			if (payload.status === "approved" || payload.status === "denied") {
+				return null;
+			}
+		}
+
+		return null;
+	}
+
+	private getAwaitingQuestionId(runId: string): string | null {
+		const events = runEventRepo.listByRun(runId, 50);
+		for (let index = events.length - 1; index >= 0; index -= 1) {
+			const event = events[index];
+			if (event.eventType !== "question") {
+				continue;
+			}
+
+			const payload = asObject(event.payload);
+			if (!payload) {
+				continue;
+			}
+
+			if (payload.status === "paused") {
+				return typeof payload.questionId === "string"
+					? payload.questionId
+					: null;
+			}
+
+			if (payload.status === "answered" || payload.status === "rejected") {
+				return null;
+			}
+		}
+
+		return null;
 	}
 
 	private async finalizeRunFromSession(
@@ -1007,9 +1247,11 @@ export class RunsQueueManager {
 		}
 
 		publishRunUpdate(nextRun);
+		this.activeRunSessions.delete(runId);
+		if (this.activeRunSessions.size === 0) {
+			this.stopPolling();
+		}
 		this.runInputs.delete(runId);
-
-		await this.unsubscribeRunSession(runId);
 	}
 
 	private async syncRunWorkspaceState(run: Run): Promise<Run> {
@@ -1847,18 +2089,6 @@ export class RunsQueueManager {
 			sessionId,
 			messageCount: messages.length,
 		});
-	}
-
-	private async unsubscribeRunSession(runId: string): Promise<void> {
-		const sessionId = this.sessionSubscribers.get(runId);
-		if (!sessionId) {
-			return;
-		}
-
-		log.debug("Unsubscribing from session", { runId, sessionId });
-		this.sessionSubscribers.delete(runId);
-		await this.sessionManager.unsubscribe(sessionId, `run:${runId}`);
-		log.info("Unsubscribed from session", { runId, sessionId });
 	}
 
 	private removeFromQueue(runId: string): void {

@@ -185,6 +185,7 @@ export class RunTaskProjector {
 		const currentColumnKey = getWorkflowColumnSystemKey(board, currentColumnId);
 
 		const preferredColumnId = getPreferredColumnIdForStatus(board, status);
+
 		if (currentColumnKey && preferredColumnId) {
 			const preferredColumnKey = getWorkflowColumnSystemKey(
 				board,
@@ -196,7 +197,9 @@ export class RunTaskProjector {
 			) {
 				return preferredColumnId;
 			}
+		}
 
+		if (currentColumnKey) {
 			for (const column of board.columns) {
 				const targetColumnKey = getWorkflowColumnSystemKey(board, column.id);
 				if (!targetColumnKey) {
@@ -275,7 +278,6 @@ export class RunTaskProjector {
 			typeof run.metadata?.kind === "string" ? run.metadata.kind : null;
 
 		return resolveTaskStatusBySignal({
-			scope: "run",
 			signalKey,
 			currentStatus: task.status,
 			runKind,
