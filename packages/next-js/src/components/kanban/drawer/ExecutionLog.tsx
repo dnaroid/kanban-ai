@@ -20,6 +20,7 @@ import {
 	TextPart,
 	ToolPart,
 } from "@/components/chat/MessageParts";
+import { TodoWriteToolView } from "@/components/chat/TodoWriteToolView";
 import { cn } from "@/lib/utils";
 import type {
 	OpenCodeMessage,
@@ -1147,6 +1148,9 @@ export function ExecutionLog({
 												/>
 											);
 										case "tool":
+											if (part.tool === "todowrite") {
+												return <TodoWriteToolView key={key} part={part} />;
+											}
 											return (
 												<ToolPart
 													key={key}

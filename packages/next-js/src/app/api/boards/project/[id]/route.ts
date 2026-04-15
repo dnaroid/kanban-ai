@@ -20,8 +20,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
 		try {
 			await getRunsQueueManager().reconcileProjectRuns(id);
-		} catch {
-			// Reconciliation is best-effort; board should still load
+		} catch (reconcileError) {
+			console.error("[API] Board reconciliation failed:", reconcileError);
 		}
 
 		return NextResponse.json({ success: true, data: board });

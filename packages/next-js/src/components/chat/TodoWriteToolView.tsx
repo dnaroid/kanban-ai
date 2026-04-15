@@ -61,7 +61,7 @@ type TodoStatus = "pending" | "in_progress" | "completed" | "cancelled";
 type TodoPriority = "high" | "medium" | "low";
 
 interface TodoItem {
-	id: string;
+	id?: string;
 	content: string;
 	status: TodoStatus;
 	priority: TodoPriority;
@@ -73,8 +73,8 @@ function isTodoArray(value: unknown): value is TodoItem[] {
 		(item) =>
 			item != null &&
 			typeof item === "object" &&
-			typeof (item as Record<string, unknown>).id === "string" &&
-			typeof (item as Record<string, unknown>).content === "string",
+			typeof (item as Record<string, unknown>).content === "string" &&
+			typeof (item as Record<string, unknown>).status === "string",
 	);
 }
 
@@ -154,7 +154,7 @@ export function TodoWriteToolView({ part }: { part: TodoWriteToolPart }) {
 						<p className="text-[11px] text-slate-500 italic py-1">No tasks</p>
 					) : (
 						<div className="divide-y divide-slate-800/40">
-							{todos.map((todo) => {
+							{todos.map((todo, idx) => {
 								const statusCfg =
 									todoStatusConfig[todo.status] ?? todoStatusConfig.pending;
 								const priorityCfg =
@@ -163,7 +163,7 @@ export function TodoWriteToolView({ part }: { part: TodoWriteToolPart }) {
 								const StatusIcon = statusCfg.icon;
 								return (
 									<div
-										key={todo.id}
+										key={todo.id ?? idx}
 										className="flex items-center gap-2.5 py-1.5 first:pt-0.5 last:pb-0.5"
 									>
 										<div className="shrink-0">

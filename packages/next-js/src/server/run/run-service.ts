@@ -750,8 +750,16 @@ export class RunService {
 		}
 
 		const vcs = run.metadata?.vcs;
-		if (!vcs || !vcs.headCommit || vcs.headCommit === vcs.baseCommit) {
-			return { files: [] };
+		if (!vcs) {
+			const task = taskRepo.getById(run.taskId);
+			if (!task) {
+				return { files: [] };
+			}
+			const project = projectRepo.getById(task.projectId);
+			if (!project?.path) {
+				return { files: [] };
+			}
+			return this.vcsManager.getWorkingDiff(project.path);
 		}
 
 		if (
@@ -761,10 +769,16 @@ export class RunService {
 			return null;
 		}
 
+		const synced = await this.vcsManager.syncVcsMetadata(vcs);
+		const headCommit = synced.headCommit;
+		if (!headCommit || headCommit === synced.baseCommit) {
+			return { files: [] };
+		}
+
 		return this.vcsManager.getDiff(
-			vcs.worktreePath,
-			vcs.baseCommit,
-			vcs.headCommit,
+			synced.worktreePath,
+			synced.baseCommit,
+			headCommit,
 		);
 	}
 

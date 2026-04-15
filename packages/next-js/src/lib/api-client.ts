@@ -1489,6 +1489,51 @@ class ApiClient {
 		return this.unwrapApiData<Board>(payload);
 	}
 
+	async startProjectBoardPolling(
+		projectId: string,
+		viewerId: string,
+	): Promise<void> {
+		const response = await fetch(
+			`${this.baseUrl}/api/boards/project/${projectId}/polling`,
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ viewerId }),
+			},
+		);
+
+		if (!response.ok) {
+			const message = await this.getErrorMessage(
+				response,
+				"Failed to start board polling",
+			);
+			throw new Error(message);
+		}
+	}
+
+	async stopProjectBoardPolling(
+		projectId: string,
+		viewerId: string,
+	): Promise<void> {
+		const response = await fetch(
+			`${this.baseUrl}/api/boards/project/${projectId}/polling`,
+			{
+				method: "DELETE",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ viewerId }),
+				keepalive: true,
+			},
+		);
+
+		if (!response.ok) {
+			const message = await this.getErrorMessage(
+				response,
+				"Failed to stop board polling",
+			);
+			throw new Error(message);
+		}
+	}
+
 	async updateBoardColumns(
 		boardId: string,
 		columns: Array<{

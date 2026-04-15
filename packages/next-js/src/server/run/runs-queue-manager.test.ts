@@ -22,6 +22,7 @@ const {
 	mockRunEventRepo,
 	mockTaskLinkRepo,
 	mockTaskRepo,
+	mockBoardRepo,
 	mockRunRepo,
 	mockTaskProjector,
 	mockVcsManager,
@@ -111,6 +112,23 @@ const {
 		},
 		mockTaskRepo: {
 			getById: vi.fn((taskId: string) => tasks.get(taskId) ?? null),
+			listByBoard: vi.fn((boardId: string) => {
+				return [...tasks.values()].filter((task) => task.boardId === boardId);
+			}),
+		},
+		mockBoardRepo: {
+			getByProjectId: vi.fn((projectId: string) => ({
+				id: "board-1",
+				projectId,
+				name: "Board",
+				columns: [
+					{ id: "column-1", name: "In Progress", systemKey: "in_progress" },
+					{ id: "blocked-col", name: "Blocked", systemKey: "blocked" },
+					{ id: "review-col", name: "Review", systemKey: "review" },
+					{ id: "closed-col", name: "Closed", systemKey: "closed" },
+					{ id: "deferred-col", name: "Deferred", systemKey: "deferred" },
+				],
+			})),
 		},
 		mockRunRepo: {
 			getById: vi.fn((runId: string) => runs.get(runId) ?? null),
@@ -248,6 +266,10 @@ vi.mock("@/server/repositories/task", () => ({
 	taskRepo: mockTaskRepo,
 }));
 
+vi.mock("@/server/repositories/board", () => ({
+	boardRepo: mockBoardRepo,
+}));
+
 vi.mock("@/server/run/run-task-projector", () => ({
 	getRunTaskProjector: () => mockTaskProjector,
 }));
@@ -369,11 +391,11 @@ async function waitForDrain(): Promise<void> {
 }
 
 function withPrivateAccess(manager: RunsQueueManager): {
-	pollActiveRuns: () => Promise<void>;
+	reconcileProjectRuns: (projectId: string) => Promise<void>;
 	activeRunSessions: Map<string, string>;
 } {
 	return manager as unknown as {
-		pollActiveRuns: () => Promise<void>;
+		reconcileProjectRuns: (projectId: string) => Promise<void>;
 		activeRunSessions: Map<string, string>;
 	};
 }
@@ -653,7 +675,7 @@ describe("RunsQueueManager scheduling", () => {
 		await waitForDrain();
 		await waitForDrain();
 		await waitForDrain();
-		await withPrivateAccess(manager).pollActiveRuns();
+		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
 
 		expect(mockVcsManager.provisionRunWorkspace).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -1259,6 +1281,98 @@ describe("RunsQueueManager scheduling", () => {
 		);
 	});
 
+	it("force-finalizes stale generation runs during global reconciliation", async () => {
+		taskMap.set(
+			"task-stale-generation",
+			buildTask("task-stale-generation", "normal", "generating"),
+		);
+		runMap.set("run-stale-generation", {
+			...buildRun(
+				"run-stale-generation",
+				"task-stale-generation",
+				"generation",
+				"2026-01-01T00:00:00.000Z",
+			),
+			status: "running",
+			sessionId: "session-stale-generation",
+			startedAt: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
+		});
+		mockSessionManager.inspectSession.mockResolvedValue(buildInspection());
+
+		const manager = new RunsQueueManager();
+		await manager.rehydrateAndReconcileRuns();
+
+		expect(runMap.get("run-stale-generation")?.status).toBe("completed");
+		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: "run-stale-generation",
+				status: "completed",
+			}),
+			{ marker: "generated", content: "" },
+		);
+	});
+
+	it("does not finalize stale runs when inspection is transiently unavailable", async () => {
+		taskMap.set(
+			"task-stale-transient",
+			buildTask("task-stale-transient", "normal", "generating"),
+		);
+		runMap.set("run-stale-transient", {
+			...buildRun(
+				"run-stale-transient",
+				"task-stale-transient",
+				"generation",
+				"2026-01-01T00:00:00.000Z",
+			),
+			status: "running",
+			sessionId: "session-stale-transient",
+			startedAt: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
+		});
+		mockSessionManager.inspectSession.mockResolvedValue(
+			buildInspection({ probeStatus: "transient_error" }),
+		);
+
+		const manager = new RunsQueueManager();
+		await manager.rehydrateAndReconcileRuns();
+
+		expect(runMap.get("run-stale-transient")?.status).toBe("running");
+		expect(mockTaskProjector.projectRunOutcome).not.toHaveBeenCalledWith(
+			expect.objectContaining({ id: "run-stale-transient" }),
+			expect.objectContaining({ marker: "generated" }),
+		);
+	});
+
+	it("preserves generated marker when reconciling settled generation runs", async () => {
+		taskMap.set(
+			"task-settled-generation",
+			buildTask("task-settled-generation", "normal", "generating"),
+		);
+		runMap.set("run-settled-generation", {
+			...buildRun(
+				"run-settled-generation",
+				"task-settled-generation",
+				"generation",
+				"2026-01-01T00:00:00.000Z",
+			),
+			status: "completed",
+			sessionId: "session-settled-generation",
+			startedAt: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
+			finishedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+		});
+		mockSessionManager.inspectSession.mockResolvedValue(buildInspection());
+
+		const manager = new RunsQueueManager();
+		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
+
+		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: "run-settled-generation",
+				status: "completed",
+			}),
+			{ marker: "generated", content: "" },
+		);
+	});
+
 	it("detects infrastructure network errors case-insensitively", () => {
 		expect(isNetworkError(new Error("fetch failed"))).toBe(true);
 		expect(isNetworkError(new Error("ECONNREFUSED connecting upstream"))).toBe(
@@ -1314,7 +1428,7 @@ describe("RunsQueueManager permission handling", () => {
 		return { manager, sessionId: sessionId ?? "" };
 	}
 
-	it("pauses run when pending permission found via polling", async () => {
+	it("pauses run when pending permission is found during project reconciliation", async () => {
 		const { manager, sessionId } = await setupRunningRun(
 			"run-perm-1",
 			"task-perm-1",
@@ -1336,7 +1450,7 @@ describe("RunsQueueManager permission handling", () => {
 			}),
 		);
 
-		await withPrivateAccess(manager).pollActiveRuns();
+		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
 
 		expect(runMap.get("run-perm-1")?.status).toBe("paused");
 		expect(mockRunEventRepo.create).toHaveBeenCalledWith(
@@ -1347,7 +1461,7 @@ describe("RunsQueueManager permission handling", () => {
 		);
 	});
 
-	it("publishes SSE permission event when permission detected via polling", async () => {
+	it("publishes SSE permission event when permission is detected during project reconciliation", async () => {
 		const { publishSseEvent } = await import("@/server/events/sse-broker");
 		const { manager, sessionId } = await setupRunningRun(
 			"run-perm-2",
@@ -1370,7 +1484,7 @@ describe("RunsQueueManager permission handling", () => {
 			}),
 		);
 
-		await withPrivateAccess(manager).pollActiveRuns();
+		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
 
 		expect(publishSseEvent).toHaveBeenCalledWith(
 			"run:permission",
@@ -1383,7 +1497,7 @@ describe("RunsQueueManager permission handling", () => {
 		);
 	});
 
-	it("resumes run when permission is no longer pending via polling", async () => {
+	it("resumes run when permission is no longer pending during project reconciliation", async () => {
 		const { manager, sessionId } = await setupRunningRun(
 			"run-perm-3",
 			"task-perm-3",
@@ -1405,11 +1519,11 @@ describe("RunsQueueManager permission handling", () => {
 		);
 		mockSessionManager.listPendingPermissions.mockResolvedValueOnce([]);
 
-		await withPrivateAccess(manager).pollActiveRuns();
+		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
 
 		expect(runMap.get("run-perm-3")?.status).toBe("paused");
 
-		await withPrivateAccess(manager).pollActiveRuns();
+		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
 
 		expect(runMap.get("run-perm-3")?.status).toBe("running");
 		expect(mockRunEventRepo.create).toHaveBeenCalledWith(
@@ -1424,7 +1538,7 @@ describe("RunsQueueManager permission handling", () => {
 		);
 	});
 
-	it("fails run after permission is rejected and polling sees failure marker", async () => {
+	it("fails run after permission is rejected and reconciliation sees a failure marker", async () => {
 		const { manager, sessionId } = await setupRunningRun(
 			"run-perm-4",
 			"task-perm-4",
@@ -1469,12 +1583,12 @@ describe("RunsQueueManager permission handling", () => {
 			},
 		);
 
-		await withPrivateAccess(manager).pollActiveRuns();
+		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
 
 		expect(runMap.get("run-perm-4")?.status).toBe("paused");
 
 		pendingPermissionsState = [];
-		await withPrivateAccess(manager).pollActiveRuns();
+		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
 		expect(runMap.get("run-perm-4")?.status).toBe("running");
 
 		mockSessionManager.inspectSession.mockImplementation(
@@ -1488,7 +1602,7 @@ describe("RunsQueueManager permission handling", () => {
 			},
 		);
 
-		await withPrivateAccess(manager).pollActiveRuns();
+		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
 
 		expect(runMap.get("run-perm-4")?.status).toBe("failed");
 		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
@@ -1497,7 +1611,7 @@ describe("RunsQueueManager permission handling", () => {
 		);
 	});
 
-	it("ignores pending permission for non-running run via polling", async () => {
+	it("ignores pending permission for a non-running run during reconciliation", async () => {
 		taskMap.set("task-perm-5", buildTask("task-perm-5", "normal"));
 		const run = buildRun(
 			"run-perm-5",
@@ -1523,16 +1637,15 @@ describe("RunsQueueManager permission handling", () => {
 			},
 		]);
 
-		await privateAccess.pollActiveRuns();
+		await privateAccess.reconcileProjectRuns("project-1");
 
 		expect(mockRunRepo.update).not.toHaveBeenCalledWith(
 			"run-perm-5",
 			expect.objectContaining({ status: "paused" }),
 		);
-		expect(privateAccess.activeRunSessions.has("run-perm-5")).toBe(false);
 	});
 
-	it("still detects completion marker after permission resolved via polling", async () => {
+	it("still detects completion marker after permission is resolved during reconciliation", async () => {
 		const { manager, sessionId } = await setupRunningRun(
 			"run-perm-6",
 			"task-perm-6",
@@ -1577,11 +1690,11 @@ describe("RunsQueueManager permission handling", () => {
 			},
 		);
 
-		await withPrivateAccess(manager).pollActiveRuns();
+		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
 		expect(runMap.get("run-perm-6")?.status).toBe("paused");
 
 		pendingPermissionsState = [];
-		await withPrivateAccess(manager).pollActiveRuns();
+		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
 		expect(runMap.get("run-perm-6")?.status).toBe("running");
 
 		mockSessionManager.inspectSession.mockImplementation(
@@ -1595,8 +1708,74 @@ describe("RunsQueueManager permission handling", () => {
 			},
 		);
 
-		await withPrivateAccess(manager).pollActiveRuns();
+		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
 
 		expect(runMap.get("run-perm-6")?.status).toBe("completed");
+	});
+
+	it("prefers a live running run over a paused sibling during reconciliation", async () => {
+		taskMap.set(
+			"task-multi-active",
+			buildTask("task-multi-active", "normal", "question"),
+		);
+		runMap.set("run-multi-running", {
+			...buildRun(
+				"run-multi-running",
+				"task-multi-active",
+				"execution",
+				"2026-01-01T00:00:00.000Z",
+			),
+			status: "running",
+			startedAt: new Date().toISOString(),
+		});
+		runMap.set("run-multi-paused", {
+			...buildRun(
+				"run-multi-paused",
+				"task-multi-active",
+				"execution",
+				"2026-01-01T00:00:01.000Z",
+			),
+			status: "paused",
+			sessionId: "session-paused",
+		});
+		mockRunEventRepo.create({
+			runId: "run-multi-paused",
+			eventType: "permission",
+			payload: {
+				status: "paused",
+				permissionId: "perm-multi",
+			},
+		});
+
+		mockSessionManager.inspectSession.mockImplementation(async (sessionId) => {
+			if (sessionId === "session-paused") {
+				return buildInspection({
+					pendingPermissions: [
+						{
+							id: "perm-multi",
+							permissionType: "read",
+							sessionId,
+							messageId: "msg-multi",
+							title: "Read file",
+							metadata: {},
+							createdAt: Date.now(),
+						},
+					],
+				});
+			}
+
+			return buildInspection();
+		});
+
+		const manager = new RunsQueueManager();
+		await manager.reconcileProjectRuns("project-1");
+
+		expect(mockTaskProjector.projectRunStarted).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "run-multi-running" }),
+		);
+		expect(mockTaskProjector.projectRunOutcome).not.toHaveBeenCalledWith(
+			expect.objectContaining({ id: "run-multi-paused" }),
+			expect.objectContaining({ marker: "question" }),
+		);
 	});
 });

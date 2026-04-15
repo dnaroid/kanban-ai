@@ -179,6 +179,28 @@ export class VcsManager {
 		return { files };
 	}
 
+	public async getWorkingDiff(
+		projectPath: string,
+	): Promise<{ files: DiffFile[] } | null> {
+		const repoRoot = await this.resolveRepoRoot(projectPath).catch(() => null);
+		if (!repoRoot) {
+			return null;
+		}
+
+		const raw = await this.gitRaw(repoRoot, ["diff", "--unified=3", "HEAD"]);
+
+		if (raw === null) {
+			return null;
+		}
+
+		if (raw.length === 0) {
+			return { files: [] };
+		}
+
+		const files = this.parseUnifiedDiff(raw);
+		return { files };
+	}
+
 	public async mergeRunWorkspace(
 		run: Run,
 		mergeMode: RunMergeMode = "manual",

@@ -19,6 +19,7 @@ import { taskLinkRepo } from "@/server/repositories/task-link";
 import { taskRepo } from "@/server/repositories/task";
 import { boardRepo } from "@/server/repositories/board";
 import { getWorkflowColumnIdBySystemKey } from "@/server/workflow/task-workflow-manager";
+import { getWorkflowColumnSystemKey } from "@/server/workflow/task-workflow-manager";
 import { getRunTaskProjector } from "@/server/run/run-task-projector";
 import type {
 	RunOutcome,
@@ -338,12 +339,19 @@ export class RunsQueueManager {
 	private readonly worktreeEnabled =
 		process.env.RUNS_WORKTREE_ENABLED === "true";
 	private blockedRetryTimer: ReturnType<typeof setTimeout> | null = null;
-	private pollTimer: ReturnType<typeof setInterval> | null = null;
+	private projectPollingTimer: ReturnType<typeof setInterval> | null = null;
 	private draining = false;
-	private polling = false;
 	private readonly reconciling = new Set<string>();
+	private readonly reconcilingProjects = new Set<string>();
+	private readonly activeProjectBoardWatchers = new Map<
+		string,
+		Map<string, number>
+	>();
 	private reconciliationTimer: ReturnType<typeof setTimeout> | null = null;
+	private readonly projectPollingIntervalMs = 5_000;
+	private readonly projectBoardWatcherTtlMs = 15_000;
 	private readonly reconciliationIntervalMs = 30_000;
+	private readonly staleRunThresholdMs = 10 * 60 * 1000;
 	private readonly retryTimers = new Map<
 		string,
 		ReturnType<typeof setTimeout>
@@ -513,9 +521,6 @@ export class RunsQueueManager {
 		});
 
 		this.activeRunSessions.delete(runId);
-		if (this.activeRunSessions.size === 0) {
-			this.stopPolling();
-		}
 	}
 
 	public getQueueStats(): QueueStats {
@@ -752,7 +757,6 @@ export class RunsQueueManager {
 			publishRunUpdate(runningRun);
 
 			this.activeRunSessions.set(runId, sessionId);
-			this.ensurePollingActive();
 
 			log.debug("Sending prompt to OpenCode", { runId, sessionId });
 			await this.sessionManager.sendPrompt(
@@ -812,9 +816,6 @@ export class RunsQueueManager {
 				content: message,
 			});
 			this.activeRunSessions.delete(runId);
-			if (this.activeRunSessions.size === 0) {
-				this.stopPolling();
-			}
 			this.runInputs.delete(runId);
 		}
 	}
@@ -828,9 +829,6 @@ export class RunsQueueManager {
 			return false;
 		}
 
-		// If a session was already created, don't re-enqueue a fresh attempt.
-		// The existing session may still be alive — rely on polling/reconciliation
-		// to recover it instead of starting a duplicate session.
 		if (run.sessionId?.trim()) {
 			return false;
 		}
@@ -874,9 +872,6 @@ export class RunsQueueManager {
 		});
 
 		this.activeRunSessions.delete(runId);
-		if (this.activeRunSessions.size === 0) {
-			this.stopPolling();
-		}
 
 		const timer = setTimeout(() => {
 			this.retryTimers.delete(runId);
@@ -895,141 +890,91 @@ export class RunsQueueManager {
 		return true;
 	}
 
-	private ensurePollingActive(): void {
-		if (this.pollTimer) {
+	public startProjectBoardPolling(projectId: string, viewerId: string): void {
+		const normalizedProjectId = projectId.trim();
+		const normalizedViewerId = viewerId.trim();
+		if (normalizedProjectId.length === 0 || normalizedViewerId.length === 0) {
 			return;
 		}
 
-		this.startPolling();
+		let viewers = this.activeProjectBoardWatchers.get(normalizedProjectId);
+		if (!viewers) {
+			viewers = new Map<string, number>();
+			this.activeProjectBoardWatchers.set(normalizedProjectId, viewers);
+		}
+
+		viewers.set(normalizedViewerId, Date.now());
+		this.ensureProjectPollingActive();
+		void this.reconcileProjectRuns(normalizedProjectId);
 	}
 
-	private startPolling(): void {
-		if (this.pollTimer) {
+	public stopProjectBoardPolling(projectId: string, viewerId: string): void {
+		const viewers = this.activeProjectBoardWatchers.get(projectId.trim());
+		if (!viewers) {
 			return;
 		}
 
-		this.pollTimer = setInterval(() => {
-			void this.pollActiveRuns();
-		}, 2000);
-		log.info("Started run session polling", {
-			activeRuns: this.activeRunSessions.size,
+		viewers.delete(viewerId.trim());
+		if (viewers.size === 0) {
+			this.activeProjectBoardWatchers.delete(projectId.trim());
+		}
+
+		if (this.activeProjectBoardWatchers.size === 0) {
+			this.stopProjectPolling();
+		}
+	}
+
+	private ensureProjectPollingActive(): void {
+		if (this.projectPollingTimer) {
+			return;
+		}
+
+		this.projectPollingTimer = setInterval(() => {
+			void this.pollViewedProjects();
+		}, this.projectPollingIntervalMs);
+		log.info("Started project board reconciliation polling", {
+			projects: this.activeProjectBoardWatchers.size,
 		});
 	}
 
-	private stopPolling(): void {
-		if (!this.pollTimer) {
+	private stopProjectPolling(): void {
+		if (!this.projectPollingTimer) {
 			return;
 		}
 
-		clearInterval(this.pollTimer);
-		this.pollTimer = null;
-		log.info("Stopped run session polling");
+		clearInterval(this.projectPollingTimer);
+		this.projectPollingTimer = null;
+		log.info("Stopped project board reconciliation polling");
 	}
 
-	private async pollActiveRuns(): Promise<void> {
-		if (this.polling) {
+	private async pollViewedProjects(): Promise<void> {
+		this.pruneInactiveProjectBoardWatchers();
+		if (this.activeProjectBoardWatchers.size === 0) {
+			this.stopProjectPolling();
 			return;
 		}
 
-		this.polling = true;
-		try {
-			for (const [runId, sessionId] of this.activeRunSessions.entries()) {
-				const run = runRepo.getById(runId);
-				if (!run) {
-					this.activeRunSessions.delete(runId);
+		for (const projectId of this.activeProjectBoardWatchers.keys()) {
+			await this.reconcileProjectRuns(projectId);
+		}
+	}
+
+	private pruneInactiveProjectBoardWatchers(): void {
+		const cutoff = Date.now() - this.projectBoardWatcherTtlMs;
+		for (const [
+			projectId,
+			viewers,
+		] of this.activeProjectBoardWatchers.entries()) {
+			for (const [viewerId, lastSeenAt] of viewers.entries()) {
+				if (lastSeenAt >= cutoff) {
 					continue;
 				}
 
-				if (run.status === "running") {
-					const inspection =
-						await this.sessionManager.inspectSession(sessionId);
-					const meta = deriveMetaStatus(inspection);
-
-					switch (meta.kind) {
-						case "completed":
-						case "failed": {
-							const runStatus =
-								meta.kind === "completed"
-									? ("completed" as RunStatus)
-									: ("failed" as RunStatus);
-							const outcome: RunOutcome = {
-								marker: meta.marker,
-								content: meta.content,
-							};
-							await this.finalizeRunFromSession(runId, runStatus, outcome);
-							break;
-						}
-						case "dead":
-							await this.finalizeDeadRun(runId);
-							break;
-						case "question":
-							await this.pauseRunForPendingQuestion(runId, meta.questions[0]);
-							break;
-						case "permission":
-							await this.pauseRunForPendingPermission(runId, meta.permission);
-							break;
-						case "running":
-							break;
-					}
-					continue;
-				}
-
-				if (run.status === "paused") {
-					const awaitingPermissionId = this.getAwaitingPermissionId(runId);
-					if (awaitingPermissionId) {
-						const pendingPermissions =
-							await this.sessionManager.listPendingPermissions(sessionId);
-						const stillPending = pendingPermissions.some(
-							(permission) => permission.id === awaitingPermissionId,
-						);
-						if (!stillPending) {
-							await this.resumeRunAfterPermissionApproval(
-								runId,
-								awaitingPermissionId,
-							);
-						}
-						continue;
-					}
-
-					const awaitingQuestionId = this.getAwaitingQuestionId(runId);
-					if (awaitingQuestionId) {
-						const pendingQuestions =
-							await this.sessionManager.listPendingQuestions(sessionId);
-						const stillPending = pendingQuestions.some(
-							(q) => q.id === awaitingQuestionId,
-						);
-						if (!stillPending) {
-							await this.resumeRunAfterQuestionAnswered(
-								runId,
-								awaitingQuestionId,
-							);
-						}
-						continue;
-					}
-
-					// No tracked permission/question — check if session is clean
-					// and auto-resume if nothing is pending.
-					const [orphanPermissions, orphanQuestions] = await Promise.all([
-						this.sessionManager.listPendingPermissions(sessionId),
-						this.sessionManager.listPendingQuestions(sessionId),
-					]);
-					if (orphanPermissions.length === 0 && orphanQuestions.length === 0) {
-						await this.resumeOrphanedPausedRun(runId);
-					}
-
-					continue;
-				}
-
-				this.activeRunSessions.delete(runId);
+				viewers.delete(viewerId);
 			}
-		} catch (error) {
-			log.error("Failed to poll active runs", {
-				error: error instanceof Error ? error.message : String(error),
-			});
-		} finally {
-			this.polling = false;
-			if (this.activeRunSessions.size === 0) {
-				this.stopPolling();
+
+			if (viewers.size === 0) {
+				this.activeProjectBoardWatchers.delete(projectId);
 			}
 		}
 	}
@@ -1071,9 +1016,6 @@ export class RunsQueueManager {
 
 		publishRunUpdate(failedRun);
 		this.activeRunSessions.delete(runId);
-		if (this.activeRunSessions.size === 0) {
-			this.stopPolling();
-		}
 		this.runInputs.delete(runId);
 	}
 
@@ -1417,9 +1359,6 @@ export class RunsQueueManager {
 
 		publishRunUpdate(nextRun);
 		this.activeRunSessions.delete(runId);
-		if (this.activeRunSessions.size === 0) {
-			this.stopPolling();
-		}
 		this.runInputs.delete(runId);
 	}
 
@@ -1429,10 +1368,29 @@ export class RunsQueueManager {
 	}
 
 	public async reconcileProjectRuns(projectId: string): Promise<void> {
-		const activeRuns = this.listActiveRunsForReconciliation().filter(
-			(run) => taskRepo.getById(run.taskId)?.projectId === projectId,
-		);
-		await this.reconcileRuns(activeRuns);
+		if (this.reconcilingProjects.has(projectId)) {
+			return;
+		}
+
+		this.reconcilingProjects.add(projectId);
+		try {
+			const scopedBoard = this.getPollableBoardContext(projectId);
+			if (!scopedBoard) {
+				return;
+			}
+
+			const activeRuns = this.listActiveRunsForReconciliation().filter((run) =>
+				scopedBoard.taskIds.has(run.taskId),
+			);
+			await this.reconcileRuns(activeRuns);
+			await this.reconcileTaskStatuses(
+				projectId,
+				scopedBoard.board,
+				scopedBoard.tasks,
+			);
+		} finally {
+			this.reconcilingProjects.delete(projectId);
+		}
 	}
 
 	public async recoverOrphanedRuns(): Promise<void> {
@@ -1493,6 +1451,313 @@ export class RunsQueueManager {
 				this.reconciling.delete(run.id);
 			}
 		}
+	}
+
+	private getPollableBoardContext(projectId: string): {
+		board: ReturnType<typeof boardRepo.getByProjectId> extends infer T
+			? Exclude<T, null>
+			: never;
+		tasks: Task[];
+		taskIds: Set<string>;
+	} | null {
+		const board = boardRepo.getByProjectId(projectId);
+		if (!board) {
+			log.warn("Skipping task status reconciliation; board not found", {
+				projectId,
+			});
+			return null;
+		}
+
+		const tasks = taskRepo.listByBoard(board.id).filter((task) => {
+			const columnKey = getWorkflowColumnSystemKey(board, task.columnId);
+			return columnKey !== "deferred" && columnKey !== "closed";
+		});
+
+		return {
+			board,
+			tasks,
+			taskIds: new Set(tasks.map((task) => task.id)),
+		};
+	}
+
+	private async reconcileTaskStatuses(
+		projectId: string,
+		board: NonNullable<ReturnType<typeof boardRepo.getByProjectId>>,
+		tasks: Task[],
+	): Promise<void> {
+		for (const task of tasks) {
+			const runs = [...runRepo.listByTask(task.id)].sort(
+				(a, b) =>
+					Date.parse(b.updatedAt ?? b.createdAt) -
+					Date.parse(a.updatedAt ?? a.createdAt),
+			);
+			const activeRuns = runs.filter(
+				(run) =>
+					run.status === "queued" ||
+					run.status === "running" ||
+					run.status === "paused",
+			);
+
+			if (activeRuns.length > 0) {
+				const nonStaleActiveRunExists = activeRuns.some(
+					(run) => !this.isRunStale(run),
+				);
+				if (nonStaleActiveRunExists) {
+					this.reconcileTaskWithActiveRuns(
+						task,
+						activeRuns.filter((run) => !this.isRunStale(run)),
+					);
+					continue;
+				}
+
+				for (const activeRun of activeRuns) {
+					if (!this.isRunStale(activeRun)) {
+						continue;
+					}
+
+					log.info(
+						"Attempting to finalize stale run during task reconciliation",
+						{
+							projectId,
+							taskId: task.id,
+							runId: activeRun.id,
+							runStatus: activeRun.status,
+							startedAt: activeRun.startedAt,
+						},
+					);
+
+					await this.reconcileStaleRun(activeRun, projectId, task.id);
+				}
+				continue;
+			}
+
+			const latestSettledRun = runs.find(
+				(run) => run.status === "completed" || run.status === "failed",
+			);
+			if (!latestSettledRun) {
+				if (
+					task.status !== "running" &&
+					task.status !== "generating" &&
+					task.status !== "paused" &&
+					task.status !== "question"
+				) {
+					continue;
+				}
+
+				log.info("Skipping stale task reconciliation without settled run", {
+					projectId,
+					taskId: task.id,
+					status: task.status,
+					columnId: task.columnId,
+					columnKey: getWorkflowColumnSystemKey(board, task.columnId),
+				});
+				continue;
+			}
+
+			let derivedMarker: RunOutcomeMarker | null = null;
+			let derivedContent = "";
+			let source: "session" | "fallback" = "fallback";
+
+			if (latestSettledRun.status === "completed") {
+				const sessionId = latestSettledRun.sessionId.trim();
+				if (sessionId.length > 0) {
+					try {
+						const inspection =
+							await this.sessionManager.inspectSession(sessionId);
+						const meta = deriveMetaStatus(inspection);
+
+						if (meta.kind === "completed" || meta.kind === "failed") {
+							derivedMarker = meta.marker;
+							derivedContent = meta.content;
+							source = "session";
+						} else {
+							log.warn(
+								"Task status reconciliation inspection did not yield a terminal marker",
+								{
+									projectId,
+									taskId: task.id,
+									runId: latestSettledRun.id,
+									sessionId,
+									inspectionKind: meta.kind,
+								},
+							);
+						}
+					} catch (error) {
+						log.warn(
+							"Failed to inspect session during task status reconciliation",
+							{
+								projectId,
+								taskId: task.id,
+								runId: latestSettledRun.id,
+								sessionId,
+								error: error instanceof Error ? error.message : String(error),
+							},
+						);
+					}
+				}
+
+				if (!derivedMarker) {
+					derivedMarker = this.staleRunFallbackMarker(latestSettledRun);
+				}
+			} else if (latestSettledRun.status === "failed") {
+				derivedMarker = "fail";
+			}
+
+			if (!derivedMarker) {
+				continue;
+			}
+
+			try {
+				this.taskProjector.projectRunOutcome(latestSettledRun, {
+					marker: derivedMarker,
+					content: derivedContent,
+				});
+				log.info("Reconciled task status from latest settled run", {
+					projectId,
+					taskId: task.id,
+					fromStatus: task.status,
+					runId: latestSettledRun.id,
+					runStatus: latestSettledRun.status,
+					runKind: latestSettledRun.metadata?.kind ?? null,
+					marker: derivedMarker,
+					source,
+				});
+			} catch (error) {
+				log.error("Failed to reconcile task status from latest settled run", {
+					projectId,
+					taskId: task.id,
+					runId: latestSettledRun.id,
+					marker: derivedMarker,
+					error: error instanceof Error ? error.message : String(error),
+				});
+			}
+		}
+	}
+
+	private reconcileTaskWithActiveRuns(task: Task, activeRuns: Run[]): void {
+		const runningRun = activeRuns.find((run) => run.status === "running");
+		if (runningRun) {
+			const nextStatus = this.isGenerationRun(runningRun)
+				? "generating"
+				: "running";
+			if (task.status !== nextStatus) {
+				this.taskProjector.projectRunStarted(runningRun);
+			}
+			return;
+		}
+
+		const pausedRun = activeRuns.find((run) => run.status === "paused");
+		if (pausedRun && task.status !== "question") {
+			this.taskProjector.projectRunOutcome(pausedRun, {
+				marker: "question",
+				content: "Run paused awaiting input",
+			});
+		}
+	}
+
+	private isRunStale(run: Run): boolean {
+		if (run.status !== "running") {
+			return false;
+		}
+
+		const startedAt = run.startedAt ?? run.updatedAt ?? run.createdAt;
+		const elapsedMs = Date.now() - Date.parse(startedAt);
+		return elapsedMs > this.staleRunThresholdMs;
+	}
+
+	private async reconcileStaleRun(
+		run: Run,
+		projectId: string,
+		taskId: string,
+	): Promise<void> {
+		const sessionId = run.sessionId.trim();
+		if (sessionId.length === 0) {
+			log.warn("Cannot reconcile stale run; no session ID", {
+				projectId,
+				taskId,
+				runId: run.id,
+			});
+			return;
+		}
+
+		try {
+			const inspection = await this.sessionManager.inspectSession(sessionId);
+			const meta = deriveMetaStatus(inspection);
+
+			if (meta.kind === "completed" || meta.kind === "failed") {
+				const runStatus =
+					meta.kind === "completed"
+						? ("completed" as RunStatus)
+						: ("failed" as RunStatus);
+				await this.finalizeRunFromSession(run.id, runStatus, {
+					marker: meta.marker,
+					content: meta.content,
+				});
+				log.info("Finalized stale run during task reconciliation", {
+					projectId,
+					taskId,
+					runId: run.id,
+					runStatus,
+					marker: meta.marker,
+				});
+				return;
+			}
+
+			if (meta.kind === "dead") {
+				await this.failRunDuringReconciliation(
+					run,
+					"Session not found for stale run",
+					"Session expired",
+				);
+				log.info("Failed stale run (session dead) during task reconciliation", {
+					projectId,
+					taskId,
+					runId: run.id,
+				});
+				return;
+			}
+
+			log.info(
+				"Stale run session alive but no completion marker; force-finalizing",
+				{
+					projectId,
+					taskId,
+					runId: run.id,
+					inspectionKind: meta.kind,
+					runKind: run.metadata?.kind ?? null,
+				},
+			);
+
+			const fallbackMarker = this.staleRunFallbackMarker(run);
+			await this.finalizeRunFromSession(run.id, "completed" as RunStatus, {
+				marker: fallbackMarker,
+				content: "",
+			});
+			log.info("Force-finalized stale run with fallback marker", {
+				projectId,
+				taskId,
+				runId: run.id,
+				marker: fallbackMarker,
+			});
+		} catch (error) {
+			log.error("Failed to reconcile stale run", {
+				projectId,
+				taskId,
+				runId: run.id,
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
+	}
+
+	private staleRunFallbackMarker(run: Run): RunOutcomeMarker {
+		const kind = run.metadata?.kind;
+		if (kind === generationRunKind) {
+			return "generated";
+		}
+		if (kind === "task-qa-testing") {
+			return "test_ok";
+		}
+		return "done";
 	}
 
 	private listActiveRunsForReconciliation(): Run[] {
@@ -1606,6 +1871,31 @@ export class RunsQueueManager {
 			}
 		}
 
+		if (
+			run.status === "running" &&
+			this.isRunStale(run) &&
+			inspection.probeStatus !== "transient_error"
+		) {
+			const fallbackMarker = this.staleRunFallbackMarker(run);
+			await this.finalizeRunFromSession(run.id, "completed", {
+				marker: fallbackMarker,
+				content: "",
+			});
+			log.info("Force-finalized stale running run during reconciliation", {
+				runId: run.id,
+				sessionId,
+				marker: fallbackMarker,
+				runKind: run.metadata?.kind ?? null,
+			});
+			return;
+		}
+
+		if (run.status === "paused") {
+			await this.reconcilePausedRun(run.id, sessionId);
+			this.attachReconciledSession(run.id, sessionId);
+			return;
+		}
+
 		if (run.status === "queued") {
 			const startedAt = run.startedAt ?? new Date().toISOString();
 			const resumedRun = runRepo.update(run.id, {
@@ -1640,6 +1930,48 @@ export class RunsQueueManager {
 			status: run.status,
 		});
 		this.attachReconciledSession(run.id, sessionId);
+	}
+
+	private async reconcilePausedRun(
+		runId: string,
+		sessionId: string,
+	): Promise<void> {
+		const awaitingPermissionId = this.getAwaitingPermissionId(runId);
+		if (awaitingPermissionId) {
+			const pendingPermissions =
+				await this.sessionManager.listPendingPermissions(sessionId);
+			const stillPending = pendingPermissions.some(
+				(permission) => permission.id === awaitingPermissionId,
+			);
+			if (!stillPending) {
+				await this.resumeRunAfterPermissionApproval(
+					runId,
+					awaitingPermissionId,
+				);
+			}
+			return;
+		}
+
+		const awaitingQuestionId = this.getAwaitingQuestionId(runId);
+		if (awaitingQuestionId) {
+			const pendingQuestions =
+				await this.sessionManager.listPendingQuestions(sessionId);
+			const stillPending = pendingQuestions.some(
+				(question) => question.id === awaitingQuestionId,
+			);
+			if (!stillPending) {
+				await this.resumeRunAfterQuestionAnswered(runId, awaitingQuestionId);
+			}
+			return;
+		}
+
+		const [orphanPermissions, orphanQuestions] = await Promise.all([
+			this.sessionManager.listPendingPermissions(sessionId),
+			this.sessionManager.listPendingQuestions(sessionId),
+		]);
+		if (orphanPermissions.length === 0 && orphanQuestions.length === 0) {
+			await this.resumeOrphanedPausedRun(runId);
+		}
 	}
 
 	private ensureRunPausedForPermission(
@@ -1719,7 +2051,6 @@ export class RunsQueueManager {
 
 	private attachReconciledSession(runId: string, sessionId: string): void {
 		this.activeRunSessions.set(runId, sessionId);
-		this.ensurePollingActive();
 	}
 
 	private async failRunDuringReconciliation(
@@ -1751,9 +2082,6 @@ export class RunsQueueManager {
 		});
 
 		this.activeRunSessions.delete(run.id);
-		if (this.activeRunSessions.size === 0) {
-			this.stopPolling();
-		}
 		this.removeFromQueue(run.id);
 	}
 

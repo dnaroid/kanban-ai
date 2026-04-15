@@ -20,7 +20,6 @@ type SessionTrackerState = {
 	listeners: Map<string, SessionListener>;
 	lastMessageId: string | null;
 	lastTodoFingerprint: string;
-	pollTimer: NodeJS.Timeout;
 };
 
 export class OpencodeSessionTracker {
@@ -38,9 +37,6 @@ export class OpencodeSessionTracker {
 				listeners: new Map<string, SessionListener>(),
 				lastMessageId: null,
 				lastTodoFingerprint: "",
-				pollTimer: setInterval(() => {
-					void this.refresh(sessionId);
-				}, 2_000),
 			};
 
 			this.states.set(sessionId, state);
@@ -72,7 +68,6 @@ export class OpencodeSessionTracker {
 			return;
 		}
 
-		clearInterval(state.pollTimer);
 		this.states.delete(sessionId);
 		await this.manager.unsubscribe(
 			sessionId,

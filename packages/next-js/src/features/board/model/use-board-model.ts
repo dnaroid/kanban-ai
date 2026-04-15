@@ -22,6 +22,17 @@ type PromptAttachment = {
 	path?: string;
 };
 
+function createBoardPollingViewerId(): string {
+	if (
+		typeof crypto !== "undefined" &&
+		typeof crypto.randomUUID === "function"
+	) {
+		return crypto.randomUUID();
+	}
+
+	return `board-viewer-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 export function normalizeQuickRunPrompt(
 	prompt: string | null | undefined,
 ): string {
@@ -51,6 +62,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 	const router = useRouter();
 	const pathname = usePathname();
 	const { addToast } = useToast();
+	const boardPollingViewerIdRef = useRef<string>(createBoardPollingViewerId());
 	const [board, setBoard] = useState<Board | null>(null);
 	const [tasks, setTasks] = useState<KanbanTask[]>([]);
 	const [globalTags, setGlobalTags] = useState<Tag[]>([]);
@@ -198,6 +210,30 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 	}, [board]);
 
 	const isBoardRoute = pathname === `/board/${projectId}`;
+
+	useEffect(() => {
+		if (!isBoardRoute) {
+			return;
+		}
+
+		const viewerId = boardPollingViewerIdRef.current;
+		const refreshBoardPolling = () =>
+			api.startProjectBoardPolling(projectId, viewerId).catch((error) => {
+				console.error("Failed to start project board polling:", error);
+			});
+
+		void refreshBoardPolling();
+		const heartbeat = window.setInterval(() => {
+			void refreshBoardPolling();
+		}, 5_000);
+
+		return () => {
+			window.clearInterval(heartbeat);
+			void api.stopProjectBoardPolling(projectId, viewerId).catch((error) => {
+				console.error("Failed to stop project board polling:", error);
+			});
+		};
+	}, [isBoardRoute, projectId]);
 
 	useEffect(() => {
 		if (!isBoardRoute) {

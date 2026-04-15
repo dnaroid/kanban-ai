@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
 	ArrowLeft,
 	Brain,
+	FileDiff,
 	Files,
 	GitMerge,
 	ListTodo,
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils";
 import type { Run } from "@/types/ipc";
 import { ArtifactsPanel } from "./ArtifactsPanel";
 import { ExecutionLog } from "./ExecutionLog";
+import { RunDiffPanel } from "./RunDiffPanel";
 import { RunTodosPanel } from "./RunTodosPanel";
 import { api } from "@/lib/api";
 
@@ -38,7 +40,9 @@ export function RunDetailsView({
 	isMerging?: boolean;
 	showBack?: boolean;
 }) {
-	const [view, setView] = useState<"log" | "artifacts" | "todo">("log");
+	const [view, setView] = useState<"log" | "artifacts" | "todo" | "diff">(
+		"log",
+	);
 	const [showReasoning, setShowReasoning] = useState(false);
 	const [hasTodos, setHasTodos] = useState(false);
 	const sessionId = run?.sessionId;
@@ -236,6 +240,19 @@ export function RunDetailsView({
 							<Files className="w-3 h-3" />
 							Artifacts
 						</button>
+						<button
+							type="button"
+							onClick={() => setView("diff")}
+							className={cn(
+								"flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200",
+								view === "diff"
+									? "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
+									: "text-slate-500 hover:text-slate-300",
+							)}
+						>
+							<FileDiff className="w-3 h-3" />
+							Diff
+						</button>
 					</div>
 				</div>
 			</div>
@@ -259,6 +276,8 @@ export function RunDetailsView({
 					/>
 				) : view === "artifacts" ? (
 					<ArtifactsPanel runId={runId} />
+				) : view === "diff" ? (
+					<RunDiffPanel runId={runId} />
 				) : (
 					<RunTodosPanel sessionId={run?.sessionId || ""} />
 				)}

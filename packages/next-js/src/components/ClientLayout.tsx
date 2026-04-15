@@ -12,7 +12,7 @@ const SIDEBAR_COLLAPSED_KEY = "sidebar-collapsed";
 export const LAST_PROJECT_ID_KEY = "last-project-id";
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
-	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
 	const [isHydrated, setIsHydrated] = useState(false);
 
 	// Load from localStorage after hydration to avoid SSR mismatch

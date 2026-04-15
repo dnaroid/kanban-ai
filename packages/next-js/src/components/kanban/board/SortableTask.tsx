@@ -204,10 +204,10 @@ export function SortableTask({
 						onClick={(e) => e.stopPropagation()}
 						onPointerDown={(e) => e.stopPropagation()}
 						className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-blue-500/85 transition-colors hover:bg-blue-500/10 hover:text-blue-400 active:bg-blue-500/20"
-						title="Open in OpenCode"
+						title="OpenCode"
 					>
 						<ExternalLink className="h-3.5 w-3.5" />
-						<span>Open in OpenCode</span>
+						<span>OpenCode</span>
 					</a>
 				)}
 				{showContextButton && (
