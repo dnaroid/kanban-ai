@@ -92,7 +92,7 @@ class ApiClient {
 			taskId,
 		}: {
 			taskId: string;
-		}): Promise<{ runs: Run[] }> => {
+		}): Promise<{ runs: Run[]; opencodeWebUrl: string | null }> => {
 			const query = new URLSearchParams({ taskId });
 			const response = await fetch(
 				`${this.baseUrl}/api/run/listByTask?${query.toString()}`,
@@ -105,8 +105,14 @@ class ApiClient {
 				throw new Error(message);
 			}
 			const payload = await response.json();
-			const data = this.unwrapApiData<{ runs?: Run[] }>(payload);
-			return { runs: data.runs ?? [] };
+			const data = this.unwrapApiData<{
+				runs?: Run[];
+				opencodeWebUrl?: string | null;
+			}>(payload);
+			return {
+				runs: data.runs ?? [],
+				opencodeWebUrl: data.opencodeWebUrl ?? null,
+			};
 		},
 		start: async ({
 			taskId,
@@ -627,25 +633,6 @@ class ApiClient {
 				updatedRoles: number;
 				consideredRoles: number;
 			}>(payload);
-		},
-		getWebUrl: async ({
-			projectId,
-		}: {
-			projectId: string;
-		}): Promise<{ url: string }> => {
-			const query = new URLSearchParams({ projectId });
-			const response = await fetch(
-				`${this.baseUrl}/api/opencode/web-url?${query.toString()}`,
-			);
-			if (!response.ok) {
-				const message = await this.getErrorMessage(
-					response,
-					"Failed to get OpenCode web URL",
-				);
-				throw new Error(message);
-			}
-			const payload = await response.json();
-			return this.unwrapApiData<{ url: string }>(payload);
 		},
 		listEnabledModels: async (): Promise<{ models: OpencodeModel[] }> => {
 			const response = await fetch(

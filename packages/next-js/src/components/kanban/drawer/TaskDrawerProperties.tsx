@@ -52,29 +52,21 @@ export function TaskDrawerProperties({
 
 		async function fetchData() {
 			try {
-				const [runsResult, urlResult] = await Promise.allSettled([
-					api.run.listByTask({ taskId: task.id }),
-					api.opencode.getWebUrl({ projectId: task.projectId }),
-				]);
+				const result = await api.run.listByTask({ taskId: task.id });
 
 				if (cancelled) return;
 
-				if (runsResult.status === "fulfilled") {
-					const runs = runsResult.value.runs;
-					if (runs.length > 0) {
-						const sorted = [...runs].sort(
-							(a, b) =>
-								new Date(b.createdAt).getTime() -
-								new Date(a.createdAt).getTime(),
-						);
-						const latestRun = sorted[0];
-						setLatestSessionId(latestRun?.sessionId || null);
-					}
+				const runs = result.runs;
+				if (runs.length > 0) {
+					const sorted = [...runs].sort(
+						(a, b) =>
+							new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+					);
+					const latestRun = sorted[0];
+					setLatestSessionId(latestRun?.sessionId || null);
 				}
 
-				if (urlResult.status === "fulfilled") {
-					setOpencodeWebUrl(urlResult.value.url);
-				}
+				setOpencodeWebUrl(result.opencodeWebUrl);
 			} catch {}
 		}
 
@@ -82,7 +74,7 @@ export function TaskDrawerProperties({
 		return () => {
 			cancelled = true;
 		};
-	}, [task.id, task.projectId]);
+	}, [task.id]);
 
 	const formatDate = (dateString: string | undefined) => {
 		if (!dateString) return "—";

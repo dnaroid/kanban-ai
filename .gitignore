@@ -48,3 +48,4 @@ packages/server/dist/
 .claude/
 
 CLAUDE.md
+/.sisyphus/

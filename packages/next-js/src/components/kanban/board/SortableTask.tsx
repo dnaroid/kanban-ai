@@ -110,35 +110,23 @@ export function SortableTask({
 
 		async function fetchData() {
 			try {
-				const [runsResult, urlResult] = await Promise.allSettled([
-					api.run.listByTask({ taskId: task.id }),
-					api.opencode.getWebUrl({ projectId: task.projectId }),
-				]);
+				const result = await api.run.listByTask({ taskId: task.id });
 
 				if (cancelled) return;
 
-				if (runsResult.status === "fulfilled") {
-					const runs = runsResult.value.runs;
-					if (runs.length > 0) {
-						const sorted = [...runs].sort(
-							(a, b) =>
-								new Date(b.createdAt).getTime() -
-								new Date(a.createdAt).getTime(),
-						);
-						const latestRun = sorted[0];
-						setLatestSessionId(latestRun?.sessionId || null);
-					} else {
-						setLatestSessionId(null);
-					}
+				const runs = result.runs;
+				if (runs.length > 0) {
+					const sorted = [...runs].sort(
+						(a, b) =>
+							new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+					);
+					const latestRun = sorted[0];
+					setLatestSessionId(latestRun?.sessionId || null);
 				} else {
 					setLatestSessionId(null);
 				}
 
-				if (urlResult.status === "fulfilled") {
-					setOpencodeWebUrl(urlResult.value.url);
-				} else {
-					setOpencodeWebUrl(null);
-				}
+				setOpencodeWebUrl(result.opencodeWebUrl);
 			} catch {
 				if (cancelled) return;
 				setLatestSessionId(null);
@@ -150,7 +138,7 @@ export function SortableTask({
 		return () => {
 			cancelled = true;
 		};
-	}, [task.id, task.projectId]);
+	}, [task.id]);
 
 	return (
 		<div
