@@ -22,7 +22,7 @@ import { tagRepo } from "@/server/repositories/tag";
 import { taskRepo } from "@/server/repositories/task";
 import { resolveTaskStatusBySignal } from "@/server/workflow/task-workflow-manager";
 import { getVcsManager } from "@/server/vcs/vcs-manager";
-import type { Run, RunVcsMetadata } from "@/types/ipc";
+import type { Run, RunVcsMetadata, DiffFile } from "@/types/ipc";
 
 const log = createLogger("run-service");
 
@@ -44,6 +44,8 @@ const behaviorSkillsFallback = {
 	preferredForStoryGeneration: "business-analyst",
 	preferredForQaTesting: "qa-expert",
 } as const;
+const allowedStoryLanguages = ["en", "ru"] as const;
+type StoryLanguage = (typeof allowedStoryLanguages)[number];
 
 interface StartRunsBySignalResult {
 	startedCount: number;
@@ -56,6 +58,12 @@ interface StartRunsBySignalResult {
 export class RunService {
 	private readonly queueManager = getRunsQueueManager();
 	private readonly vcsManager = getVcsManager();
+
+	private static resolveStoryLanguage(): StoryLanguage {
+		const raw = process.env.STORY_LANGUAGE?.trim().toLowerCase();
+		if (raw === "ru") return "ru";
+		return "en";
+	}
 
 	private extractSessionPreferencesFromPreset(
 		presetJson: string | null | undefined,
@@ -503,6 +511,7 @@ export class RunService {
 			roleRepo.getPresetJson(roleId),
 		);
 		const availableTags = tagRepo.listNames();
+		const storyLanguage = RunService.resolveStoryLanguage();
 
 		log.debug("Enqueueing user story run", {
 			runId: run.id,
@@ -534,6 +543,7 @@ export class RunService {
 					availableTypes: [...allowedTaskTypes],
 					availableDifficulties: [...allowedDifficulties],
 					availableRoles,
+					language: storyLanguage,
 					role: {
 						id: roleId,
 						name: selectedRole?.name ?? roleId,
@@ -751,6 +761,31 @@ export class RunService {
 
 	public get(runId: string): Run | null {
 		return runRepo.getById(runId);
+	}
+
+	public async getDiff(runId: string): Promise<{ files: DiffFile[] } | null> {
+		const run = runRepo.getById(runId);
+		if (!run) {
+			return null;
+		}
+
+		const vcs = run.metadata?.vcs;
+		if (!vcs || !vcs.headCommit || vcs.headCommit === vcs.baseCommit) {
+			return { files: [] };
+		}
+
+		if (
+			vcs.workspaceStatus === "missing" ||
+			vcs.workspaceStatus === "cleaned"
+		) {
+			return null;
+		}
+
+		return this.vcsManager.getDiff(
+			vcs.worktreePath,
+			vcs.baseCommit,
+			vcs.headCommit,
+		);
 	}
 
 	public getQueueStats(): QueueStats {

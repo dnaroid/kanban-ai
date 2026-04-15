@@ -4,10 +4,19 @@ import { basename, dirname, join } from "path";
 import { promisify } from "util";
 import { createLogger } from "@/lib/logger";
 import { taskRepo } from "@/server/repositories/task";
-import type { Run, RunMergeMode, RunVcsMetadata } from "@/types/ipc";
+import type {
+	DiffFile,
+	DiffHunk,
+	DiffLine,
+	Run,
+	RunMergeMode,
+	RunVcsMetadata,
+} from "@/types/ipc";
 
 const execFileAsync = promisify(execFile);
 const log = createLogger("vcs-manager");
+
+const DIFF_MAX_BYTES = 500 * 1024;
 
 interface ProvisionRunWorkspaceInput {
 	projectPath: string;
@@ -141,6 +150,33 @@ export class VcsManager {
 						? "dirty"
 						: "ready",
 		};
+	}
+
+	public async getDiff(
+		worktreePath: string,
+		baseCommit: string,
+		headCommit: string,
+	): Promise<{ files: DiffFile[] } | null> {
+		if (!(await pathExists(worktreePath))) {
+			return null;
+		}
+
+		const raw = await this.gitRaw(worktreePath, [
+			"diff",
+			"--unified=3",
+			`${baseCommit}..${headCommit}`,
+		]);
+
+		if (raw === null) {
+			return null;
+		}
+
+		if (raw.length === 0) {
+			return { files: [] };
+		}
+
+		const files = this.parseUnifiedDiff(raw);
+		return { files };
 	}
 
 	public async mergeRunWorkspace(
@@ -486,6 +522,103 @@ export class VcsManager {
 			},
 		);
 		return stdout.trim();
+	}
+
+	private async gitRaw(
+		projectPath: string,
+		args: string[],
+	): Promise<string | null> {
+		try {
+			const { stdout } = await execFileAsync(
+				"git",
+				["-C", projectPath, ...args],
+				{
+					maxBuffer: DIFF_MAX_BYTES + 1024,
+				},
+			);
+			const output = stdout;
+			if (Buffer.byteLength(output, "utf-8") > DIFF_MAX_BYTES) {
+				return null;
+			}
+			return output;
+		} catch (error) {
+			log.warn("gitRaw command failed", {
+				projectPath,
+				args,
+				error: error instanceof Error ? error.message : String(error),
+			});
+			return null;
+		}
+	}
+
+	private parseUnifiedDiff(raw: string): DiffFile[] {
+		const files: DiffFile[] = [];
+		let currentFile: DiffFile | null = null;
+		let currentHunk: DiffHunk | null = null;
+
+		for (const line of raw.split("\n")) {
+			const fileMatch = /^diff --git a\/(.+?) b\/(.+?)$/.exec(line);
+			if (fileMatch) {
+				if (currentFile && currentHunk) {
+					currentFile.hunks.push(currentHunk);
+				}
+				currentFile = {
+					path: fileMatch[2],
+					addedLines: 0,
+					removedLines: 0,
+					hunks: [],
+				};
+				currentHunk = null;
+				files.push(currentFile);
+				continue;
+			}
+
+			const hunkMatch = /^@@[^@]+@@(.*)$/.exec(line);
+			if (hunkMatch && currentFile) {
+				if (currentHunk) {
+					currentFile.hunks.push(currentHunk);
+				}
+				currentHunk = {
+					header: line,
+					lines: [],
+				};
+				continue;
+			}
+
+			if (!currentFile || !currentHunk) {
+				continue;
+			}
+
+			if (line.startsWith("+")) {
+				currentFile.addedLines += 1;
+				currentHunk.lines.push({
+					type: "added",
+					content: line.slice(1),
+				});
+			} else if (line.startsWith("-")) {
+				currentFile.removedLines += 1;
+				currentHunk.lines.push({
+					type: "removed",
+					content: line.slice(1),
+				});
+			} else if (line.startsWith(" ")) {
+				currentHunk.lines.push({
+					type: "context",
+					content: line.slice(1),
+				});
+			} else if (line.startsWith("\\") && line.includes("No newline")) {
+				currentHunk.lines.push({
+					type: "context",
+					content: line,
+				});
+			}
+		}
+
+		if (currentFile && currentHunk) {
+			currentFile.hunks.push(currentHunk);
+		}
+
+		return files;
 	}
 }
 

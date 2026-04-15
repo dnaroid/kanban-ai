@@ -15,6 +15,7 @@ import type {
 } from "@/types/kanban";
 import type {
 	Artifact,
+	DiffFile,
 	OpenCodeMessage,
 	OpenCodeTodo,
 	OpencodeAgent,
@@ -210,6 +211,29 @@ class ApiClient {
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ run?: Run | null }>(payload);
 			return { run: data.run ?? null };
+		},
+		diff: async ({
+			runId,
+		}: {
+			runId: string;
+		}): Promise<{ files: DiffFile[] } | null> => {
+			const query = new URLSearchParams({ runId });
+			const response = await fetch(
+				`${this.baseUrl}/api/run/diff?${query.toString()}`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to get run diff",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{ files?: DiffFile[] }>(payload);
+			if (!data || !data.files) {
+				return null;
+			}
+			return { files: data.files };
 		},
 		queueStats: async (): Promise<QueueStatsResponse> => {
 			const response = await fetch(`${this.baseUrl}/api/run/queueStats`);

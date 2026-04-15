@@ -352,6 +352,9 @@ export function ListItemView({
 				isDragging && !isOverlay && "opacity-50 bg-slate-800/60",
 				isOverlay &&
 					"bg-slate-800 shadow-2xl rounded-xl border border-blue-500/50 scale-[1.02]",
+				task.status === "running" && "animate-card-pulse-blue",
+				task.status === "generating" && "animate-card-pulse-purple",
+				task.status === "question" && "animate-card-pulse-yellow",
 			)}
 			style={statusVisual ? toneOverlayStyle(statusVisual.tone) : undefined}
 		>

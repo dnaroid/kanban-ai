@@ -118,6 +118,27 @@ function getRunErrorText(run: Run): string {
 	return errorText.trim();
 }
 
+export function isNetworkError(error: unknown): boolean {
+	const message =
+		error instanceof Error
+			? error.message
+			: typeof error === "string"
+				? error
+				: "";
+	const normalizedMessage = message.trim().toLowerCase();
+	if (!normalizedMessage) {
+		return false;
+	}
+
+	return (
+		normalizedMessage === "fetch failed" ||
+		normalizedMessage.includes("econnrefused") ||
+		normalizedMessage.includes("econnreset") ||
+		normalizedMessage.includes("etimedout") ||
+		normalizedMessage.includes("network")
+	);
+}
+
 function asObject(value: unknown): Record<string, unknown> | null {
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
 		return null;
@@ -278,6 +299,12 @@ export class RunsQueueManager {
 	private pollTimer: ReturnType<typeof setInterval> | null = null;
 	private draining = false;
 	private polling = false;
+
+	public constructor() {
+		queueMicrotask(() => {
+			void this.recoverOrphanedRuns();
+		});
+	}
 
 	private extractSessionPreferencesFromPreset(
 		presetJson: string | null | undefined,
@@ -699,6 +726,7 @@ export class RunsQueueManager {
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : "Run execution failed";
+			const networkError = isNetworkError(error);
 			log.error("Run execution failed", { runId, error: message });
 			const finishedAt = new Date().toISOString();
 			let failedRun = runRepo.update(runId, {
@@ -718,12 +746,19 @@ export class RunsQueueManager {
 				},
 			});
 			publishRunUpdate(failedRun);
-			this.taskProjector.projectRunOutcome(
-				failedRun,
-				"failed",
-				"fail",
-				message,
-			);
+			if (!networkError) {
+				this.taskProjector.projectRunOutcome(
+					failedRun,
+					"failed",
+					"fail",
+					message,
+				);
+			} else {
+				log.info("Skipping task failure projection for network run error", {
+					runId,
+					error: message,
+				});
+			}
 			this.activeRunSessions.delete(runId);
 			if (this.activeRunSessions.size === 0) {
 				this.stopPolling();
@@ -1252,6 +1287,56 @@ export class RunsQueueManager {
 			this.stopPolling();
 		}
 		this.runInputs.delete(runId);
+	}
+
+	public async recoverOrphanedRuns(): Promise<void> {
+		const failedRuns = runRepo.listByStatus("failed");
+		const recoverableRuns = failedRuns.filter(
+			(run) =>
+				run.sessionId.trim().length > 0 &&
+				getRunErrorText(run).toLowerCase() === "fetch failed",
+		);
+
+		for (const run of recoverableRuns) {
+			try {
+				const messages = await this.sessionManager.getMessages(
+					run.sessionId,
+					200,
+				);
+				for (let index = messages.length - 1; index >= 0; index -= 1) {
+					const message = messages[index];
+					if (message.role !== "assistant") {
+						continue;
+					}
+
+					const runSignal = resolveAssistantRunSignal(message.content);
+					if (!runSignal) {
+						continue;
+					}
+
+					log.info("Recovering orphaned failed run from session markers", {
+						runId: run.id,
+						sessionId: run.sessionId,
+						status: runSignal.runStatus,
+						signalKey: runSignal.signalKey,
+						messageId: message.id,
+					});
+					await this.finalizeRunFromSession(
+						run.id,
+						runSignal.runStatus,
+						runSignal.signalKey,
+						message.content,
+					);
+					break;
+				}
+			} catch (error) {
+				log.warn("Failed to recover orphaned run from session", {
+					runId: run.id,
+					sessionId: run.sessionId,
+					error: error instanceof Error ? error.message : String(error),
+				});
+			}
+		}
 	}
 
 	private async syncRunWorkspaceState(run: Run): Promise<Run> {

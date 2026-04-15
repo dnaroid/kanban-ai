@@ -263,3 +263,20 @@ export interface OpencodeAgentsListResponse {
 export interface OpencodeSendMessageResponse {
 	ok: true;
 }
+
+export interface DiffLine {
+	type: "added" | "removed" | "context";
+	content: string;
+}
+
+export interface DiffHunk {
+	header: string;
+	lines: DiffLine[];
+}
+
+export interface DiffFile {
+	path: string;
+	addedLines: number;
+	removedLines: number;
+	hunks: DiffHunk[];
+}

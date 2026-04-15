@@ -98,6 +98,9 @@ const {
 		},
 		mockRunRepo: {
 			getById: vi.fn((runId: string) => runs.get(runId) ?? null),
+			listByStatus: vi.fn((status: string) => {
+				return [...runs.values()].filter((run) => run.status === status);
+			}),
 			update: vi.fn((runId: string, updates: MockRecord) => {
 				const current = runs.get(runId);
 				if (!current) {
@@ -244,7 +247,10 @@ vi.mock("@/server/vcs/vcs-manager", () => ({
 	getVcsManager: () => mockVcsManager,
 }));
 
-import { RunsQueueManager } from "@/server/run/runs-queue-manager";
+import {
+	RunsQueueManager,
+	isNetworkError,
+} from "@/server/run/runs-queue-manager";
 
 function buildTask(
 	taskId: string,
@@ -1010,6 +1016,84 @@ describe("RunsQueueManager scheduling", () => {
 		);
 	});
 
+	it("does not project task failure when executeRun hits fetch failed", async () => {
+		taskMap.set("task-fetch-failed", buildTask("task-fetch-failed", "normal"));
+		runMap.set(
+			"run-fetch-failed",
+			buildRun(
+				"run-fetch-failed",
+				"task-fetch-failed",
+				"execution",
+				"2026-01-01T00:00:00.000Z",
+			),
+		);
+		mockSessionManager.sendPrompt.mockRejectedValueOnce(
+			new Error("fetch failed"),
+		);
+
+		const manager = new RunsQueueManager();
+		manager.enqueue("run-fetch-failed", {
+			projectPath: "/tmp/project",
+			sessionTitle: "task-fetch-failed",
+			prompt: "prompt",
+		});
+
+		await waitForDrain();
+		await waitForDrain();
+
+		expect(runMap.get("run-fetch-failed")).toEqual(
+			expect.objectContaining({
+				status: "failed",
+				errorText: "fetch failed",
+			}),
+		);
+		expect(mockTaskProjector.projectRunOutcome).not.toHaveBeenCalledWith(
+			expect.objectContaining({ id: "run-fetch-failed" }),
+			"failed",
+			"fail",
+			"fetch failed",
+		);
+	});
+
+	it("projects task failure when executeRun hits a real error", async () => {
+		taskMap.set("task-real-error", buildTask("task-real-error", "normal"));
+		runMap.set(
+			"run-real-error",
+			buildRun(
+				"run-real-error",
+				"task-real-error",
+				"execution",
+				"2026-01-01T00:00:00.000Z",
+			),
+		);
+		mockSessionManager.sendPrompt.mockRejectedValueOnce(
+			new Error("Something broke"),
+		);
+
+		const manager = new RunsQueueManager();
+		manager.enqueue("run-real-error", {
+			projectPath: "/tmp/project",
+			sessionTitle: "task-real-error",
+			prompt: "prompt",
+		});
+
+		await waitForDrain();
+		await waitForDrain();
+
+		expect(runMap.get("run-real-error")).toEqual(
+			expect.objectContaining({
+				status: "failed",
+				errorText: "Something broke",
+			}),
+		);
+		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "run-real-error", status: "failed" }),
+			"failed",
+			"fail",
+			"Something broke",
+		);
+	});
+
 	it("recovers failed run when late done marker arrives after fetch failure", async () => {
 		taskMap.set(
 			"task-late-done",
@@ -1102,6 +1186,62 @@ describe("RunsQueueManager scheduling", () => {
 			"done",
 			buildOpencodeStatusLine("done"),
 		);
+	});
+
+	it("recovers orphaned fetch-failed run from startup session scan", async () => {
+		taskMap.set(
+			"task-orphaned-fetch-failed",
+			buildTask("task-orphaned-fetch-failed", "normal", "failed"),
+		);
+		runMap.set("run-orphaned-fetch-failed", {
+			...buildRun(
+				"run-orphaned-fetch-failed",
+				"task-orphaned-fetch-failed",
+				"execution",
+				"2026-01-01T00:00:00.000Z",
+			),
+			status: "failed",
+			sessionId: "session-orphaned-fetch-failed",
+			startedAt: new Date(Date.now() - 15_000).toISOString(),
+			endedAt: new Date().toISOString(),
+			metadata: {
+				kind: "task-run",
+				errorText: "fetch failed",
+			},
+		});
+		mockSessionManager.getMessages.mockResolvedValue([
+			{
+				id: "msg-done",
+				role: "assistant",
+				content: buildOpencodeStatusLine("done"),
+			},
+		]);
+
+		const manager = new RunsQueueManager();
+		await manager.recoverOrphanedRuns();
+
+		expect(mockSessionManager.getMessages).toHaveBeenCalledWith(
+			"session-orphaned-fetch-failed",
+			200,
+		);
+		expect(runMap.get("run-orphaned-fetch-failed")?.status).toBe("completed");
+		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: "run-orphaned-fetch-failed",
+				status: "completed",
+			}),
+			"completed",
+			"done",
+			buildOpencodeStatusLine("done"),
+		);
+	});
+
+	it("detects infrastructure network errors case-insensitively", () => {
+		expect(isNetworkError(new Error("fetch failed"))).toBe(true);
+		expect(isNetworkError(new Error("ECONNREFUSED connecting upstream"))).toBe(
+			true,
+		);
+		expect(isNetworkError(new Error("Something broke"))).toBe(false);
 	});
 });
 

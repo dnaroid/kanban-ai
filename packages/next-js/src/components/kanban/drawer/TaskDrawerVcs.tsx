@@ -16,6 +16,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { KanbanTask } from "@/types/kanban";
 import type { Run, RunVcsMetadata } from "@/types/ipc";
+import { VcsDiffViewer } from "@/components/kanban/drawer/VcsDiffViewer";
 
 interface TaskDrawerVcsProps {
 	task: KanbanTask;
@@ -408,6 +409,13 @@ export function TaskDrawerVcs({
 						</div>
 					)}
 				</div>
+
+				{latestVcs.headCommit &&
+					latestVcs.headCommit !== latestVcs.baseCommit &&
+					latestVcs.workspaceStatus !== "missing" &&
+					latestVcs.cleanupStatus !== "cleaned" && (
+						<VcsDiffViewer runId={latestRun.id} />
+					)}
 
 				<div className="rounded-2xl border border-slate-800 bg-[#161B26] p-4 space-y-3">
 					<div className="flex items-center justify-between gap-3">

@@ -164,6 +164,7 @@ export function SortableTask({
 				isDragging && "opacity-50 shadow-2xl scale-105",
 				task.status === "running" && "animate-card-pulse-blue",
 				task.status === "generating" && "animate-card-pulse-purple",
+				task.status === "question" && "animate-card-pulse-yellow",
 			)}
 		>
 			{statusVisual && (

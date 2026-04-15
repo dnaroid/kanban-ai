@@ -15,6 +15,8 @@ interface UserStoryPromptProject {
 	path: string;
 }
 
+type StoryLanguage = "en" | "ru";
+
 interface UserStoryPromptOptions {
 	availableTags?: string[];
 	availableTypes?: string[];
@@ -26,6 +28,7 @@ interface UserStoryPromptOptions {
 		systemPrompt?: string | null;
 		skills?: string[] | null;
 	};
+	language?: StoryLanguage;
 }
 
 export function buildUserStoryPrompt(
@@ -62,6 +65,12 @@ export function buildUserStoryPrompt(
 	const rolePromptLine = rolePrompt.length > 0 ? rolePrompt : "(не задан)";
 	const roleSkillsLine =
 		roleSkills.length > 0 ? roleSkills.join(", ") : "(не заданы)";
+
+	const language = options.language ?? "en";
+	const languageInstruction =
+		language === "ru"
+			? "Генерируй ВСЮ user story (название, цель, требования, критерии приемки, ожидаемый результат и все текстовые поля внутри <STORY>) на русском языке."
+			: "Generate the ENTIRE user story (title, goal, requirements, acceptance criteria, expected outcome and all text fields inside <STORY>) in English.";
 
 	return `Ты формируешь user story для КОД-ИСПОЛНИТЕЛЯ.
 Роль генератора (если указана ниже) не должна автоматически становиться исполнителем.
@@ -149,7 +158,8 @@ export function buildUserStoryPrompt(
 10) Роль fe (фронтенд) выбирай ТОЛЬКО если задача сфокусирована на UI/UX: компоненты, стили, анимации, верстка, дизайн-система, адаптивность, интерактивность интерфейса. Задачи, связанные с логикой, API, архитектурой, БД, конфигурацией, инфраструктурой, тестами — НЕ являются фронтенд-задачами, даже если они косвенно влияют на UI. Для таких задач выбирай be, tl или другого профильного исполнителя.
 11) Агент-исполнитель может сам делегировать часть работы другому агенту (в т.ч. fe) в процессе выполнения. Не назначай fe «на всякий случай» — если задача не сфокусирована на UI, назначь tl или be.
 12) Для задач без чёткой специализации (архитектура, рефакторинг, смешанная логика) выбирай tl как универсального исполнителя.
-13) Последняя строка ответа должна быть marker-статусом:
+13) ${languageInstruction}
+14) Последняя строка ответа должна быть marker-статусом:
    - успех: ${buildOpencodeStatusLine("generated")}
    - ошибка: ${buildOpencodeStatusLine("fail")}
    - нужен ответ пользователя: ${buildOpencodeStatusLine("question")}`;
