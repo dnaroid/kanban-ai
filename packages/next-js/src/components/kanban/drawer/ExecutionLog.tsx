@@ -16,6 +16,7 @@ import {
 	ConfirmationPart,
 	FilePart,
 	ReasoningPart,
+	SystemNotificationPart,
 	TextPart,
 	ToolPart,
 } from "@/components/chat/MessageParts";
@@ -61,7 +62,7 @@ const isRenderablePart = (part: Part): boolean => {
 		case "agent":
 			return true;
 		case "text":
-			return !part.ignored && part.text.trim().length > 0;
+			return ("ignored" in part && part.ignored) || part.text.trim().length > 0;
 		default:
 			return false;
 	}
@@ -1165,6 +1166,9 @@ export function ExecutionLog({
 										case "agent":
 											return <AgentPart key={key} part={part} />;
 										case "text":
+											if ("ignored" in part && part.ignored) {
+												return <SystemNotificationPart key={key} part={part} />;
+											}
 											return <TextPart key={key} part={part} />;
 										default:
 											return null;

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import {
+	Bell,
 	Bot,
 	Brain,
 	CheckCircle2,
@@ -555,8 +556,26 @@ export function AgentPart({ part }: { part: { name: string } }) {
 	);
 }
 
+export function SystemNotificationPart({ part }: { part: Part }) {
+	const textContent =
+		"text" in part && typeof part.text === "string" ? part.text : "";
+
+	if (!textContent.trim()) return null;
+
+	return (
+		<div className="flex items-start gap-2 px-3 py-2 bg-slate-800/30 border border-slate-700/30 rounded-lg">
+			<Bell className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
+			<span className="text-xs text-slate-500 leading-relaxed font-mono break-all">
+				{textContent}
+			</span>
+		</div>
+	);
+}
+
 export function MessagePartRenderer({ part }: { part: Part }) {
-	if ("ignored" in part && part.ignored) return null;
+	if ("ignored" in part && part.ignored) {
+		return <SystemNotificationPart part={part} />;
+	}
 
 	switch (part.type) {
 		case "text":
