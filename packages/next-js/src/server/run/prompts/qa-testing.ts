@@ -36,39 +36,39 @@ export function buildQaTestingPrompt(
 	const roleSkills = (options.role?.skills ?? [])
 		.map((skill) => skill.trim())
 		.filter((skill) => skill.length > 0);
-	const rolePromptLine = rolePrompt.length > 0 ? rolePrompt : "(не задан)";
+	const rolePromptLine = rolePrompt.length > 0 ? rolePrompt : "(not set)";
 	const roleSkillsLine =
-		roleSkills.length > 0 ? roleSkills.join(", ") : "(не заданы)";
+		roleSkills.length > 0 ? roleSkills.join(", ") : "(not set)";
 
 	return `${rolePromptLine}
-Можешь использовать скиллы: ${roleSkillsLine}
+You may use skills: ${roleSkillsLine}
 
-Проведи проверку задачи и результата реализации в текущем проекте.
+Review the task and its implementation result in the current project.
 
-Контекст задачи:
-- Название: ${task.title}
-- Описание: ${task.description ?? "(пусто)"}
-- Теги: ${(task.tags ?? []).join(", ") || "(пусто)"}
-- Тип: ${task.type ?? "(не указан)"}
-- Сложность: ${task.difficulty ?? "(не указана)"}
+Task context:
+- Title: ${task.title}
+- Description: ${task.description ?? "(empty)"}
+- Tags: ${(task.tags ?? []).join(", ") || "(empty)"}
+- Type: ${task.type ?? "(not specified)"}
+- Difficulty: ${task.difficulty ?? "(not specified)"}
 
-Контекст проекта:
-- Путь проекта: ${project.path}
-- Название проекта: ${project.name}
-- ID проекта: ${project.id}
+Project context:
+- Project path: ${project.path}
+- Project name: ${project.name}
+- Project ID: ${project.id}
 
-Что нужно сделать:
-1) Проверить, что задача реализована в коде согласно описанию и критериям приемки.
-2) Запустить релевантные тесты/проверки и зафиксировать результат.
-3) Если найдены дефекты или несоответствия - перечислить их с конкретикой.
-4) Если информации не хватает для проверки - задать один четкий вопрос.
+What to do:
+1) Verify that the task is implemented in code according to the description and acceptance criteria.
+2) Run relevant tests/checks and record the results.
+3) If defects or discrepancies are found — list them with specifics.
+4) If there is not enough information to verify — ask one clear question.
 
-Формат ответа:
-- Краткий отчет в markdown.
-- Разделы: "Что проверено", "Результат", "Найденные проблемы" (если есть), "Рекомендации".
+Response format:
+- A brief markdown report.
+- Sections: "What was checked", "Result", "Issues found" (if any), "Recommendations".
 
-Статус marker в последней строке:
-- все проверки прошли: ${buildOpencodeStatusLine("test_ok")}
-- есть провалы тестов/критичные несоответствия: ${buildOpencodeStatusLine("test_fail")}
-- нужен ответ пользователя: ${buildOpencodeStatusLine("question")}`;
+Status marker on the last line:
+- all checks passed: ${buildOpencodeStatusLine("test_ok")}
+- test failures / critical discrepancies: ${buildOpencodeStatusLine("test_fail")}
+- need user input: ${buildOpencodeStatusLine("question")}`;
 }

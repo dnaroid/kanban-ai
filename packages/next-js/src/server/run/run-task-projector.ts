@@ -80,7 +80,7 @@ function parseUserStoryResponse(content: string): ParsedUserStoryResponse {
 
 	const result: ParsedUserStoryResponse = { description };
 
-	const titleMatch = description.match(/^##\s*Название\s*\n+(.+)$/im);
+	const titleMatch = description.match(/^##\s*Title\s*\n+(.+)$/im);
 	if (titleMatch?.[1]) {
 		let title = titleMatch[1].trim();
 		title = title.replace(/^[\s>*_-]+/, "").replace(/[\s>*_-]+$/, "");

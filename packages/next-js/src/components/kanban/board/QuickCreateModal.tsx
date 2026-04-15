@@ -522,7 +522,7 @@ export function QuickCreateModal({
 								title={
 									language === "ru-RU"
 										? "Switch to English"
-										: "Переключить на русский"
+										: "Switch to Russian"
 								}
 							>
 								<span className="text-[10px] font-bold">

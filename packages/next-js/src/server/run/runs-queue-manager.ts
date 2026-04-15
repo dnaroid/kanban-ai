@@ -4,6 +4,7 @@ import { buildTaskPrompt } from "@/server/run/prompts/task";
 import type {
 	PermissionData,
 	QuestionData,
+	SessionInspectionResult,
 	SessionStartPreferences,
 } from "@/server/opencode/session-manager";
 import { getOpencodeService } from "@/server/opencode/opencode-service";
@@ -299,11 +300,15 @@ export class RunsQueueManager {
 	private pollTimer: ReturnType<typeof setInterval> | null = null;
 	private draining = false;
 	private polling = false;
+	private readonly reconciling = new Set<string>();
+	private reconciliationTimer: ReturnType<typeof setTimeout> | null = null;
+	private readonly reconciliationIntervalMs = 30_000;
 
 	public constructor() {
 		queueMicrotask(() => {
-			void this.recoverOrphanedRuns();
+			void this.rehydrateAndReconcileRuns();
 		});
+		this.schedulePeriodicReconciliation();
 	}
 
 	private extractSessionPreferencesFromPreset(
@@ -1289,6 +1294,18 @@ export class RunsQueueManager {
 		this.runInputs.delete(runId);
 	}
 
+	public async rehydrateAndReconcileRuns(): Promise<void> {
+		const activeRuns = this.listActiveRunsForReconciliation();
+		await this.reconcileRuns(activeRuns);
+	}
+
+	public async reconcileProjectRuns(projectId: string): Promise<void> {
+		const activeRuns = this.listActiveRunsForReconciliation().filter(
+			(run) => taskRepo.getById(run.taskId)?.projectId === projectId,
+		);
+		await this.reconcileRuns(activeRuns);
+	}
+
 	public async recoverOrphanedRuns(): Promise<void> {
 		const failedRuns = runRepo.listByStatus("failed");
 		const recoverableRuns = failedRuns.filter(
@@ -1337,6 +1354,359 @@ export class RunsQueueManager {
 				});
 			}
 		}
+	}
+
+	private async reconcileRuns(runs: Run[]): Promise<void> {
+		for (const run of runs) {
+			if (this.reconciling.has(run.id)) {
+				log.debug("Skipping reconciliation for already-locked run", {
+					runId: run.id,
+					status: run.status,
+				});
+				continue;
+			}
+
+			this.reconciling.add(run.id);
+			try {
+				await this.reconcileRun(run.id);
+			} catch (error) {
+				log.warn("Run reconciliation failed", {
+					runId: run.id,
+					status: run.status,
+					error: error instanceof Error ? error.message : String(error),
+				});
+			} finally {
+				this.reconciling.delete(run.id);
+			}
+		}
+	}
+
+	private listActiveRunsForReconciliation(): Run[] {
+		const listByStatuses = (
+			runRepo as { listByStatuses?: (statuses: string[]) => Run[] }
+		).listByStatuses;
+		if (typeof listByStatuses === "function") {
+			return listByStatuses.call(runRepo, ["queued", "running", "paused"]);
+		}
+
+		return [
+			...runRepo.listByStatus("queued"),
+			...runRepo.listByStatus("running"),
+			...runRepo.listByStatus("paused"),
+		].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+	}
+
+	private async reconcileRun(runId: string): Promise<void> {
+		const run = runRepo.getById(runId);
+		if (!run) {
+			return;
+		}
+
+		if (
+			run.status !== "queued" &&
+			run.status !== "running" &&
+			run.status !== "paused"
+		) {
+			return;
+		}
+
+		const sessionId = run.sessionId.trim();
+		if (run.status === "queued" && sessionId.length === 0) {
+			const runInput = this.runInputs.get(run.id);
+			if (!runInput) {
+				log.warn("Failing queued run; input lost during reconciliation", {
+					runId: run.id,
+				});
+				await this.failRunDuringReconciliation(
+					run,
+					"Run input lost on restart",
+					"Run input lost on restart",
+				);
+				return;
+			}
+
+			log.info("Re-enqueueing queued run during reconciliation", {
+				runId: run.id,
+				projectId: runInput.projectId,
+				projectPath: runInput.projectPath,
+			});
+			this.enqueue(run.id, runInput);
+			return;
+		}
+
+		if (sessionId.length === 0) {
+			log.warn("Skipping reconciliation for active run without session", {
+				runId: run.id,
+				status: run.status,
+			});
+			return;
+		}
+
+		log.info("Inspecting run session during reconciliation", {
+			runId: run.id,
+			status: run.status,
+			sessionId,
+		});
+		const inspection = await this.sessionManager.inspectSession(sessionId);
+		await this.applyInspectionResult(run, sessionId, inspection);
+	}
+
+	private async applyInspectionResult(
+		run: Run,
+		sessionId: string,
+		inspection: SessionInspectionResult,
+	): Promise<void> {
+		if (inspection.completionMarker) {
+			const assistantContent = this.findCompletionAssistantContent(inspection);
+			log.info("Finalizing reconciled run from session inspection", {
+				runId: run.id,
+				sessionId,
+				status: inspection.completionMarker.runStatus,
+				signalKey: inspection.completionMarker.signalKey,
+			});
+			await this.finalizeRunFromSession(
+				run.id,
+				inspection.completionMarker.runStatus,
+				inspection.completionMarker.signalKey,
+				assistantContent,
+			);
+			return;
+		}
+
+		if (inspection.probeStatus === "not_found") {
+			log.warn("Session not found during run reconciliation", {
+				runId: run.id,
+				sessionId,
+				status: run.status,
+			});
+			await this.failRunDuringReconciliation(
+				run,
+				"Session not found during reconciliation",
+				"Session not found",
+			);
+			return;
+		}
+
+		if (inspection.probeStatus === "transient_error") {
+			log.warn("Transient session inspection error during reconciliation", {
+				runId: run.id,
+				sessionId,
+				status: run.status,
+			});
+			return;
+		}
+
+		const pendingPermission = inspection.pendingPermissions[0];
+		if (pendingPermission) {
+			log.info("Reconciled run with pending permission", {
+				runId: run.id,
+				sessionId,
+				permissionId: pendingPermission.id,
+			});
+			const nextRun = this.ensureRunPausedForPermission(run, pendingPermission);
+			this.attachReconciledSession(nextRun.id, sessionId);
+			return;
+		}
+
+		const pendingQuestion = inspection.pendingQuestions[0];
+		if (pendingQuestion) {
+			log.info("Reconciled run with pending question", {
+				runId: run.id,
+				sessionId,
+				questionId: pendingQuestion.id,
+			});
+			const nextRun = this.ensureRunPausedForQuestion(run, pendingQuestion);
+			this.attachReconciledSession(nextRun.id, sessionId);
+			return;
+		}
+
+		if (run.status === "queued") {
+			const startedAt = run.startedAt ?? new Date().toISOString();
+			const resumedRun = runRepo.update(run.id, {
+				status: "running",
+				startedAt,
+				errorText: "",
+			});
+			runEventRepo.create({
+				runId: run.id,
+				eventType: "status",
+				payload: {
+					status: "running",
+					message: "Run resumed during reconciliation",
+				},
+			});
+			publishRunUpdate(resumedRun);
+			this.taskProjector.projectRunOutcome(
+				resumedRun,
+				"running",
+				"resume_run",
+				"Run resumed during reconciliation",
+			);
+			log.info("Reattached queued run as running during reconciliation", {
+				runId: run.id,
+				sessionId,
+			});
+			this.attachReconciledSession(resumedRun.id, sessionId);
+			return;
+		}
+
+		log.info("Reattached active run during reconciliation", {
+			runId: run.id,
+			sessionId,
+			status: run.status,
+		});
+		this.attachReconciledSession(run.id, sessionId);
+	}
+
+	private findCompletionAssistantContent(
+		inspection: SessionInspectionResult,
+	): string {
+		for (let index = inspection.messages.length - 1; index >= 0; index -= 1) {
+			const message = inspection.messages[index];
+			if (message.role !== "assistant") {
+				continue;
+			}
+
+			if (resolveAssistantRunSignal(message.content)) {
+				return message.content;
+			}
+		}
+
+		return "";
+	}
+
+	private ensureRunPausedForPermission(
+		run: Run,
+		permission: PermissionData,
+	): Run {
+		if (run.status === "paused") {
+			return run;
+		}
+
+		const pausedRun = runRepo.update(run.id, { status: "paused" });
+		runEventRepo.create({
+			runId: run.id,
+			eventType: "permission",
+			payload: {
+				status: "paused",
+				permissionId: permission.id,
+				permissionType: permission.permissionType,
+				pattern: permission.pattern,
+				title: permission.title,
+				sessionId: permission.sessionId,
+				messageId: permission.messageId,
+				message: `Permission requested: ${permission.title}`,
+			},
+		});
+		publishSseEvent("run:permission", {
+			runId: run.id,
+			taskId: pausedRun.taskId,
+			permissionId: permission.id,
+			permissionType: permission.permissionType,
+			pattern: permission.pattern,
+			title: permission.title,
+			sessionId: permission.sessionId,
+			messageId: permission.messageId,
+			createdAt: permission.createdAt,
+		});
+		publishRunUpdate(pausedRun);
+		this.taskProjector.projectRunOutcome(
+			pausedRun,
+			"paused",
+			"question",
+			`Permission requested: ${permission.title}`,
+		);
+		return pausedRun;
+	}
+
+	private ensureRunPausedForQuestion(run: Run, question: QuestionData): Run {
+		if (run.status === "paused") {
+			return run;
+		}
+
+		const pausedRun = runRepo.update(run.id, { status: "paused" });
+		runEventRepo.create({
+			runId: run.id,
+			eventType: "question",
+			payload: {
+				status: "paused",
+				questionId: question.id,
+				questions: question.questions.map((item) => item.question),
+				sessionId: question.sessionId,
+				message: "Question asked",
+			},
+		});
+		publishSseEvent("run:question", {
+			runId: run.id,
+			taskId: pausedRun.taskId,
+			questionId: question.id,
+			questions: question.questions,
+			sessionId: question.sessionId,
+			createdAt: question.createdAt,
+		});
+		publishRunUpdate(pausedRun);
+		this.taskProjector.projectRunOutcome(
+			pausedRun,
+			"paused",
+			"question",
+			"Question asked",
+		);
+		return pausedRun;
+	}
+
+	private attachReconciledSession(runId: string, sessionId: string): void {
+		this.activeRunSessions.set(runId, sessionId);
+		this.ensurePollingActive();
+	}
+
+	private async failRunDuringReconciliation(
+		run: Run,
+		errorText: string,
+		assistantContent: string,
+	): Promise<void> {
+		const finishedAt = new Date().toISOString();
+		let failedRun = runRepo.update(run.id, {
+			status: "failed",
+			finishedAt,
+			errorText,
+			durationSec: this.durationSec(run.startedAt ?? finishedAt, finishedAt),
+		});
+		failedRun = await this.syncRunWorkspaceState(failedRun);
+
+		runEventRepo.create({
+			runId: run.id,
+			eventType: "status",
+			payload: {
+				status: "failed",
+				message: errorText,
+			},
+		});
+		publishRunUpdate(failedRun);
+		this.taskProjector.projectRunOutcome(
+			failedRun,
+			"failed",
+			"fail",
+			assistantContent,
+		);
+
+		this.activeRunSessions.delete(run.id);
+		if (this.activeRunSessions.size === 0) {
+			this.stopPolling();
+		}
+		this.removeFromQueue(run.id);
+	}
+
+	private schedulePeriodicReconciliation(): void {
+		if (this.reconciliationTimer) {
+			return;
+		}
+
+		this.reconciliationTimer = setTimeout(() => {
+			this.reconciliationTimer = null;
+			void this.rehydrateAndReconcileRuns().finally(() => {
+				this.schedulePeriodicReconciliation();
+			});
+		}, this.reconciliationIntervalMs);
 	}
 
 	private async syncRunWorkspaceState(run: Run): Promise<Run> {

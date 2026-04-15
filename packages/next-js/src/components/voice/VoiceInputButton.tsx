@@ -182,9 +182,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
 					onClick={toggleLanguage}
 					className="w-8 h-8 rounded-lg text-xs font-bold transition-all duration-200 flex items-center justify-center border bg-slate-800/50 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
 					title={
-						language === "ru-RU"
-							? "Switch to English"
-							: "Переключить на русский"
+						language === "ru-RU" ? "Switch to English" : "Switch to Russian"
 					}
 				>
 					{language === "ru-RU" ? "RU" : "EN"}

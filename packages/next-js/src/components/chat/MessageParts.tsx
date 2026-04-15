@@ -30,6 +30,7 @@ import type { EditToolInput } from "./EditToolDiffView";
 import { ApplyPatchDiffView } from "./ApplyPatchDiffView";
 import type { ApplyPatchToolInput } from "./ApplyPatchDiffView";
 import { QuestionInteraction } from "./QuestionInteraction";
+import { TodoWriteToolView } from "./TodoWriteToolView";
 
 function isEditToolInput(input: unknown): input is EditToolInput {
 	if (!input || typeof input !== "object") return false;
@@ -583,6 +584,9 @@ export function MessagePartRenderer({ part }: { part: Part }) {
 		case "file":
 			return <FilePart part={part} />;
 		case "tool":
+			if (part.tool === "todowrite") {
+				return <TodoWriteToolView part={part} />;
+			}
 			return <ToolPart part={part} />;
 		case "reasoning":
 			return <ReasoningPart part={part} />;

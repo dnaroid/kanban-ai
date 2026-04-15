@@ -47,27 +47,25 @@ export function buildTaskPrompt(
 		normalizedDescription !== normalizedTitle;
 
 	const descriptionLine = descriptionDiffersFromTitle
-		? `Описание: ${task.description}`
+		? `Description: ${task.description}`
 		: "";
 
 	return [
 		rolePrompt,
-		roleSkills.length > 0
-			? `Можешь использовать скиллы: ${roleSkills.join(", ")}`
-			: "",
+		roleSkills.length > 0 ? `You may use skills: ${roleSkills.join(", ")}` : "",
 		"",
-		`ЗАДАЧА: ${task.title}`,
+		`TASK: ${task.title}`,
 		"",
 		descriptionLine,
 		"",
-		"Контекст проекта:",
-		`- Путь проекта: ${project.path}`,
-		`- ID проекта: ${project.id}`,
+		"Project context:",
+		`- Project path: ${project.path}`,
+		`- Project ID: ${project.id}`,
 		"",
-		"Требования:",
-		"1. Выполни задачу в директории проекта.",
-		`2. В конце ответа обязательно выведи одну итоговую строку статуса: ${buildOpencodeStatusLine("done")} или ${buildOpencodeStatusLine("fail")} или ${buildOpencodeStatusLine("question")} или ${buildOpencodeStatusLine("test_ok")} или ${buildOpencodeStatusLine("test_fail")}`,
-		"3. Если не удалось выполнить, укажи причину перед итоговой строкой со статусом fail.",
-		"4. Если нужен ответ пользователя, задай конкретный вопрос перед итоговой строкой со статусом question.",
+		"Requirements:",
+		"1. Complete the task in the project directory.",
+		`2. At the end of your response, output exactly one status line: ${buildOpencodeStatusLine("done")} or ${buildOpencodeStatusLine("fail")} or ${buildOpencodeStatusLine("question")} or ${buildOpencodeStatusLine("test_ok")} or ${buildOpencodeStatusLine("test_fail")}`,
+		"3. If the task failed, state the reason before the fail status line.",
+		"4. If you need user input, ask a specific question before the question status line.",
 	].join("\n");
 }

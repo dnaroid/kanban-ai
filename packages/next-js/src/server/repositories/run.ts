@@ -178,6 +178,21 @@ export class RunRepository {
 		return rows.map(mapRunRow);
 	}
 
+	public listByStatuses(statuses: string[]): Run[] {
+		if (statuses.length === 0) {
+			return [];
+		}
+
+		const db = dbManager.connect();
+		const placeholders = statuses.map(() => "?").join(", ");
+		const rows = db
+			.prepare(
+				`SELECT * FROM runs WHERE status IN (${placeholders}) ORDER BY created_at ASC`,
+			)
+			.all(...statuses) as RunRow[];
+		return rows.map(mapRunRow);
+	}
+
 	public update(runId: string, patch: UpdateRunInput): Run {
 		const db = dbManager.connect();
 		const updates: string[] = ["updated_at = ?"];

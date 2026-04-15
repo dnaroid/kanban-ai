@@ -207,11 +207,11 @@ describe("RunTaskProjector user-story projection", () => {
 		const assistantContent = [
 			'<META>{"tags":["new-tag"],"type":"improvement","difficulty":"hard","agentRoleId":"architect"}</META>',
 			"<STORY>",
-			"## Название",
-			"Улучшить обновление карточки",
+			"## Title",
+			"Improve card update",
 			"",
 			"## User story",
-			"Как пользователь, я хочу видеть обновленные данные задачи сразу после генерации.",
+			"As a user, I want to see updated task data immediately after generation.",
 			"</STORY>",
 		].join("\n");
 
@@ -232,7 +232,7 @@ describe("RunTaskProjector user-story projection", () => {
 			status: "pending",
 			description: expect.stringContaining("## User story"),
 			descriptionMd: expect.stringContaining("## User story"),
-			title: "Улучшить обновление карточки",
+			title: "Improve card update",
 			type: "improvement",
 			difficulty: "hard",
 		});
@@ -262,10 +262,10 @@ describe("RunTaskProjector user-story projection", () => {
 		const assistantContent = [
 			'<META>{"type":"feature","commitMessage":"feat(core): add user authentication"}</META>',
 			"<STORY>",
-			"## Название",
+			"## Title",
 			"Add auth",
 			"",
-			"## Цель",
+			"## Goal",
 			"Implement user auth.",
 			"</STORY>",
 		].join("\n");
@@ -301,7 +301,7 @@ describe("RunTaskProjector user-story projection", () => {
 		const assistantContent = [
 			`<META>{"type":"feature","commitMessage":"${longMessage}"}</META>`,
 			"<STORY>",
-			"## Название",
+			"## Title",
 			"Long commit",
 			"</STORY>",
 		].join("\n");
@@ -335,7 +335,7 @@ describe("RunTaskProjector user-story projection", () => {
 		const assistantContent = [
 			'<META>{"type":"feature","commitMessage":"   "}</META>',
 			"<STORY>",
-			"## Название",
+			"## Title",
 			"Empty commit msg",
 			"</STORY>",
 		].join("\n");

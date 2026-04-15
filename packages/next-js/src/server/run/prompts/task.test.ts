@@ -5,87 +5,91 @@ const mockProject = { id: "proj-1", path: "/path/to/project" };
 
 describe("buildTaskPrompt", () => {
 	describe("description deduplication", () => {
-		it("omits Описание when title and description are identical", () => {
+		it("omits Description when title and description are identical", () => {
 			const prompt = buildTaskPrompt(
 				{
-					title: "проверь, хватает ли тестов?",
-					description: "проверь, хватает ли тестов?",
+					title: "check if there are enough tests?",
+					description: "check if there are enough tests?",
 				},
 				mockProject,
 			);
 
-			expect(prompt).toContain("ЗАДАЧА: проверь, хватает ли тестов?");
-			expect(prompt).not.toContain("Описание:");
+			expect(prompt).toContain("TASK: check if there are enough tests?");
+			expect(prompt).not.toContain("Description:");
 		});
 
-		it("omits Описание when normalized title and description are identical", () => {
+		it("omits Description when normalized title and description are identical", () => {
 			const prompt = buildTaskPrompt(
-				{ title: "проверь тесты", description: "  проверь   тесты  " },
+				{ title: "check tests", description: "  check   tests  " },
 				mockProject,
 			);
 
-			expect(prompt).toContain("ЗАДАЧА: проверь тесты");
-			expect(prompt).not.toContain("Описание:");
+			expect(prompt).toContain("TASK: check tests");
+			expect(prompt).not.toContain("Description:");
 		});
 
-		it("includes Описание when description differs from title", () => {
+		it("includes Description when description differs from title", () => {
 			const prompt = buildTaskPrompt(
 				{
-					title: "проверь тесты",
-					description: "проверь покрытие кода тестами",
+					title: "check tests",
+					description: "check code test coverage",
 				},
 				mockProject,
 			);
 
-			expect(prompt).toContain("ЗАДАЧА: проверь тесты");
-			expect(prompt).toContain("Описание: проверь покрытие кода тестами");
+			expect(prompt).toContain("TASK: check tests");
+			expect(prompt).toContain("Description: check code test coverage");
 		});
 
-		it("omits Описание when description is null", () => {
+		it("omits Description when description is null", () => {
 			const prompt = buildTaskPrompt(
-				{ title: "сделать рефакторинг", description: null },
+				{ title: "do refactoring", description: null },
 				mockProject,
 			);
 
-			expect(prompt).toContain("ЗАДАЧА: сделать рефакторинг");
-			expect(prompt).not.toContain("Описание:");
+			expect(prompt).toContain("TASK: do refactoring");
+			expect(prompt).not.toContain("Description:");
 		});
 
-		it("omits Описание when description is empty string", () => {
+		it("omits Description when description is empty string", () => {
 			const prompt = buildTaskPrompt(
-				{ title: "сделать рефакторинг", description: "" },
+				{ title: "do refactoring", description: "" },
 				mockProject,
 			);
 
-			expect(prompt).toContain("ЗАДАЧА: сделать рефакторинг");
-			expect(prompt).not.toContain("Описание:");
+			expect(prompt).toContain("TASK: do refactoring");
+			expect(prompt).not.toContain("Description:");
 		});
 
-		it("omits Описание when description is whitespace only", () => {
+		it("omits Description when description is whitespace only", () => {
 			const prompt = buildTaskPrompt(
-				{ title: "сделать рефакторинг", description: "   " },
+				{ title: "do refactoring", description: "   " },
 				mockProject,
 			);
 
-			expect(prompt).toContain("ЗАДАЧА: сделать рефакторинг");
-			expect(prompt).not.toContain("Описание:");
+			expect(prompt).toContain("TASK: do refactoring");
+			expect(prompt).not.toContain("Description:");
 		});
 	});
 
 	describe("role context", () => {
 		it("includes role systemPrompt when provided", () => {
 			const prompt = buildTaskPrompt(
-				{ title: "задача", description: "описание" },
+				{ title: "task", description: "description" },
 				mockProject,
-				{ id: "role-1", name: "Engineer", systemPrompt: "Ты инженер." },
+				{
+					id: "role-1",
+					name: "Engineer",
+					systemPrompt: "You are an engineer.",
+				},
 			);
 
-			expect(prompt).toContain("Ты инженер.");
+			expect(prompt).toContain("You are an engineer.");
 		});
 
 		it("omits skills when provided but ENABLE_SKILLS_IN_PROMPTS is false (default)", () => {
 			const prompt = buildTaskPrompt(
-				{ title: "задача", description: "описание" },
+				{ title: "task", description: "description" },
 				mockProject,
 				{
 					id: "role-1",
@@ -94,34 +98,34 @@ describe("buildTaskPrompt", () => {
 				},
 			);
 
-			expect(prompt).not.toContain("Можешь использовать скиллы:");
+			expect(prompt).not.toContain("You may use skills:");
 		});
 
 		it("omits skills line when skills array is empty", () => {
 			const prompt = buildTaskPrompt(
-				{ title: "задача", description: "описание" },
+				{ title: "task", description: "description" },
 				mockProject,
 				{ id: "role-1", name: "Engineer", skills: [] },
 			);
 
-			expect(prompt).not.toContain("Можешь использовать скиллы:");
+			expect(prompt).not.toContain("You may use skills:");
 		});
 	});
 
 	describe("project context and status markers", () => {
 		it("includes project path and id", () => {
 			const prompt = buildTaskPrompt(
-				{ title: "задача", description: null },
+				{ title: "task", description: null },
 				mockProject,
 			);
 
-			expect(prompt).toContain("- Путь проекта: /path/to/project");
-			expect(prompt).toContain("- ID проекта: proj-1");
+			expect(prompt).toContain("- Project path: /path/to/project");
+			expect(prompt).toContain("- Project ID: proj-1");
 		});
 
 		it("includes status markers", () => {
 			const prompt = buildTaskPrompt(
-				{ title: "задача", description: null },
+				{ title: "task", description: null },
 				mockProject,
 			);
 

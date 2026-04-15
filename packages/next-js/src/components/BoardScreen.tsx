@@ -492,9 +492,9 @@ export function BoardScreen({
 						})
 					}
 					onConfirm={confirmBulkDelete}
-					title="Удалить все задачи?"
-					description={`Вы уверены, что хотите удалить все задачи (${bulkDeleteConfirm.taskCount}) из колонки «Closed»? Это действие нельзя отменить.`}
-					confirmLabel="Удалить все"
+					title="Delete all tasks?"
+					description={`Are you sure you want to delete all tasks (${bulkDeleteConfirm.taskCount}) from the "Closed" column? This action cannot be undone.`}
+					confirmLabel="Delete all"
 					variant="danger"
 				/>
 			</main>

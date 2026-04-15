@@ -1,6 +1,12 @@
 import { randomUUID } from "crypto";
 import { createOpencodeClient } from "@opencode-ai/sdk/v2/client";
-import type { OpenCodeMessage, OpenCodeTodo, Part } from "@/types/ipc";
+import { extractOpencodeStatus } from "@/lib/opencode-status";
+import type {
+	OpenCodeMessage,
+	OpenCodeTodo,
+	Part,
+	RunStatus,
+} from "@/types/ipc";
 import { getOpencodeService } from "@/server/opencode/opencode-service";
 
 type OpenCodeClient = ReturnType<typeof createOpencodeClient>;
@@ -84,6 +90,22 @@ interface PromptSessionPreferences {
 	model?: PromptModelSelection;
 	agent?: string;
 	variant?: string;
+}
+
+export type SessionProbeStatus = "alive" | "not_found" | "transient_error";
+
+export interface SessionInspectionResult {
+	probeStatus: SessionProbeStatus;
+	messages: OpenCodeMessage[];
+	todos: OpenCodeTodo[];
+	pendingPermissions: PermissionData[];
+	pendingQuestions: QuestionData[];
+	completionMarker: AssistantRunSignal | null;
+}
+
+export interface AssistantRunSignal {
+	runStatus: RunStatus;
+	signalKey: string;
 }
 
 function getData<T>(value: unknown): T {
@@ -258,6 +280,58 @@ export class OpencodeSessionManager {
 		} catch {
 			return [];
 		}
+	}
+
+	public async inspectSession(
+		sessionId: string,
+	): Promise<SessionInspectionResult> {
+		const session = await this.fetchSessionInfo(sessionId);
+		if (!session) {
+			const messages = await this.getMessages(sessionId, 50);
+			if (messages.length > 0) {
+				return {
+					probeStatus: "alive",
+					messages,
+					todos: await this.getTodos(sessionId),
+					pendingPermissions: await this.listPendingPermissions(sessionId),
+					pendingQuestions: await this.listPendingQuestions(sessionId),
+					completionMarker: this.findCompletionMarker(messages),
+				};
+			}
+
+			const fallbackProbeStatus = await this.probeSessionStatus(sessionId);
+			return {
+				probeStatus: fallbackProbeStatus,
+				messages: [],
+				todos: [],
+				pendingPermissions: [],
+				pendingQuestions: [],
+				completionMarker: null,
+			};
+		}
+
+		this.sessions.set(session.id, session);
+		this.sessionClients.set(
+			session.id,
+			this.getDirectoryClient(session.directory),
+		);
+
+		const [messages, todos, pendingPermissions, pendingQuestions] =
+			await Promise.all([
+				this.getMessages(sessionId, 50),
+				this.getTodos(sessionId),
+				this.listPendingPermissions(sessionId),
+				this.listPendingQuestions(sessionId),
+			]);
+
+		return {
+			probeStatus: "alive",
+			messages,
+			todos,
+			pendingPermissions,
+			pendingQuestions,
+			completionMarker: this.findCompletionMarker(messages),
+		};
 	}
 
 	public async replyToPermission(
@@ -608,6 +682,80 @@ export class OpencodeSessionManager {
 		}
 
 		return [];
+	}
+
+	private async probeSessionStatus(
+		sessionId: string,
+	): Promise<SessionProbeStatus> {
+		const client = this.getRootClient();
+
+		try {
+			await client.session.get({ sessionID: sessionId });
+			return "alive";
+		} catch (error) {
+			if (this.isSessionNotFoundError(error)) {
+				return "not_found";
+			}
+			if (this.isTransientSessionError(error)) {
+				return "transient_error";
+			}
+		}
+
+		try {
+			const projectListResponse = await client.project.list();
+			const projectListData = getData<unknown>(projectListResponse);
+			const projects = this.pickArray(projectListData, ["projects", "items"]);
+
+			for (const projectRaw of projects) {
+				const project = asRecord(projectRaw);
+				if (!project) {
+					continue;
+				}
+
+				const projectInfo = asRecord(project.info);
+				const projectDirectory =
+					asString(project.directory) ??
+					asString(project.worktree) ??
+					asString(project.path) ??
+					asString(projectInfo?.directory) ??
+					asString(projectInfo?.worktree);
+
+				if (!projectDirectory) {
+					continue;
+				}
+
+				const sessionsResponse = await this.getDirectoryClient(
+					projectDirectory,
+				).session.list({
+					directory: projectDirectory,
+				});
+				const sessionsData = getData<unknown>(sessionsResponse);
+				const sessions = this.pickArray(sessionsData, ["sessions", "items"]);
+
+				for (const sessionRaw of sessions) {
+					const sessionRecord = asRecord(sessionRaw);
+					if (!sessionRecord) {
+						continue;
+					}
+
+					const id =
+						asString(sessionRecord.id) ?? asString(sessionRecord.sessionID);
+					if (id === sessionId) {
+						return "alive";
+					}
+				}
+			}
+		} catch (error) {
+			if (this.isTransientSessionError(error)) {
+				return "transient_error";
+			}
+			if (this.isSessionNotFoundError(error)) {
+				return "not_found";
+			}
+			return "transient_error";
+		}
+
+		return "not_found";
 	}
 
 	private async runEventStream(
@@ -1177,6 +1325,92 @@ export class OpencodeSessionManager {
 		}
 
 		return "error";
+	}
+
+	private findCompletionMarker(
+		messages: OpenCodeMessage[],
+	): AssistantRunSignal | null {
+		for (let index = messages.length - 1; index >= 0; index -= 1) {
+			const message = messages[index];
+			if (message.role !== "assistant") {
+				continue;
+			}
+
+			const signal = this.resolveAssistantRunSignal(message.content);
+			if (signal) {
+				return signal;
+			}
+		}
+
+		return null;
+	}
+
+	private resolveAssistantRunSignal(text: string): AssistantRunSignal | null {
+		const parsed = extractOpencodeStatus(text);
+		if (!parsed) {
+			return null;
+		}
+
+		if (parsed.status === "done") {
+			return { runStatus: "completed", signalKey: "done" };
+		}
+		if (parsed.status === "generated") {
+			return { runStatus: "completed", signalKey: "generated" };
+		}
+		if (parsed.status === "fail") {
+			return { runStatus: "failed", signalKey: "fail" };
+		}
+		if (parsed.status === "question") {
+			return { runStatus: "paused", signalKey: "question" };
+		}
+		if (parsed.status === "test_ok") {
+			return { runStatus: "completed", signalKey: "test_ok" };
+		}
+		if (parsed.status === "test_fail") {
+			return { runStatus: "failed", signalKey: "test_fail" };
+		}
+
+		return null;
+	}
+
+	private isSessionNotFoundError(error: unknown): boolean {
+		const message = this.getErrorMessage(error);
+		if (!message) {
+			return false;
+		}
+
+		return (
+			message.includes("not found") ||
+			message.includes("404") ||
+			message.includes("resource not found")
+		);
+	}
+
+	private isTransientSessionError(error: unknown): boolean {
+		const message = this.getErrorMessage(error);
+		if (!message) {
+			return false;
+		}
+
+		return (
+			message === "fetch failed" ||
+			message.includes("econnrefused") ||
+			message.includes("econnreset") ||
+			message.includes("etimedout") ||
+			message.includes("network") ||
+			message.includes("socket hang up") ||
+			message.includes("failed to fetch")
+		);
+	}
+
+	private getErrorMessage(error: unknown): string {
+		if (error instanceof Error) {
+			return error.message.trim().toLowerCase();
+		}
+		if (typeof error === "string") {
+			return error.trim().toLowerCase();
+		}
+		return "";
 	}
 
 	private buildMessageContent(parts: Part[]): string {

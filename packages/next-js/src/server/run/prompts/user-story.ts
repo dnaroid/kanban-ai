@@ -50,60 +50,60 @@ export function buildUserStoryPrompt(
 		"epic",
 	];
 
-	const tagsLine = tags.length > 0 ? tags.join(", ") : "(нет доступных тегов)";
+	const tagsLine = tags.length > 0 ? tags.join(", ") : "(no available tags)";
 	const availableRoles = options.availableRoles ?? [];
 	const rolesLine =
 		availableRoles.length > 0
 			? availableRoles.map((role) => `${role.id} (${role.name})`).join(", ")
-			: "(нет доступных ролей)";
+			: "(no available roles)";
 	const rolePrompt = options.role?.systemPrompt?.trim() ?? "";
 	const roleSkills = ENABLE_SKILLS_IN_PROMPTS
 		? (options.role?.skills ?? [])
 				.map((skill) => skill.trim())
 				.filter((skill) => skill.length > 0)
 		: [];
-	const rolePromptLine = rolePrompt.length > 0 ? rolePrompt : "(не задан)";
+	const rolePromptLine = rolePrompt.length > 0 ? rolePrompt : "(not set)";
 	const roleSkillsLine =
-		roleSkills.length > 0 ? roleSkills.join(", ") : "(не заданы)";
+		roleSkills.length > 0 ? roleSkills.join(", ") : "(not set)";
 
 	const language = options.language ?? "en";
 	const languageInstruction =
 		language === "ru"
-			? "Генерируй ВСЮ user story (название, цель, требования, критерии приемки, ожидаемый результат и все текстовые поля внутри <STORY>) на русском языке."
+			? "Generate the ENTIRE user story (title, goal, requirements, acceptance criteria, expected outcome and all text fields inside <STORY>) in Russian."
 			: "Generate the ENTIRE user story (title, goal, requirements, acceptance criteria, expected outcome and all text fields inside <STORY>) in English.";
 
-	return `Ты формируешь user story для КОД-ИСПОЛНИТЕЛЯ.
-Роль генератора (если указана ниже) не должна автоматически становиться исполнителем.
+	return `You are generating a user story for a CODE-EXECUTOR.
+The generator role (if specified below) should NOT automatically become the executor.
 
-Твоя задача: переписать описание задачи в формат user story для AI-агента (код-исполнителя), чтобы по нему можно было сразу запускать работу.
+Your task: rewrite the task description into user story format for an AI agent (code executor), so that work can be launched immediately from it.
 
-Сформируй **технически точное, полное и однозначное описание задачи**, но **без реализации**.
+Create a **technically accurate, complete, and unambiguous task description**, but **without implementation**.
 
-Контекст текущей задачи:
-- Название: ${task.title}
-- Текущее описание: ${task.description ?? "(пусто)"}
-- Текущие теги: ${(task.tags ?? []).join(", ") || "(пусто)"}
-- Текущий тип: ${task.type ?? "(не указан)"}
-- Текущая сложность: ${task.difficulty ?? "(не указана)"}
+Current task context:
+- Title: ${task.title}
+- Current description: ${task.description ?? "(empty)"}
+- Current tags: ${(task.tags ?? []).join(", ") || "(empty)"}
+- Current type: ${task.type ?? "(not specified)"}
+- Current difficulty: ${task.difficulty ?? "(not specified)"}
 
-Контекст проекта:
-- Путь проекта: ${project.path}
-- Название проекта: ${project.name}
-- ID проекта: ${project.id}
+Project context:
+- Project path: ${project.path}
+- Project name: ${project.name}
+- Project ID: ${project.id}
 
-Контекст роли генератора (для качества формулировки, НЕ для выбора исполнителя):
-- ID роли генератора: ${options.role?.id ?? "(не задан)"}
-- Название роли генератора: ${options.role?.name ?? "(не задано)"}
-- System prompt роли генератора: ${rolePromptLine}
-- Скиллы роли генератора: ${roleSkillsLine}
+Generator role context (for phrasing quality, NOT for choosing executor):
+- Generator role ID: ${options.role?.id ?? "(not set)"}
+- Generator role name: ${options.role?.name ?? "(not set)"}
+- Generator role system prompt: ${rolePromptLine}
+- Generator role skills: ${roleSkillsLine}
 
-Разрешенные значения:
-- Теги: ${tagsLine}
-- Тип: ${types.join(", ")}
-- Сложность: ${difficulties.join(", ")}
-- Допустимые агенты для выполнения (ids): ${rolesLine}
+Allowed values:
+- Tags: ${tagsLine}
+- Type: ${types.join(", ")}
+- Difficulty: ${difficulties.join(", ")}
+- Available execution agents (ids): ${rolesLine}
 
-Верни ответ строго в формате:
+Return the response strictly in this format:
 
 <META>
 {
@@ -116,51 +116,51 @@ export function buildUserStoryPrompt(
 </META>
 
 <STORY>
-## Название
+## Title
 ...
 
-## Цель
+## Goal
 ...
 
-## Контекст проекта
+## Project Context
 ...
 
-## Скоуп
-### Включено
+## Scope
+### In scope
 - ...
 
-### Исключено
+### Out of scope
 - ...
 
-## Требования
+## Requirements
 1. ...
 
-## Ограничения
+## Constraints
 - ...
 
-## Критерии приемки
+## Acceptance Criteria
 - [ ] ...
 
-## Ожидаемый результат
+## Expected Outcome
 ...
 </STORY>
 
-Правила:
-1) Пиши кратко, но полно.
-2) Не расписывай реализацию на уровне кода.
-3) Возвращай только блоки <META> и <STORY>, без доп. текста.
-4) В <META> не используй markdown-код-блок, только JSON.
-5) В поле agentRoleId укажи один id из списка доступных ролей. Выбирай роль строго по сути задачи — кто должен быть основным исполнителем реализации.
-6) Никогда не выбирай agentRoleId только потому, что генератор запущен в этой роли.
-7) Роль ba выбирай только для задач анализа/требований/документации без изменений кода. Если задача предполагает реализацию — выбирай профильного исполнителя.
-8) В поле commitMessage укажи conventional commit message на английском языке (до 200 символов), основанный на названии и типе задачи. Формат: \`<type>(<scope>): <description>\`. Type: feat для feature, fix для bug, chore для chore, refactor для improvement. Scope — опционально, из тегов задачи. Description — краткое резюме на английском. Пример: \`feat(auth): add user login flow\`.
-9) Если commitMessage превышает 200 символов — сократи description, не трогай type и scope.
-10) Роль fe (фронтенд) выбирай ТОЛЬКО если задача сфокусирована на UI/UX: компоненты, стили, анимации, верстка, дизайн-система, адаптивность, интерактивность интерфейса. Задачи, связанные с логикой, API, архитектурой, БД, конфигурацией, инфраструктурой, тестами — НЕ являются фронтенд-задачами, даже если они косвенно влияют на UI. Для таких задач выбирай be, tl или другого профильного исполнителя.
-11) Агент-исполнитель может сам делегировать часть работы другому агенту (в т.ч. fe) в процессе выполнения. Не назначай fe «на всякий случай» — если задача не сфокусирована на UI, назначь tl или be.
-12) Для задач без чёткой специализации (архитектура, рефакторинг, смешанная логика) выбирай tl как универсального исполнителя.
+Rules:
+1) Write concisely but completely.
+2) Do not describe implementation at the code level.
+3) Return only <META> and <STORY> blocks, no extra text.
+4) In <META>, do not use markdown code blocks, only JSON.
+5) In agentRoleId, specify one id from the list of available roles. Choose the role strictly based on the task nature — who should be the primary executor.
+6) Never choose agentRoleId just because the generator is running under that role.
+7) Choose the ba role only for analysis/requirements/documentation tasks without code changes. If the task involves implementation — choose a specialized executor.
+8) In commitMessage, provide a conventional commit message in English (up to 200 characters), based on the task title and type. Format: \`<type>(<scope>): <description>\`. Type: feat for feature, fix for bug, chore for chore, refactor for improvement. Scope — optional, from task tags. Description — brief English summary. Example: \`feat(auth): add user login flow\`.
+9) If commitMessage exceeds 200 characters — shorten the description, do not modify type and scope.
+10) Choose the fe (frontend) role ONLY if the task is focused on UI/UX: components, styles, animations, layouts, design systems, responsiveness, interactivity. Tasks involving logic, API, architecture, DB, configuration, infrastructure, testing — are NOT frontend tasks even if they indirectly affect UI. For such tasks, choose be, tl, or another specialized executor.
+11) The executing agent may delegate part of the work to another agent (including fe) during execution. Do not assign fe "just in case" — if the task is not focused on UI, assign tl or be.
+12) For tasks without clear specialization (architecture, refactoring, mixed logic), choose tl as the universal executor.
 13) ${languageInstruction}
-14) Последняя строка ответа должна быть marker-статусом:
-   - успех: ${buildOpencodeStatusLine("generated")}
-   - ошибка: ${buildOpencodeStatusLine("fail")}
-   - нужен ответ пользователя: ${buildOpencodeStatusLine("question")}`;
+14) The last line of the response must be a status marker:
+    - success: ${buildOpencodeStatusLine("generated")}
+    - error: ${buildOpencodeStatusLine("fail")}
+    - need user input: ${buildOpencodeStatusLine("question")}`;
 }
