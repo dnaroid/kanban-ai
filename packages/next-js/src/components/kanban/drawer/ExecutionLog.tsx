@@ -780,12 +780,15 @@ export function ExecutionLog({
 		const fetchSessionMessages = async () => {
 			if (!effectiveSessionId || !isActive) return;
 			try {
-				const [messagesResponse, pendingPerms] = await Promise.all([
+				const [messagesResponse, pendingPerms, pendingQs] = await Promise.all([
 					api.opencode.getSessionMessages({
 						sessionId: effectiveSessionId,
 						limit: 200,
 					}),
 					api.opencode.getPendingPermissions({
+						sessionId: effectiveSessionId,
+					}),
+					api.opencode.getPendingQuestions({
 						sessionId: effectiveSessionId,
 					}),
 				]);
@@ -796,6 +799,16 @@ export function ExecutionLog({
 						const next = new Map(prev);
 						for (const perm of pendingPerms) {
 							next.set(perm.id, perm);
+						}
+						return next;
+					});
+				}
+
+				if (pendingQs.length > 0) {
+					setPendingQuestions((prev) => {
+						const next = new Map(prev);
+						for (const q of pendingQs) {
+							next.set(q.id, q);
 						}
 						return next;
 					});

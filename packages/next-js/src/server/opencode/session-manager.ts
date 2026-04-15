@@ -278,6 +278,39 @@ export class OpencodeSessionManager {
 		return typeof data === "boolean" ? data : true;
 	}
 
+	public async listPendingQuestions(
+		sessionId: string,
+	): Promise<QuestionData[]> {
+		try {
+			const client = await this.getSessionClient(sessionId);
+			const questionApi = asRecord(asRecord(client)?.question);
+			if (!questionApi) return [];
+			const listFn = questionApi["list"] as
+				| ((args?: { directory?: string }) => Promise<unknown>)
+				| undefined;
+			if (typeof listFn !== "function") return [];
+			const directory = await this.resolveSessionDirectory(sessionId);
+			const result = await listFn.call(questionApi, {
+				directory: directory ?? undefined,
+			});
+			const data = getData<unknown>(result);
+			if (!Array.isArray(data)) return [];
+			return data
+				.filter(
+					(req: unknown) =>
+						req &&
+						typeof req === "object" &&
+						(req as Record<string, unknown>).sessionID === sessionId,
+				)
+				.map((req: Record<string, unknown>) =>
+					this.normalizeQuestion(req as Record<string, unknown>),
+				)
+				.filter((q): q is QuestionData => q !== null);
+		} catch {
+			return [];
+		}
+	}
+
 	public async replyToQuestion(
 		sessionId: string,
 		requestId: string,
@@ -700,9 +733,22 @@ export class OpencodeSessionManager {
 		if (type === "question.asked") {
 			const sessionId =
 				this.pickSessionId(properties, data) ?? asString(properties.sessionID);
-			if (!sessionId) return null;
+			console.log(
+				"[session-manager] question.asked raw properties:",
+				JSON.stringify(properties).slice(0, 300),
+			);
+			if (!sessionId) {
+				console.warn("[session-manager] question.asked: no sessionId");
+				return null;
+			}
 			const question = this.normalizeQuestion(properties);
-			if (!question) return null;
+			if (!question) {
+				console.warn(
+					"[session-manager] question.asked: normalizeQuestion returned null",
+				);
+				return null;
+			}
+			console.log("[session-manager] question.asked normalized:", question.id);
 			return { type, sessionId, question };
 		}
 
@@ -716,10 +762,10 @@ export class OpencodeSessionManager {
 			return { type, sessionId, requestId };
 		}
 
-		console.warn(
-			`[session-manager] Unhandled event type: ${type}`,
-			JSON.stringify(data).slice(0, 200),
-		);
+		// console.warn(
+		// 	`[session-manager] Unhandled event type: ${type}`,
+		// 	JSON.stringify(data).slice(0, 200),
+		// );
 
 		return null;
 	}

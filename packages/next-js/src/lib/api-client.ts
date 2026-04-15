@@ -890,6 +890,21 @@ class ApiClient {
 			const data = this.unwrapApiData<PermissionData[]>(payload);
 			return Array.isArray(data) ? data : [];
 		},
+		getPendingQuestions: async ({
+			sessionId,
+		}: {
+			sessionId: string;
+		}): Promise<import("@/types/ipc").QuestionData[]> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/session/question/list?sessionId=${encodeURIComponent(sessionId)}`,
+			);
+			if (!response.ok) {
+				return [];
+			}
+			const payload = await response.json();
+			const data = payload.questions as import("@/types/ipc").QuestionData[];
+			return Array.isArray(data) ? data : [];
+		},
 		replyQuestion: async ({
 			sessionId,
 			requestId,

@@ -98,6 +98,13 @@ export async function unsubscribeSessionEvents(
 	await sessionTracker.unsubscribe(sessionId, subscriberId);
 }
 
+export async function listPendingQuestions(
+	sessionId: string,
+): Promise<import("./session-manager").QuestionData[]> {
+	await ensureSessionLive(sessionId);
+	return sessionManager.listPendingQuestions(sessionId);
+}
+
 export async function listPendingPermissions(
 	sessionId: string,
 ): Promise<PermissionData[]> {
