@@ -72,6 +72,24 @@ export interface PermissionData {
 	createdAt: number;
 }
 
+export interface QuestionOption {
+	label: string;
+	description?: string;
+}
+
+export interface QuestionItem {
+	question: string;
+	options: QuestionOption[];
+	multiple?: boolean;
+}
+
+export interface QuestionData {
+	id: string;
+	sessionId: string;
+	questions: QuestionItem[];
+	createdAt: number;
+}
+
 export type Part =
 	| TextPart
 	| FilePart

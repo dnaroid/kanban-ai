@@ -890,6 +890,54 @@ class ApiClient {
 			const data = this.unwrapApiData<PermissionData[]>(payload);
 			return Array.isArray(data) ? data : [];
 		},
+		replyQuestion: async ({
+			sessionId,
+			requestId,
+			answers,
+		}: {
+			sessionId: string;
+			requestId: string;
+			answers: string[][];
+		}): Promise<void> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/session/question/reply`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ sessionId, requestId, answers }),
+				},
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to reply to question",
+				);
+				throw new Error(message);
+			}
+		},
+		rejectQuestion: async ({
+			sessionId,
+			requestId,
+		}: {
+			sessionId: string;
+			requestId: string;
+		}): Promise<void> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/session/question/reject`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ sessionId, requestId }),
+				},
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to reject question",
+				);
+				throw new Error(message);
+			}
+		},
 	};
 
 	readonly schema = {

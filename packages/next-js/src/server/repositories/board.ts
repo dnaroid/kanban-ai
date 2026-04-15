@@ -114,10 +114,11 @@ export class BoardRepository {
 
 		for (const col of columns) {
 			if (col.id && existingIds.has(col.id)) {
-				// Update existing
+				const existing = board.columns.find((c) => c.id === col.id);
+				const preservedSystemKey = col.systemKey ?? existing?.systemKey ?? "";
 				updateStmt.run(
 					col.name,
-					col.systemKey ?? "",
+					preservedSystemKey,
 					col.orderIndex,
 					col.color ?? "",
 					now,

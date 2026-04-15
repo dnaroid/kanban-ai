@@ -104,3 +104,20 @@ export async function listPendingPermissions(
 	await ensureSessionLive(sessionId);
 	return sessionManager.listPendingPermissions(sessionId);
 }
+
+export async function replyToQuestion(
+	sessionId: string,
+	requestId: string,
+	answers: string[][],
+): Promise<void> {
+	await ensureSessionLive(sessionId);
+	await sessionManager.replyToQuestion(sessionId, requestId, answers);
+}
+
+export async function rejectQuestion(
+	sessionId: string,
+	requestId: string,
+): Promise<void> {
+	await ensureSessionLive(sessionId);
+	await sessionManager.rejectQuestion(sessionId, requestId);
+}

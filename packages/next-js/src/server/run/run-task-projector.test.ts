@@ -13,6 +13,8 @@ const { mockBoardRepo, mockTaskRepo, mockPublishSseEvent, mockWorkflow } =
 		mockPublishSseEvent: vi.fn(),
 		mockWorkflow: {
 			canTransitionColumn: vi.fn(),
+			getBlockedReasonForStatus: vi.fn(),
+			getClosedReasonForStatus: vi.fn(),
 			getPreferredColumnIdForStatus: vi.fn(),
 			getWorkflowColumnSystemKey: vi.fn(),
 			isStatusAllowedInWorkflowColumn: vi.fn(),
@@ -36,6 +38,8 @@ vi.mock("@/server/events/sse-broker", () => ({
 
 vi.mock("@/server/workflow/task-workflow-manager", () => ({
 	canTransitionColumn: mockWorkflow.canTransitionColumn,
+	getBlockedReasonForStatus: mockWorkflow.getBlockedReasonForStatus,
+	getClosedReasonForStatus: mockWorkflow.getClosedReasonForStatus,
 	getPreferredColumnIdForStatus: mockWorkflow.getPreferredColumnIdForStatus,
 	getWorkflowColumnSystemKey: mockWorkflow.getWorkflowColumnSystemKey,
 	isStatusAllowedInWorkflowColumn: mockWorkflow.isStatusAllowedInWorkflowColumn,

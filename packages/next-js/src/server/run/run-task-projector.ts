@@ -1,9 +1,12 @@
+import { createLogger } from "@/lib/logger";
 import { boardRepo } from "@/server/repositories/board";
 import { publishSseEvent } from "@/server/events/sse-broker";
 import { taskRepo } from "@/server/repositories/task";
 import type { Task } from "@/server/types";
 import {
 	canTransitionColumn,
+	getBlockedReasonForStatus,
+	getClosedReasonForStatus,
 	getPreferredColumnIdForStatus,
 	getWorkflowColumnSystemKey,
 	isStatusAllowedInWorkflowColumn,
@@ -17,6 +20,8 @@ import type { Run, RunStatus } from "@/types/ipc";
 const allowedTaskTypes = ["feature", "bug", "chore", "improvement"] as const;
 const allowedDifficulties = ["easy", "medium", "hard", "epic"] as const;
 const agentRoleTagPrefix = "agent:";
+
+const log = createLogger("run-task-projector");
 
 type AllowedTaskType = (typeof allowedTaskTypes)[number];
 type AllowedDifficulty = (typeof allowedDifficulties)[number];
@@ -251,8 +256,8 @@ export class RunTaskProjector {
 		return {
 			status,
 			columnId: nextColumnId,
-			blockedReason: reasons.blockedReason,
-			closedReason: reasons.closedReason,
+			blockedReason: reasons.blockedReason ?? getBlockedReasonForStatus(status),
+			closedReason: reasons.closedReason ?? getClosedReasonForStatus(status),
 		};
 	}
 
@@ -296,6 +301,12 @@ export class RunTaskProjector {
 			signalKey,
 		);
 		if (!nextStatus) {
+			log.info("Run started signal did not resolve", {
+				runId: run.id,
+				taskId: task.id,
+				signalKey,
+				currentStatus: task.status,
+			});
 			return;
 		}
 
@@ -310,6 +321,7 @@ export class RunTaskProjector {
 	): void {
 		const task = taskRepo.getById(run.taskId);
 		if (!task) {
+			log.warn("Task not found for run", { runId: run.id, taskId: run.taskId });
 			return;
 		}
 		const nextStatus = this.resolveStatusBySignal(
@@ -318,6 +330,16 @@ export class RunTaskProjector {
 			runStatus,
 			signalKey,
 		);
+
+		if (!nextStatus) {
+			log.info("Signal did not resolve to a status change", {
+				runId: run.id,
+				taskId: task.id,
+				signalKey,
+				runStatus,
+				currentStatus: task.status,
+			});
+		}
 
 		if (
 			isTaskDescriptionImproveRun(run) &&
@@ -365,10 +387,18 @@ export class RunTaskProjector {
 		}
 
 		if (nextStatus) {
-			this.updateTaskAndPublish(
-				task.id,
-				this.buildStatusPatch(task, nextStatus),
-			);
+			const patch = this.buildStatusPatch(task, nextStatus);
+			log.info("Applying status patch", {
+				runId: run.id,
+				taskId: task.id,
+				signalKey,
+				runStatus,
+				fromStatus: task.status,
+				toStatus: nextStatus,
+				columnId: patch.columnId,
+				blockedReason: patch.blockedReason,
+			});
+			this.updateTaskAndPublish(task.id, patch);
 		}
 	}
 }

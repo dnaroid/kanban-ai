@@ -14,13 +14,21 @@ import {
 	XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Part, PermissionData, ToolState } from "@/types/ipc";
+import type {
+	Part,
+	PermissionData,
+	QuestionData,
+	QuestionItem,
+	QuestionOption,
+	ToolState,
+} from "@/types/ipc";
 import { extractOpencodeStatus } from "@/lib/opencode-status";
 import { LightMarkdown } from "@/components/LightMarkdown";
 import { EditToolDiffView } from "./EditToolDiffView";
 import type { EditToolInput } from "./EditToolDiffView";
 import { ApplyPatchDiffView } from "./ApplyPatchDiffView";
 import type { ApplyPatchToolInput } from "./ApplyPatchDiffView";
+import { QuestionInteraction } from "./QuestionInteraction";
 
 function isEditToolInput(input: unknown): input is EditToolInput {
 	if (!input || typeof input !== "object") return false;
@@ -42,6 +50,57 @@ function isApplyPatchToolInput(input: unknown): input is ApplyPatchToolInput {
 
 function hasRenderableApplyPatchSections(patchText: string): boolean {
 	return /\*\*\* (Add|Update|Delete) File: /u.test(patchText);
+}
+
+function buildQuestionDataFromInput(input: unknown): QuestionData | null {
+	if (!input || typeof input !== "object") return null;
+	const rec = input as Record<string, unknown>;
+
+	const rawQuestions = Array.isArray(rec.questions) ? rec.questions : [];
+	if (rawQuestions.length === 0) return null;
+
+	const questions: QuestionItem[] = rawQuestions
+		.map((q): QuestionItem | null => {
+			if (!q || typeof q !== "object") return null;
+			const qr = q as Record<string, unknown>;
+			const question =
+				typeof qr.question === "string"
+					? qr.question
+					: typeof qr.header === "string"
+						? qr.header
+						: "";
+			if (!question) return null;
+			const options: QuestionOption[] = Array.isArray(qr.options)
+				? qr.options
+						.map((o): QuestionOption | null => {
+							if (!o || typeof o !== "object") return null;
+							const or2 = o as Record<string, unknown>;
+							const label = typeof or2.label === "string" ? or2.label : "";
+							if (!label) return null;
+							const description =
+								typeof or2.description === "string"
+									? or2.description
+									: undefined;
+							return description !== undefined
+								? { label, description }
+								: { label };
+						})
+						.filter((o): o is QuestionOption => o !== null)
+				: [];
+			return qr.multiple === true
+				? { question, options, multiple: true }
+				: { question, options };
+		})
+		.filter((q): q is QuestionItem => q !== null);
+
+	if (questions.length === 0) return null;
+
+	return {
+		id: "",
+		sessionId: "",
+		questions,
+		createdAt: Date.now(),
+	};
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -160,6 +219,10 @@ export function FilePart({
 
 export function ToolPart({
 	part,
+	pendingQuestion,
+	onQuestionReply,
+	onQuestionReject,
+	onQuestionError,
 }: {
 	part: {
 		tool: string;
@@ -168,8 +231,23 @@ export function ToolPart({
 		output?: unknown;
 		error?: string;
 	};
+	pendingQuestion?: QuestionData;
+	onQuestionReply?: (requestId: string, answers: string[][]) => Promise<void>;
+	onQuestionReject?: (requestId: string) => Promise<void>;
+	onQuestionError?: (message: string) => void;
 }) {
 	const [isExpanded, setIsExpanded] = useState(false);
+
+	const isActiveQuestion =
+		part.tool === "question" &&
+		(part.state === "pending" || part.state === "running");
+
+	useEffect(() => {
+		if (isActiveQuestion) {
+			setIsExpanded(true);
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [isActiveQuestion]);
 
 	const statusConfig = {
 		pending: {
@@ -220,63 +298,6 @@ export function ToolPart({
 		hasRenderableApplyPatchSections(applyPatchToolInput.patchText);
 	const shouldShowCustomDiff = isCompletedEditTool || isCompletedApplyPatchTool;
 
-	const renderQuestionContent = (input: unknown) => {
-		if (!input || typeof input !== "object") return null;
-		const qInput = input as Record<string, unknown>;
-		const questionText =
-			typeof qInput.question === "string"
-				? qInput.question
-				: typeof qInput.header === "string"
-					? qInput.header
-					: null;
-		const options = Array.isArray(qInput.options)
-			? qInput.options.filter(
-					(o): o is { label: string; description?: string } =>
-						typeof o === "object" && o !== null && "label" in o,
-				)
-			: null;
-
-		return (
-			<div className="space-y-2">
-				{questionText && (
-					<div className="flex items-start gap-2 px-1">
-						<HelpCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-						<span className="text-xs text-slate-200 leading-relaxed">
-							{questionText}
-						</span>
-					</div>
-				)}
-				{options && options.length > 0 && (
-					<div className="space-y-1 px-1">
-						<span className="text-[10px] font-semibold text-slate-500 uppercase">
-							Options
-						</span>
-						<div className="space-y-1">
-							{options.map((opt, idx) => (
-								<div
-									key={`opt-${idx}-${opt.label}`}
-									className="flex items-start gap-2 px-2 py-1.5 bg-slate-950/50 rounded-lg border border-slate-800/30"
-								>
-									<span className="text-[10px] font-mono text-amber-400/80 shrink-0 mt-0.5">
-										{idx + 1}.
-									</span>
-									<div className="min-w-0">
-										<span className="text-xs text-slate-300">{opt.label}</span>
-										{opt.description && (
-											<p className="text-[10px] text-slate-500 mt-0.5">
-												{opt.description}
-											</p>
-										)}
-									</div>
-								</div>
-							))}
-						</div>
-					</div>
-				)}
-			</div>
-		);
-	};
-
 	return (
 		<div
 			className={cn(
@@ -324,8 +345,21 @@ export function ToolPart({
 						<ApplyPatchDiffView input={applyPatchToolInput} />
 					)}
 					{part.tool === "question" &&
-						part.state === "pending" &&
-						renderQuestionContent(part.input)}
+						(part.state === "pending" || part.state === "running") &&
+						(() => {
+							const fromInput = buildQuestionDataFromInput(part.input);
+							const requestId = pendingQuestion?.id ?? "";
+							const merged: QuestionData | null = pendingQuestion ?? fromInput;
+							if (!merged || merged.questions.length === 0) return null;
+							return (
+								<QuestionInteraction
+									question={requestId ? { ...merged, id: requestId } : merged}
+									onReply={requestId ? onQuestionReply : undefined}
+									onReject={requestId ? onQuestionReject : undefined}
+									onError={onQuestionError}
+								/>
+							);
+						})()}
 					{!shouldShowCustomDiff &&
 						part.input != null &&
 						part.tool !== "question" && (

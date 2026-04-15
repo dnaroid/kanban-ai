@@ -19,6 +19,24 @@ export interface PermissionData {
 	createdAt: number;
 }
 
+export interface QuestionOptionData {
+	label: string;
+	description?: string;
+}
+
+export interface QuestionItemData {
+	question: string;
+	options: QuestionOptionData[];
+	multiple?: boolean;
+}
+
+export interface QuestionData {
+	id: string;
+	sessionId: string;
+	questions: QuestionItemData[];
+	createdAt: number;
+}
+
 export type SessionEvent =
 	| { type: "message.updated"; sessionId: string; message: OpenCodeMessage }
 	| {
@@ -41,6 +59,9 @@ export type SessionEvent =
 			permissionId: string;
 			response: string;
 	  }
+	| { type: "question.asked"; sessionId: string; question: QuestionData }
+	| { type: "question.replied"; sessionId: string; requestId: string }
+	| { type: "question.rejected"; sessionId: string; requestId: string }
 	| { type: "error"; sessionId: string; error: string };
 
 export interface SessionStartPreferences {
@@ -255,6 +276,39 @@ export class OpencodeSessionManager {
 
 		const data = getData<unknown>(result);
 		return typeof data === "boolean" ? data : true;
+	}
+
+	public async replyToQuestion(
+		sessionId: string,
+		requestId: string,
+		answers: string[][],
+	): Promise<void> {
+		const client = await this.getSessionClient(sessionId);
+		const questionApi = asRecord(asRecord(client)?.question);
+		if (!questionApi) throw new Error("OpenCode question API not available");
+		const replyFn = questionApi["reply"] as
+			| ((args: { requestID: string; answers: string[][] }) => Promise<unknown>)
+			| undefined;
+		if (typeof replyFn !== "function") {
+			throw new Error("OpenCode question.reply not available");
+		}
+		await replyFn.call(questionApi, { requestID: requestId, answers });
+	}
+
+	public async rejectQuestion(
+		sessionId: string,
+		requestId: string,
+	): Promise<void> {
+		const client = await this.getSessionClient(sessionId);
+		const questionApi = asRecord(asRecord(client)?.question);
+		if (!questionApi) throw new Error("OpenCode question API not available");
+		const rejectFn = questionApi["reject"] as
+			| ((args: { requestID: string }) => Promise<unknown>)
+			| undefined;
+		if (typeof rejectFn !== "function") {
+			throw new Error("OpenCode question.reject not available");
+		}
+		await rejectFn.call(questionApi, { requestID: requestId });
 	}
 
 	public async listPendingPermissions(
@@ -643,10 +697,29 @@ export class OpencodeSessionManager {
 			return { type, sessionId, permissionId, response };
 		}
 
-		// console.warn(
-		// 	`[session-manager] Unhandled event type: ${type}`,
-		// 	JSON.stringify(data).slice(0, 200),
-		// );
+		if (type === "question.asked") {
+			const sessionId =
+				this.pickSessionId(properties, data) ?? asString(properties.sessionID);
+			if (!sessionId) return null;
+			const question = this.normalizeQuestion(properties);
+			if (!question) return null;
+			return { type, sessionId, question };
+		}
+
+		if (type === "question.replied" || type === "question.rejected") {
+			const sessionId =
+				this.pickSessionId(properties, data) ?? asString(properties.sessionID);
+			if (!sessionId) return null;
+			const requestId =
+				asString(properties.requestID) ?? asString(properties.requestId);
+			if (!requestId) return null;
+			return { type, sessionId, requestId };
+		}
+
+		console.warn(
+			`[session-manager] Unhandled event type: ${type}`,
+			JSON.stringify(data).slice(0, 200),
+		);
 
 		return null;
 	}
@@ -981,6 +1054,41 @@ export class OpencodeSessionManager {
 			metadata,
 			createdAt,
 		};
+	}
+
+	private normalizeQuestion(raw: Record<string, unknown>): QuestionData | null {
+		const id = asString(raw.id);
+		if (!id) return null;
+		const sessionId = asString(raw.sessionID) ?? asString(raw.sessionId) ?? "";
+		const questionsRaw = Array.isArray(raw.questions) ? raw.questions : [];
+		const questions: QuestionItemData[] = questionsRaw
+			.map((q): QuestionItemData | null => {
+				const qRecord = asRecord(q);
+				if (!qRecord) return null;
+				const question = asString(qRecord.question) ?? "";
+				const optionsRaw = Array.isArray(qRecord.options)
+					? qRecord.options
+					: [];
+				const options: QuestionOptionData[] = optionsRaw
+					.map((o): QuestionOptionData | null => {
+						const oRecord = asRecord(o);
+						if (!oRecord) return null;
+						const label = asString(oRecord.label) ?? "";
+						if (!label) return null;
+						const description = asString(oRecord.description) ?? undefined;
+						return description === undefined
+							? { label }
+							: { label, description };
+					})
+					.filter((o): o is QuestionOptionData => o !== null);
+				return qRecord.multiple === true
+					? { question, options, multiple: true }
+					: { question, options };
+			})
+			.filter((q): q is QuestionItemData => q !== null);
+		const timeRecord = asRecord(raw.time);
+		const createdAt = asNumber(timeRecord?.created) ?? Date.now();
+		return { id, sessionId, questions, createdAt };
 	}
 
 	private normalizeToolState(

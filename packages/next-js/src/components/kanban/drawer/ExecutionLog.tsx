@@ -24,6 +24,7 @@ import type {
 	OpenCodeMessage,
 	Part,
 	PermissionData,
+	QuestionData,
 	RunEvent,
 } from "@/types/ipc";
 import { extractOpencodeStatus } from "@/lib/opencode-status";
@@ -216,6 +217,9 @@ export function ExecutionLog({
 	const [pendingPermissions, setPendingPermissions] = useState<
 		Map<string, PermissionData>
 	>(new Map());
+	const [pendingQuestions, setPendingQuestions] = useState<
+		Map<string, QuestionData>
+	>(new Map());
 
 	const coerceText = (value: unknown): string => {
 		if (typeof value === "string") return value;
@@ -374,6 +378,7 @@ export function ExecutionLog({
 		setIsLoading(true);
 		setAutoScroll(true);
 		setPendingPermissions(new Map());
+		setPendingQuestions(new Map());
 		seenMessageIdsRef.current.clear();
 		hiddenUserMessageIdRef.current = null;
 		for (const timeout of streamingTimeoutsRef.current.values()) {
@@ -711,6 +716,44 @@ export function ExecutionLog({
 				return;
 			}
 
+			if (eventType === "question.asked") {
+				const qRaw = typedEvent as unknown as { question?: unknown };
+				if (!qRaw.question || typeof qRaw.question !== "object") return;
+				const q = qRaw.question as QuestionData;
+				const qSessionId = q.sessionId ?? getSessionIdFromValue(typedEvent);
+				if (qSessionId && qSessionId !== effectiveSessionId) return;
+				setPendingQuestions((prev) => {
+					const next = new Map(prev);
+					next.set(q.id, q);
+					return next;
+				});
+				setIsLoading(false);
+				return;
+			}
+
+			if (
+				eventType === "question.replied" ||
+				eventType === "question.rejected"
+			) {
+				const qReply = typedEvent as unknown as {
+					requestId?: unknown;
+					requestID?: unknown;
+				};
+				const replyRequestId =
+					typeof qReply.requestId === "string"
+						? qReply.requestId
+						: typeof qReply.requestID === "string"
+							? qReply.requestID
+							: undefined;
+				if (!replyRequestId) return;
+				setPendingQuestions((prev) => {
+					const next = new Map(prev);
+					next.delete(replyRequestId);
+					return next;
+				});
+				return;
+			}
+
 			console.warn(
 				`[ExecutionLog] Unhandled SSE event type: ${eventType}`,
 				typedEvent,
@@ -891,6 +934,38 @@ export function ExecutionLog({
 		}
 	};
 
+	const handleQuestionReply = async (
+		requestId: string,
+		answers: string[][],
+	): Promise<void> => {
+		await api.opencode.replyQuestion({
+			sessionId: effectiveSessionId,
+			requestId,
+			answers,
+		});
+		setPendingQuestions((prev) => {
+			const next = new Map(prev);
+			next.delete(requestId);
+			return next;
+		});
+	};
+
+	const handleQuestionReject = async (requestId: string): Promise<void> => {
+		await api.opencode.rejectQuestion({
+			sessionId: effectiveSessionId,
+			requestId,
+		});
+		setPendingQuestions((prev) => {
+			const next = new Map(prev);
+			next.delete(requestId);
+			return next;
+		});
+	};
+
+	const handleQuestionError = (message: string) => {
+		console.error("[ExecutionLog] Question error:", message);
+	};
+
 	const renderPermissions = () => {
 		if (pendingPermissions.size === 0) return null;
 		const elements: React.ReactNode[] = [];
@@ -1058,7 +1133,20 @@ export function ExecutionLog({
 												/>
 											);
 										case "tool":
-											return <ToolPart key={key} part={part} />;
+											return (
+												<ToolPart
+													key={key}
+													part={part}
+													pendingQuestion={
+														part.tool === "question"
+															? [...pendingQuestions.values()][0]
+															: undefined
+													}
+													onQuestionReply={handleQuestionReply}
+													onQuestionReject={handleQuestionReject}
+													onQuestionError={handleQuestionError}
+												/>
+											);
 										case "file":
 											return <FilePart key={key} part={part} />;
 										case "agent":
