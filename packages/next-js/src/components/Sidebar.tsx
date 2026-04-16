@@ -76,7 +76,7 @@ export function Sidebar({
 		if (pathname.startsWith("/projects")) return "projects";
 		if (pathname.startsWith("/diagnostics")) return "diagnostics";
 		if (pathname.startsWith("/timeline")) return "timeline";
-		if (pathname.startsWith("/board")) return "board";
+		if (pathname.startsWith("/board")) return "projects";
 		if (pathname.startsWith("/settings")) return "settings";
 		return "projects";
 	};
@@ -210,7 +210,14 @@ export function Sidebar({
 						)}
 						title="Settings"
 					>
-						<Settings className="w-5 h-5" />
+						<Settings
+							className={cn(
+								isSidebarCollapsed ? "w-6 h-6" : "w-5 h-5",
+								currentScreenId === "settings"
+									? "text-blue-400"
+									: "text-slate-500 group-hover:text-slate-300",
+							)}
+						/>
 						{!isSidebarCollapsed && (
 							<span className="font-medium">Settings</span>
 						)}
