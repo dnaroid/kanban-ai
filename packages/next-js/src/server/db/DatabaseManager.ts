@@ -80,11 +80,9 @@ export class DatabaseManager {
 			.prepare("SELECT MAX(version) as version FROM schema_migrations")
 			.get() as { version: number | null };
 		const maxVersion = currentVersion.version ?? -1;
-		console.log("[DB] Current max schema version:", maxVersion);
 
 		for (const migration of migrations) {
 			if (migration.version > maxVersion) {
-				console.log("[DB] Running migration version:", migration.version);
 				const tx = this.db.transaction(() => {
 					try {
 						this.db!.exec(migration.sql);
@@ -108,14 +106,8 @@ export class DatabaseManager {
 					).run(migration.version);
 				});
 				tx();
-				console.log("[DB] Migration version", migration.version, "completed");
 			}
 		}
-
-		const finalVersion = this.db
-			.prepare("SELECT MAX(version) as version FROM schema_migrations")
-			.get() as { version: number | null };
-		console.log("[DB] Final max schema version:", finalVersion.version);
 	}
 
 	private runInitSql(): void {

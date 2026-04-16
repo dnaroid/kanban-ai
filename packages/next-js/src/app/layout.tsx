@@ -4,7 +4,7 @@ import "./globals.css";
 import { ClientLayout } from "@/components/ClientLayout";
 
 export const metadata: Metadata = {
-	title: "Kanban AI - Next.js Migration",
+	title: "KanbanAI",
 	description: "Next.js App Router migration of Kanban AI application",
 };
 
