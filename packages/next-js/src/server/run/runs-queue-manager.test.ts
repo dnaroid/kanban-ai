@@ -5,9 +5,24 @@ import type {
 	PermissionData,
 	SessionInspectionResult,
 } from "@/server/opencode/session-manager";
-import type { RunOutcome } from "@/server/run/run-task-projector";
+import type {
+	TaskTransitionInput,
+	TaskTransitionTrigger,
+} from "@/server/run/task-state-machine";
 
 type MockRecord = Record<string, unknown>;
+type RunOutcomeMarker =
+	| "done"
+	| "generated"
+	| "fail"
+	| "test_ok"
+	| "test_fail"
+	| "dead"
+	| "question"
+	| "resumed"
+	| "cancelled"
+	| "timeout";
+type MockRunOutcome = { marker: RunOutcomeMarker; content: string };
 
 const {
 	runMap,
@@ -24,7 +39,7 @@ const {
 	mockTaskRepo,
 	mockBoardRepo,
 	mockRunRepo,
-	mockTaskProjector,
+	mockStateMachine,
 	mockVcsManager,
 } = vi.hoisted(() => {
 	const runs = new Map<string, MockRecord>();
@@ -115,8 +130,34 @@ const {
 			listByBoard: vi.fn((boardId: string) => {
 				return [...tasks.values()].filter((task) => task.boardId === boardId);
 			}),
+			update: vi.fn((taskId: string, updates: MockRecord) => {
+				const current = tasks.get(taskId);
+				if (!current) {
+					throw new Error(`Task not found: ${taskId}`);
+				}
+
+				const updated = {
+					...current,
+					...updates,
+					updatedAt: new Date().toISOString(),
+				};
+				tasks.set(taskId, updated);
+				return updated;
+			}),
 		},
 		mockBoardRepo: {
+			getById: vi.fn((boardId: string) => ({
+				id: boardId,
+				projectId: "project-1",
+				name: "Board",
+				columns: [
+					{ id: "column-1", name: "In Progress", systemKey: "in_progress" },
+					{ id: "blocked-col", name: "Blocked", systemKey: "blocked" },
+					{ id: "review-col", name: "Review", systemKey: "review" },
+					{ id: "closed-col", name: "Closed", systemKey: "closed" },
+					{ id: "deferred-col", name: "Deferred", systemKey: "deferred" },
+				],
+			})),
 			getByProjectId: vi.fn((projectId: string) => ({
 				id: "board-1",
 				projectId,
@@ -170,10 +211,12 @@ const {
 				return [...runs.values()].filter((run) => run.taskId === taskId);
 			}),
 		},
-		mockTaskProjector: {
-			projectRunStarted: vi.fn(),
-			projectRunOutcome:
-				vi.fn<(run: MockRecord, outcome: RunOutcome) => void>(),
+		mockStateMachine: {
+			transition: vi.fn().mockReturnValue({
+				action: "skip",
+				patch: {},
+				effects: [],
+			}),
 		},
 		mockVcsManager: {
 			provisionRunWorkspace: vi.fn(async () => ({
@@ -270,9 +313,15 @@ vi.mock("@/server/repositories/board", () => ({
 	boardRepo: mockBoardRepo,
 }));
 
-vi.mock("@/server/run/run-task-projector", () => ({
-	getRunTaskProjector: () => mockTaskProjector,
-}));
+vi.mock("@/server/run/task-state-machine", async () => {
+	const mod = await vi.importActual<
+		typeof import("@/server/run/task-state-machine")
+	>("@/server/run/task-state-machine");
+	return {
+		...mod,
+		getTaskStateMachine: () => mockStateMachine,
+	};
+});
 
 vi.mock("@/server/run/run-publisher", () => ({
 	publishRunUpdate: vi.fn(),
@@ -348,7 +397,7 @@ function buildRun(
 }
 
 function buildInspection(options?: {
-	marker?: RunOutcome["marker"];
+	marker?: RunOutcomeMarker;
 	content?: string;
 	messages?: SessionInspectionResult["messages"];
 	pendingPermissions?: SessionInspectionResult["pendingPermissions"];
@@ -388,6 +437,18 @@ function buildInspection(options?: {
 				}
 			: null,
 	};
+}
+
+function expectTransitionCall(
+	trigger: TaskTransitionTrigger,
+	matcher: Partial<TaskTransitionInput> = {},
+): void {
+	expect(mockStateMachine.transition).toHaveBeenCalledWith(
+		expect.objectContaining({
+			trigger,
+			...matcher,
+		}),
+	);
 }
 
 async function waitForDrain(): Promise<void> {
@@ -628,10 +689,7 @@ describe("RunsQueueManager scheduling", () => {
 				mode: "execute",
 			}),
 		);
-		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
-			expect.objectContaining({ id: "run-generation" }),
-			{ marker: "generated", content: "" },
-		);
+		expectTransitionCall("generate:ok", { outcomeContent: "" });
 	});
 
 	it("auto-enqueues generated execution into a provisioned worktree", async () => {
@@ -800,7 +858,7 @@ describe("RunsQueueManager scheduling", () => {
 			finalizeRunFromSession: (
 				runId: string,
 				status: "completed" | "failed" | "paused",
-				outcome: RunOutcome,
+				outcome: MockRunOutcome,
 			) => Promise<void>;
 		};
 
@@ -878,7 +936,7 @@ describe("RunsQueueManager scheduling", () => {
 			finalizeRunFromSession: (
 				runId: string,
 				status: "completed" | "failed" | "paused",
-				outcome: RunOutcome,
+				outcome: MockRunOutcome,
 			) => Promise<void>;
 		};
 
@@ -959,7 +1017,7 @@ describe("RunsQueueManager scheduling", () => {
 			finalizeRunFromSession: (
 				runId: string,
 				status: "completed" | "failed" | "paused",
-				outcome: RunOutcome,
+				outcome: MockRunOutcome,
 			) => Promise<void>;
 		};
 
@@ -1041,10 +1099,7 @@ describe("RunsQueueManager scheduling", () => {
 		await waitForDrain();
 		await waitForDrain();
 
-		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
-			expect.objectContaining({ id: "run-qa-ok" }),
-			{ marker: "test_ok", content: "" },
-		);
+		expectTransitionCall("run:done", { outcomeContent: "" });
 	});
 
 	it("maps QA failure marker to test_fail signal", async () => {
@@ -1076,10 +1131,7 @@ describe("RunsQueueManager scheduling", () => {
 		await waitForDrain();
 		await waitForDrain();
 
-		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
-			expect.objectContaining({ id: "run-qa-fail" }),
-			{ marker: "test_fail", content: "" },
-		);
+		expectTransitionCall("run:fail", { outcomeContent: "" });
 	});
 
 	it("projects task failure when executeRun hits fetch failed", async () => {
@@ -1113,10 +1165,7 @@ describe("RunsQueueManager scheduling", () => {
 				errorText: "fetch failed",
 			}),
 		);
-		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
-			expect.objectContaining({ id: "run-fetch-failed", status: "failed" }),
-			{ marker: "fail", content: "fetch failed" },
-		);
+		expectTransitionCall("run:fail", { outcomeContent: "fetch failed" });
 	});
 
 	it("projects task failure when executeRun hits a real error", async () => {
@@ -1150,10 +1199,7 @@ describe("RunsQueueManager scheduling", () => {
 				errorText: "Something broke",
 			}),
 		);
-		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
-			expect.objectContaining({ id: "run-real-error", status: "failed" }),
-			{ marker: "fail", content: "Something broke" },
-		);
+		expectTransitionCall("run:fail", { outcomeContent: "Something broke" });
 	});
 
 	it("recovers failed run when late done marker arrives after fetch failure", async () => {
@@ -1182,7 +1228,7 @@ describe("RunsQueueManager scheduling", () => {
 			finalizeRunFromSession: (
 				runId: string,
 				status: "completed" | "failed" | "paused",
-				outcome: RunOutcome,
+				outcome: MockRunOutcome,
 			) => Promise<void>;
 		};
 
@@ -1193,10 +1239,9 @@ describe("RunsQueueManager scheduling", () => {
 		);
 
 		expect(runMap.get("run-late-done")?.status).toBe("completed");
-		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
-			expect.objectContaining({ id: "run-late-done", status: "completed" }),
-			{ marker: "done", content: buildOpencodeStatusLine("done") },
-		);
+		expectTransitionCall("run:done", {
+			outcomeContent: buildOpencodeStatusLine("done"),
+		});
 	});
 
 	it("does not recover failed run with non-network error on late done marker", async () => {
@@ -1225,7 +1270,7 @@ describe("RunsQueueManager scheduling", () => {
 			finalizeRunFromSession: (
 				runId: string,
 				status: "completed" | "failed" | "paused",
-				outcome: RunOutcome,
+				outcome: MockRunOutcome,
 			) => Promise<void>;
 		};
 
@@ -1236,9 +1281,11 @@ describe("RunsQueueManager scheduling", () => {
 		);
 
 		expect(runMap.get("run-late-done-no-recover")?.status).toBe("failed");
-		expect(mockTaskProjector.projectRunOutcome).not.toHaveBeenCalledWith(
-			expect.objectContaining({ id: "run-late-done-no-recover" }),
-			{ marker: "done", content: buildOpencodeStatusLine("done") },
+		expect(mockStateMachine.transition).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				trigger: "run:done",
+				outcomeContent: buildOpencodeStatusLine("done"),
+			}),
 		);
 	});
 
@@ -1277,13 +1324,7 @@ describe("RunsQueueManager scheduling", () => {
 			"session-orphaned-fetch-failed",
 		);
 		expect(runMap.get("run-orphaned-fetch-failed")?.status).toBe("completed");
-		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
-			expect.objectContaining({
-				id: "run-orphaned-fetch-failed",
-				status: "completed",
-			}),
-			{ marker: "done", content: "" },
-		);
+		expectTransitionCall("run:done", { outcomeContent: "" });
 	});
 
 	it("force-finalizes stale generation runs during global reconciliation", async () => {
@@ -1308,13 +1349,7 @@ describe("RunsQueueManager scheduling", () => {
 		await manager.rehydrateAndReconcileRuns();
 
 		expect(runMap.get("run-stale-generation")?.status).toBe("completed");
-		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
-			expect.objectContaining({
-				id: "run-stale-generation",
-				status: "completed",
-			}),
-			{ marker: "generated", content: "" },
-		);
+		expectTransitionCall("generate:ok", { outcomeContent: "" });
 	});
 
 	it("does not finalize stale runs when inspection is transiently unavailable", async () => {
@@ -1341,9 +1376,8 @@ describe("RunsQueueManager scheduling", () => {
 		await manager.rehydrateAndReconcileRuns();
 
 		expect(runMap.get("run-stale-transient")?.status).toBe("running");
-		expect(mockTaskProjector.projectRunOutcome).not.toHaveBeenCalledWith(
-			expect.objectContaining({ id: "run-stale-transient" }),
-			expect.objectContaining({ marker: "generated" }),
+		expect(mockStateMachine.transition).not.toHaveBeenCalledWith(
+			expect.objectContaining({ trigger: "generate:ok" }),
 		);
 	});
 
@@ -1369,13 +1403,7 @@ describe("RunsQueueManager scheduling", () => {
 		const manager = new RunsQueueManager();
 		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
 
-		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
-			expect.objectContaining({
-				id: "run-settled-generation",
-				status: "completed",
-			}),
-			{ marker: "generated", content: "" },
-		);
+		expectTransitionCall("generate:ok", { outcomeContent: "" });
 	});
 
 	it("uses the marker-bearing assistant message as story content and strips the status line", async () => {
@@ -1433,19 +1461,15 @@ describe("RunsQueueManager scheduling", () => {
 		await waitForDrain();
 		await waitForDrain();
 
-		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
-			expect.objectContaining({ id: "run-story-content" }),
-			{
-				marker: "generated",
-				content: [
-					'<META>{"type":"bug"}</META>',
-					"<STORY>",
-					"## Title",
-					"Highlight icon",
-					"</STORY>",
-				].join("\n"),
-			},
-		);
+		expectTransitionCall("generate:ok", {
+			outcomeContent: [
+				'<META>{"type":"bug"}</META>',
+				"<STORY>",
+				"## Title",
+				"Highlight icon",
+				"</STORY>",
+			].join("\n"),
+		});
 	});
 
 	it("anchors extracted content to the completion marker message even if later assistant text exists", async () => {
@@ -1507,19 +1531,15 @@ describe("RunsQueueManager scheduling", () => {
 		await waitForDrain();
 		await waitForDrain();
 
-		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
-			expect.objectContaining({ id: "run-marker-anchor" }),
-			{
-				marker: "generated",
-				content: [
-					'<META>{"type":"feature"}</META>',
-					"<STORY>",
-					"## Title",
-					"Correct content",
-					"</STORY>",
-				].join("\n"),
-			},
-		);
+		expectTransitionCall("generate:ok", {
+			outcomeContent: [
+				'<META>{"type":"feature"}</META>',
+				"<STORY>",
+				"## Title",
+				"Correct content",
+				"</STORY>",
+			].join("\n"),
+		});
 	});
 
 	it("detects infrastructure network errors case-insensitively", () => {
@@ -1754,10 +1774,7 @@ describe("RunsQueueManager permission handling", () => {
 		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
 
 		expect(runMap.get("run-perm-4")?.status).toBe("failed");
-		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
-			expect.objectContaining({ id: "run-perm-4" }),
-			{ marker: "fail", content: "" },
-		);
+		expectTransitionCall("run:fail", { outcomeContent: "" });
 	});
 
 	it("ignores pending permission for a non-running run during reconciliation", async () => {
@@ -1919,12 +1936,11 @@ describe("RunsQueueManager permission handling", () => {
 		const manager = new RunsQueueManager();
 		await manager.reconcileProjectRuns("project-1");
 
-		expect(mockTaskProjector.projectRunStarted).toHaveBeenCalledWith(
-			expect.objectContaining({ id: "run-multi-running" }),
-		);
-		expect(mockTaskProjector.projectRunOutcome).not.toHaveBeenCalledWith(
-			expect.objectContaining({ id: "run-multi-paused" }),
-			expect.objectContaining({ marker: "question" }),
+		expectTransitionCall("run:start", {
+			task: expect.objectContaining({ id: "task-multi-active" }),
+		});
+		expect(mockStateMachine.transition).not.toHaveBeenCalledWith(
+			expect.objectContaining({ trigger: "run:question" }),
 		);
 	});
 });

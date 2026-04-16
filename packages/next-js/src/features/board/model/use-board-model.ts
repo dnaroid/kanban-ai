@@ -101,6 +101,8 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		message: null,
 	});
 
+	const [dirtyGitConfirm, setDirtyGitConfirm] = useState(false);
+
 	const pendingStoryGenerations = useRef<Map<string, string>>(new Map());
 	const pendingSseTaskRefreshIdsRef = useRef<Set<string>>(new Set());
 	const sseTaskRefreshDebounceTimerRef = useRef<number | null>(null);
@@ -783,21 +785,28 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		}
 	};
 
-	const handleStartReadyTasks = async () => {
+	const handleStartReadyTasks = async (force = false) => {
 		setIsQueueingSignalRuns(true);
 		try {
-			const result = await api.run.startReadyTasks({ projectId });
+			const result = await api.run.startReadyTasks({ projectId, force });
 			await refreshBoardTasksFromServer();
 			addToast("Tasks queued for execution", "success");
 			return result;
 		} catch (startError) {
-			console.error("Failed to queue runs:", startError);
-			addToast("Failed to queue tasks", "error");
-			throw new Error(
+			const message =
 				startError instanceof Error
 					? startError.message
-					: "Failed to queue runs",
-			);
+					: "Failed to queue runs";
+
+			if (message.startsWith("DIRTY_GIT:")) {
+				throw Object.assign(new Error(message.replace("DIRTY_GIT: ", "")), {
+					isDirtyGit: true,
+				});
+			}
+
+			console.error("Failed to queue runs:", startError);
+			addToast("Failed to queue tasks", "error");
+			throw new Error(message);
 		} finally {
 			setIsQueueingSignalRuns(false);
 		}
@@ -1126,6 +1135,8 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		setColumnHasTasksConfirm,
 		signalErrorConfirm,
 		setSignalErrorConfirm,
+		dirtyGitConfirm,
+		setDirtyGitConfirm,
 		bulkDeleteConfirm,
 		setBulkDeleteConfirm,
 		handleBulkDelete,

@@ -3,6 +3,7 @@ import { runService } from "@/server/run/run-service";
 
 interface StartReadyTasksBody {
 	projectId?: unknown;
+	force?: unknown;
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -18,7 +19,8 @@ export async function POST(request: Request): Promise<Response> {
 			);
 		}
 
-		const data = await runService.startReadyTasks(projectId);
+		const force = body.force === true;
+		const data = await runService.startReadyTasks(projectId, force);
 		return NextResponse.json({ success: true, data });
 	} catch (error) {
 		const message =

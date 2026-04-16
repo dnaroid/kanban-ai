@@ -693,6 +693,7 @@ export class RunService {
 
 	public async startReadyTasks(
 		projectId: string,
+		force?: boolean,
 	): Promise<StartRunsBySignalResult> {
 		const board = boardRepo.getByProjectId(projectId);
 		if (!board) {
@@ -737,13 +738,13 @@ export class RunService {
 		}
 
 		const project = projectRepo.getById(projectId);
-		if (project?.path) {
+		if (project?.path && !force) {
 			const hasChanges = await this.vcsManager.hasUncommittedChanges(
 				project.path,
 			);
 			if (hasChanges) {
 				throw new Error(
-					"Cannot start queue: working tree has uncommitted changes. Commit or stash them first.",
+					"DIRTY_GIT: working tree has uncommitted changes. Commit or stash them first.",
 				);
 			}
 		}

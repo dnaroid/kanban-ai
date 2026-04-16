@@ -19,13 +19,14 @@ import { runRepo } from "@/server/repositories/run";
 import { taskLinkRepo } from "@/server/repositories/task-link";
 import { taskRepo } from "@/server/repositories/task";
 import { boardRepo } from "@/server/repositories/board";
+import {
+	getTaskStateMachine,
+	resolveTransitionTrigger,
+	type TaskTransitionInput,
+	type TaskTransitionTrigger,
+} from "@/server/run/task-state-machine";
 import { getWorkflowColumnIdBySystemKey } from "@/server/workflow/task-workflow-manager";
 import { getWorkflowColumnSystemKey } from "@/server/workflow/task-workflow-manager";
-import { getRunTaskProjector } from "@/server/run/run-task-projector";
-import type {
-	RunOutcome,
-	RunOutcomeMarker,
-} from "@/server/run/run-task-projector";
 import { publishRunUpdate } from "@/server/run/run-publisher";
 import { publishSseEvent } from "@/server/events/sse-broker";
 import { getVcsManager } from "@/server/vcs/vcs-manager";
@@ -37,6 +38,23 @@ const generationRunKind = "task-description-improve";
 const agentRoleTagPrefix = "agent:";
 const dependencyReadyStatus = "done";
 const lateCompletionRecoveryWindowMs = 15 * 60 * 1000;
+
+type RunOutcomeMarker =
+	| "done"
+	| "generated"
+	| "fail"
+	| "test_ok"
+	| "test_fail"
+	| "dead"
+	| "question"
+	| "resumed"
+	| "cancelled"
+	| "timeout";
+
+type RunOutcome = {
+	marker: RunOutcomeMarker;
+	content: string;
+};
 
 const runPriorityScore: Record<TaskPriority, number> = {
 	postpone: 1,
@@ -351,7 +369,7 @@ export class RunsQueueManager {
 	private readonly activeRunSessions = new Map<string, string>();
 	private readonly opencodeService = getOpencodeService();
 	private readonly sessionManager = getOpencodeSessionManager();
-	private readonly taskProjector = getRunTaskProjector();
+	private readonly stateMachine = getTaskStateMachine();
 	private readonly vcsManager = getVcsManager();
 	private readonly defaultConcurrency = parsePositiveInt(
 		process.env.RUNS_DEFAULT_CONCURRENCY,
@@ -403,6 +421,107 @@ export class RunsQueueManager {
 			void this.rehydrateAndReconcileRuns();
 		});
 		this.schedulePeriodicReconciliation();
+	}
+
+	private applyTaskTransition(
+		run: Run,
+		trigger: TaskTransitionTrigger,
+		outcomeContent: string,
+		hasSessionExisted: boolean = true,
+	): void {
+		const task = taskRepo.getById(run.taskId);
+		if (!task) {
+			return;
+		}
+
+		const board =
+			typeof boardRepo.getById === "function"
+				? boardRepo.getById(task.boardId)
+				: boardRepo.getByProjectId(task.projectId);
+		if (!board) {
+			return;
+		}
+
+		const input: TaskTransitionInput & {
+			task: TaskTransitionInput["task"] & { tags: string };
+		} = {
+			task: {
+				id: task.id,
+				boardId: task.boardId,
+				status: task.status,
+				columnId: task.columnId,
+				tags: task.tags,
+			},
+			board,
+			trigger,
+			runKind: run.metadata?.kind ?? null,
+			outcomeContent,
+			hasSessionExisted,
+			isManualStatusGracePeriod: false,
+		};
+
+		const result = this.stateMachine.transition(input);
+		if (result.action !== "update") {
+			return;
+		}
+
+		taskRepo.update(task.id, result.patch);
+		for (const effect of result.effects) {
+			if (effect.type === "publishSse") {
+				publishSseEvent("task:event", {
+					taskId: task.id,
+					boardId: task.boardId,
+					projectId: effect.projectId,
+					updatedAt: new Date().toISOString(),
+				});
+			}
+		}
+	}
+
+	private resolveTriggerFromOutcome(
+		run: Run,
+		runStatus: RunStatus,
+		outcome: RunOutcome,
+	): TaskTransitionTrigger | null {
+		if (outcome.marker === "cancelled") {
+			return "run:cancelled";
+		}
+
+		if (outcome.marker === "resumed") {
+			return "run:answer";
+		}
+
+		if (outcome.marker === "question") {
+			return "run:question";
+		}
+
+		if (outcome.marker === "dead") {
+			return "run:dead";
+		}
+
+		if (outcome.marker === "timeout") {
+			return this.isGenerationRun(run) ? "generate:fail" : "run:fail";
+		}
+
+		const sessionMetaKind =
+			outcome.marker === "done" ||
+			outcome.marker === "generated" ||
+			outcome.marker === "test_ok"
+				? "completed"
+				: outcome.marker === "fail" || outcome.marker === "test_fail"
+					? "failed"
+					: null;
+
+		if (!sessionMetaKind) {
+			return null;
+		}
+
+		return resolveTransitionTrigger({
+			runStatus,
+			sessionMetaKind,
+			completionMarker: outcome.marker,
+			runKind: run.metadata?.kind ?? null,
+		});
 	}
 
 	private extractSessionPreferencesFromPreset(
@@ -556,10 +675,7 @@ export class RunsQueueManager {
 			payload: { status: "cancelled", message: "Run cancelled" },
 		});
 		publishRunUpdate(cancelled);
-		this.taskProjector.projectRunOutcome(cancelled, {
-			marker: "cancelled",
-			content: "",
-		});
+		this.applyTaskTransition(cancelled, "run:cancelled", "");
 
 		this.activeRunSessions.delete(runId);
 	}
@@ -762,7 +878,11 @@ export class RunsQueueManager {
 			payload: { status: "running", message: "Run started" },
 		});
 		publishRunUpdate(runningRun);
-		this.taskProjector.projectRunStarted(runningRun);
+		this.applyTaskTransition(
+			runningRun,
+			this.isGenerationRun(runningRun) ? "generate:start" : "run:start",
+			"",
+		);
 
 		try {
 			const runInput = this.runInputs.get(runId);
@@ -852,10 +972,11 @@ export class RunsQueueManager {
 				},
 			});
 			publishRunUpdate(failedRun);
-			this.taskProjector.projectRunOutcome(failedRun, {
-				marker: "fail",
-				content: message,
-			});
+			this.applyTaskTransition(
+				failedRun,
+				this.isGenerationRun(failedRun) ? "generate:fail" : "run:fail",
+				message,
+			);
 			this.activeRunSessions.delete(runId);
 			this.runInputs.delete(runId);
 		}
@@ -1050,10 +1171,11 @@ export class RunsQueueManager {
 			payload: { status: "failed", message: "Session not found" },
 		});
 
-		this.taskProjector.projectRunOutcome(failedRun, {
-			marker: "dead",
-			content: "Session not found or unreachable",
-		});
+		this.applyTaskTransition(
+			failedRun,
+			"run:dead",
+			"Session not found or unreachable",
+		);
 
 		publishRunUpdate(failedRun);
 		this.activeRunSessions.delete(runId);
@@ -1109,10 +1231,11 @@ export class RunsQueueManager {
 		});
 		publishRunUpdate(pausedRun);
 
-		this.taskProjector.projectRunOutcome(pausedRun, {
-			marker: "question",
-			content: `Permission requested: ${permission.title}`,
-		});
+		this.applyTaskTransition(
+			pausedRun,
+			"run:question",
+			`Permission requested: ${permission.title}`,
+		);
 	}
 
 	private async pauseRunForPendingQuestion(
@@ -1158,10 +1281,7 @@ export class RunsQueueManager {
 		});
 		publishRunUpdate(pausedRun);
 
-		this.taskProjector.projectRunOutcome(pausedRun, {
-			marker: "question",
-			content: "Question asked",
-		});
+		this.applyTaskTransition(pausedRun, "run:question", "Question asked");
 	}
 
 	private async resumeRunAfterPermissionApproval(
@@ -1194,10 +1314,11 @@ export class RunsQueueManager {
 			},
 		});
 		publishRunUpdate(resumedRun);
-		this.taskProjector.projectRunOutcome(resumedRun, {
-			marker: "resumed",
-			content: `Permission approved: ${permissionId}`,
-		});
+		this.applyTaskTransition(
+			resumedRun,
+			"run:answer",
+			`Permission approved: ${permissionId}`,
+		);
 	}
 
 	private async resumeRunAfterQuestionAnswered(
@@ -1230,10 +1351,7 @@ export class RunsQueueManager {
 			},
 		});
 		publishRunUpdate(resumedRun);
-		this.taskProjector.projectRunOutcome(resumedRun, {
-			marker: "resumed",
-			content: "Question answered",
-		});
+		this.applyTaskTransition(resumedRun, "run:answer", "Question answered");
 	}
 
 	private async resumeOrphanedPausedRun(runId: string): Promise<void> {
@@ -1256,10 +1374,11 @@ export class RunsQueueManager {
 			},
 		});
 		publishRunUpdate(resumedRun);
-		this.taskProjector.projectRunOutcome(resumedRun, {
-			marker: "resumed",
-			content: "Resumed orphaned paused run",
-		});
+		this.applyTaskTransition(
+			resumedRun,
+			"run:answer",
+			"Resumed orphaned paused run",
+		);
 	}
 
 	private getAwaitingPermissionId(runId: string): string | null {
@@ -1374,7 +1493,10 @@ export class RunsQueueManager {
 		});
 
 		try {
-			this.taskProjector.projectRunOutcome(nextRun, outcome);
+			const trigger = this.resolveTriggerFromOutcome(nextRun, status, outcome);
+			if (trigger) {
+				this.applyTaskTransition(nextRun, trigger, outcome.content);
+			}
 			if (
 				status === "completed" &&
 				this.isGenerationRun(nextRun) &&
@@ -1654,10 +1776,18 @@ export class RunsQueueManager {
 			}
 
 			try {
-				this.taskProjector.projectRunOutcome(latestSettledRun, {
-					marker: derivedMarker,
-					content: derivedContent,
-				});
+				const trigger = this.resolveTriggerFromOutcome(
+					latestSettledRun,
+					latestSettledRun.status,
+					{
+						marker: derivedMarker,
+						content: derivedContent,
+					},
+				);
+				if (!trigger) {
+					continue;
+				}
+				this.applyTaskTransition(latestSettledRun, trigger, derivedContent);
 				log.info("Reconciled task status from latest settled run", {
 					projectId,
 					taskId: task.id,
@@ -1687,17 +1817,22 @@ export class RunsQueueManager {
 				? "generating"
 				: "running";
 			if (task.status !== nextStatus) {
-				this.taskProjector.projectRunStarted(runningRun);
+				this.applyTaskTransition(
+					runningRun,
+					this.isGenerationRun(runningRun) ? "generate:start" : "run:start",
+					"",
+				);
 			}
 			return;
 		}
 
 		const pausedRun = activeRuns.find((run) => run.status === "paused");
 		if (pausedRun && task.status !== "question") {
-			this.taskProjector.projectRunOutcome(pausedRun, {
-				marker: "question",
-				content: "Run paused awaiting input",
-			});
+			this.applyTaskTransition(
+				pausedRun,
+				"run:question",
+				"Run paused awaiting input",
+			);
 		}
 	}
 
@@ -1959,10 +2094,11 @@ export class RunsQueueManager {
 				},
 			});
 			publishRunUpdate(resumedRun);
-			this.taskProjector.projectRunOutcome(resumedRun, {
-				marker: "resumed",
-				content: "Run resumed during reconciliation",
-			});
+			this.applyTaskTransition(
+				resumedRun,
+				"run:answer",
+				"Run resumed during reconciliation",
+			);
 			log.info("Reattached queued run as running during reconciliation", {
 				runId: run.id,
 				sessionId,
@@ -2056,10 +2192,11 @@ export class RunsQueueManager {
 			createdAt: permission.createdAt,
 		});
 		publishRunUpdate(pausedRun);
-		this.taskProjector.projectRunOutcome(pausedRun, {
-			marker: "question",
-			content: `Permission requested: ${permission.title}`,
-		});
+		this.applyTaskTransition(
+			pausedRun,
+			"run:question",
+			`Permission requested: ${permission.title}`,
+		);
 		return pausedRun;
 	}
 
@@ -2089,10 +2226,7 @@ export class RunsQueueManager {
 			createdAt: question.createdAt,
 		});
 		publishRunUpdate(pausedRun);
-		this.taskProjector.projectRunOutcome(pausedRun, {
-			marker: "question",
-			content: "Question asked",
-		});
+		this.applyTaskTransition(pausedRun, "run:question", "Question asked");
 		return pausedRun;
 	}
 
@@ -2123,10 +2257,11 @@ export class RunsQueueManager {
 			},
 		});
 		publishRunUpdate(failedRun);
-		this.taskProjector.projectRunOutcome(failedRun, {
-			marker: "fail",
-			content: assistantContent,
-		});
+		this.applyTaskTransition(
+			failedRun,
+			this.isGenerationRun(failedRun) ? "generate:fail" : "run:fail",
+			assistantContent,
+		);
 
 		this.activeRunSessions.delete(run.id);
 		this.removeFromQueue(run.id);

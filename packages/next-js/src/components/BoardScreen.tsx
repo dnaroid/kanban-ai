@@ -81,6 +81,8 @@ export function BoardScreen({
 		setColumnHasTasksConfirm,
 		signalErrorConfirm,
 		setSignalErrorConfirm,
+		dirtyGitConfirm,
+		setDirtyGitConfirm,
 		bulkDeleteConfirm,
 		setBulkDeleteConfirm,
 		handleBulkDelete,
@@ -263,7 +265,14 @@ export function BoardScreen({
 					<button
 						type="button"
 						onClick={() => {
-							void handleStartReadyTasks().catch((startError) => {
+							void handleStartReadyTasks(false).catch((startError) => {
+								if (
+									startError instanceof Error &&
+									(startError as Error & { isDirtyGit?: boolean }).isDirtyGit
+								) {
+									setDirtyGitConfirm(true);
+									return;
+								}
 								const message =
 									startError instanceof Error
 										? startError.message
@@ -480,6 +489,26 @@ export function BoardScreen({
 					}
 					confirmLabel="Close"
 					variant="danger"
+				/>
+
+				<ConfirmationModal
+					isOpen={dirtyGitConfirm}
+					onClose={() => setDirtyGitConfirm(false)}
+					onConfirm={() => {
+						void handleStartReadyTasks(true).catch((forceError) => {
+							const message =
+								forceError instanceof Error
+									? forceError.message
+									: "Failed to queue tasks";
+							setSignalErrorConfirm({ isOpen: true, message });
+							addToast(message, "error");
+						});
+					}}
+					title="Uncommitted Changes Detected"
+					description="The working tree has uncommitted changes. Running tasks with a dirty git state may cause conflicts or data loss. Proceed at your own risk."
+					confirmLabel="Run Anyway"
+					cancelLabel="Cancel"
+					variant="warning"
 				/>
 
 				<ConfirmationModal

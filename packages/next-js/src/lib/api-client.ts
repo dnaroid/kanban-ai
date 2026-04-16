@@ -262,8 +262,10 @@ class ApiClient {
 		},
 		startReadyTasks: async ({
 			projectId,
+			force,
 		}: {
 			projectId: string;
+			force?: boolean;
 		}): Promise<{
 			startedCount: number;
 			skippedNoRuleCount: number;
@@ -274,7 +276,7 @@ class ApiClient {
 			const response = await fetch(`${this.baseUrl}/api/run/startReadyTasks`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ projectId }),
+				body: JSON.stringify({ projectId, force: force ?? false }),
 			});
 			if (!response.ok) {
 				const message = await this.getErrorMessage(
