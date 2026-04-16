@@ -345,10 +345,7 @@ export function ToolPart({
 						{part.tool}
 					</span>
 					{toolFilePath && (
-						<span
-							className="text-[10px] font-mono text-slate-500 truncate max-w-[300px]"
-							title={toolFilePath}
-						>
+						<span className="text-[10px] font-mono text-slate-400">
 							{toolFilePath}
 						</span>
 					)}
