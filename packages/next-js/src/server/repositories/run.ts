@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import type Database from "better-sqlite3";
 import type { Run, RunStatus } from "@/types/ipc";
 import { dbManager } from "@/server/db";
 
@@ -97,13 +98,15 @@ function mapRunRow(row: RunRow): Run {
 }
 
 export class RunRepository {
+	constructor(private db: Database.Database) {}
+
 	public create(input: CreateRunInput): Run {
-		const db = dbManager.connect();
 		const id = randomUUID();
 		const now = new Date().toISOString();
 
-		db.prepare(
-			`INSERT INTO runs (
+		this.db
+			.prepare(
+				`INSERT INTO runs (
 				id,
 				task_id,
 				role_id,
@@ -124,27 +127,28 @@ export class RunRepository {
 				created_at,
 				updated_at
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		).run(
-			id,
-			input.taskId,
-			input.roleId,
-			input.mode ?? "execute",
-			input.kind ?? "task-run",
-			"queued",
-			null,
-			null,
-			null,
-			"",
-			JSON.stringify({}),
-			serializeMetadata(input.metadata),
-			input.contextSnapshotId,
-			0,
-			0,
-			0,
-			0,
-			now,
-			now,
-		);
+			)
+			.run(
+				id,
+				input.taskId,
+				input.roleId,
+				input.mode ?? "execute",
+				input.kind ?? "task-run",
+				"queued",
+				null,
+				null,
+				null,
+				"",
+				JSON.stringify({}),
+				serializeMetadata(input.metadata),
+				input.contextSnapshotId,
+				0,
+				0,
+				0,
+				0,
+				now,
+				now,
+			);
 
 		const run = this.getById(id);
 		if (!run) {
@@ -155,24 +159,21 @@ export class RunRepository {
 	}
 
 	public getById(runId: string): Run | null {
-		const db = dbManager.connect();
-		const row = db.prepare("SELECT * FROM runs WHERE id = ?").get(runId) as
+		const row = this.db.prepare("SELECT * FROM runs WHERE id = ?").get(runId) as
 			| RunRow
 			| undefined;
 		return row ? mapRunRow(row) : null;
 	}
 
 	public listByTask(taskId: string): Run[] {
-		const db = dbManager.connect();
-		const rows = db
+		const rows = this.db
 			.prepare("SELECT * FROM runs WHERE task_id = ? ORDER BY created_at DESC")
 			.all(taskId) as RunRow[];
 		return rows.map(mapRunRow);
 	}
 
 	public listByStatus(status: RunStatus): Run[] {
-		const db = dbManager.connect();
-		const rows = db
+		const rows = this.db
 			.prepare("SELECT * FROM runs WHERE status = ? ORDER BY created_at ASC")
 			.all(status) as RunRow[];
 		return rows.map(mapRunRow);
@@ -183,9 +184,8 @@ export class RunRepository {
 			return [];
 		}
 
-		const db = dbManager.connect();
 		const placeholders = statuses.map(() => "?").join(", ");
-		const rows = db
+		const rows = this.db
 			.prepare(
 				`SELECT * FROM runs WHERE status IN (${placeholders}) ORDER BY created_at ASC`,
 			)
@@ -194,7 +194,6 @@ export class RunRepository {
 	}
 
 	public update(runId: string, patch: UpdateRunInput): Run {
-		const db = dbManager.connect();
 		const updates: string[] = ["updated_at = ?"];
 		const values: unknown[] = [new Date().toISOString()];
 
@@ -236,9 +235,9 @@ export class RunRepository {
 		}
 
 		values.push(runId);
-		db.prepare(`UPDATE runs SET ${updates.join(", ")} WHERE id = ?`).run(
-			...values,
-		);
+		this.db
+			.prepare(`UPDATE runs SET ${updates.join(", ")} WHERE id = ?`)
+			.run(...values);
 
 		const run = this.getById(runId);
 		if (!run) {
@@ -249,9 +248,8 @@ export class RunRepository {
 	}
 
 	public delete(runId: string): void {
-		const db = dbManager.connect();
-		db.prepare("DELETE FROM runs WHERE id = ?").run(runId);
+		this.db.prepare("DELETE FROM runs WHERE id = ?").run(runId);
 	}
 }
 
-export const runRepo = new RunRepository();
+export const runRepo = new RunRepository(dbManager.connect());

@@ -1,3 +1,4 @@
+import type Database from "better-sqlite3";
 import { dbManager } from "../db";
 
 export interface AppSetting {
@@ -7,9 +8,10 @@ export interface AppSetting {
 }
 
 export class AppSettingsRepository {
+	constructor(private db: Database.Database) {}
+
 	get(key: string): string | null {
-		const db = dbManager.connect();
-		const stmt = db.prepare(`
+		const stmt = this.db.prepare(`
       SELECT value FROM app_settings WHERE key = ?
     `);
 		const row = stmt.get(key) as { value: string } | undefined;
@@ -17,10 +19,9 @@ export class AppSettingsRepository {
 	}
 
 	set(key: string, value: string): void {
-		const db = dbManager.connect();
 		const now = new Date().toISOString();
 
-		const stmt = db.prepare(`
+		const stmt = this.db.prepare(`
       INSERT INTO app_settings (key, value, updated_at)
       VALUES (?, ?, ?)
       ON CONFLICT(key) DO UPDATE SET
@@ -48,4 +49,4 @@ export class AppSettingsRepository {
 	}
 }
 
-export const appSettingsRepo = new AppSettingsRepository();
+export const appSettingsRepo = new AppSettingsRepository(dbManager.connect());

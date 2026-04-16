@@ -102,6 +102,8 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 	});
 
 	const pendingStoryGenerations = useRef<Map<string, string>>(new Map());
+	const pendingSseTaskRefreshIdsRef = useRef<Set<string>>(new Set());
+	const sseTaskRefreshDebounceTimerRef = useRef<number | null>(null);
 
 	const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState<{
 		isOpen: boolean;
@@ -208,6 +210,24 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			console.error("Failed to refresh board tasks from server:", refreshError);
 		}
 	}, [board]);
+	const refreshSingleTaskFromServer = refreshTaskFromServer;
+
+	const scheduleDebouncedBoardTasksRefresh = useCallback(
+		(taskId: string) => {
+			pendingSseTaskRefreshIdsRef.current.add(taskId);
+
+			if (sseTaskRefreshDebounceTimerRef.current !== null) {
+				window.clearTimeout(sseTaskRefreshDebounceTimerRef.current);
+			}
+
+			sseTaskRefreshDebounceTimerRef.current = window.setTimeout(() => {
+				sseTaskRefreshDebounceTimerRef.current = null;
+				pendingSseTaskRefreshIdsRef.current.clear();
+				void refreshBoardTasksFromServer();
+			}, 100);
+		},
+		[refreshBoardTasksFromServer],
+	);
 
 	const isBoardRoute = pathname === `/board/${projectId}`;
 
@@ -267,6 +287,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 
 	useEffect(() => {
 		const token = localStorage.getItem("token");
+		const pendingSseTaskRefreshIds = pendingSseTaskRefreshIdsRef.current;
 		const params = new URLSearchParams();
 		if (token) {
 			params.set("token", token);
@@ -291,6 +312,11 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 					(payload.projectId && payload.projectId === projectId);
 
 				if (matchesBoard && payload.eventType) {
+					if (sseTaskRefreshDebounceTimerRef.current !== null) {
+						window.clearTimeout(sseTaskRefreshDebounceTimerRef.current);
+						sseTaskRefreshDebounceTimerRef.current = null;
+					}
+					pendingSseTaskRefreshIds.clear();
 					void refreshBoardTasksFromServer();
 					return;
 				}
@@ -299,7 +325,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 					return;
 				}
 
-				void refreshTaskFromServer(payload.taskId);
+				scheduleDebouncedBoardTasksRefresh(payload.taskId);
 			} catch (eventError) {
 				console.error("Failed to parse task:event payload:", eventError);
 			}
@@ -333,7 +359,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 					});
 				}
 
-				void refreshTaskFromServer(payload.taskId);
+				scheduleDebouncedBoardTasksRefresh(payload.taskId);
 			} catch (eventError) {
 				console.error("Failed to parse run:event payload:", eventError);
 			}
@@ -347,6 +373,11 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		};
 
 		return () => {
+			if (sseTaskRefreshDebounceTimerRef.current !== null) {
+				window.clearTimeout(sseTaskRefreshDebounceTimerRef.current);
+				sseTaskRefreshDebounceTimerRef.current = null;
+			}
+			pendingSseTaskRefreshIds.clear();
 			eventSource.removeEventListener("task:event", onTaskEvent);
 			eventSource.removeEventListener("run:event", onRunEvent);
 			eventSource.close();
@@ -354,8 +385,8 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 	}, [
 		board,
 		projectId,
-		refreshTaskFromServer,
 		refreshBoardTasksFromServer,
+		scheduleDebouncedBoardTasksRefresh,
 		addToast,
 		router,
 	]);
@@ -1078,6 +1109,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		handleColumnSubmit,
 		handleDeleteColumn,
 		handleTaskUpdate,
+		refreshTaskFromServer: refreshSingleTaskFromServer,
 		handleContextAction,
 		closeColumnModal,
 		openEditColumnModal,

@@ -1,3 +1,4 @@
+import type Database from "better-sqlite3";
 import { dbManager } from "@/server/db";
 
 export interface AgentRole {
@@ -33,9 +34,10 @@ interface AgentRolePresetRow {
 }
 
 export class RoleRepository {
+	constructor(private db: Database.Database) {}
+
 	public list(): AgentRole[] {
-		const db = dbManager.connect();
-		return db
+		return this.db
 			.prepare(
 				"SELECT id, name, description FROM agent_roles ORDER BY created_at ASC",
 			)
@@ -43,8 +45,7 @@ export class RoleRepository {
 	}
 
 	public listWithPresets(): (AgentRole & { preset_json: string })[] {
-		const db = dbManager.connect();
-		return db
+		return this.db
 			.prepare(
 				"SELECT id, name, description, preset_json, preferred_model_name, preferred_model_variant, preferred_llm_agent FROM agent_roles ORDER BY created_at ASC",
 			)
@@ -52,8 +53,7 @@ export class RoleRepository {
 	}
 
 	public getPresetJson(roleId: string): string | null {
-		const db = dbManager.connect();
-		const row = db
+		const row = this.db
 			.prepare("SELECT preset_json FROM agent_roles WHERE id = ?")
 			.get(roleId) as AgentRolePresetRow | undefined;
 
@@ -65,11 +65,11 @@ export class RoleRepository {
 	}
 
 	public upsert(role: AgentRole & { preset_json: string }): void {
-		const db = dbManager.connect();
 		const now = new Date().toISOString();
 
-		db.prepare(
-			`INSERT INTO agent_roles (
+		this.db
+			.prepare(
+				`INSERT INTO agent_roles (
 				id,
 				name,
 				description,
@@ -89,23 +89,23 @@ export class RoleRepository {
 				preferred_model_variant = excluded.preferred_model_variant,
 				preferred_llm_agent = excluded.preferred_llm_agent,
 				updated_at = excluded.updated_at`,
-		).run(
-			role.id,
-			role.name,
-			role.description,
-			role.preset_json,
-			role.preferred_model_name ?? null,
-			role.preferred_model_variant ?? null,
-			role.preferred_llm_agent ?? null,
-			now,
-			now,
-		);
+			)
+			.run(
+				role.id,
+				role.name,
+				role.description,
+				role.preset_json,
+				role.preferred_model_name ?? null,
+				role.preferred_model_variant ?? null,
+				role.preferred_llm_agent ?? null,
+				now,
+				now,
+			);
 	}
 
 	public delete(id: string): void {
-		const db = dbManager.connect();
-		db.prepare("DELETE FROM agent_roles WHERE id = ?").run(id);
+		this.db.prepare("DELETE FROM agent_roles WHERE id = ?").run(id);
 	}
 }
 
-export const roleRepo = new RoleRepository();
+export const roleRepo = new RoleRepository(dbManager.connect());

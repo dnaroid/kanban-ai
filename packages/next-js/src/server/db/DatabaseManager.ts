@@ -42,8 +42,6 @@ export class DatabaseManager {
 		this.seedAgentRoles();
 		this.backfillRoleBehaviorMetadata();
 
-		console.log("[DB] Connected to database:", this.dbPath);
-
 		return this.db;
 	}
 

@@ -1,15 +1,17 @@
 import { randomUUID } from "crypto";
+import type Database from "better-sqlite3";
 import { dbManager } from "../db";
 import type { Project, CreateProjectInput, UpdateProjectInput } from "../types";
 
 export class ProjectRepository {
+	constructor(private db: Database.Database) {}
+
 	create(input: CreateProjectInput): Project {
-		const db = dbManager.connect();
 		const now = new Date().toISOString();
 		const id = randomUUID();
 		const color = input.color ?? "";
 
-		const stmt = db.prepare(`
+		const stmt = this.db.prepare(`
       INSERT INTO projects (id, name, path, color, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?)
     `);
@@ -28,8 +30,7 @@ export class ProjectRepository {
 	}
 
 	getAll(): Project[] {
-		const db = dbManager.connect();
-		const stmt = db.prepare(`
+		const stmt = this.db.prepare(`
       SELECT
         p.id,
         p.name,
@@ -68,8 +69,7 @@ export class ProjectRepository {
 	}
 
 	getById(id: string): Project | null {
-		const db = dbManager.connect();
-		const stmt = db.prepare(`
+		const stmt = this.db.prepare(`
       SELECT id, name, path, color, created_at as createdAt, updated_at as updatedAt, NULL as lastActivityAt
       FROM projects
       WHERE id = ?
@@ -79,7 +79,6 @@ export class ProjectRepository {
 	}
 
 	update(id: string, updates: UpdateProjectInput): Project | null {
-		const db = dbManager.connect();
 		const now = new Date().toISOString();
 
 		const sets: string[] = [];
@@ -102,7 +101,7 @@ export class ProjectRepository {
 
 		values.push(now, id);
 
-		const stmt = db.prepare(`
+		const stmt = this.db.prepare(`
       UPDATE projects
       SET ${sets.join(", ")}, updated_at = ?
       WHERE id = ?
@@ -114,11 +113,10 @@ export class ProjectRepository {
 	}
 
 	delete(id: string): boolean {
-		const db = dbManager.connect();
-		const stmt = db.prepare("DELETE FROM projects WHERE id = ?");
+		const stmt = this.db.prepare("DELETE FROM projects WHERE id = ?");
 		const result = stmt.run(id);
 		return result.changes > 0;
 	}
 }
 
-export const projectRepo = new ProjectRepository();
+export const projectRepo = new ProjectRepository(dbManager.connect());

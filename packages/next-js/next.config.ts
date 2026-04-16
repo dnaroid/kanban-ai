@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+	serverExternalPackages: ["better-sqlite3", "bindings", "file-uri-to-path"],
 	experimental: {
 		// Optimize imports for faster compilation - strips unused exports at build time
 		optimizePackageImports: [

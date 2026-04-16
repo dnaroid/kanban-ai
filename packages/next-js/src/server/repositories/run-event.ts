@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import type Database from "better-sqlite3";
 import type { RunEvent } from "@/types/ipc";
 import { dbManager } from "@/server/db";
 
@@ -37,14 +38,16 @@ function mapRunEvent(row: RunEventRow): RunEvent {
 }
 
 export class RunEventRepository {
+	constructor(private db: Database.Database) {}
+
 	public create(input: CreateRunEventInput): RunEvent {
-		const db = dbManager.connect();
 		const id = randomUUID();
 		const ts = new Date().toISOString();
 		const payloadJson = JSON.stringify(input.payload);
 
-		db.prepare(
-			`INSERT INTO run_events (
+		this.db
+			.prepare(
+				`INSERT INTO run_events (
 				id,
 				run_id,
 				ts,
@@ -52,14 +55,15 @@ export class RunEventRepository {
 				payload_json,
 				message_id
 			) VALUES (?, ?, ?, ?, ?, ?)`,
-		).run(
-			id,
-			input.runId,
-			ts,
-			input.eventType,
-			payloadJson,
-			input.messageId ?? null,
-		);
+			)
+			.run(
+				id,
+				input.runId,
+				ts,
+				input.eventType,
+				payloadJson,
+				input.messageId ?? null,
+			);
 
 		return {
 			id,
@@ -71,8 +75,7 @@ export class RunEventRepository {
 	}
 
 	public listByRun(runId: string, limit = 200): RunEvent[] {
-		const db = dbManager.connect();
-		const rows = db
+		const rows = this.db
 			.prepare(
 				"SELECT * FROM run_events WHERE run_id = ? ORDER BY ts DESC LIMIT ?",
 			)
@@ -82,4 +85,4 @@ export class RunEventRepository {
 	}
 }
 
-export const runEventRepo = new RunEventRepository();
+export const runEventRepo = new RunEventRepository(dbManager.connect());

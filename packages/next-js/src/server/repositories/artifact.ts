@@ -1,3 +1,4 @@
+import type Database from "better-sqlite3";
 import type { Artifact } from "@/types/ipc";
 import { dbManager } from "@/server/db";
 
@@ -22,9 +23,10 @@ function mapArtifact(row: ArtifactRow): Artifact {
 }
 
 export class ArtifactRepository {
+	constructor(private db: Database.Database) {}
+
 	public listByRun(runId: string): Artifact[] {
-		const db = dbManager.connect();
-		const rows = db
+		const rows = this.db
 			.prepare(
 				"SELECT id, run_id, kind, title, content, created_at FROM artifacts WHERE run_id = ? ORDER BY created_at DESC",
 			)
@@ -34,8 +36,7 @@ export class ArtifactRepository {
 	}
 
 	public getById(artifactId: string): Artifact | null {
-		const db = dbManager.connect();
-		const row = db
+		const row = this.db
 			.prepare(
 				"SELECT id, run_id, kind, title, content, created_at FROM artifacts WHERE id = ?",
 			)
@@ -45,4 +46,4 @@ export class ArtifactRepository {
 	}
 }
 
-export const artifactRepo = new ArtifactRepository();
+export const artifactRepo = new ArtifactRepository(dbManager.connect());

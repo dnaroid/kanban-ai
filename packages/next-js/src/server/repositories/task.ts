@@ -1,10 +1,12 @@
 import { randomUUID } from "crypto";
+import type Database from "better-sqlite3";
 import { dbManager } from "../db";
 import type { Task, CreateTaskInput, UpdateTaskInput } from "../types";
 
 export class TaskRepository {
+	constructor(private db: Database.Database) {}
+
 	create(input: CreateTaskInput): Task {
-		const db = dbManager.connect();
 		const now = new Date().toISOString();
 		const id = randomUUID();
 		const status = typeof input.status === "string" ? input.status.trim() : "";
@@ -19,7 +21,7 @@ export class TaskRepository {
 		const tags = input.tags ? JSON.stringify(input.tags) : "[]";
 
 		// Get the max order_in_column for this column
-		const maxOrderStmt = db.prepare(`
+		const maxOrderStmt = this.db.prepare(`
 			SELECT COALESCE(MAX(order_in_column), -1) as maxOrder
 			FROM tasks
 			WHERE board_id = ? AND column_id = ?
@@ -29,7 +31,7 @@ export class TaskRepository {
 		};
 		const orderInColumn = result.maxOrder + 1;
 
-		const stmt = db.prepare(`
+		const stmt = this.db.prepare(`
       INSERT INTO tasks (
 				id, project_id, board_id, column_id, title, description, description_md,
 				status, blocked_reason, closed_reason, priority, difficulty, type, order_in_column, tags_json,
@@ -70,8 +72,7 @@ export class TaskRepository {
 	}
 
 	listByBoard(boardId: string): Task[] {
-		const db = dbManager.connect();
-		const stmt = db.prepare(`
+		const stmt = this.db.prepare(`
       SELECT
         id,
         project_id as projectId,
@@ -106,8 +107,7 @@ export class TaskRepository {
 	}
 
 	getById(id: string): Task | null {
-		const db = dbManager.connect();
-		const stmt = db.prepare(`
+		const stmt = this.db.prepare(`
       SELECT
         id,
         project_id as projectId,
@@ -141,7 +141,6 @@ export class TaskRepository {
 	}
 
 	update(id: string, updates: UpdateTaskInput): Task | null {
-		const db = dbManager.connect();
 		const now = new Date().toISOString();
 
 		const sets: string[] = [];
@@ -228,7 +227,7 @@ export class TaskRepository {
 
 		values.push(now, id);
 
-		const stmt = db.prepare(`
+		const stmt = this.db.prepare(`
       UPDATE tasks
       SET ${sets.join(", ")}, updated_at = ?
       WHERE id = ?
@@ -240,7 +239,6 @@ export class TaskRepository {
 	}
 
 	move(id: string, columnId: string, toIndex?: number): Task | null {
-		const db = dbManager.connect();
 		const now = new Date().toISOString();
 
 		// Get the task to move
@@ -249,7 +247,7 @@ export class TaskRepository {
 
 		// If no index provided, move to end of column
 		if (toIndex === undefined) {
-			const maxOrderStmt = db.prepare(`
+			const maxOrderStmt = this.db.prepare(`
 				SELECT COALESCE(MAX(order_in_column), -1) as maxOrder
 				FROM tasks
 				WHERE board_id = ? AND column_id = ?
@@ -260,7 +258,7 @@ export class TaskRepository {
 			toIndex = result.maxOrder + 1;
 		}
 
-		const stmt = db.prepare(`
+		const stmt = this.db.prepare(`
       UPDATE tasks
       SET column_id = ?, order_in_column = ?, updated_at = ?
       WHERE id = ?
@@ -272,11 +270,10 @@ export class TaskRepository {
 	}
 
 	delete(id: string): boolean {
-		const db = dbManager.connect();
-		const stmt = db.prepare("DELETE FROM tasks WHERE id = ?");
+		const stmt = this.db.prepare("DELETE FROM tasks WHERE id = ?");
 		const result = stmt.run(id);
 		return result.changes > 0;
 	}
 }
 
-export const taskRepo = new TaskRepository();
+export const taskRepo = new TaskRepository(dbManager.connect());

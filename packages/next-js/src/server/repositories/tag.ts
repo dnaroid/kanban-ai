@@ -1,3 +1,4 @@
+import type Database from "better-sqlite3";
 import { dbManager } from "../db";
 
 export interface Tag {
@@ -9,9 +10,10 @@ export interface Tag {
 }
 
 class TagRepository {
+	constructor(private db: Database.Database) {}
+
 	listAll(): Tag[] {
-		const db = dbManager.connect();
-		const stmt = db.prepare(`
+		const stmt = this.db.prepare(`
 			SELECT
 				id,
 				name,
@@ -29,4 +31,4 @@ class TagRepository {
 	}
 }
 
-export const tagRepo = new TagRepository();
+export const tagRepo = new TagRepository(dbManager.connect());
