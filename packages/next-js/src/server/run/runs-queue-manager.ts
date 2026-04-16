@@ -2557,7 +2557,7 @@ export class RunsQueueManager {
 			(task) =>
 				task.columnId === readyColumnId &&
 				task.priority !== "postpone" &&
-				task.status === "pending",
+				(task.status === "pending" || task.status === "rejected"),
 		);
 
 		if (readyTasks.length === 0) {

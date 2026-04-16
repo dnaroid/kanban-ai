@@ -89,18 +89,27 @@ export default function DiagnosticsPage() {
 				setIsRestartWarningOpen(true);
 				return;
 			}
-		} catch {
-			// Fail-open: if session check fails, proceed with restart
-		}
-		await performRestart();
+		} catch {}
+		await performRestart(false);
 	};
 
-	const performRestart = async (force = false) => {
+	const performRestart = async (force: boolean) => {
 		setIsRestarting(true);
 		try {
 			await api.opencode.restartServe({ force });
 			await loadStats();
 		} catch (err) {
+			if (!force && err instanceof Error) {
+				try {
+					const stats = await api.opencode.activeSessionStats();
+					if (stats.busySessions > 0) {
+						setIsRestarting(false);
+						setRestartBusySessionCount(stats.busySessions);
+						setIsRestartWarningOpen(true);
+						return;
+					}
+				} catch {}
+			}
 			console.error("Failed to restart opencode serve:", err);
 			setError(
 				err instanceof Error ? err.message : "Failed to restart opencode serve",
