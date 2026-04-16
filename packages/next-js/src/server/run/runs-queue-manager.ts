@@ -1,4 +1,5 @@
 import { createLogger } from "@/lib/logger";
+import { extractOpencodeStatus } from "@/lib/opencode-status";
 import { buildTaskPrompt } from "@/server/run/prompts/task";
 import type {
 	PermissionData,
@@ -98,7 +99,7 @@ function deriveMetaStatus(
 ): SessionMetaStatus {
 	if (inspection.completionMarker) {
 		const marker = inspection.completionMarker.signalKey as RunOutcomeMarker;
-		const content = findCompletionContent(inspection);
+		const content = findStoryContent(inspection);
 		if (marker === "done" || marker === "generated" || marker === "test_ok") {
 			return { kind: "completed", marker, content };
 		}
@@ -142,6 +143,45 @@ function findCompletionContent(inspection: SessionInspectionResult): string {
 		}
 	}
 	return "";
+}
+
+function stripOpencodeStatusLine(content: string): string {
+	const status = extractOpencodeStatus(content);
+	if (!status) {
+		return content.trim();
+	}
+
+	return content
+		.split(/\r?\n/)
+		.filter((_, index) => index !== status.statusLineIndex)
+		.join("\n")
+		.trim();
+}
+
+function findStoryContent(inspection: SessionInspectionResult): string {
+	const markerContent = inspection.completionMarker?.messageContent;
+	if (typeof markerContent === "string" && markerContent.trim().length > 0) {
+		return stripOpencodeStatusLine(markerContent);
+	}
+
+	for (let i = inspection.messages.length - 1; i >= 0; i--) {
+		const msg = inspection.messages[i];
+		if (msg.role !== "assistant") {
+			continue;
+		}
+		const status = extractOpencodeStatus(msg.content);
+		if (status) {
+			const cleaned = stripOpencodeStatusLine(msg.content);
+			if (cleaned.length > 0) {
+				return cleaned;
+			}
+			continue;
+		}
+		if (msg.content.trim().length > 0) {
+			return msg.content.trim();
+		}
+	}
+	return stripOpencodeStatusLine(findCompletionContent(inspection));
 }
 
 function getRunErrorText(run: Run): string {
@@ -352,6 +392,7 @@ export class RunsQueueManager {
 	private readonly projectBoardWatcherTtlMs = 15_000;
 	private readonly reconciliationIntervalMs = 30_000;
 	private readonly staleRunThresholdMs = 10 * 60 * 1000;
+	private readonly manualStatusGraceMs = 15_000;
 	private readonly retryTimers = new Map<
 		string,
 		ReturnType<typeof setTimeout>
@@ -1486,6 +1527,11 @@ export class RunsQueueManager {
 		tasks: Task[],
 	): Promise<void> {
 		for (const task of tasks) {
+			const timeSinceUpdate = Date.now() - Date.parse(task.updatedAt);
+			if (timeSinceUpdate < this.manualStatusGraceMs) {
+				continue;
+			}
+
 			const runs = [...runRepo.listByTask(task.id)].sort(
 				(a, b) =>
 					Date.parse(b.updatedAt ?? b.createdAt) -
@@ -1729,9 +1775,10 @@ export class RunsQueueManager {
 			);
 
 			const fallbackMarker = this.staleRunFallbackMarker(run);
+			const fallbackContent = findStoryContent(inspection);
 			await this.finalizeRunFromSession(run.id, "completed" as RunStatus, {
 				marker: fallbackMarker,
-				content: "",
+				content: fallbackContent,
 			});
 			log.info("Force-finalized stale run with fallback marker", {
 				projectId,

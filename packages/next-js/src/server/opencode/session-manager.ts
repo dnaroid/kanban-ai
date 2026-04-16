@@ -106,6 +106,8 @@ export interface SessionInspectionResult {
 export interface AssistantRunSignal {
 	runStatus: RunStatus;
 	signalKey: string;
+	messageId: string;
+	messageContent: string;
 }
 
 function getData<T>(value: unknown): T {
@@ -1366,7 +1368,11 @@ export class OpencodeSessionManager {
 
 			const signal = this.resolveAssistantRunSignal(message.content);
 			if (signal) {
-				return signal;
+				return {
+					...signal,
+					messageId: message.id,
+					messageContent: message.content,
+				};
 			}
 		}
 
@@ -1380,22 +1386,52 @@ export class OpencodeSessionManager {
 		}
 
 		if (parsed.status === "done") {
-			return { runStatus: "completed", signalKey: "done" };
+			return {
+				runStatus: "completed",
+				signalKey: "done",
+				messageId: "",
+				messageContent: "",
+			};
 		}
 		if (parsed.status === "generated") {
-			return { runStatus: "completed", signalKey: "generated" };
+			return {
+				runStatus: "completed",
+				signalKey: "generated",
+				messageId: "",
+				messageContent: "",
+			};
 		}
 		if (parsed.status === "fail") {
-			return { runStatus: "failed", signalKey: "fail" };
+			return {
+				runStatus: "failed",
+				signalKey: "fail",
+				messageId: "",
+				messageContent: "",
+			};
 		}
 		if (parsed.status === "question") {
-			return { runStatus: "paused", signalKey: "question" };
+			return {
+				runStatus: "paused",
+				signalKey: "question",
+				messageId: "",
+				messageContent: "",
+			};
 		}
 		if (parsed.status === "test_ok") {
-			return { runStatus: "completed", signalKey: "test_ok" };
+			return {
+				runStatus: "completed",
+				signalKey: "test_ok",
+				messageId: "",
+				messageContent: "",
+			};
 		}
 		if (parsed.status === "test_fail") {
-			return { runStatus: "failed", signalKey: "test_fail" };
+			return {
+				runStatus: "failed",
+				signalKey: "test_fail",
+				messageId: "",
+				messageContent: "",
+			};
 		}
 
 		return null;

@@ -350,23 +350,26 @@ function buildRun(
 function buildInspection(options?: {
 	marker?: RunOutcome["marker"];
 	content?: string;
+	messages?: SessionInspectionResult["messages"];
 	pendingPermissions?: SessionInspectionResult["pendingPermissions"];
 	pendingQuestions?: SessionInspectionResult["pendingQuestions"];
 	probeStatus?: SessionInspectionResult["probeStatus"];
 }): SessionInspectionResult {
 	const marker = options?.marker;
 	const content = options?.content ?? "";
-	const messages: SessionInspectionResult["messages"] = content
-		? [
-				{
-					id: "msg-1",
-					role: "assistant",
-					content,
-					parts: [],
-					timestamp: Date.now(),
-				},
-			]
-		: [];
+	const messages: SessionInspectionResult["messages"] =
+		options?.messages ??
+		(content
+			? [
+					{
+						id: "msg-1",
+						role: "assistant",
+						content,
+						parts: [],
+						timestamp: Date.now(),
+					},
+				]
+			: []);
 	return {
 		probeStatus: options?.probeStatus ?? "alive",
 		messages,
@@ -380,6 +383,8 @@ function buildInspection(options?: {
 							? "failed"
 							: "completed",
 					signalKey: marker,
+					messageId: messages[messages.length - 1]?.id ?? "msg-1",
+					messageContent: messages[messages.length - 1]?.content ?? content,
 				}
 			: null,
 	};
@@ -625,7 +630,7 @@ describe("RunsQueueManager scheduling", () => {
 		);
 		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "run-generation" }),
-			{ marker: "generated", content: buildOpencodeStatusLine("generated") },
+			{ marker: "generated", content: "" },
 		);
 	});
 
@@ -1038,7 +1043,7 @@ describe("RunsQueueManager scheduling", () => {
 
 		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "run-qa-ok" }),
-			{ marker: "test_ok", content: buildOpencodeStatusLine("test_ok") },
+			{ marker: "test_ok", content: "" },
 		);
 	});
 
@@ -1073,7 +1078,7 @@ describe("RunsQueueManager scheduling", () => {
 
 		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "run-qa-fail" }),
-			{ marker: "test_fail", content: buildOpencodeStatusLine("test_fail") },
+			{ marker: "test_fail", content: "" },
 		);
 	});
 
@@ -1277,7 +1282,7 @@ describe("RunsQueueManager scheduling", () => {
 				id: "run-orphaned-fetch-failed",
 				status: "completed",
 			}),
-			{ marker: "done", content: buildOpencodeStatusLine("done") },
+			{ marker: "done", content: "" },
 		);
 	});
 
@@ -1343,10 +1348,10 @@ describe("RunsQueueManager scheduling", () => {
 	});
 
 	it("preserves generated marker when reconciling settled generation runs", async () => {
-		taskMap.set(
-			"task-settled-generation",
-			buildTask("task-settled-generation", "normal", "generating"),
-		);
+		taskMap.set("task-settled-generation", {
+			...buildTask("task-settled-generation", "normal", "generating"),
+			updatedAt: new Date(Date.now() - 60_000).toISOString(),
+		});
 		runMap.set("run-settled-generation", {
 			...buildRun(
 				"run-settled-generation",
@@ -1370,6 +1375,150 @@ describe("RunsQueueManager scheduling", () => {
 				status: "completed",
 			}),
 			{ marker: "generated", content: "" },
+		);
+	});
+
+	it("uses the marker-bearing assistant message as story content and strips the status line", async () => {
+		taskMap.set(
+			"task-story-content",
+			buildTask("task-story-content", "normal", "generating"),
+		);
+		runMap.set(
+			"run-story-content",
+			buildRun(
+				"run-story-content",
+				"task-story-content",
+				"generation",
+				"2026-01-01T00:00:00.000Z",
+			),
+		);
+
+		mockSessionManager.inspectSession.mockResolvedValue(
+			buildInspection({
+				marker: "generated",
+				messages: [
+					{
+						id: "msg-1",
+						role: "assistant",
+						content:
+							"Now let me verify one detail — the board screen mapping to projects icon",
+						parts: [],
+						timestamp: Date.now(),
+					},
+					{
+						id: "msg-2",
+						role: "assistant",
+						content: [
+							'<META>{"type":"bug"}</META>',
+							"<STORY>",
+							"## Title",
+							"Highlight icon",
+							"</STORY>",
+							buildOpencodeStatusLine("generated"),
+						].join("\n"),
+						parts: [],
+						timestamp: Date.now() + 1,
+					},
+				],
+			}),
+		);
+
+		const manager = new RunsQueueManager();
+		manager.enqueue("run-story-content", {
+			projectPath: "/tmp/project",
+			sessionTitle: "generation",
+			prompt: "prompt",
+		});
+
+		await waitForDrain();
+		await waitForDrain();
+
+		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "run-story-content" }),
+			{
+				marker: "generated",
+				content: [
+					'<META>{"type":"bug"}</META>',
+					"<STORY>",
+					"## Title",
+					"Highlight icon",
+					"</STORY>",
+				].join("\n"),
+			},
+		);
+	});
+
+	it("anchors extracted content to the completion marker message even if later assistant text exists", async () => {
+		taskMap.set(
+			"task-marker-anchor",
+			buildTask("task-marker-anchor", "normal", "generating"),
+		);
+		runMap.set(
+			"run-marker-anchor",
+			buildRun(
+				"run-marker-anchor",
+				"task-marker-anchor",
+				"generation",
+				"2026-01-01T00:00:00.000Z",
+			),
+		);
+
+		const messages: SessionInspectionResult["messages"] = [
+			{
+				id: "msg-story",
+				role: "assistant",
+				content: [
+					'<META>{"type":"feature"}</META>',
+					"<STORY>",
+					"## Title",
+					"Correct content",
+					"</STORY>",
+					buildOpencodeStatusLine("generated"),
+				].join("\n"),
+				parts: [],
+				timestamp: Date.now(),
+			},
+			{
+				id: "msg-late",
+				role: "assistant",
+				content: "Late non-marker chatter that must be ignored",
+				parts: [],
+				timestamp: Date.now() + 1,
+			},
+		];
+
+		mockSessionManager.inspectSession.mockResolvedValue({
+			...buildInspection({ marker: "generated", messages }),
+			completionMarker: {
+				runStatus: "completed",
+				signalKey: "generated",
+				messageId: "msg-story",
+				messageContent: messages[0]!.content,
+			},
+		});
+
+		const manager = new RunsQueueManager();
+		manager.enqueue("run-marker-anchor", {
+			projectPath: "/tmp/project",
+			sessionTitle: "generation",
+			prompt: "prompt",
+		});
+
+		await waitForDrain();
+		await waitForDrain();
+
+		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "run-marker-anchor" }),
+			{
+				marker: "generated",
+				content: [
+					'<META>{"type":"feature"}</META>',
+					"<STORY>",
+					"## Title",
+					"Correct content",
+					"</STORY>",
+				].join("\n"),
+			},
 		);
 	});
 
@@ -1607,7 +1756,7 @@ describe("RunsQueueManager permission handling", () => {
 		expect(runMap.get("run-perm-4")?.status).toBe("failed");
 		expect(mockTaskProjector.projectRunOutcome).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "run-perm-4" }),
-			{ marker: "fail", content: buildOpencodeStatusLine("fail") },
+			{ marker: "fail", content: "" },
 		);
 	});
 
@@ -1714,10 +1863,10 @@ describe("RunsQueueManager permission handling", () => {
 	});
 
 	it("prefers a live running run over a paused sibling during reconciliation", async () => {
-		taskMap.set(
-			"task-multi-active",
-			buildTask("task-multi-active", "normal", "question"),
-		);
+		taskMap.set("task-multi-active", {
+			...buildTask("task-multi-active", "normal", "question"),
+			updatedAt: new Date(Date.now() - 60_000).toISOString(),
+		});
 		runMap.set("run-multi-running", {
 			...buildRun(
 				"run-multi-running",
