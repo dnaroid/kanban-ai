@@ -36,18 +36,32 @@ export function Sidebar({
 	const [isActiveSessionsModalOpen, setIsActiveSessionsModalOpen] =
 		useState(false);
 	const [busySessionCount, setBusySessionCount] = useState(0);
+	const [queuedRunCount, setQueuedRunCount] = useState(0);
+	const [runningRunCount, setRunningRunCount] = useState(0);
 
 	const handleQuitClick = async () => {
-		try {
-			const stats = await api.opencode.activeSessionStats();
-			if (stats.busySessions > 0) {
-				setBusySessionCount(stats.busySessions);
-				setIsActiveSessionsModalOpen(true);
-				return;
-			}
-		} catch {
-			// Fail-open: if session check fails, show standard quit modal
+		const queueStatsPromise = api.run.queueStats().catch(() => null);
+		const sessionStatsPromise = api.opencode
+			.activeSessionStats()
+			.catch(() => null);
+
+		const [queueStats, sessionStats] = await Promise.all([
+			queueStatsPromise,
+			sessionStatsPromise,
+		]);
+
+		const hasQueuedRuns = (queueStats?.totalQueued ?? 0) > 0;
+		const hasRunningRuns = (queueStats?.totalRunning ?? 0) > 0;
+		const hasBusySessions = (sessionStats?.busySessions ?? 0) > 0;
+
+		if (hasQueuedRuns || hasRunningRuns || hasBusySessions) {
+			setQueuedRunCount(queueStats?.totalQueued ?? 0);
+			setRunningRunCount(queueStats?.totalRunning ?? 0);
+			setBusySessionCount(sessionStats?.busySessions ?? 0);
+			setIsActiveSessionsModalOpen(true);
+			return;
 		}
+
 		setIsQuitModalOpen(true);
 	};
 
@@ -263,6 +277,8 @@ export function Sidebar({
 				onClose={() => {
 					setIsActiveSessionsModalOpen(false);
 					setBusySessionCount(0);
+					setQueuedRunCount(0);
+					setRunningRunCount(0);
 				}}
 				onConfirm={async () => {
 					setIsQuitting(true);
@@ -272,22 +288,46 @@ export function Sidebar({
 						setIsQuitting(false);
 					}
 				}}
-				title="Active sessions in progress"
-				description="There are OpenCode sessions currently running. Quitting will interrupt them."
+				title="Active work in progress"
+				description="There are active tasks or sessions running. Quitting will interrupt them."
 				confirmLabel="Quit anyway"
 				variant="danger"
 				isLoading={isQuitting}
 			>
-				{busySessionCount > 0 && (
-					<div className="mt-3">
-						<div className="flex-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-center">
-							<div className="text-lg font-bold text-amber-400 font-mono">
-								{busySessionCount}
+				{(runningRunCount > 0 ||
+					queuedRunCount > 0 ||
+					busySessionCount > 0) && (
+					<div className="mt-3 flex gap-2">
+						{runningRunCount > 0 && (
+							<div className="flex-1 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-center">
+								<div className="text-lg font-bold text-red-400 font-mono">
+									{runningRunCount}
+								</div>
+								<div className="text-[10px] text-red-400/70 uppercase tracking-wider font-semibold">
+									Running
+								</div>
 							</div>
-							<div className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold">
-								Active sessions
+						)}
+						{queuedRunCount > 0 && (
+							<div className="flex-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-center">
+								<div className="text-lg font-bold text-amber-400 font-mono">
+									{queuedRunCount}
+								</div>
+								<div className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold">
+									Queued
+								</div>
 							</div>
-						</div>
+						)}
+						{busySessionCount > 0 && (
+							<div className="flex-1 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-center">
+								<div className="text-lg font-bold text-blue-400 font-mono">
+									{busySessionCount}
+								</div>
+								<div className="text-[10px] text-blue-400/70 uppercase tracking-wider font-semibold">
+									Sessions
+								</div>
+							</div>
+						)}
 					</div>
 				)}
 			</ConfirmationModal>

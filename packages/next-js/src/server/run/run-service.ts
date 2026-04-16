@@ -1,5 +1,7 @@
 import { createLogger } from "@/lib/logger";
 import { buildTaskPrompt } from "@/server/run/prompts/task";
+import { sendSessionMessage } from "@/server/opencode/session-store";
+import { buildOpencodeStatusLine } from "@/lib/opencode-status";
 import { buildQaTestingPrompt } from "@/server/run/prompts/qa-testing";
 import { buildUserStoryPrompt } from "@/server/run/prompts/user-story";
 import { publishSseEvent } from "@/server/events/sse-broker";
@@ -283,7 +285,6 @@ export class RunService {
 				{
 					title: task.title,
 					description: task.description,
-					qaReport: task.qaReport ?? undefined,
 				},
 				{
 					id: project.id,
@@ -775,9 +776,67 @@ export class RunService {
 		}
 
 		if (taskToStart) {
-			const started = await this.start({ taskId: taskToStart.id });
-			taskIds.push(taskToStart.id);
-			runIds.push(started.runId);
+			if (taskToStart.status === "rejected" && taskToStart.qaReport) {
+				const runs = runRepo.listByTask(taskToStart.id);
+				const completedRun = runs.find(
+					(r) =>
+						r.status === "completed" &&
+						r.sessionId &&
+						r.sessionId.trim().length > 0,
+				);
+
+				if (completedRun && completedRun.sessionId) {
+					const qaMessage = [
+						"",
+						"This task did not pass QA review. Reasons:",
+						taskToStart.qaReport,
+						"",
+						"Fix ALL issues listed above. Do NOT skip any item.",
+						"",
+						`When done, output exactly one status line: ${buildOpencodeStatusLine("done")} or ${buildOpencodeStatusLine("fail")} or ${buildOpencodeStatusLine("question")}`,
+					].join("\n");
+
+					await sendSessionMessage(completedRun.sessionId, qaMessage);
+
+					const inProgressColumn = board.columns.find(
+						(col) => col.systemKey === "in_progress",
+					);
+					if (inProgressColumn) {
+						const existingInColumn = taskRepo
+							.listByBoard(board.id)
+							.filter((t) => t.columnId === inProgressColumn.id).length;
+						taskRepo.update(taskToStart.id, {
+							status: "running",
+							columnId: inProgressColumn.id,
+							orderInColumn: existingInColumn,
+							qaReport: null,
+						});
+					} else {
+						taskRepo.update(taskToStart.id, {
+							status: "running",
+							qaReport: null,
+						});
+					}
+
+					publishSseEvent("task:event", {
+						taskId: taskToStart.id,
+						boardId: taskToStart.boardId,
+						projectId: taskToStart.projectId,
+						eventType: "task:updated",
+						updatedAt: new Date().toISOString(),
+					});
+
+					taskIds.push(taskToStart.id);
+				} else {
+					const started = await this.start({ taskId: taskToStart.id });
+					taskIds.push(taskToStart.id);
+					runIds.push(started.runId);
+				}
+			} else {
+				const started = await this.start({ taskId: taskToStart.id });
+				taskIds.push(taskToStart.id);
+				runIds.push(started.runId);
+			}
 		}
 
 		return {

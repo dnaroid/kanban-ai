@@ -9,7 +9,6 @@ export const ENABLE_SKILLS_IN_PROMPTS = false;
 interface TaskPromptInput {
 	title: string;
 	description: string | null;
-	qaReport?: string;
 }
 
 interface TaskPromptRole {
@@ -62,16 +61,6 @@ export function buildTaskPrompt(
 		"Project context:",
 		`- Project path: ${project.path}`,
 		`- Project ID: ${project.id}`,
-		...(task.qaReport
-			? [
-					"",
-					"QA REPORT - This task was previously rejected after review. Address ALL issues below:",
-					task.qaReport,
-					"",
-					"You MUST fix every issue mentioned above. Do NOT skip any item.",
-					`After fixing, output exactly one status line: ${buildOpencodeStatusLine("done")} or ${buildOpencodeStatusLine("fail")} or ${buildOpencodeStatusLine("question")}`,
-				]
-			: []),
 		"",
 		"Requirements:",
 		"1. Complete the task in the project directory.",
