@@ -489,6 +489,16 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		await api.moveTask(activeId, overColumnId, newIndex);
 	};
 
+	const getBacklogColumnId = (fallbackColumnId: string): string => {
+		if (!board?.columns?.length) {
+			return fallbackColumnId;
+		}
+		const backlogColumn = board.columns.find(
+			(col) => col.systemKey === "backlog",
+		);
+		return backlogColumn?.id ?? board.columns[0].id;
+	};
+
 	const handleTaskClick = (task: KanbanTask) => {
 		const tab = ["question", "running", "in_progress"].includes(task.status)
 			? "?tab=runs"
@@ -501,10 +511,12 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			return;
 		}
 
+		const backlogColumnId = getBacklogColumnId(columnId);
+
 		try {
 			const response = await api.createTask({
 				boardId: board.id,
-				columnId,
+				columnId: backlogColumnId,
 				title: "New Task",
 				priority: "normal",
 				difficulty: "medium",
@@ -591,6 +603,8 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			throw new Error("Prompt cannot be empty");
 		}
 
+		const backlogColumnId = getBacklogColumnId(columnId);
+
 		const firstLine = cleanPrompt.split(/\r?\n/)[0]?.trim() ?? "";
 		const title = (firstLine.length > 0 ? firstLine : cleanPrompt).slice(
 			0,
@@ -604,7 +618,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		try {
 			const createdTask = await api.createTask({
 				boardId: board.id,
-				columnId,
+				columnId: backlogColumnId,
 				title,
 				description: promptWithFiles,
 				priority: "normal",
@@ -651,6 +665,8 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		if (!cleanPrompt) {
 			throw new Error("Prompt cannot be empty");
 		}
+
+		const backlogColumnId = getBacklogColumnId(columnId);
 
 		const firstLine = cleanPrompt.split(/\r?\n/)[0]?.trim() ?? "";
 		const title = (firstLine.length > 0 ? firstLine : cleanPrompt).slice(
@@ -712,7 +728,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 
 			const createdTask = await api.createTask({
 				boardId: board.id,
-				columnId,
+				columnId: backlogColumnId,
 				title,
 				description: promptWithFiles,
 				priority: "normal",
