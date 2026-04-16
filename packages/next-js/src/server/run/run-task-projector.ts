@@ -408,7 +408,20 @@ export class RunTaskProjector {
 		}
 
 		if (nextStatus) {
-			const patch = this.buildStatusPatch(task, nextStatus);
+			const patch: Parameters<typeof taskRepo.update>[1] & {
+				commitMessage?: string | null;
+			} = this.buildStatusPatch(task, nextStatus);
+
+			if (
+				!isTaskDescriptionImproveRun(run) &&
+				(outcome.marker === "done" || outcome.marker === "test_ok")
+			) {
+				const parsed = parseUserStoryResponse(outcome.content);
+				if (parsed.commitMessage) {
+					patch.commitMessage = parsed.commitMessage;
+				}
+			}
+
 			log.info("Applying status patch", {
 				runId: run.id,
 				taskId: task.id,

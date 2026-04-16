@@ -310,6 +310,93 @@ describe("RunTaskProjector user-story projection", () => {
 		expect((patch.commitMessage as string).length).toBeLessThanOrEqual(200);
 	});
 
+	it("persists commitMessage from META block for non-description-improve run on done", () => {
+		const task = buildTask("col-in-progress", "running");
+		mockTaskRepo.getById.mockReturnValue(task);
+		mockTaskRepo.update.mockImplementation(
+			(_taskId: string, patch: Record<string, unknown>) => ({
+				...task,
+				...patch,
+				updatedAt: "2026-01-01T00:00:00.000Z",
+			}),
+		);
+
+		const outcomeContent = [
+			'<META>{"commitMessage":"fix(ui): correct tab title to KanbanAI"}</META>',
+			"Some implementation output content.",
+		].join("\n");
+
+		const projector = new RunTaskProjector();
+		projector.projectRunOutcome(buildRun("task-run"), {
+			marker: "done",
+			content: outcomeContent,
+		});
+
+		expect(mockTaskRepo.update).toHaveBeenCalledTimes(1);
+		const patch = mockTaskRepo.update.mock.calls[0]?.[1] as Record<
+			string,
+			unknown
+		>;
+		expect(patch.commitMessage).toBe("fix(ui): correct tab title to KanbanAI");
+		expect(patch.status).toBe("done");
+	});
+
+	it("persists commitMessage from META block for non-description-improve run on test_ok", () => {
+		const task = buildTask("col-in-progress", "running");
+		mockTaskRepo.getById.mockReturnValue(task);
+		mockTaskRepo.update.mockImplementation(
+			(_taskId: string, patch: Record<string, unknown>) => ({
+				...task,
+				...patch,
+				updatedAt: "2026-01-01T00:00:00.000Z",
+			}),
+		);
+
+		const outcomeContent =
+			'<META>{"commitMessage":"feat(core): add user authentication"}</META>\nOutput content.';
+
+		const projector = new RunTaskProjector();
+		projector.projectRunOutcome(buildRun("task-run"), {
+			marker: "test_ok",
+			content: outcomeContent,
+		});
+
+		expect(mockTaskRepo.update).toHaveBeenCalledTimes(1);
+		const patch = mockTaskRepo.update.mock.calls[0]?.[1] as Record<
+			string,
+			unknown
+		>;
+		expect(patch.commitMessage).toBe("feat(core): add user authentication");
+	});
+
+	it("does not overwrite commitMessage for fail outcome on non-description-improve run", () => {
+		const task = buildTask("col-in-progress", "running");
+		mockTaskRepo.getById.mockReturnValue(task);
+		mockTaskRepo.update.mockImplementation(
+			(_taskId: string, patch: Record<string, unknown>) => ({
+				...task,
+				...patch,
+				updatedAt: "2026-01-01T00:00:00.000Z",
+			}),
+		);
+
+		const outcomeContent =
+			'<META>{"commitMessage":"should not be saved"}</META>\nError output.';
+
+		const projector = new RunTaskProjector();
+		projector.projectRunOutcome(buildRun("task-run"), {
+			marker: "fail",
+			content: outcomeContent,
+		});
+
+		expect(mockTaskRepo.update).toHaveBeenCalledTimes(1);
+		const patch = mockTaskRepo.update.mock.calls[0]?.[1] as Record<
+			string,
+			unknown
+		>;
+		expect(patch.commitMessage).toBeUndefined();
+	});
+
 	it("skips commitMessage when empty in META", () => {
 		const task = buildTask("col-in-progress", "running");
 		mockTaskRepo.getById.mockReturnValue(task);
