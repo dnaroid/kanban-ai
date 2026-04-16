@@ -1,7 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Maximize2, Minimize2, MoreVertical, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState, type ClipboardEvent } from "react";
+import {
+	Maximize2,
+	Minimize2,
+	MoreVertical,
+	Paperclip,
+	Trash2,
+	X,
+	XCircle,
+} from "lucide-react";
 import type { KanbanTask } from "@/types/kanban";
 import { cn } from "@/lib/utils";
 import { TaskDrawerProperties } from "./TaskDrawerProperties";
@@ -65,7 +73,7 @@ interface TaskDrawerContentProps {
 	isExpanded?: boolean;
 	onToggleExpand?: () => void;
 	showExpandButton?: boolean;
-	defaultTab?: "details" | "runs" | "vcs" | "properties";
+	defaultTab?: "details" | "runs" | "qa" | "vcs" | "properties";
 }
 
 export function TaskDrawerContent({
@@ -79,7 +87,7 @@ export function TaskDrawerContent({
 	defaultTab = "details",
 }: TaskDrawerContentProps) {
 	const [activeTab, setActiveTab] = useState<
-		"details" | "runs" | "vcs" | "properties"
+		"details" | "runs" | "qa" | "vcs" | "properties"
 	>(defaultTab);
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
 	const [editedTitle, setEditedTitle] = useState(task.title || "");
@@ -125,6 +133,7 @@ export function TaskDrawerContent({
 	const tabs = [
 		{ id: "details" as const, label: "Details" },
 		{ id: "runs" as const, label: "Runs" },
+		...(task.qaReport ? [{ id: "qa" as const, label: "QA" }] : []),
 		{ id: "vcs" as const, label: "VCS" },
 		{ id: "properties" as const, label: "Properties" },
 	];
@@ -228,8 +237,12 @@ export function TaskDrawerContent({
 						className={cn(
 							"px-4 py-3 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors relative",
 							activeTab === tab.id
-								? "text-blue-400 border-blue-500 bg-blue-500/5"
-								: "text-slate-500 border-transparent hover:text-slate-300 hover:bg-slate-800/50",
+								? tab.id === "qa"
+									? "text-red-400 border-red-500 bg-red-500/5"
+									: "text-blue-400 border-blue-500 bg-blue-500/5"
+								: tab.id === "qa"
+									? "text-red-500/60 border-transparent hover:text-red-400 hover:bg-red-500/5"
+									: "text-slate-500 border-transparent hover:text-slate-300 hover:bg-slate-800/50",
 						)}
 					>
 						{tab.label}
@@ -262,6 +275,17 @@ export function TaskDrawerContent({
 					<TaskDrawerRuns task={task} isActive={activeTab === "runs"} />
 				</div>
 
+				{task.qaReport && (
+					<div
+						className={cn(
+							"absolute inset-0 flex flex-col overflow-y-auto",
+							activeTab !== "qa" && "hidden",
+						)}
+					>
+						<QaReportPanel task={task} onUpdate={onUpdate} />
+					</div>
+				)}
+
 				<div
 					className={cn(
 						"absolute inset-0 flex flex-col",
@@ -283,6 +307,101 @@ export function TaskDrawerContent({
 						onOpenRuns={() => setActiveTab("runs")}
 					/>
 				</div>
+			</div>
+		</div>
+	);
+}
+
+function QaReportPanel({
+	task,
+	onUpdate,
+}: {
+	task: KanbanTask;
+	onUpdate?: (id: string, patch: Partial<KanbanTask>) => void;
+}) {
+	const [isEditing, setIsEditing] = useState(false);
+	const [editValue, setEditValue] = useState(task.qaReport ?? "");
+	const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+	useEffect(() => {
+		if (isEditing && textareaRef.current) {
+			textareaRef.current.focus();
+		}
+	}, [isEditing]);
+
+	const handleSave = () => {
+		const trimmed = editValue.trim();
+		onUpdate?.(task.id, { qaReport: trimmed || null });
+		setIsEditing(false);
+	};
+
+	const handleCancel = () => {
+		setEditValue(task.qaReport ?? "");
+		setIsEditing(false);
+	};
+
+	const handleKeyDown = (e: React.KeyboardEvent) => {
+		if (e.key === "Escape") handleCancel();
+		if (e.key === "Enter" && e.metaKey) handleSave();
+	};
+
+	return (
+		<div className="p-5 flex flex-col gap-4">
+			<div className="flex items-center justify-between">
+				<div className="flex items-center gap-2">
+					<div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+						<XCircle className="w-4 h-4 text-red-400" />
+					</div>
+					<h3 className="text-sm font-bold text-slate-200">QA Report</h3>
+				</div>
+				{!isEditing && (
+					<button
+						type="button"
+						onClick={() => {
+							setEditValue(task.qaReport ?? "");
+							setIsEditing(true);
+						}}
+						className="text-xs font-semibold text-slate-500 hover:text-slate-300 hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-800/60 transition-colors"
+					>
+						Edit
+					</button>
+				)}
+			</div>
+
+			<div className="rounded-xl border border-slate-800/60 bg-slate-900/40 focus-within:border-red-500/30 focus-within:ring-1 focus-within:ring-red-500/10 transition-all">
+				{isEditing ? (
+					<>
+						<textarea
+							ref={textareaRef}
+							value={editValue}
+							onChange={(e) => setEditValue(e.target.value)}
+							onKeyDown={handleKeyDown}
+							rows={10}
+							className="w-full resize-none bg-transparent border-none text-slate-200 placeholder:text-slate-500 outline-none focus:ring-0 text-sm leading-relaxed p-4 font-mono"
+							placeholder="Describe QA issues..."
+						/>
+						<div className="flex items-center justify-end gap-2 px-4 pb-3">
+							<button
+								type="button"
+								onClick={handleCancel}
+								className="text-xs font-bold text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded-lg border border-slate-700/60 hover:bg-slate-800 transition-colors"
+							>
+								Cancel
+							</button>
+							<button
+								type="button"
+								onClick={handleSave}
+								className="text-xs font-bold text-white bg-red-600 hover:bg-red-500 px-4 py-1.5 rounded-lg border border-red-500 transition-colors"
+							>
+								Save
+							</button>
+						</div>
+					</>
+				) : (
+					<pre className="text-sm text-slate-300 whitespace-pre-wrap break-words font-mono leading-relaxed p-4">
+						{task.qaReport}
+					</pre>
+				)}
 			</div>
 		</div>
 	);
