@@ -22,6 +22,7 @@ import { tagRepo } from "@/server/repositories/tag";
 import { taskRepo } from "@/server/repositories/task";
 import { getVcsManager } from "@/server/vcs/vcs-manager";
 import type { Run, RunVcsMetadata, DiffFile } from "@/types/ipc";
+import type { TaskPriority } from "@/types/kanban";
 
 const log = createLogger("run-service");
 
@@ -39,6 +40,12 @@ const generationRunKind = "task-description-improve";
 const qaTestingRunKind = "task-qa-testing";
 const activeSpecializedRunStatuses = new Set(["queued", "running", "paused"]);
 const activeExecutionRunStatuses = new Set(["queued", "running", "paused"]);
+const priorityScore: Record<string, number> = {
+	postpone: 1,
+	low: 2,
+	normal: 3,
+	urgent: 4,
+} satisfies Record<TaskPriority, number>;
 const behaviorSkillsFallback = {
 	preferredForStoryGeneration: "business-analyst",
 	preferredForQaTesting: "qa-expert",
@@ -49,6 +56,7 @@ interface StartRunsBySignalResult {
 	startedCount: number;
 	skippedNoRuleCount: number;
 	skippedActiveRunCount: number;
+	skippedPostponeCount: number;
 	taskIds: string[];
 	runIds: string[];
 }
@@ -697,32 +705,71 @@ export class RunService {
 				startedCount: 0,
 				skippedNoRuleCount: 0,
 				skippedActiveRunCount: 0,
+				skippedPostponeCount: 0,
 				taskIds: [],
 				runIds: [],
 			};
 		}
 
-		const candidateTasks = [...taskRepo.listByBoard(board.id)]
+		const eligibleTasks = [...taskRepo.listByBoard(board.id)]
 			.filter(
-				(task) => task.columnId === readyColumn.id && task.status === "pending",
+				(task) =>
+					task.columnId === readyColumn.id &&
+					task.status === "pending" &&
+					task.priority !== "postpone",
 			)
-			.sort((a, b) => a.orderInColumn - b.orderInColumn);
+			.sort((a, b) => {
+				const scoreA = priorityScore[a.priority] ?? 3;
+				const scoreB = priorityScore[b.priority] ?? 3;
+				if (scoreA !== scoreB) return scoreB - scoreA;
+				return a.orderInColumn - b.orderInColumn;
+			});
+
+		if (eligibleTasks.length === 0) {
+			return {
+				startedCount: 0,
+				skippedNoRuleCount: 0,
+				skippedActiveRunCount: 0,
+				skippedPostponeCount: 0,
+				taskIds: [],
+				runIds: [],
+			};
+		}
+
+		const project = projectRepo.getById(projectId);
+		if (project?.path) {
+			const hasChanges = await this.vcsManager.hasUncommittedChanges(
+				project.path,
+			);
+			if (hasChanges) {
+				throw new Error(
+					"Cannot start queue: working tree has uncommitted changes. Commit or stash them first.",
+				);
+			}
+		}
+
+		const candidateCount = [...taskRepo.listByBoard(board.id)].filter(
+			(task) => task.columnId === readyColumn.id && task.status === "pending",
+		).length;
+		const skippedPostponeCount = candidateCount - eligibleTasks.length;
 
 		let skippedActiveRunCount = 0;
 		const taskIds: string[] = [];
 		const runIds: string[] = [];
 
-		for (const task of candidateTasks) {
-			const hasActiveRun = runRepo
+		const taskToStart = eligibleTasks.find((task) => {
+			return !runRepo
 				.listByTask(task.id)
 				.some((run) => activeExecutionRunStatuses.has(run.status));
-			if (hasActiveRun) {
-				skippedActiveRunCount += 1;
-				continue;
-			}
+		});
 
-			const started = await this.start({ taskId: task.id });
-			taskIds.push(task.id);
+		if (eligibleTasks.length > 0 && !taskToStart) {
+			skippedActiveRunCount = eligibleTasks.length;
+		}
+
+		if (taskToStart) {
+			const started = await this.start({ taskId: taskToStart.id });
+			taskIds.push(taskToStart.id);
 			runIds.push(started.runId);
 		}
 
@@ -730,6 +777,7 @@ export class RunService {
 			startedCount: runIds.length,
 			skippedNoRuleCount: 0,
 			skippedActiveRunCount,
+			skippedPostponeCount,
 			taskIds,
 			runIds,
 		};

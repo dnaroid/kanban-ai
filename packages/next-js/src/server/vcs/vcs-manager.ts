@@ -456,7 +456,7 @@ export class VcsManager {
 		return Number.isFinite(parsed) ? parsed : 0;
 	}
 
-	private async hasUncommittedChanges(projectPath: string): Promise<boolean> {
+	public async hasUncommittedChanges(projectPath: string): Promise<boolean> {
 		const output = await this.git(projectPath, ["status", "--porcelain"]);
 		return output.length > 0;
 	}
