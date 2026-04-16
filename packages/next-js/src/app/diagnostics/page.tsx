@@ -82,33 +82,36 @@ export default function DiagnosticsPage() {
 	}, [loadStats]);
 
 	const handleRestart = async () => {
-		try {
-			const sessionStats = await api.opencode.activeSessionStats();
-			if (sessionStats.busySessions > 0) {
-				setRestartBusySessionCount(sessionStats.busySessions);
-				setIsRestartWarningOpen(true);
-				return;
-			}
-		} catch {}
+		const sessionStats = await api.opencode
+			.activeSessionStats()
+			.catch(() => null);
+
+		if (sessionStats && sessionStats.busySessions > 0) {
+			setRestartBusySessionCount(sessionStats.busySessions);
+			setIsRestartWarningOpen(true);
+			return;
+		}
+
 		await performRestart(false);
 	};
 
 	const performRestart = async (force: boolean) => {
 		setIsRestarting(true);
+		setError(null);
 		try {
 			await api.opencode.restartServe({ force });
 			await loadStats();
 		} catch (err) {
-			if (!force && err instanceof Error) {
-				try {
-					const stats = await api.opencode.activeSessionStats();
-					if (stats.busySessions > 0) {
-						setIsRestarting(false);
-						setRestartBusySessionCount(stats.busySessions);
-						setIsRestartWarningOpen(true);
-						return;
-					}
-				} catch {}
+			if (!force) {
+				const retryStats = await api.opencode
+					.activeSessionStats()
+					.catch(() => null);
+				if (retryStats && retryStats.busySessions > 0) {
+					setIsRestarting(false);
+					setRestartBusySessionCount(retryStats.busySessions);
+					setIsRestartWarningOpen(true);
+					return;
+				}
 			}
 			console.error("Failed to restart opencode serve:", err);
 			setError(
