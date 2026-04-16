@@ -1768,7 +1768,40 @@ export class RunsQueueManager {
 					derivedMarker = this.staleRunFallbackMarker(latestSettledRun);
 				}
 			} else if (latestSettledRun.status === "failed") {
-				derivedMarker = "fail";
+				const sessionId = latestSettledRun.sessionId.trim();
+				const errorIsRecoverable =
+					isNetworkError(getRunErrorText(latestSettledRun)) &&
+					sessionId.length > 0;
+
+				if (errorIsRecoverable) {
+					try {
+						const inspection =
+							await this.sessionManager.inspectSession(sessionId);
+						const meta = deriveMetaStatus(inspection);
+
+						if (meta.kind === "completed" || meta.kind === "failed") {
+							derivedMarker = meta.marker;
+							derivedContent = meta.content;
+							source = "session";
+						} else {
+							derivedMarker = "fail";
+						}
+					} catch (error) {
+						log.warn(
+							"Failed to inspect session for recoverable failed run during task reconciliation",
+							{
+								projectId,
+								taskId: task.id,
+								runId: latestSettledRun.id,
+								sessionId,
+								error: error instanceof Error ? error.message : String(error),
+							},
+						);
+						derivedMarker = "fail";
+					}
+				} else {
+					derivedMarker = "fail";
+				}
 			}
 
 			if (!derivedMarker) {

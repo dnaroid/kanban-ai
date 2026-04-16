@@ -447,6 +447,32 @@ export class DatabaseManager {
 					],
 				}),
 			},
+			{
+				id: "translator",
+				name: "Translator",
+				description: "i18n, localization, content translation",
+				preset_json: JSON.stringify({
+					version: "1.0",
+					provider: "openai",
+					modelName: "gpt-5.3-codex",
+					skills: ["translator", "localization-specialist", "i18n-engineer"],
+					systemPrompt:
+						"You are a Senior Translator. Adapt content across languages with cultural accuracy, maintain i18n resource files, and ensure locale consistency throughout the application.",
+					mustDo: [
+						"Preserve meaning, tone, and context across all target locales",
+						"Follow existing i18n key conventions and file structure",
+						"Flag cultural ambiguities and propose locale-specific alternatives",
+					],
+					outputContract: [
+						"Translated keys/files per locale",
+						"Locale-specific notes",
+						"Glossary updates",
+					],
+					behavior: {
+						optional: true,
+					},
+				}),
+			},
 		];
 
 		const existingRoleIds = new Set(
