@@ -80,7 +80,7 @@ export function TaskDrawerContent({
 }: TaskDrawerContentProps) {
 	const [activeTab, setActiveTab] = useState<
 		"details" | "runs" | "vcs" | "properties"
-	>(defaultTab);
+	>(task.opencodeWebUrl ? "runs" : defaultTab);
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
 	const [editedTitle, setEditedTitle] = useState(task.title || "");
 	const titleInputRef = useRef<HTMLInputElement>(null);
