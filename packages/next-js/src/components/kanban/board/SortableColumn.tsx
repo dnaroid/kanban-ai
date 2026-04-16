@@ -25,6 +25,7 @@ export interface SortableColumnProps {
 	onBulkDelete?: (columnId: string, taskCount: number) => void;
 	onContextAction?: (taskId: string, systemKey: string) => Promise<void>;
 	onUpdateTask?: (id: string, patch: Partial<KanbanTask>) => void;
+	onRejectAction?: (taskId: string) => void;
 }
 
 export function SortableColumn({
@@ -39,6 +40,7 @@ export function SortableColumn({
 	onBulkDelete,
 	onContextAction,
 	onUpdateTask,
+	onRejectAction,
 }: SortableColumnProps) {
 	const { active, over } = useDndContext();
 	const isDraggingAnyTask = active?.data.current?.type === "task";
@@ -193,6 +195,7 @@ export function SortableColumn({
 									systemKey={systemKey}
 									onContextAction={onContextAction}
 									onUpdate={onUpdateTask}
+									onRejectAction={onRejectAction}
 								/>
 							))
 						)}

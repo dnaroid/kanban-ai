@@ -280,7 +280,11 @@ export class RunService {
 				input.modelName,
 			),
 			prompt: buildTaskPrompt(
-				{ title: task.title, description: task.description },
+				{
+					title: task.title,
+					description: task.description,
+					qaReport: task.qaReport ?? undefined,
+				},
 				{
 					id: project.id,
 					path: executionProjectPath,
@@ -716,7 +720,7 @@ export class RunService {
 			.filter(
 				(task) =>
 					task.columnId === readyColumn.id &&
-					task.status === "pending" &&
+					(task.status === "pending" || task.status === "rejected") &&
 					task.priority !== "postpone",
 			)
 			.sort((a, b) => {
@@ -750,7 +754,9 @@ export class RunService {
 		}
 
 		const candidateCount = [...taskRepo.listByBoard(board.id)].filter(
-			(task) => task.columnId === readyColumn.id && task.status === "pending",
+			(task) =>
+				task.columnId === readyColumn.id &&
+				(task.status === "pending" || task.status === "rejected"),
 		).length;
 		const skippedPostponeCount = candidateCount - eligibleTasks.length;
 

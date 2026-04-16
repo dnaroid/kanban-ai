@@ -21,6 +21,7 @@ import { SortableColumn } from "./kanban/board/SortableColumn";
 import { SortableTask } from "./kanban/board/SortableTask";
 import { ListView, ListItemView } from "./kanban/board/ListView";
 import { QuickCreateModal } from "./kanban/board/QuickCreateModal";
+import { RejectModal, type RejectAttachment } from "./kanban/board/RejectModal";
 import { ProjectSelect } from "./ProjectSelect";
 import { useBoardModel } from "@/features/board/model/use-board-model";
 import { cn } from "@/lib/utils";
@@ -87,6 +88,7 @@ export function BoardScreen({
 		setBulkDeleteConfirm,
 		handleBulkDelete,
 		confirmBulkDelete,
+		handleRejectTask,
 	} = useBoardModel({ projectId });
 
 	const [expandedColumns, setExpandedColumns] = useState<
@@ -97,6 +99,10 @@ export function BoardScreen({
 
 	const [isQuickCreateModalOpen, setIsQuickCreateModalOpen] = useState(false);
 	const [isPushing, setIsPushing] = useState(false);
+
+	const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+	const [rejectTaskId, setRejectTaskId] = useState<string | null>(null);
+	const [rejectTaskTitle, setRejectTaskTitle] = useState<string>("");
 
 	useEffect(() => {
 		localStorage.setItem("boardViewMode", viewMode);
@@ -189,6 +195,23 @@ export function BoardScreen({
 		);
 
 	const firstColumnId = columns[0]?.id;
+
+	const handleOpenRejectModal = (taskId: string) => {
+		const task = tasks.find((t) => t.id === taskId);
+		setRejectTaskId(taskId);
+		setRejectTaskTitle(task?.title ?? "");
+		setIsRejectModalOpen(true);
+	};
+
+	const handleRejectSubmit = async (
+		qaReport: string,
+		attachments: RejectAttachment[],
+	) => {
+		if (!rejectTaskId) return;
+		await handleRejectTask(rejectTaskId, qaReport, attachments);
+		setIsRejectModalOpen(false);
+		setRejectTaskId(null);
+	};
 
 	return (
 		<div className="flex flex-col h-full overflow-hidden">
@@ -358,6 +381,7 @@ export function BoardScreen({
 											onBulkDelete={handleBulkDelete}
 											onContextAction={handleContextAction}
 											onUpdateTask={handleTaskUpdate}
+											onRejectAction={handleOpenRejectModal}
 										/>
 									))}
 								</SortableContext>
@@ -372,6 +396,7 @@ export function BoardScreen({
 							onDeleteTask={handleDeleteTask}
 							onContextAction={handleContextAction}
 							onUpdateTask={handleTaskUpdate}
+							onRejectAction={handleOpenRejectModal}
 							expandedColumns={expandedColumns}
 							onToggleColumn={(columnId) => {
 								manualTogglesRef.current[columnId] = true;
@@ -525,6 +550,16 @@ export function BoardScreen({
 					description={`Are you sure you want to delete all tasks (${bulkDeleteConfirm.taskCount}) from the "Closed" column? This action cannot be undone.`}
 					confirmLabel="Delete all"
 					variant="danger"
+				/>
+
+				<RejectModal
+					isOpen={isRejectModalOpen}
+					onClose={() => {
+						setIsRejectModalOpen(false);
+						setRejectTaskId(null);
+					}}
+					onSubmit={handleRejectSubmit}
+					taskTitle={rejectTaskTitle}
 				/>
 			</main>
 		</div>

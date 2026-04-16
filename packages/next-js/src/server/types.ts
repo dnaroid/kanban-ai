@@ -72,6 +72,7 @@ export interface Task {
 	assignee: string | null;
 	modelName: string | null;
 	commitMessage: string | null;
+	qaReport: string | null;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -92,6 +93,7 @@ export interface CreateTaskInput {
 	dueDate?: string;
 	modelName?: string | null;
 	commitMessage?: string;
+	qaReport?: string | null;
 }
 
 export interface UpdateTaskInput {
@@ -114,6 +116,7 @@ export interface UpdateTaskInput {
 	assignee?: string | null;
 	modelName?: string | null;
 	commitMessage?: string | null;
+	qaReport?: string | null;
 }
 
 export interface Run {

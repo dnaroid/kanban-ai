@@ -58,6 +58,7 @@ function taskToKanban(
 		modelName: task.modelName,
 		latestSessionId: task.latestSessionId ?? null,
 		opencodeWebUrl: task.opencodeWebUrl ?? null,
+		qaReport: task.qaReport ?? null,
 		createdAt: task.createdAt,
 		updatedAt: task.updatedAt,
 	};
@@ -92,6 +93,29 @@ class ApiClient {
 		listByBoard: async (boardId: string): Promise<{ tasks: KanbanTask[] }> => ({
 			tasks: await this.getTasks(boardId),
 		}),
+		reject: async ({
+			taskId,
+			qaReport,
+		}: {
+			taskId: string;
+			qaReport: string;
+		}): Promise<{ success: boolean }> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/tasks/${taskId}/reject`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ qaReport }),
+				},
+			);
+			if (!response.ok) {
+				const error = await response
+					.json()
+					.catch(() => ({ error: "Reject failed" }));
+				throw new Error(error.error || "Reject failed");
+			}
+			return response.json();
+		},
 	};
 
 	readonly run = {

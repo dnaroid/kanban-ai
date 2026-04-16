@@ -12,6 +12,7 @@ import { normalizeWorkflowIconKey } from "@/types/workflow";
 
 const TASK_STATUSES: readonly WorkflowTaskStatus[] = [
 	"pending",
+	"rejected",
 	"running",
 	"question",
 	"paused",
@@ -25,6 +26,7 @@ const BLOCKED_REASON_BY_STATUS: Record<
 	BlockedReason | null
 > = {
 	pending: null,
+	rejected: null,
 	running: null,
 	question: "question",
 	paused: "paused",
@@ -36,6 +38,7 @@ const BLOCKED_REASON_BY_STATUS: Record<
 const CLOSED_REASON_BY_STATUS: Record<WorkflowTaskStatus, ClosedReason | null> =
 	{
 		pending: null,
+		rejected: null,
 		running: null,
 		question: null,
 		paused: null,
@@ -49,6 +52,7 @@ const STATUS_VISUALS: Record<
 	{ color: string; icon: WorkflowIconKey }
 > = {
 	pending: { color: "#f59e0b", icon: "clock" },
+	rejected: { color: "#ef4444", icon: "x-circle" },
 	running: { color: "#3b82f6", icon: "play" },
 	question: { color: "#f97316", icon: "help-circle" },
 	paused: { color: "#eab308", icon: "pause" },
@@ -59,6 +63,7 @@ const STATUS_VISUALS: Record<
 
 const STATUS_TO_COLUMN: Record<WorkflowTaskStatus, WorkflowColumnSystemKey> = {
 	pending: "ready",
+	rejected: "ready",
 	running: "in_progress",
 	question: "blocked",
 	paused: "blocked",
@@ -98,7 +103,7 @@ const COLUMN_ALLOWED_STATUSES: Record<
 	readonly WorkflowTaskStatus[]
 > = {
 	backlog: ["pending", "generating"],
-	ready: ["pending"],
+	ready: ["pending", "rejected"],
 	deferred: ["pending"],
 	in_progress: ["running"],
 	blocked: ["question", "paused", "failed"],
@@ -110,7 +115,16 @@ const STATUS_TRANSITIONS: Record<
 	WorkflowTaskStatus,
 	readonly WorkflowTaskStatus[]
 > = {
-	pending: ["running", "generating", "done", "failed", "paused", "question"],
+	pending: [
+		"running",
+		"generating",
+		"done",
+		"failed",
+		"paused",
+		"question",
+		"rejected",
+	],
+	rejected: ["running", "pending", "failed"],
 	running: ["pending", "paused", "question", "failed", "done"],
 	question: ["pending", "running", "paused", "failed", "done"],
 	paused: ["pending", "running", "question", "failed", "done"],

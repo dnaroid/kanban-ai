@@ -55,3 +55,7 @@ export const v026DropWorkflowTablesSql = `
 export const v027TaskCommitMessageSql = `
 ALTER TABLE tasks ADD COLUMN commit_message TEXT;
 `;
+
+export const v028TaskQaReportSql = `
+ALTER TABLE tasks ADD COLUMN qa_report TEXT;
+`;

@@ -1096,6 +1096,33 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		}
 	};
 
+	const handleRejectTask = async (
+		taskId: string,
+		qaReport: string,
+		attachments: { name: string; path?: string }[],
+	): Promise<void> => {
+		try {
+			let fullReport = qaReport;
+			if (attachments.length > 0) {
+				fullReport +=
+					"\n\nAttached files:\n" +
+					attachments
+						.map((a) => `- ${a.name}${a.path ? ` (${a.path})` : ""}`)
+						.join("\n");
+			}
+
+			await api.task.reject({ taskId, qaReport: fullReport });
+			await refreshBoardTasksFromServer();
+			addToast("Task rejected, moved back to Ready", "success");
+		} catch (rejectError) {
+			console.error("Reject failed:", rejectError);
+			addToast(
+				rejectError instanceof Error ? rejectError.message : "Reject failed",
+				"error",
+			);
+		}
+	};
+
 	return {
 		board,
 		tasks,
@@ -1141,5 +1168,6 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		setBulkDeleteConfirm,
 		handleBulkDelete,
 		confirmBulkDelete,
+		handleRejectTask,
 	};
 }

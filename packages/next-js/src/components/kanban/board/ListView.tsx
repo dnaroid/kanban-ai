@@ -2,7 +2,14 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+	ChevronDown,
+	ChevronRight,
+	Loader2,
+	Plus,
+	Trash2,
+	XCircle,
+} from "lucide-react";
 import {
 	useSortable,
 	SortableContext,
@@ -38,6 +45,7 @@ interface ListViewProps {
 	projectId: string;
 	onBulkDeleteColumn?: (columnId: string, taskCount: number) => void;
 	onUpdateTask?: (id: string, patch: Partial<KanbanTask>) => void;
+	onRejectAction?: (taskId: string) => void;
 }
 
 export function ListView({
@@ -52,6 +60,7 @@ export function ListView({
 	projectId,
 	onBulkDeleteColumn,
 	onUpdateTask,
+	onRejectAction,
 }: ListViewProps) {
 	return (
 		<div className="flex flex-col gap-4 p-8 w-full overflow-y-auto custom-scrollbar h-full">
@@ -75,6 +84,7 @@ export function ListView({
 						projectId={projectId}
 						onBulkDeleteColumn={onBulkDeleteColumn}
 						onUpdateTask={onUpdateTask}
+						onRejectAction={onRejectAction}
 					/>
 				);
 			})}
@@ -94,6 +104,7 @@ interface ListColumnProps {
 	projectId: string;
 	onBulkDeleteColumn?: (columnId: string, taskCount: number) => void;
 	onUpdateTask?: (id: string, patch: Partial<KanbanTask>) => void;
+	onRejectAction?: (taskId: string) => void;
 }
 
 function ListColumn({
@@ -108,6 +119,7 @@ function ListColumn({
 	projectId,
 	onBulkDeleteColumn,
 	onUpdateTask,
+	onRejectAction,
 }: ListColumnProps) {
 	const { setNodeRef, isOver } = useDroppable({
 		id: column.id,
@@ -210,6 +222,7 @@ function ListColumn({
 										systemKey={column.systemKey}
 										projectId={projectId}
 										onUpdateTask={onUpdateTask}
+										onRejectAction={onRejectAction}
 									/>
 								))}
 							</div>
@@ -229,6 +242,7 @@ interface ListItemProps {
 	systemKey?: string;
 	projectId: string;
 	onUpdateTask?: (id: string, patch: Partial<KanbanTask>) => void;
+	onRejectAction?: (taskId: string) => void;
 }
 
 function ListItem({
@@ -239,6 +253,7 @@ function ListItem({
 	systemKey,
 	projectId,
 	onUpdateTask,
+	onRejectAction,
 }: ListItemProps) {
 	const {
 		attributes,
@@ -272,6 +287,7 @@ function ListItem({
 				projectId={projectId}
 				dragListeners={listeners}
 				onUpdateTask={onUpdateTask}
+				onRejectAction={onRejectAction}
 			/>
 		</div>
 	);
@@ -288,6 +304,7 @@ export interface ListItemViewProps {
 	projectId?: string;
 	dragListeners?: Record<string, unknown>;
 	onUpdateTask?: (id: string, patch: Partial<KanbanTask>) => void;
+	onRejectAction?: (taskId: string) => void;
 }
 
 export function ListItemView({
@@ -301,6 +318,7 @@ export function ListItemView({
 	projectId,
 	dragListeners,
 	onUpdateTask,
+	onRejectAction,
 }: ListItemViewProps) {
 	const [isLoading, setIsLoading] = React.useState(false);
 	const router = useRouter();
@@ -467,6 +485,21 @@ export function ListItemView({
 								<actionConfig.icon className="h-3.5 w-3.5" />
 							)}
 							<span>{actionConfig.label}</span>
+						</button>
+					)}
+					{systemKey === "review" && onRejectAction && (
+						<button
+							type="button"
+							onClick={(e) => {
+								e.stopPropagation();
+								onRejectAction(task.id);
+							}}
+							onPointerDown={(e) => e.stopPropagation()}
+							className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-red-400/85 transition-colors hover:bg-red-500/10 hover:text-red-300 active:bg-red-500/20"
+							title="Reject Task"
+						>
+							<XCircle className="h-3.5 w-3.5" />
+							<span>Reject</span>
 						</button>
 					)}
 					<button

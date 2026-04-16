@@ -456,7 +456,7 @@ export class TaskStateMachine {
 					: null;
 			case "review:reject":
 				return this.isReviewState(input.task.status, currentColumnKey)
-					? "pending"
+					? "rejected"
 					: null;
 			case "recover:retry":
 				return input.task.status === "failed" ? "pending" : null;
@@ -609,7 +609,9 @@ export class TaskStateMachine {
 		status: TaskStatus,
 		columnKey: string | null,
 	): boolean {
-		return status === "pending" && columnKey === "ready";
+		return (
+			(status === "pending" || status === "rejected") && columnKey === "ready"
+		);
 	}
 
 	private isActiveRunState(

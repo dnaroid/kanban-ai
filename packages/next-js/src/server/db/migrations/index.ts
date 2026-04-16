@@ -10,6 +10,7 @@ import {
 	v025RunMetadataSql,
 	v026DropWorkflowTablesSql,
 	v027TaskCommitMessageSql,
+	v028TaskQaReportSql,
 } from "./sql";
 export {
 	v017SystemKeySql,
@@ -23,6 +24,7 @@ export {
 	v025RunMetadataSql,
 	v026DropWorkflowTablesSql,
 	v027TaskCommitMessageSql,
+	v028TaskQaReportSql,
 };
 
 export const INIT_DB_SQL = `
@@ -108,6 +110,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   -- model assignment (migration 15)
   model_name TEXT,
   commit_message TEXT,
+  qa_report TEXT,
 
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -535,6 +538,10 @@ export const migrations = [
 	{
 		version: 27,
 		sql: v027TaskCommitMessageSql,
+	},
+	{
+		version: 28,
+		sql: v028TaskQaReportSql,
 	},
 ] as const;
 
