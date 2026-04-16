@@ -54,6 +54,23 @@ function hasRenderableApplyPatchSections(patchText: string): boolean {
 	return /\*\*\* (Add|Update|Delete) File: /u.test(patchText);
 }
 
+function getReadFilePath(input: unknown, projectPath?: string): string | null {
+	if (!input || typeof input !== "object") return null;
+	const record = input as Record<string, unknown>;
+	if (typeof record.filePath !== "string" || !record.filePath) return null;
+
+	const filePath = record.filePath;
+
+	if (projectPath) {
+		const normalizedProject = projectPath.replace(/\/+$/, "");
+		if (filePath.startsWith(normalizedProject + "/")) {
+			return filePath.slice(normalizedProject.length + 1);
+		}
+	}
+
+	return filePath;
+}
+
 function buildQuestionDataFromInput(input: unknown): QuestionData | null {
 	if (!input || typeof input !== "object") return null;
 	const rec = input as Record<string, unknown>;
@@ -221,6 +238,7 @@ export function FilePart({
 
 export function ToolPart({
 	part,
+	projectPath,
 	pendingQuestion,
 	onQuestionReply,
 	onQuestionReject,
@@ -233,6 +251,7 @@ export function ToolPart({
 		output?: unknown;
 		error?: string;
 	};
+	projectPath?: string;
 	pendingQuestion?: QuestionData;
 	onQuestionReply?: (requestId: string, answers: string[][]) => Promise<void>;
 	onQuestionReject?: (requestId: string) => Promise<void>;
@@ -300,6 +319,11 @@ export function ToolPart({
 		hasRenderableApplyPatchSections(applyPatchToolInput.patchText);
 	const shouldShowCustomDiff = isCompletedEditTool || isCompletedApplyPatchTool;
 
+	const toolFilePath =
+		part.tool === "read" || part.tool === "edit"
+			? getReadFilePath(part.input, projectPath)
+			: null;
+
 	return (
 		<div
 			className={cn(
@@ -320,6 +344,14 @@ export function ToolPart({
 					<span className="text-xs font-mono font-medium text-slate-200">
 						{part.tool}
 					</span>
+					{toolFilePath && (
+						<span
+							className="text-[10px] font-mono text-slate-500 truncate max-w-[300px]"
+							title={toolFilePath}
+						>
+							{toolFilePath}
+						</span>
+					)}
 					<div
 						className={cn(
 							"flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
@@ -573,7 +605,13 @@ export function SystemNotificationPart({ part }: { part: Part }) {
 	);
 }
 
-export function MessagePartRenderer({ part }: { part: Part }) {
+export function MessagePartRenderer({
+	part,
+	projectPath,
+}: {
+	part: Part;
+	projectPath?: string;
+}) {
 	if ("ignored" in part && part.ignored) {
 		return <SystemNotificationPart part={part} />;
 	}
@@ -587,7 +625,7 @@ export function MessagePartRenderer({ part }: { part: Part }) {
 			if (part.tool === "todowrite") {
 				return <TodoWriteToolView part={part} />;
 			}
-			return <ToolPart part={part} />;
+			return <ToolPart part={part} projectPath={projectPath} />;
 		case "reasoning":
 			return <ReasoningPart part={part} />;
 		case "agent":

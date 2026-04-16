@@ -180,11 +180,12 @@ export function useTaskModel(projectId: string, taskId: string) {
 		}
 	};
 
-	const columnName = board?.columns.find((c) => c.id === task?.columnId)?.name;
+	const column = board?.columns.find((c) => c.id === task?.columnId);
 
 	return {
 		task,
-		columnName,
+		columnName: column?.name,
+		columnSystemKey: column?.systemKey ?? null,
 		loading,
 		error,
 		handleUpdate,

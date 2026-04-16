@@ -18,10 +18,8 @@ export default function StandaloneTaskPage() {
 		| "properties"
 		| null;
 
-	const { task, columnName, loading, error, handleUpdate } = useTaskModel(
-		projectId,
-		taskId,
-	);
+	const { task, columnName, columnSystemKey, loading, error, handleUpdate } =
+		useTaskModel(projectId, taskId);
 
 	if (loading) {
 		return (
@@ -53,6 +51,10 @@ export default function StandaloneTaskPage() {
 		);
 	}
 
+	const isInBacklog = columnSystemKey === "backlog";
+	const defaultTab =
+		task.opencodeWebUrl && !isInBacklog ? "runs" : (tabParam ?? "details");
+
 	return (
 		<div className="flex h-full bg-[#0B0E14] text-slate-200 overflow-hidden">
 			<main className="flex-1 overflow-hidden">
@@ -61,7 +63,7 @@ export default function StandaloneTaskPage() {
 					columnName={columnName}
 					onUpdate={handleUpdate}
 					onClose={() => router.push(`/board/${projectId}`)}
-					defaultTab={tabParam ?? "details"}
+					defaultTab={defaultTab}
 				/>
 			</main>
 		</div>
