@@ -1,8 +1,15 @@
 import React from "react";
 import { File, Image, ExternalLink, X } from "lucide-react";
-import type { LmdBlock, LmdInline } from "@/lib/lightmd/types";
+import type { LmdBlock, LmdColumnAlign, LmdInline } from "@/lib/lightmd/types";
 import { parseLightMd } from "@/lib/lightmd/parse";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
+
+function alignClass(align: LmdColumnAlign | undefined): string {
+	if (align === "center") return "text-center";
+	if (align === "right") return "text-right";
+	return "text-left";
+}
 
 function renderInlines(
 	inlines: LmdInline[],
@@ -169,6 +176,48 @@ function RenderBlock({
 						),
 					)}
 				</ul>
+			);
+		case "table":
+			return (
+				<div className="my-3 -mx-1 overflow-x-auto rounded-lg border border-slate-700/60">
+					<table className="w-full border-collapse text-sm">
+						<thead>
+							<tr className="border-b border-slate-700/60 bg-slate-800/60">
+								{block.header.cells.map((cell, colIdx) => (
+									<th
+										key={colIdx}
+										className={cn(
+											"px-3 py-2 text-left font-semibold text-slate-200 whitespace-nowrap",
+											alignClass(block.align[colIdx]),
+										)}
+									>
+										{renderInlines(cell.inlines, onRemoveLink)}
+									</th>
+								))}
+							</tr>
+						</thead>
+						<tbody>
+							{block.rows.map((row, rowIdx) => (
+								<tr
+									key={rowIdx}
+									className="border-b border-slate-800/60 last:border-b-0 even:bg-slate-900/30"
+								>
+									{row.cells.map((cell, colIdx) => (
+										<td
+											key={colIdx}
+											className={cn(
+												"px-3 py-2 text-slate-300",
+												alignClass(block.align[colIdx]),
+											)}
+										>
+											{renderInlines(cell.inlines, onRemoveLink)}
+										</td>
+									))}
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
 			);
 		default:
 			return null;

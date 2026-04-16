@@ -1,4 +1,13 @@
-import type { LmdBlock, LmdDoc, LmdInline, LmdListItem } from "./types";
+import type {
+	LmdBlock,
+	LmdColumnAlign,
+	LmdDoc,
+	LmdInline,
+	LmdListItem,
+	LmdTable,
+	LmdTableCell,
+	LmdTableRow,
+} from "./types";
 
 const LIMITS = {
 	maxChars: 200000,
@@ -131,6 +140,57 @@ function parseList(lines: string[], start: number): [LmdBlock, number] {
 	return [{ type: "list", ordered, items }, i];
 }
 
+const TABLE_ROW_RE = /^\|(.+)\|$/;
+const TABLE_SEPARATOR_RE = /^\|?(\s*:?-+:?\s*\|)+\s*:?-+:?\s*\|?$/;
+
+function parseCell(text: string): LmdTableCell {
+	const trimmed = text.trim();
+	return { inlines: parseInline(trimmed) };
+}
+
+function parseAlignment(separatorLine: string): LmdColumnAlign[] {
+	const cells = separatorLine.replace(/^\|/, "").replace(/\|$/, "").split("|");
+	return cells.map((cell) => {
+		const trimmed = cell.trim();
+		if (trimmed.startsWith(":") && trimmed.endsWith(":")) return "center";
+		if (trimmed.endsWith(":")) return "right";
+		if (trimmed.startsWith(":")) return "left";
+		return null;
+	});
+}
+
+function parseRow(line: string): LmdTableRow {
+	const match = line.match(TABLE_ROW_RE);
+	if (!match) return { cells: [] };
+	const cells = match[1]!.split("|").map((c) => parseCell(c));
+	return { cells };
+}
+
+function tryParseTable(
+	lines: string[],
+	start: number,
+): [LmdTable | null, number] {
+	const headerLine = lines[start]?.trim() ?? "";
+	if (!TABLE_ROW_RE.test(headerLine)) return [null, start];
+
+	const separatorLine = lines[start + 1]?.trim() ?? "";
+	if (!TABLE_SEPARATOR_RE.test(separatorLine)) return [null, start];
+
+	const align = parseAlignment(separatorLine);
+	const header = parseRow(headerLine);
+
+	const rows: LmdTableRow[] = [];
+	let i = start + 2;
+	while (i < lines.length) {
+		const trimmed = (lines[i] ?? "").trim();
+		if (!trimmed || !TABLE_ROW_RE.test(trimmed)) break;
+		rows.push(parseRow(trimmed));
+		i += 1;
+	}
+
+	return [{ type: "table", align, header, rows }, i];
+}
+
 export function parseLightMd(text: string): LmdDoc {
 	const safe = toSafeText(text);
 	const lines = safe.split(/\r?\n/).slice(0, LIMITS.maxLines);
@@ -191,6 +251,15 @@ export function parseLightMd(text: string): LmdDoc {
 			blocks.push(listBlock);
 			i = nextIndex;
 			continue;
+		}
+
+		if (TABLE_ROW_RE.test(trimmed)) {
+			const [table, nextIndex] = tryParseTable(lines, i);
+			if (table) {
+				blocks.push(table);
+				i = nextIndex;
+				continue;
+			}
 		}
 
 		const para: string[] = [trimmed];
