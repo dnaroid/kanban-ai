@@ -132,7 +132,7 @@ export function TaskDrawerContent({
 
 	const tabs = [
 		{ id: "details" as const, label: "Details" },
-		{ id: "runs" as const, label: "Runs" },
+		{ id: "runs" as const, label: "Run" },
 		...(task.qaReport ? [{ id: "qa" as const, label: "QA" }] : []),
 		{ id: "vcs" as const, label: "VCS" },
 		{ id: "properties" as const, label: "Properties" },
