@@ -796,37 +796,54 @@ export class RunService {
 						`When done, output exactly one status line: ${buildOpencodeStatusLine("done")} or ${buildOpencodeStatusLine("fail")} or ${buildOpencodeStatusLine("question")}`,
 					].join("\n");
 
-					await sendSessionMessage(completedRun.sessionId, qaMessage);
+					try {
+						await sendSessionMessage(completedRun.sessionId, qaMessage);
 
-					const inProgressColumn = board.columns.find(
-						(col) => col.systemKey === "in_progress",
-					);
-					if (inProgressColumn) {
-						const existingInColumn = taskRepo
-							.listByBoard(board.id)
-							.filter((t) => t.columnId === inProgressColumn.id).length;
-						taskRepo.update(taskToStart.id, {
-							status: "running",
-							columnId: inProgressColumn.id,
-							orderInColumn: existingInColumn,
-							qaReport: null,
+						const inProgressColumn = board.columns.find(
+							(col) => col.systemKey === "in_progress",
+						);
+						if (inProgressColumn) {
+							const existingInColumn = taskRepo
+								.listByBoard(board.id)
+								.filter((t) => t.columnId === inProgressColumn.id).length;
+							taskRepo.update(taskToStart.id, {
+								status: "running",
+								columnId: inProgressColumn.id,
+								orderInColumn: existingInColumn,
+								qaReport: null,
+							});
+						} else {
+							taskRepo.update(taskToStart.id, {
+								status: "running",
+								qaReport: null,
+							});
+						}
+
+						publishSseEvent("task:event", {
+							taskId: taskToStart.id,
+							boardId: taskToStart.boardId,
+							projectId: taskToStart.projectId,
+							eventType: "task:updated",
+							updatedAt: new Date().toISOString(),
 						});
-					} else {
-						taskRepo.update(taskToStart.id, {
-							status: "running",
-							qaReport: null,
-						});
+
+						taskIds.push(taskToStart.id);
+					} catch (sessionError) {
+						log.warn(
+							"Failed to reuse completed run session for rejected task, starting new run",
+							{
+								taskId: taskToStart.id,
+								sessionId: completedRun.sessionId,
+								error:
+									sessionError instanceof Error
+										? sessionError.message
+										: String(sessionError),
+							},
+						);
+						const started = await this.start({ taskId: taskToStart.id });
+						taskIds.push(taskToStart.id);
+						runIds.push(started.runId);
 					}
-
-					publishSseEvent("task:event", {
-						taskId: taskToStart.id,
-						boardId: taskToStart.boardId,
-						projectId: taskToStart.projectId,
-						eventType: "task:updated",
-						updatedAt: new Date().toISOString(),
-					});
-
-					taskIds.push(taskToStart.id);
 				} else {
 					const started = await this.start({ taskId: taskToStart.id });
 					taskIds.push(taskToStart.id);

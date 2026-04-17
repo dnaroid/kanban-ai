@@ -48,6 +48,8 @@ export default function DiagnosticsPage() {
 	const [isRestarting, setIsRestarting] = useState(false);
 	const [isRestartWarningOpen, setIsRestartWarningOpen] = useState(false);
 	const [restartBusySessionCount, setRestartBusySessionCount] = useState(0);
+	const [restartRunningCount, setRestartRunningCount] = useState(0);
+	const [restartQueuedCount, setRestartQueuedCount] = useState(0);
 
 	const loadStats = useCallback(
 		async (silent = false) => {
@@ -81,17 +83,28 @@ export default function DiagnosticsPage() {
 		return () => clearInterval(interval);
 	}, [loadStats]);
 
-	const handleRestart = async () => {
-		const sessionStats = await api.opencode
-			.activeSessionStats()
-			.catch(() => null);
+	const checkActiveBeforeRestart = async (): Promise<boolean> => {
+		const [queueCheck, sessionCheck] = await Promise.all([
+			api.run.queueStats().catch(() => null),
+			api.opencode.activeSessionStats().catch(() => null),
+		]);
 
-		if (sessionStats && sessionStats.busySessions > 0) {
-			setRestartBusySessionCount(sessionStats.busySessions);
+		const hasQueuedRuns = (queueCheck?.totalQueued ?? 0) > 0;
+		const hasRunningRuns = (queueCheck?.totalRunning ?? 0) > 0;
+		const hasBusySessions = (sessionCheck?.busySessions ?? 0) > 0;
+
+		if (hasQueuedRuns || hasRunningRuns || hasBusySessions) {
+			setRestartQueuedCount(queueCheck?.totalQueued ?? 0);
+			setRestartRunningCount(queueCheck?.totalRunning ?? 0);
+			setRestartBusySessionCount(sessionCheck?.busySessions ?? 0);
 			setIsRestartWarningOpen(true);
-			return;
+			return true;
 		}
+		return false;
+	};
 
+	const handleRestart = async () => {
+		if (await checkActiveBeforeRestart()) return;
 		await performRestart(false);
 	};
 
@@ -103,13 +116,9 @@ export default function DiagnosticsPage() {
 			await loadStats();
 		} catch (err) {
 			if (!force) {
-				const retryStats = await api.opencode
-					.activeSessionStats()
-					.catch(() => null);
-				if (retryStats && retryStats.busySessions > 0) {
+				const blocked = await checkActiveBeforeRestart();
+				if (blocked) {
 					setIsRestarting(false);
-					setRestartBusySessionCount(retryStats.busySessions);
-					setIsRestartWarningOpen(true);
 					return;
 				}
 			}
@@ -400,27 +409,53 @@ export default function DiagnosticsPage() {
 				onClose={() => {
 					setIsRestartWarningOpen(false);
 					setRestartBusySessionCount(0);
+					setRestartRunningCount(0);
+					setRestartQueuedCount(0);
 				}}
 				onConfirm={async () => {
 					setIsRestartWarningOpen(false);
 					await performRestart(true);
 				}}
-				title="Active sessions in progress"
-				description="There are OpenCode sessions currently running. Restarting will interrupt them."
+				title="Active work in progress"
+				description="There are active tasks or OpenCode sessions running. Restarting will interrupt them."
 				confirmLabel="Restart anyway"
 				variant="danger"
 				isLoading={isRestarting}
 			>
-				{restartBusySessionCount > 0 && (
-					<div className="mt-3">
-						<div className="flex-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-center">
-							<div className="text-lg font-bold text-amber-400 font-mono">
-								{restartBusySessionCount}
+				{(restartBusySessionCount > 0 ||
+					restartRunningCount > 0 ||
+					restartQueuedCount > 0) && (
+					<div className="mt-3 flex gap-3">
+						{restartBusySessionCount > 0 && (
+							<div className="flex-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-center">
+								<div className="text-lg font-bold text-amber-400 font-mono">
+									{restartBusySessionCount}
+								</div>
+								<div className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold">
+									Active sessions
+								</div>
 							</div>
-							<div className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold">
-								Active sessions
+						)}
+						{restartRunningCount > 0 && (
+							<div className="flex-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-center">
+								<div className="text-lg font-bold text-emerald-400 font-mono">
+									{restartRunningCount}
+								</div>
+								<div className="text-[10px] text-emerald-400/70 uppercase tracking-wider font-semibold">
+									Running
+								</div>
 							</div>
-						</div>
+						)}
+						{restartQueuedCount > 0 && (
+							<div className="flex-1 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-center">
+								<div className="text-lg font-bold text-blue-400 font-mono">
+									{restartQueuedCount}
+								</div>
+								<div className="text-[10px] text-blue-400/70 uppercase tracking-wider font-semibold">
+									Queued
+								</div>
+							</div>
+						)}
 					</div>
 				)}
 			</ConfirmationModal>

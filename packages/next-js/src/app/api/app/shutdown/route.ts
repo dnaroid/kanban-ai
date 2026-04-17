@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getOpencodeService } from "@/server/opencode/opencode-service";
 import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
+import { runService } from "@/server/run/run-service";
 
 export async function POST(request: Request): Promise<Response> {
 	try {
@@ -16,12 +17,23 @@ export async function POST(request: Request): Promise<Response> {
 				if (typeof body?.force === "boolean") {
 					force = body.force;
 				}
-			} catch {
-				// No JSON body or malformed — treat as force=false
-			}
+			} catch {}
 		}
 
 		if (!force) {
+			const queueStats = runService.getQueueStats();
+			if (queueStats.totalRunning > 0 || queueStats.totalQueued > 0) {
+				return NextResponse.json(
+					{
+						success: false,
+						error: "Cannot shutdown: active runs in progress",
+						totalRunning: queueStats.totalRunning,
+						totalQueued: queueStats.totalQueued,
+					},
+					{ status: 409 },
+				);
+			}
+
 			const manager = getOpencodeSessionManager();
 			const sessionStats = await manager.getActiveSessionCount();
 			if (sessionStats.busySessions > 0) {
