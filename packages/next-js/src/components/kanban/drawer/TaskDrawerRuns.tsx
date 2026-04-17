@@ -1,25 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import {
-	Play,
-	Plus,
-	RefreshCw,
-	RotateCcw,
-	Square,
-	Terminal,
-	Trash2,
-	User,
-} from "lucide-react";
+import { Plus, RotateCcw, Square, Terminal, Trash2, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { KanbanTask } from "@/types/kanban";
 import type { Run } from "@/types/ipc";
 import { RunDetailsView } from "./RunDetailsView";
 import { runStatusConfig } from "./TaskPropertyConfigs";
 import { api } from "@/lib/api";
-import {
-	getWorkflowStatusVisual,
-	toneBadgeStyle,
-} from "@/components/kanban/workflow-display";
-import { useWorkflowDisplayConfig } from "@/components/kanban/useWorkflowDisplayConfig";
 import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 
 interface TaskDrawerRunsProps {
@@ -98,15 +84,12 @@ function selectRunId(
 }
 
 export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
-	const workflowConfig = useWorkflowDisplayConfig();
 	const [runs, setRuns] = useState<Run[]>([]);
 	const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 	const [isLoadingRuns, setIsLoadingRuns] = useState(false);
 	const [isStartingRun, setIsStartingRun] = useState(false);
-	const [isStartingQaRun, setIsStartingQaRun] = useState(false);
 	const [mergingRunId, setMergingRunId] = useState<string | null>(null);
 	const [roles, setRoles] = useState<AgentRole[]>([]);
-	const [isLoadingRoles, setIsLoadingRoles] = useState(false);
 	const [selectedRoleId, setSelectedRoleId] = useState<string>("");
 	const [runToDelete, setRunToDelete] = useState<string | null>(null);
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -200,20 +183,6 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 		}
 	};
 
-	const handleStartQaRun = async () => {
-		if (isStartingQaRun) return;
-		setIsStartingQaRun(true);
-		try {
-			const response = await api.opencode.startQaTesting({ taskId: task.id });
-			await fetchRuns();
-			setSelectedRunId(response.runId);
-		} catch (error) {
-			console.error("Failed to start QA testing run:", error);
-		} finally {
-			setIsStartingQaRun(false);
-		}
-	};
-
 	const handleCancelRun = async (runId: string, e: React.MouseEvent) => {
 		e.stopPropagation();
 		try {
@@ -289,7 +258,6 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 
 	useEffect(() => {
 		const fetchRoles = async () => {
-			setIsLoadingRoles(true);
 			try {
 				const response = await api.roles.listFull();
 				const fetchedRoles = response.roles.map((role) => ({
@@ -312,8 +280,6 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 				setSelectedRoleId(defaultRole);
 			} catch (error) {
 				console.error("Failed to fetch roles:", error);
-			} finally {
-				setIsLoadingRoles(false);
 			}
 		};
 
@@ -321,100 +287,9 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 	}, [task.tags]);
 
 	const selectedRun = runs.find((r) => r.id === selectedRunId) || null;
-	const selectedRole = roles.find((role) => role.id === selectedRoleId) ?? null;
-	const currentStatusVisual = getWorkflowStatusVisual(
-		workflowConfig,
-		task.status,
-	);
-	const currentStatusBadge = toneBadgeStyle(currentStatusVisual.tone);
-	const CurrentStatusIcon = currentStatusVisual.icon;
 
 	return (
 		<div className="flex flex-col h-full bg-[#0B0E14] animate-in fade-in duration-300">
-			<div className="p-4 border-b border-slate-800/50 bg-[#11151C]/50 flex items-center justify-between shrink-0">
-				<div className="flex items-center gap-3">
-					<div className="p-2 rounded-lg border" style={currentStatusBadge}>
-						<CurrentStatusIcon
-							className={cn(
-								"w-4 h-4",
-								(task.status === "running" ||
-									(task.status as string) === "in_progress") &&
-									"animate-spin",
-							)}
-							style={{ color: currentStatusBadge.color }}
-						/>
-					</div>
-					<div>
-						<div className="flex items-center gap-2">
-							<h3 className="text-xs font-bold text-white uppercase tracking-wider">
-								{task.status}
-							</h3>
-						</div>
-						<p className="text-[10px] text-slate-500 font-medium">
-							{runs.length} executions
-						</p>
-					</div>
-				</div>
-				<div className="flex items-end gap-2">
-					<div className="flex flex-col gap-1">
-						<select
-							value={selectedRoleId}
-							onChange={(e) => setSelectedRoleId(e.target.value)}
-							className="h-7 min-w-[150px] text-[10px] bg-slate-900 border border-slate-700 rounded px-2 text-slate-300 focus:outline-none focus:border-blue-500/50"
-							disabled={isLoadingRoles}
-						>
-							{visibleRoles.map((role) => (
-								<option key={role.id} value={role.id}>
-									{role.name}
-								</option>
-							))}
-						</select>
-						{selectedRole?.description ? (
-							<p className="max-w-[220px] truncate text-[9px] text-slate-500">
-								{selectedRole.description}
-							</p>
-						) : null}
-					</div>
-
-					<button
-						type="button"
-						onClick={fetchRuns}
-						className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
-						title="Refresh runs"
-					>
-						<RefreshCw
-							className={cn("w-3.5 h-3.5", isLoadingRuns && "animate-spin")}
-						/>
-					</button>
-					<button
-						type="button"
-						onClick={handleStartRun}
-						disabled={isStartingRun || isStartingQaRun || isLoadingRoles}
-						className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
-					>
-						{isStartingRun ? (
-							<RefreshCw className="w-3.5 h-3.5 animate-spin" />
-						) : (
-							<Play className="w-3.5 h-3.5 fill-current" />
-						)}
-						New Run
-					</button>
-					<button
-						type="button"
-						onClick={handleStartQaRun}
-						disabled={isStartingRun || isStartingQaRun || isLoadingRoles}
-						className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
-					>
-						{isStartingQaRun ? (
-							<RefreshCw className="w-3.5 h-3.5 animate-spin" />
-						) : (
-							<Play className="w-3.5 h-3.5 fill-current" />
-						)}
-						QA Test
-					</button>
-				</div>
-			</div>
-
 			<div className="flex-1 overflow-y-auto custom-scrollbar">
 				{selectedRun ? (
 					<RunDetailsView
