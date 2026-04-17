@@ -970,6 +970,8 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			updateData.estimateHours = patch.estimateHours;
 		if (patch.assignee !== undefined) updateData.assignee = patch.assignee;
 		if (patch.modelName !== undefined) updateData.modelName = patch.modelName;
+		if (patch.isGenerated !== undefined)
+			updateData.isGenerated = patch.isGenerated;
 
 		const optimisticTask: KanbanTask = {
 			...previousTask,

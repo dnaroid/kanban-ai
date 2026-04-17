@@ -73,6 +73,7 @@ export interface Task {
 	modelName: string | null;
 	commitMessage: string | null;
 	qaReport: string | null;
+	isGenerated: boolean;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -94,6 +95,7 @@ export interface CreateTaskInput {
 	modelName?: string | null;
 	commitMessage?: string;
 	qaReport?: string | null;
+	isGenerated?: boolean;
 }
 
 export interface UpdateTaskInput {
@@ -117,6 +119,7 @@ export interface UpdateTaskInput {
 	modelName?: string | null;
 	commitMessage?: string | null;
 	qaReport?: string | null;
+	isGenerated?: boolean;
 }
 
 export interface Run {

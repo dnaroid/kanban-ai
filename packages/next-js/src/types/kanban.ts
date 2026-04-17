@@ -38,6 +38,7 @@ export interface KanbanTask {
 	latestSessionId: string | null;
 	opencodeWebUrl: string | null;
 	qaReport: string | null;
+	isGenerated: boolean;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -77,9 +78,9 @@ export interface KanbanTaskPatch {
 	assignee?: string | null;
 	modelName?: string | null;
 	qaReport?: string | null;
+	isGenerated?: boolean;
 }
 
-// Tag type
 export interface Tag {
 	id: string;
 	name: string;

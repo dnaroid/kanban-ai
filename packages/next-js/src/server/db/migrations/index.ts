@@ -12,6 +12,7 @@ import {
 	v027TaskCommitMessageSql,
 	v028TaskQaReportSql,
 	v029ModelContextLimitSql,
+	v030TaskIsGeneratedSql,
 } from "./sql";
 export {
 	v017SystemKeySql,
@@ -27,6 +28,7 @@ export {
 	v027TaskCommitMessageSql,
 	v028TaskQaReportSql,
 	v029ModelContextLimitSql,
+	v030TaskIsGeneratedSql,
 };
 
 export const INIT_DB_SQL = `
@@ -113,6 +115,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   model_name TEXT,
   commit_message TEXT,
   qa_report TEXT,
+  is_generated TEXT NOT NULL DEFAULT '0',
 
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -549,6 +552,10 @@ export const migrations = [
 	{
 		version: 29,
 		sql: v029ModelContextLimitSql,
+	},
+	{
+		version: 30,
+		sql: v030TaskIsGeneratedSql,
 	},
 ] as const;
 

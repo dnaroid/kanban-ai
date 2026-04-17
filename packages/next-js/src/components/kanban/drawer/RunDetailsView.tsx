@@ -117,7 +117,8 @@ export function RunDetailsView({
 				}
 
 				const matchedModel = response.models.find(
-					(model: OpencodeModel) => model.name === modelID,
+					(model: OpencodeModel) =>
+						model.name === modelID || model.name.endsWith(`/${modelID}`),
 				);
 				setContextLimit(matchedModel?.contextLimit ?? null);
 			} catch (error) {

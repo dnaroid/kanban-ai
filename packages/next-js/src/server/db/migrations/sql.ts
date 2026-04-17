@@ -63,3 +63,7 @@ ALTER TABLE tasks ADD COLUMN qa_report TEXT;
 export const v029ModelContextLimitSql = `
 ALTER TABLE opencode_models ADD COLUMN context_limit INTEGER NOT NULL DEFAULT 0;
 `;
+
+export const v030TaskIsGeneratedSql = `
+ALTER TABLE tasks ADD COLUMN is_generated TEXT NOT NULL DEFAULT '0';
+`;

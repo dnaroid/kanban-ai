@@ -54,6 +54,7 @@ function taskToKanban(
 		latestSessionId: task.latestSessionId ?? null,
 		opencodeWebUrl: task.opencodeWebUrl ?? null,
 		qaReport: task.qaReport ?? null,
+		isGenerated: !!task.isGenerated,
 		createdAt: task.createdAt,
 		updatedAt: task.updatedAt,
 	};

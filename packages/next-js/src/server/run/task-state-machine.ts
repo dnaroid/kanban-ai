@@ -574,6 +574,7 @@ export interface TaskTransitionResult {
 		type?: string;
 		difficulty?: string;
 		commitMessage?: string | null;
+		isGenerated?: boolean;
 	};
 	effects: TaskEffect[];
 }
@@ -1010,6 +1011,7 @@ export class TaskStateMachine {
 		if (shouldParseStoryContent(input)) {
 			patch.description = parsed.description;
 			patch.descriptionMd = parsed.description;
+			patch.isGenerated = true;
 
 			if (parsed.title) {
 				patch.title = parsed.title;
