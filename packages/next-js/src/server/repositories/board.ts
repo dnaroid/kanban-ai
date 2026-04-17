@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import type Database from "better-sqlite3";
 import type { Board, BoardColumn } from "../types";
 import { dbManager } from "../db";
-import { getDefaultWorkflowColumns } from "../workflow/task-workflow-manager";
+import { getDefaultWorkflowColumns } from "../run/task-state-machine";
 
 export interface BoardColumnInput {
 	id?: string;

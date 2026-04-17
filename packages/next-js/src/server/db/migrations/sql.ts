@@ -59,3 +59,7 @@ ALTER TABLE tasks ADD COLUMN commit_message TEXT;
 export const v028TaskQaReportSql = `
 ALTER TABLE tasks ADD COLUMN qa_report TEXT;
 `;
+
+export const v029ModelContextLimitSql = `
+ALTER TABLE opencode_models ADD COLUMN context_limit INTEGER NOT NULL DEFAULT 0;
+`;

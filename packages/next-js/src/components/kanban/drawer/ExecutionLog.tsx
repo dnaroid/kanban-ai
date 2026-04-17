@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	Bot,
 	CheckCircle2,
@@ -23,6 +23,7 @@ import {
 import { TodoWriteToolView } from "@/components/chat/TodoWriteToolView";
 import { cn } from "@/lib/utils";
 import type {
+	MessageTokens,
 	OpenCodeMessage,
 	Part,
 	PermissionData,
@@ -195,10 +196,16 @@ const formatAssistantLabel = ({
 export function ExecutionLog({
 	runId,
 	sessionId,
+	onContextStats,
 	showReasoning,
 }: {
 	runId: string;
 	sessionId: string;
+	onContextStats?: (stats: {
+		tokens: number;
+		percent: number | null;
+		modelID: string | null;
+	}) => void;
 	showReasoning?: boolean;
 }) {
 	const [events, setEvents] = useState<RunEvent[]>([]);
@@ -352,6 +359,7 @@ export function ExecutionLog({
 				content?: string;
 				parts?: Part[];
 				modelID?: string;
+				tokens?: MessageTokens;
 			},
 			ts: string = new Date().toISOString(),
 		): RunEvent => ({
@@ -364,10 +372,50 @@ export function ExecutionLog({
 				content: message.content ?? "",
 				parts: message.parts ?? [],
 				modelID: message.modelID,
+				tokens: message.tokens,
 			},
 		}),
 		[effectiveSessionId],
 	);
+
+	const contextStats = useMemo(() => {
+		for (let index = events.length - 1; index >= 0; index -= 1) {
+			const event = events[index];
+			if (event.eventType !== "message") {
+				continue;
+			}
+
+			const payload = event.payload as {
+				role?: string;
+				tokens?: MessageTokens;
+				modelID?: string;
+			};
+			if (payload.role !== "assistant" || !payload.tokens) {
+				continue;
+			}
+
+			const totalTokens =
+				payload.tokens.input +
+				payload.tokens.output +
+				payload.tokens.reasoning +
+				payload.tokens.cache.read +
+				payload.tokens.cache.write;
+
+			if (totalTokens > 0) {
+				return {
+					tokens: totalTokens,
+					percent: null,
+					modelID: payload.modelID ?? null,
+				};
+			}
+		}
+
+		return { tokens: 0, percent: null, modelID: null };
+	}, [events]);
+
+	useEffect(() => {
+		onContextStats?.(contextStats);
+	}, [contextStats, onContextStats]);
 
 	useEffect(() => {
 		setEffectiveSessionId(sessionId);
@@ -420,6 +468,7 @@ export function ExecutionLog({
 			content?: string;
 			parts?: Part[];
 			modelID?: string;
+			tokens?: MessageTokens;
 		}) => {
 			const payloadId = payload?.id;
 			if (!payloadId) return;
@@ -453,6 +502,7 @@ export function ExecutionLog({
 				const existingPayload = existing.payload as {
 					parts?: Part[];
 					role?: string;
+					tokens?: MessageTokens;
 				};
 
 				const mergedPayload = {
@@ -462,6 +512,7 @@ export function ExecutionLog({
 							? payload.parts
 							: existingPayload.parts || [],
 					role: payload.role || existingPayload.role || "assistant",
+					tokens: payload.tokens ?? existingPayload.tokens,
 				};
 
 				const updatedEvent = buildMessageEvent(
@@ -627,6 +678,7 @@ export function ExecutionLog({
 						parts?: Part[];
 						modelId?: string;
 						modelID?: string;
+						tokens?: MessageTokens;
 					};
 					const messageId =
 						typeof message.id === "string" && message.id.length > 0
@@ -642,6 +694,7 @@ export function ExecutionLog({
 							typeof message.modelID === "string" && message.modelID.length > 0
 								? message.modelID
 								: message.modelId,
+						tokens: message.tokens,
 					});
 					setIsLoading(false);
 				}
@@ -873,6 +926,7 @@ export function ExecutionLog({
 									content: msg.content,
 									parts: msg.parts,
 									modelID: msg.modelID,
+									tokens: msg.tokens,
 								},
 							};
 
@@ -1038,7 +1092,13 @@ export function ExecutionLog({
 
 		if (event.eventType === "message") {
 			const messagePayload = event.payload as
-				| { role?: string; content?: string; parts?: Part[]; modelID?: string }
+				| {
+						role?: string;
+						content?: string;
+						parts?: Part[];
+						modelID?: string;
+						tokens?: MessageTokens;
+				  }
 				| string;
 
 			if (typeof messagePayload === "string") {

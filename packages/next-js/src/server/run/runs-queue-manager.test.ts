@@ -65,6 +65,7 @@ const {
 				(sessionId: string) => Promise<SessionInspectionResult>
 			>(async () => ({
 				probeStatus: "alive",
+				sessionStatus: "busy",
 				messages: [],
 				todos: [],
 				pendingPermissions: [],
@@ -403,6 +404,7 @@ function buildInspection(options?: {
 	pendingPermissions?: SessionInspectionResult["pendingPermissions"];
 	pendingQuestions?: SessionInspectionResult["pendingQuestions"];
 	probeStatus?: SessionInspectionResult["probeStatus"];
+	sessionStatus?: SessionInspectionResult["sessionStatus"];
 }): SessionInspectionResult {
 	const marker = options?.marker;
 	const content = options?.content ?? "";
@@ -421,6 +423,7 @@ function buildInspection(options?: {
 			: []);
 	return {
 		probeStatus: options?.probeStatus ?? "alive",
+		sessionStatus: options?.sessionStatus ?? "busy",
 		messages,
 		todos: [],
 		pendingPermissions: options?.pendingPermissions ?? [],
@@ -457,11 +460,11 @@ async function waitForDrain(): Promise<void> {
 }
 
 function withPrivateAccess(manager: RunsQueueManager): {
-	reconcileProjectRuns: (projectId: string) => Promise<void>;
+	pollProjectRuns: (projectId: string) => Promise<void>;
 	activeRunSessions: Map<string, string>;
 } {
 	return manager as unknown as {
-		reconcileProjectRuns: (projectId: string) => Promise<void>;
+		pollProjectRuns: (projectId: string) => Promise<void>;
 		activeRunSessions: Map<string, string>;
 	};
 }
@@ -474,6 +477,7 @@ describe("RunsQueueManager scheduling", () => {
 		taskMap.clear();
 		state.sessionCounter = 0;
 		process.env.RUNS_DEFAULT_CONCURRENCY = "1";
+		process.env.RUNS_AUTO_EXECUTE_AFTER_GENERATION = "";
 		process.env.RUNS_PROVIDER_CONCURRENCY = "";
 		process.env.RUNS_BLOCKED_RETRY_MS = "10";
 		process.env.RUNS_WORKTREE_ENABLED = "";
@@ -738,7 +742,7 @@ describe("RunsQueueManager scheduling", () => {
 		await waitForDrain();
 		await waitForDrain();
 		await waitForDrain();
-		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
 		expect(mockVcsManager.provisionRunWorkspace).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -1134,7 +1138,7 @@ describe("RunsQueueManager scheduling", () => {
 		expectTransitionCall("run:fail", { outcomeContent: "" });
 	});
 
-	it("projects task failure when executeRun hits fetch failed", async () => {
+	it("keeps run active when executeRun hits fetch failed after session creation", async () => {
 		taskMap.set("task-fetch-failed", buildTask("task-fetch-failed", "normal"));
 		runMap.set(
 			"run-fetch-failed",
@@ -1161,11 +1165,13 @@ describe("RunsQueueManager scheduling", () => {
 
 		expect(runMap.get("run-fetch-failed")).toEqual(
 			expect.objectContaining({
-				status: "failed",
+				status: "running",
 				errorText: "fetch failed",
 			}),
 		);
-		expectTransitionCall("run:fail", { outcomeContent: "fetch failed" });
+		expect(mockStateMachine.transition).not.toHaveBeenCalledWith(
+			expect.objectContaining({ trigger: "run:fail" }),
+		);
 	});
 
 	it("projects task failure when executeRun hits a real error", async () => {
@@ -1289,7 +1295,7 @@ describe("RunsQueueManager scheduling", () => {
 		);
 	});
 
-	it("recovers orphaned fetch-failed run from startup session scan", async () => {
+	it("recovers fetch-failed run during project polling", async () => {
 		taskMap.set(
 			"task-orphaned-fetch-failed",
 			buildTask("task-orphaned-fetch-failed", "normal", "failed"),
@@ -1318,7 +1324,7 @@ describe("RunsQueueManager scheduling", () => {
 		);
 
 		const manager = new RunsQueueManager();
-		await manager.recoverOrphanedRuns();
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
 		expect(mockSessionManager.inspectSession).toHaveBeenCalledWith(
 			"session-orphaned-fetch-failed",
@@ -1327,7 +1333,36 @@ describe("RunsQueueManager scheduling", () => {
 		expectTransitionCall("run:done", { outcomeContent: "" });
 	});
 
-	it("force-finalizes stale generation runs during global reconciliation", async () => {
+	it("does not project task failure from recoverable failed run when session is still running", async () => {
+		taskMap.set(
+			"task-recoverable-running",
+			buildTask("task-recoverable-running", "normal", "running"),
+		);
+		runMap.set("run-recoverable-running", {
+			...buildRun(
+				"run-recoverable-running",
+				"task-recoverable-running",
+				"execution",
+				"2026-01-01T00:00:00.000Z",
+			),
+			status: "failed",
+			sessionId: "session-recoverable-running",
+			metadata: {
+				kind: "task-run",
+				errorText: "fetch failed",
+			},
+		});
+		mockSessionManager.inspectSession.mockResolvedValueOnce(buildInspection());
+
+		const manager = new RunsQueueManager();
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
+
+		expect(mockStateMachine.transition).not.toHaveBeenCalledWith(
+			expect.objectContaining({ trigger: "run:fail" }),
+		);
+	});
+
+	it("force-finalizes stale generation runs during project polling", async () => {
 		taskMap.set(
 			"task-stale-generation",
 			buildTask("task-stale-generation", "normal", "generating"),
@@ -1346,13 +1381,13 @@ describe("RunsQueueManager scheduling", () => {
 		mockSessionManager.inspectSession.mockResolvedValue(buildInspection());
 
 		const manager = new RunsQueueManager();
-		await manager.rehydrateAndReconcileRuns();
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
 		expect(runMap.get("run-stale-generation")?.status).toBe("completed");
 		expectTransitionCall("generate:ok", { outcomeContent: "" });
 	});
 
-	it("does not finalize stale runs when inspection is transiently unavailable", async () => {
+	it("does not finalize stale runs when polling inspection is transiently unavailable", async () => {
 		taskMap.set(
 			"task-stale-transient",
 			buildTask("task-stale-transient", "normal", "generating"),
@@ -1373,7 +1408,7 @@ describe("RunsQueueManager scheduling", () => {
 		);
 
 		const manager = new RunsQueueManager();
-		await manager.rehydrateAndReconcileRuns();
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
 		expect(runMap.get("run-stale-transient")?.status).toBe("running");
 		expect(mockStateMachine.transition).not.toHaveBeenCalledWith(
@@ -1381,7 +1416,68 @@ describe("RunsQueueManager scheduling", () => {
 		);
 	});
 
-	it("preserves generated marker when reconciling settled generation runs", async () => {
+	it("does not fail a running run when polling probe reports not_found", async () => {
+		taskMap.set("task-not-found-1", buildTask("task-not-found-1", "normal"));
+		runMap.set(
+			"run-not-found-1",
+			buildRun(
+				"run-not-found-1",
+				"task-not-found-1",
+				"execution",
+				"2026-01-01T00:00:00.000Z",
+			),
+		);
+
+		const manager = new RunsQueueManager();
+		manager.enqueue("run-not-found-1", {
+			projectPath: "/tmp/project",
+			sessionTitle: "not found test",
+			prompt: "test prompt",
+		});
+		await waitForDrain();
+
+		mockSessionManager.inspectSession.mockResolvedValueOnce(
+			buildInspection({ probeStatus: "not_found" }),
+		);
+
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
+
+		expect(runMap.get("run-not-found-1")?.status).toBe("running");
+		expect(mockStateMachine.transition).not.toHaveBeenCalledWith(
+			expect.objectContaining({ trigger: "run:fail" }),
+		);
+	});
+
+	it("does not fail stale runs when polling probe reports not_found", async () => {
+		taskMap.set(
+			"task-stale-not-found",
+			buildTask("task-stale-not-found", "normal", "running"),
+		);
+		runMap.set("run-stale-not-found", {
+			...buildRun(
+				"run-stale-not-found",
+				"task-stale-not-found",
+				"execution",
+				"2026-01-01T00:00:00.000Z",
+			),
+			status: "running",
+			sessionId: "session-stale-not-found",
+			startedAt: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
+		});
+		mockSessionManager.inspectSession.mockResolvedValueOnce(
+			buildInspection({ probeStatus: "not_found" }),
+		);
+
+		const manager = new RunsQueueManager();
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
+
+		expect(runMap.get("run-stale-not-found")?.status).toBe("running");
+		expect(mockStateMachine.transition).not.toHaveBeenCalledWith(
+			expect.objectContaining({ trigger: "run:fail" }),
+		);
+	});
+
+	it("preserves generated marker when polling settled generation runs", async () => {
 		taskMap.set("task-settled-generation", {
 			...buildTask("task-settled-generation", "normal", "generating"),
 			updatedAt: new Date(Date.now() - 60_000).toISOString(),
@@ -1401,9 +1497,62 @@ describe("RunsQueueManager scheduling", () => {
 		mockSessionManager.inspectSession.mockResolvedValue(buildInspection());
 
 		const manager = new RunsQueueManager();
-		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
 		expectTransitionCall("generate:ok", { outcomeContent: "" });
+	});
+
+	it("hydrates story content when polling a settled generation run", async () => {
+		taskMap.set("task-settled-generation-story", {
+			...buildTask("task-settled-generation-story", "normal", "generating"),
+			updatedAt: new Date(Date.now() - 60_000).toISOString(),
+		});
+		runMap.set("run-settled-generation-story", {
+			...buildRun(
+				"run-settled-generation-story",
+				"task-settled-generation-story",
+				"generation",
+				"2026-01-01T00:00:00.000Z",
+			),
+			status: "completed",
+			sessionId: "session-settled-generation-story",
+			startedAt: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
+			finishedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+		});
+		mockSessionManager.inspectSession.mockResolvedValue(
+			buildInspection({
+				marker: "generated",
+				messages: [
+					{
+						id: "msg-1",
+						role: "assistant",
+						content: [
+							'<META>{"type":"improvement"}</META>',
+							"<STORY>",
+							"## Title",
+							"Clean up CLI output",
+							"</STORY>",
+							buildOpencodeStatusLine("generated"),
+						].join("\n"),
+						parts: [],
+						timestamp: Date.now(),
+					},
+				],
+			}),
+		);
+
+		const manager = new RunsQueueManager();
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
+
+		expectTransitionCall("generate:ok", {
+			outcomeContent: [
+				'<META>{"type":"improvement"}</META>',
+				"<STORY>",
+				"## Title",
+				"Clean up CLI output",
+				"</STORY>",
+			].join("\n"),
+		});
 	});
 
 	it("uses the marker-bearing assistant message as story content and strips the status line", async () => {
@@ -1597,7 +1746,7 @@ describe("RunsQueueManager permission handling", () => {
 		return { manager, sessionId: sessionId ?? "" };
 	}
 
-	it("pauses run when pending permission is found during project reconciliation", async () => {
+	it("pauses run when pending permission is found during project polling", async () => {
 		const { manager, sessionId } = await setupRunningRun(
 			"run-perm-1",
 			"task-perm-1",
@@ -1619,7 +1768,7 @@ describe("RunsQueueManager permission handling", () => {
 			}),
 		);
 
-		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
 		expect(runMap.get("run-perm-1")?.status).toBe("paused");
 		expect(mockRunEventRepo.create).toHaveBeenCalledWith(
@@ -1630,7 +1779,7 @@ describe("RunsQueueManager permission handling", () => {
 		);
 	});
 
-	it("publishes SSE permission event when permission is detected during project reconciliation", async () => {
+	it("publishes SSE permission event when permission is detected during project polling", async () => {
 		const { publishSseEvent } = await import("@/server/events/sse-broker");
 		const { manager, sessionId } = await setupRunningRun(
 			"run-perm-2",
@@ -1653,7 +1802,7 @@ describe("RunsQueueManager permission handling", () => {
 			}),
 		);
 
-		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
 		expect(publishSseEvent).toHaveBeenCalledWith(
 			"run:permission",
@@ -1666,7 +1815,7 @@ describe("RunsQueueManager permission handling", () => {
 		);
 	});
 
-	it("resumes run when permission is no longer pending during project reconciliation", async () => {
+	it("resumes run when permission is no longer pending during project polling", async () => {
 		const { manager, sessionId } = await setupRunningRun(
 			"run-perm-3",
 			"task-perm-3",
@@ -1688,11 +1837,11 @@ describe("RunsQueueManager permission handling", () => {
 		);
 		mockSessionManager.listPendingPermissions.mockResolvedValueOnce([]);
 
-		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
 		expect(runMap.get("run-perm-3")?.status).toBe("paused");
 
-		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
 		expect(runMap.get("run-perm-3")?.status).toBe("running");
 		expect(mockRunEventRepo.create).toHaveBeenCalledWith(
@@ -1707,7 +1856,7 @@ describe("RunsQueueManager permission handling", () => {
 		);
 	});
 
-	it("fails run after permission is rejected and reconciliation sees a failure marker", async () => {
+	it("fails run after permission is rejected and polling sees a failure marker", async () => {
 		const { manager, sessionId } = await setupRunningRun(
 			"run-perm-4",
 			"task-perm-4",
@@ -1752,12 +1901,12 @@ describe("RunsQueueManager permission handling", () => {
 			},
 		);
 
-		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
 		expect(runMap.get("run-perm-4")?.status).toBe("paused");
 
 		pendingPermissionsState = [];
-		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
 		expect(runMap.get("run-perm-4")?.status).toBe("running");
 
 		mockSessionManager.inspectSession.mockImplementation(
@@ -1771,13 +1920,13 @@ describe("RunsQueueManager permission handling", () => {
 			},
 		);
 
-		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
 		expect(runMap.get("run-perm-4")?.status).toBe("failed");
 		expectTransitionCall("run:fail", { outcomeContent: "" });
 	});
 
-	it("ignores pending permission for a non-running run during reconciliation", async () => {
+	it("ignores pending permission for a non-running run during project polling", async () => {
 		taskMap.set("task-perm-5", buildTask("task-perm-5", "normal"));
 		const run = buildRun(
 			"run-perm-5",
@@ -1803,7 +1952,7 @@ describe("RunsQueueManager permission handling", () => {
 			},
 		]);
 
-		await privateAccess.reconcileProjectRuns("project-1");
+		await privateAccess.pollProjectRuns("project-1");
 
 		expect(mockRunRepo.update).not.toHaveBeenCalledWith(
 			"run-perm-5",
@@ -1811,7 +1960,7 @@ describe("RunsQueueManager permission handling", () => {
 		);
 	});
 
-	it("still detects completion marker after permission is resolved during reconciliation", async () => {
+	it("still detects completion marker after permission is resolved during project polling", async () => {
 		const { manager, sessionId } = await setupRunningRun(
 			"run-perm-6",
 			"task-perm-6",
@@ -1856,11 +2005,11 @@ describe("RunsQueueManager permission handling", () => {
 			},
 		);
 
-		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
 		expect(runMap.get("run-perm-6")?.status).toBe("paused");
 
 		pendingPermissionsState = [];
-		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
 		expect(runMap.get("run-perm-6")?.status).toBe("running");
 
 		mockSessionManager.inspectSession.mockImplementation(
@@ -1874,12 +2023,12 @@ describe("RunsQueueManager permission handling", () => {
 			},
 		);
 
-		await withPrivateAccess(manager).reconcileProjectRuns("project-1");
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
 		expect(runMap.get("run-perm-6")?.status).toBe("completed");
 	});
 
-	it("prefers a live running run over a paused sibling during reconciliation", async () => {
+	it("prefers a live running run over a paused sibling during project polling", async () => {
 		taskMap.set("task-multi-active", {
 			...buildTask("task-multi-active", "normal", "question"),
 			updatedAt: new Date(Date.now() - 60_000).toISOString(),
@@ -1934,7 +2083,7 @@ describe("RunsQueueManager permission handling", () => {
 		});
 
 		const manager = new RunsQueueManager();
-		await manager.reconcileProjectRuns("project-1");
+		await manager.pollProjectRuns("project-1");
 
 		expectTransitionCall("run:start", {
 			task: expect.objectContaining({ id: "task-multi-active" }),

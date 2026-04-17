@@ -41,6 +41,11 @@ interface UpdateRunInput {
 	errorText?: string;
 	mode?: string;
 	roleId?: string;
+	kind?: string;
+	budget?: unknown;
+	tokensIn?: number;
+	tokensOut?: number;
+	costUsd?: number;
 	durationSec?: number;
 	metadata?: Run["metadata"];
 }
@@ -165,11 +170,27 @@ export class RunRepository {
 		return row ? mapRunRow(row) : null;
 	}
 
-	public listByTask(taskId: string): Run[] {
+	public getByTask(taskId: string): Run | null {
+		const row = this.db
+			.prepare(
+				"SELECT * FROM runs WHERE task_id = ? ORDER BY updated_at DESC, created_at DESC LIMIT 1",
+			)
+			.get(taskId) as RunRow | undefined;
+		return row ? mapRunRow(row) : null;
+	}
+
+	public listAllByTask(taskId: string): Run[] {
 		const rows = this.db
-			.prepare("SELECT * FROM runs WHERE task_id = ? ORDER BY created_at DESC")
+			.prepare(
+				"SELECT * FROM runs WHERE task_id = ? ORDER BY updated_at DESC, created_at DESC",
+			)
 			.all(taskId) as RunRow[];
 		return rows.map(mapRunRow);
+	}
+
+	public listByTask(taskId: string): Run[] {
+		const run = this.getByTask(taskId);
+		return run ? [run] : [];
 	}
 
 	public listByStatus(status: RunStatus): Run[] {
@@ -225,6 +246,26 @@ export class RunRepository {
 			updates.push("role_id = ?");
 			values.push(patch.roleId);
 		}
+		if (patch.kind !== undefined) {
+			updates.push("kind = ?");
+			values.push(patch.kind);
+		}
+		if (patch.budget !== undefined) {
+			updates.push("budget_json = ?");
+			values.push(JSON.stringify(patch.budget ?? {}));
+		}
+		if (patch.tokensIn !== undefined) {
+			updates.push("ai_tokens_in = ?");
+			values.push(patch.tokensIn);
+		}
+		if (patch.tokensOut !== undefined) {
+			updates.push("ai_tokens_out = ?");
+			values.push(patch.tokensOut);
+		}
+		if (patch.costUsd !== undefined) {
+			updates.push("ai_cost_usd = ?");
+			values.push(patch.costUsd);
+		}
 		if (patch.durationSec !== undefined) {
 			updates.push("duration_sec = ?");
 			values.push(patch.durationSec);
@@ -249,6 +290,12 @@ export class RunRepository {
 
 	public delete(runId: string): void {
 		this.db.prepare("DELETE FROM runs WHERE id = ?").run(runId);
+	}
+
+	public deleteAllExceptTaskRun(taskId: string, keepRunId: string): void {
+		this.db
+			.prepare("DELETE FROM runs WHERE task_id = ? AND id != ?")
+			.run(taskId, keepRunId);
 	}
 }
 

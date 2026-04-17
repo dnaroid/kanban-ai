@@ -100,6 +100,16 @@ export type Part =
 	| SnapshotPart
 	| OtherPart;
 
+export interface MessageTokens {
+	input: number;
+	output: number;
+	reasoning: number;
+	cache: {
+		read: number;
+		write: number;
+	};
+}
+
 export interface OpenCodeMessage {
 	id: string;
 	role: "user" | "assistant";
@@ -107,6 +117,7 @@ export interface OpenCodeMessage {
 	parts: Part[];
 	timestamp: number;
 	modelID?: string;
+	tokens?: MessageTokens;
 }
 
 export interface OpenCodeTodo {
@@ -121,6 +132,7 @@ export interface OpencodeModel {
 	enabled: boolean;
 	difficulty: "easy" | "medium" | "hard" | "epic";
 	variants: string;
+	contextLimit?: number;
 }
 
 export interface OpencodeAgent {
@@ -169,6 +181,16 @@ export interface RunVcsMetadata {
 	lastCleanupError?: string;
 }
 
+export interface RunLastExecutionStatus {
+	kind: "completed" | "failed" | "question" | "permission" | "running" | "dead";
+	marker?: "done" | "generated" | "test_ok" | "fail" | "test_fail";
+	content?: string;
+	sessionId?: string;
+	permissionId?: string;
+	questionId?: string;
+	updatedAt: string;
+}
+
 export interface RunMetadata {
 	kind?: string;
 	errorText?: string;
@@ -177,6 +199,7 @@ export interface RunMetadata {
 	tokensOut?: number;
 	costUsd?: number;
 	durationSec?: number;
+	lastExecutionStatus?: RunLastExecutionStatus;
 	vcs?: RunVcsMetadata;
 	[key: string]: unknown;
 }

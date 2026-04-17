@@ -9,7 +9,7 @@ import {
 	isStatusAllowedInWorkflowColumn,
 	isWorkflowTaskStatus,
 	resolveTaskStatusReasons,
-} from "@/server/workflow/task-workflow-manager";
+} from "@/server/run/task-state-machine";
 
 interface RouteParams {
 	params: Promise<{ id: string }>;

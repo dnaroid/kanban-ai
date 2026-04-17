@@ -11,6 +11,7 @@ import {
 	v026DropWorkflowTablesSql,
 	v027TaskCommitMessageSql,
 	v028TaskQaReportSql,
+	v029ModelContextLimitSql,
 } from "./sql";
 export {
 	v017SystemKeySql,
@@ -25,6 +26,7 @@ export {
 	v026DropWorkflowTablesSql,
 	v027TaskCommitMessageSql,
 	v028TaskQaReportSql,
+	v029ModelContextLimitSql,
 };
 
 export const INIT_DB_SQL = `
@@ -467,7 +469,8 @@ CREATE TABLE IF NOT EXISTS opencode_models (
   name TEXT PRIMARY KEY,
   enabled INTEGER NOT NULL DEFAULT 0,
   difficulty TEXT NOT NULL DEFAULT 'medium',  -- migration 14
-  variants TEXT NOT NULL DEFAULT ''           -- migration 16
+  variants TEXT NOT NULL DEFAULT '',          -- migration 16
+  context_limit INTEGER NOT NULL DEFAULT 0   -- migration 29
 );
 
 CREATE TABLE IF NOT EXISTS app_settings (
@@ -542,6 +545,10 @@ export const migrations = [
 	{
 		version: 28,
 		sql: v028TaskQaReportSql,
+	},
+	{
+		version: 29,
+		sql: v029ModelContextLimitSql,
 	},
 ] as const;
 

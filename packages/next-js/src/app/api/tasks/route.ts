@@ -11,7 +11,7 @@ import {
 	isStatusAllowedInWorkflowColumn,
 	isWorkflowTaskStatus,
 	resolveTaskStatusReasons,
-} from "@/server/workflow/task-workflow-manager";
+} from "@/server/run/task-state-machine";
 
 function getLatestSessionId(taskId: string): string | null {
 	const runs = runService.listByTask(taskId);

@@ -1,7 +1,9 @@
 import { randomUUID } from "crypto";
 import { createOpencodeClient } from "@opencode-ai/sdk/v2/client";
 import { extractOpencodeStatus } from "@/lib/opencode-status";
+import { OpencodeStorageReader } from "@/server/opencode/opencode-storage-reader";
 import type {
+	MessageTokens,
 	OpenCodeMessage,
 	OpenCodeTodo,
 	Part,
@@ -94,8 +96,11 @@ interface PromptSessionPreferences {
 
 export type SessionProbeStatus = "alive" | "not_found" | "transient_error";
 
+export type SessionActivityStatus = "idle" | "busy" | "retry" | "unknown";
+
 export interface SessionInspectionResult {
 	probeStatus: SessionProbeStatus;
+	sessionStatus: SessionActivityStatus;
 	messages: OpenCodeMessage[];
 	todos: OpenCodeTodo[];
 	pendingPermissions: PermissionData[];
@@ -158,6 +163,9 @@ export class OpencodeSessionManager {
 	private readonly directoryClients = new Map<string, OpenCodeClient>();
 	private readonly sessions = new Map<string, SessionInfo>();
 	private rootClient: OpenCodeClient | null = null;
+	private readonly storageReader = new OpencodeStorageReader((parts) =>
+		this.buildMessageContent(parts),
+	);
 	private readonly subscribers = new Map<string, Map<string, Subscriber>>();
 	private readonly directoryStreamControllers = new Map<
 		string,
@@ -259,10 +267,10 @@ export class OpencodeSessionManager {
 				return messages;
 			}
 		} catch {
-			return [];
+			return this.storageReader.getMessagesFromFilesystem(sessionId, limit);
 		}
 
-		return [];
+		return this.storageReader.getMessagesFromFilesystem(sessionId, limit);
 	}
 
 	public async getTodos(sessionId: string): Promise<OpenCodeTodo[]> {
@@ -287,12 +295,15 @@ export class OpencodeSessionManager {
 	public async inspectSession(
 		sessionId: string,
 	): Promise<SessionInspectionResult> {
+		const sessionStatus = await this.fetchSessionActivityStatus(sessionId);
+
 		const session = await this.fetchSessionInfo(sessionId);
 		if (!session) {
 			const messages = await this.getMessages(sessionId, 50);
 			if (messages.length > 0) {
 				return {
 					probeStatus: "alive",
+					sessionStatus,
 					messages,
 					todos: await this.getTodos(sessionId),
 					pendingPermissions: await this.listPendingPermissions(sessionId),
@@ -304,6 +315,7 @@ export class OpencodeSessionManager {
 			const fallbackProbeStatus = await this.probeSessionStatus(sessionId);
 			return {
 				probeStatus: fallbackProbeStatus,
+				sessionStatus,
 				messages: [],
 				todos: [],
 				pendingPermissions: [],
@@ -328,6 +340,7 @@ export class OpencodeSessionManager {
 
 		return {
 			probeStatus: "alive",
+			sessionStatus,
 			messages,
 			todos,
 			pendingPermissions,
@@ -536,7 +549,7 @@ export class OpencodeSessionManager {
 
 		const session = await this.fetchSessionInfo(sessionId);
 		if (!session) {
-			return null;
+			return this.storageReader.getSessionDirectoryFromStorage(sessionId);
 		}
 
 		this.sessions.set(session.id, session);
@@ -545,6 +558,34 @@ export class OpencodeSessionManager {
 			this.getDirectoryClient(session.directory),
 		);
 		return session.directory;
+	}
+
+	private async fetchSessionActivityStatus(
+		sessionId: string,
+	): Promise<SessionActivityStatus> {
+		try {
+			const client = this.getRootClient();
+			const directory = this.sessions.get(sessionId)?.directory;
+			const response = await client.session.status({
+				directory: directory ?? undefined,
+			});
+			const data = getData<unknown>(response);
+			if (!data || typeof data !== "object" || Array.isArray(data)) {
+				return "unknown";
+			}
+			const statusMap = data as Record<string, unknown>;
+			const entry = statusMap[sessionId];
+			if (!entry || typeof entry !== "object" || entry === null) {
+				return "unknown";
+			}
+			const type = (entry as Record<string, unknown>).type;
+			if (type === "idle" || type === "busy" || type === "retry") {
+				return type;
+			}
+			return "unknown";
+		} catch {
+			return "unknown";
+		}
 	}
 
 	private async fetchSessionInfo(
@@ -556,7 +597,17 @@ export class OpencodeSessionManager {
 			return fromSessionGet;
 		}
 
-		return this.findSessionInfoByProjectScan(client, sessionId);
+		const fromProjectScan = await this.findSessionInfoByProjectScan(
+			client,
+			sessionId,
+		);
+		if (fromProjectScan) {
+			return fromProjectScan;
+		}
+
+		const fromStorage =
+			await this.storageReader.getSessionDirectoryFromStorage(sessionId);
+		return fromStorage ? { id: sessionId, directory: fromStorage } : null;
 	}
 
 	private async fetchSessionInfoByGet(
@@ -1136,6 +1187,7 @@ export class OpencodeSessionManager {
 			timestamp: createdAt,
 			parts,
 			modelID: asString(info.modelID) ?? undefined,
+			tokens: this.normalizeTokens(info.tokens),
 		};
 	}
 
@@ -1313,6 +1365,28 @@ export class OpencodeSessionManager {
 		const timeRecord = asRecord(raw.time);
 		const createdAt = asNumber(timeRecord?.created) ?? Date.now();
 		return { id, sessionId, questions, createdAt };
+	}
+
+	private normalizeTokens(raw: unknown): MessageTokens | undefined {
+		if (!raw || typeof raw !== "object") return undefined;
+		const t = raw as Record<string, unknown>;
+		const safe = (v: unknown): number => {
+			const n = typeof v === "number" && Number.isFinite(v) ? v : 0;
+			return n;
+		};
+		const cache = asRecord(t.cache);
+		const input = safe(t.input);
+		const output = safe(t.output);
+		if (input === 0 && output === 0) return undefined;
+		return {
+			input,
+			output,
+			reasoning: safe(t.reasoning),
+			cache: {
+				read: safe(cache?.read),
+				write: safe(cache?.write),
+			},
+		};
 	}
 
 	private normalizeToolState(

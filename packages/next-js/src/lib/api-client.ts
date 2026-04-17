@@ -6,19 +6,14 @@ import type {
 import type { JSONSchema } from "./json-schema-types";
 import type { Task, CreateTaskInput, UpdateTaskInput } from "@/server/types";
 import type { Board, BoardColumn } from "@/server/types";
-import type {
-	KanbanTask,
-	OpencodeModel,
-	Tag,
-	TaskLink,
-	TaskLinkType,
-} from "@/types/kanban";
+import type { KanbanTask, Tag, TaskLink, TaskLinkType } from "@/types/kanban";
 import type {
 	Artifact,
 	DiffFile,
 	OpenCodeMessage,
 	OpenCodeTodo,
 	OpencodeAgent,
+	OpencodeModel,
 	PermissionData,
 	Run,
 	QueueStatsResponse,

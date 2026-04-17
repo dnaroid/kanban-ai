@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { boardRepo } from "@/server/repositories";
-import { getRunsQueueManager } from "@/server/run/runs-queue-manager";
+import { runService } from "@/server/run/run-service";
 
 interface RouteParams {
 	params: Promise<{ id: string }>;
@@ -32,8 +32,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			);
 		}
 
-		const manager = getRunsQueueManager();
-		manager.startProjectBoardPolling(id, viewerId);
+		runService.startProjectBoardPolling(id, viewerId);
 
 		return NextResponse.json({ success: true, data: { projectId: id } });
 	} catch (error) {
@@ -56,7 +55,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 			);
 		}
 
-		getRunsQueueManager().stopProjectBoardPolling(id, viewerId);
+		runService.stopProjectBoardPolling(id, viewerId);
 
 		return NextResponse.json({ success: true, data: { projectId: id } });
 	} catch (error) {

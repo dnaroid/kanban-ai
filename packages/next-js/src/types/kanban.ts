@@ -116,4 +116,5 @@ export interface OpencodeModel {
 	enabled: boolean;
 	difficulty: TaskDifficulty;
 	variants: string;
+	contextLimit?: number;
 }

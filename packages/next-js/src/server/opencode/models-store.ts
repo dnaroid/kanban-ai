@@ -12,19 +12,24 @@ function normalizeModelRows(rows: unknown[]): OpencodeModel[] {
 			enabled: number;
 			difficulty: Difficulty;
 			variants?: string;
+			context_limit?: number;
 		};
 		return {
 			name: record.name,
 			enabled: Boolean(record.enabled),
 			difficulty: record.difficulty,
 			variants: record.variants ?? "",
+			contextLimit:
+				typeof record.context_limit === "number" && record.context_limit > 0
+					? record.context_limit
+					: undefined,
 		};
 	});
 }
 
 function getProviderModels(
 	providersPayload: unknown,
-): Array<{ name: string; variants: string[] }> {
+): Array<{ name: string; variants: string[]; contextLimit: number }> {
 	const payloadRecord =
 		typeof providersPayload === "object" && providersPayload !== null
 			? (providersPayload as Record<string, unknown>)
@@ -43,7 +48,10 @@ function getProviderModels(
 			: [],
 	);
 
-	const variantsByModel = new Map<string, Set<string>>();
+	const modelData = new Map<
+		string,
+		{ variants: Set<string>; contextLimit: number }
+	>();
 
 	for (const providerEntry of allProviders) {
 		if (typeof providerEntry !== "object" || providerEntry === null) continue;
@@ -60,29 +68,39 @@ function getProviderModels(
 			const model = modelEntry as {
 				id?: string;
 				variants?: Record<string, unknown>;
+				limit?: { context?: number };
 			};
 			if (!model.id) continue;
 
 			const baseName = `${provider.id}/${model.id}`;
-			const variants = variantsByModel.get(baseName) ?? new Set<string>();
+			const existing = modelData.get(baseName) ?? {
+				variants: new Set<string>(),
+				contextLimit: 0,
+			};
 			for (const variantName of Object.keys(model.variants ?? {})) {
-				if (variantName.trim().length > 0) variants.add(variantName);
+				if (variantName.trim().length > 0) existing.variants.add(variantName);
 			}
-			variantsByModel.set(baseName, variants);
+			if (typeof model.limit?.context === "number" && model.limit.context > 0) {
+				existing.contextLimit = model.limit.context;
+			}
+			modelData.set(baseName, existing);
 		}
 	}
 
-	return Array.from(variantsByModel.entries()).map(([name, variantsSet]) => ({
-		name,
-		variants: Array.from(variantsSet).sort(),
-	}));
+	return Array.from(modelData.entries()).map(
+		([name, { variants: variantsSet, contextLimit }]) => ({
+			name,
+			variants: Array.from(variantsSet).sort(),
+			contextLimit,
+		}),
+	);
 }
 
 export function listAllModels(): OpencodeModel[] {
 	const db = dbManager.connect();
 	const rows = db
 		.prepare(
-			`SELECT name, enabled, difficulty, COALESCE(variants, '') as variants FROM opencode_models ORDER BY name ASC`,
+			`SELECT name, enabled, difficulty, COALESCE(variants, '') as variants, COALESCE(context_limit, 0) as context_limit FROM opencode_models ORDER BY name ASC`,
 		)
 		.all() as unknown[];
 	return normalizeModelRows(rows);
@@ -92,7 +110,7 @@ export function listEnabledModels(): OpencodeModel[] {
 	const db = dbManager.connect();
 	const rows = db
 		.prepare(
-			`SELECT name, enabled, difficulty, COALESCE(variants, '') as variants FROM opencode_models WHERE enabled = 1 ORDER BY name ASC`,
+			`SELECT name, enabled, difficulty, COALESCE(variants, '') as variants, COALESCE(context_limit, 0) as context_limit FROM opencode_models WHERE enabled = 1 ORDER BY name ASC`,
 		)
 		.all() as unknown[];
 	return normalizeModelRows(rows);
@@ -111,7 +129,7 @@ export function toggleModel(
 
 	const row = db
 		.prepare(
-			`SELECT name, enabled, difficulty, COALESCE(variants, '') as variants FROM opencode_models WHERE name = ?`,
+			`SELECT name, enabled, difficulty, COALESCE(variants, '') as variants, COALESCE(context_limit, 0) as context_limit FROM opencode_models WHERE name = ?`,
 		)
 		.get(name) as unknown;
 
@@ -132,7 +150,7 @@ export function updateModelDifficulty(
 
 	const row = db
 		.prepare(
-			`SELECT name, enabled, difficulty, COALESCE(variants, '') as variants FROM opencode_models WHERE name = ?`,
+			`SELECT name, enabled, difficulty, COALESCE(variants, '') as variants, COALESCE(context_limit, 0) as context_limit FROM opencode_models WHERE name = ?`,
 		)
 		.get(name) as unknown;
 
@@ -162,12 +180,16 @@ export async function refreshModelsFromProviders(): Promise<OpencodeModel[]> {
 			variants: Array.from(new Set(entry.variants.map((v) => v.trim()))).filter(
 				Boolean,
 			),
+			contextLimit: entry.contextLimit,
 		}))
 		.filter((entry) => entry.name.length > 0);
 
-	const byName = new Map<string, string>();
+	const byName = new Map<string, { variants: string; contextLimit: number }>();
 	for (const model of normalized) {
-		byName.set(model.name, model.variants.sort().join(","));
+		byName.set(model.name, {
+			variants: model.variants.sort().join(","),
+			contextLimit: model.contextLimit,
+		});
 	}
 
 	const existingRows = db
@@ -178,15 +200,15 @@ export async function refreshModelsFromProviders(): Promise<OpencodeModel[]> {
 	const insertStmt = db.prepare(
 		`INSERT OR IGNORE INTO opencode_models (name, variants) VALUES (?, ?)`,
 	);
-	const updateVariantsStmt = db.prepare(
-		`UPDATE opencode_models SET variants = ? WHERE name = ?`,
+	const updateStmt = db.prepare(
+		`UPDATE opencode_models SET variants = ?, context_limit = ? WHERE name = ?`,
 	);
 	const deleteStmt = db.prepare(`DELETE FROM opencode_models WHERE name = ?`);
 
 	const tx = db.transaction(() => {
-		for (const [name, variantsCsv] of byName.entries()) {
-			insertStmt.run(name, variantsCsv);
-			updateVariantsStmt.run(variantsCsv, name);
+		for (const [name, data] of byName.entries()) {
+			insertStmt.run(name, data.variants);
+			updateStmt.run(data.variants, data.contextLimit, name);
 		}
 
 		const keep = new Set(byName.keys());

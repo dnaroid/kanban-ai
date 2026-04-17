@@ -13,6 +13,7 @@ import { getRunsQueueManager } from "@/server/run/runs-queue-manager";
 import { contextSnapshotRepo } from "@/server/repositories/context-snapshot";
 import { projectRepo } from "@/server/repositories/project";
 import { boardRepo } from "@/server/repositories/board";
+import { artifactRepo } from "@/server/repositories/artifact";
 import type {
 	AgentRoleBehavior,
 	AgentRolePreset,
@@ -40,6 +41,7 @@ const allowedDifficulties = ["easy", "medium", "hard", "epic"] as const;
 const agentRoleTagPrefix = "agent:";
 const generationRunKind = "task-description-improve";
 const qaTestingRunKind = "task-qa-testing";
+const defaultRunKind = "task-run";
 const activeSpecializedRunStatuses = new Set(["queued", "running", "paused"]);
 const activeExecutionRunStatuses = new Set(["queued", "running", "paused"]);
 const priorityScore: Record<string, number> = {
@@ -161,6 +163,16 @@ export class RunService {
 			throw new Error(`Task not found: ${input.taskId}`);
 		}
 
+		const activeRun = this.getActiveTaskRun(task.id);
+		if (activeRun) {
+			log.info("Task already has active run", {
+				taskId: task.id,
+				runId: activeRun.id,
+				status: activeRun.status,
+			});
+			return { runId: activeRun.id };
+		}
+
 		const availableRoles = roleRepo.listWithPresets();
 		const taskTags = this.parseTaskTags(task.tags);
 		const assignedRoleId = this.resolveAssignedRoleIdFromTags(taskTags);
@@ -200,10 +212,11 @@ export class RunService {
 			},
 		});
 
-		const run = runRepo.create({
+		const run = this.prepareTaskRun({
 			taskId: task.id,
 			roleId: selectedRoleId,
 			mode: input.mode ?? "execute",
+			kind: defaultRunKind,
 			contextSnapshotId: snapshotId,
 		});
 
@@ -337,14 +350,12 @@ export class RunService {
 				},
 			});
 			publishRunUpdate(updatedRun);
-			getRunsQueueManager()
-				.startNextReadyTaskAfterMerge(run.taskId)
-				.catch((err) =>
-					log.error("startNextReadyTaskAfterMerge failed after merge", {
-						runId: run.id,
-						error: err instanceof Error ? err.message : String(err),
-					}),
-				);
+			this.startNextReadyTaskAfterMerge(run.taskId).catch((err: unknown) =>
+				log.error("startNextReadyTaskAfterMerge failed after merge", {
+					runId: run.id,
+					error: err instanceof Error ? err.message : String(err),
+				}),
+			);
 			return { run: updatedRun };
 		} catch (error) {
 			const message =
@@ -413,17 +424,15 @@ export class RunService {
 		});
 		publishRunUpdate(updatedRun);
 
-		getRunsQueueManager()
-			.startNextReadyTaskAfterMerge(run.taskId)
-			.catch((err) =>
-				log.error(
-					"startNextReadyTaskAfterMerge failed after mergeWithoutWorktree",
-					{
-						runId: run.id,
-						error: err instanceof Error ? err.message : String(err),
-					},
-				),
-			);
+		this.startNextReadyTaskAfterMerge(run.taskId).catch((err: unknown) =>
+			log.error(
+				"startNextReadyTaskAfterMerge failed after mergeWithoutWorktree",
+				{
+					runId: run.id,
+					error: err instanceof Error ? err.message : String(err),
+				},
+			),
+		);
 
 		return { run: updatedRun };
 	}
@@ -437,20 +446,15 @@ export class RunService {
 			throw new Error(`Task not found: ${taskId}`);
 		}
 
-		const activeGenerationRun = runRepo
-			.listByTask(task.id)
-			.find(
-				(run) =>
-					run.metadata?.kind === generationRunKind &&
-					activeSpecializedRunStatuses.has(run.status),
-			);
-		if (activeGenerationRun) {
-			log.info("User story generation already active for task", {
+		const activeRun = this.getActiveTaskRun(task.id);
+		if (activeRun) {
+			log.info("Task already has active run", {
 				taskId: task.id,
-				runId: activeGenerationRun.id,
-				status: activeGenerationRun.status,
+				runId: activeRun.id,
+				status: activeRun.status,
+				kind: activeRun.metadata?.kind ?? defaultRunKind,
 			});
-			return { runId: activeGenerationRun.id };
+			return { runId: activeRun.id };
 		}
 
 		const roleId = this.resolveSpecializedRoleId(
@@ -484,7 +488,7 @@ export class RunService {
 			},
 		});
 
-		const run = runRepo.create({
+		const run = this.prepareTaskRun({
 			taskId: task.id,
 			roleId,
 			mode: "execute",
@@ -578,20 +582,15 @@ export class RunService {
 			throw new Error(`Task not found: ${taskId}`);
 		}
 
-		const activeQaTestingRun = runRepo
-			.listByTask(task.id)
-			.find(
-				(run) =>
-					run.metadata?.kind === qaTestingRunKind &&
-					activeSpecializedRunStatuses.has(run.status),
-			);
-		if (activeQaTestingRun) {
-			log.info("QA testing run already active for task", {
+		const activeRun = this.getActiveTaskRun(task.id);
+		if (activeRun) {
+			log.info("Task already has active run", {
 				taskId: task.id,
-				runId: activeQaTestingRun.id,
-				status: activeQaTestingRun.status,
+				runId: activeRun.id,
+				status: activeRun.status,
+				kind: activeRun.metadata?.kind ?? defaultRunKind,
 			});
-			return { runId: activeQaTestingRun.id };
+			return { runId: activeRun.id };
 		}
 
 		const roleId = this.resolveSpecializedRoleId(task, "preferredForQaTesting");
@@ -622,7 +621,7 @@ export class RunService {
 			},
 		});
 
-		const run = runRepo.create({
+		const run = this.prepareTaskRun({
 			taskId: task.id,
 			roleId,
 			mode: "execute",
@@ -917,6 +916,18 @@ export class RunService {
 		return this.queueManager.getQueueStats();
 	}
 
+	public startProjectBoardPolling(projectId: string, viewerId: string): void {
+		this.queueManager.startProjectBoardPolling(projectId, viewerId);
+	}
+
+	public stopProjectBoardPolling(projectId: string, viewerId: string): void {
+		this.queueManager.stopProjectBoardPolling(projectId, viewerId);
+	}
+
+	public async startNextReadyTaskAfterMerge(taskId: string): Promise<void> {
+		await this.queueManager.startNextReadyTaskAfterMerge(taskId);
+	}
+
 	public async cancel(runId: string): Promise<void> {
 		log.info("Cancelling run via service", { runId });
 		await this.queueManager.cancel(runId);
@@ -976,6 +987,117 @@ export class RunService {
 		} catch {
 			return [];
 		}
+	}
+
+	private getActiveTaskRun(taskId: string): Run | null {
+		const run = this.getCurrentTaskRun(taskId);
+		if (!run) {
+			return null;
+		}
+
+		return activeSpecializedRunStatuses.has(run.status) ? run : null;
+	}
+
+	private prepareTaskRun(input: {
+		taskId: string;
+		roleId: string;
+		mode: string;
+		kind: string;
+		contextSnapshotId: string;
+	}): Run {
+		const existingRuns = this.listAllTaskRuns(input.taskId);
+		const currentRun = existingRuns[0] ?? null;
+
+		if (!currentRun) {
+			return runRepo.create({
+				taskId: input.taskId,
+				roleId: input.roleId,
+				mode: input.mode,
+				kind: input.kind,
+				contextSnapshotId: input.contextSnapshotId,
+				metadata: {},
+			});
+		}
+
+		this.deleteRunHistory(currentRun.id);
+
+		const resetRun = runRepo.update(currentRun.id, {
+			status: "queued",
+			sessionId: "",
+			startedAt: null,
+			finishedAt: null,
+			errorText: "",
+			mode: input.mode,
+			roleId: input.roleId,
+			kind: input.kind,
+			budget: {},
+			tokensIn: 0,
+			tokensOut: 0,
+			costUsd: 0,
+			durationSec: 0,
+			metadata: {},
+		});
+
+		this.cleanupDuplicateRuns(input.taskId, resetRun.id, existingRuns.slice(1));
+		return resetRun;
+	}
+
+	private cleanupDuplicateRuns(
+		taskId: string,
+		keepRunId: string,
+		runs?: Run[],
+	): void {
+		const duplicates = (runs ?? this.listAllTaskRuns(taskId).slice(1)).filter(
+			(run) => run.id !== keepRunId,
+		);
+
+		for (const run of duplicates) {
+			this.deleteRunHistory(run.id);
+			runRepo.delete(run.id);
+		}
+
+		const repository = runRepo as {
+			deleteAllExceptTaskRun?: (taskId: string, keepRunId: string) => void;
+		};
+		repository.deleteAllExceptTaskRun?.(taskId, keepRunId);
+	}
+
+	private getCurrentTaskRun(taskId: string): Run | null {
+		const repository = runRepo as {
+			getByTask?: (taskId: string) => Run | null;
+			listByTask: (taskId: string) => Run[];
+		};
+
+		if (typeof repository.getByTask === "function") {
+			return repository.getByTask(taskId);
+		}
+
+		return repository.listByTask(taskId)[0] ?? null;
+	}
+
+	private listAllTaskRuns(taskId: string): Run[] {
+		const repository = runRepo as {
+			listAllByTask?: (taskId: string) => Run[];
+			listByTask: (taskId: string) => Run[];
+		};
+
+		if (typeof repository.listAllByTask === "function") {
+			return repository.listAllByTask(taskId);
+		}
+
+		return repository.listByTask(taskId);
+	}
+
+	private deleteRunHistory(runId: string): void {
+		const eventRepository = runEventRepo as {
+			deleteByRun?: (runId: string) => void;
+		};
+		const artifactsRepository = artifactRepo as {
+			deleteByRun?: (runId: string) => void;
+		};
+
+		eventRepository.deleteByRun?.(runId);
+		artifactsRepository.deleteByRun?.(runId);
 	}
 
 	private resolveAssignedRoleIdFromTags(tags: string[]): string | null {

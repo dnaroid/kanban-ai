@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
 	ArrowLeft,
 	Brain,
+	Gauge,
 	FileDiff,
 	Files,
 	GitMerge,
@@ -12,7 +13,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Run } from "@/types/ipc";
+import type { OpencodeModel, Run } from "@/types/ipc";
 import { ArtifactsPanel } from "./ArtifactsPanel";
 import { ExecutionLog } from "./ExecutionLog";
 import { RunDiffPanel } from "./RunDiffPanel";
@@ -45,6 +46,12 @@ export function RunDetailsView({
 	);
 	const [showReasoning, setShowReasoning] = useState(false);
 	const [hasTodos, setHasTodos] = useState(false);
+	const [contextLimit, setContextLimit] = useState<number | null>(null);
+	const [messageContextStats, setMessageContextStats] = useState<{
+		tokens: number;
+		percent: number | null;
+		modelID: string | null;
+	}>({ tokens: 0, percent: null, modelID: null });
 	const sessionId = run?.sessionId;
 	const runVcs = run?.metadata?.vcs;
 	const canMerge =
@@ -64,6 +71,20 @@ export function RunDetailsView({
 			: "Merge";
 	const mergedLabel =
 		runVcs?.mergedBy === "automatic" ? "Auto merged" : "Merged";
+	const contextPercent =
+		contextLimit && contextLimit > 0 && messageContextStats.tokens > 0
+			? Math.round((messageContextStats.tokens / contextLimit) * 100)
+			: null;
+	const shouldShowContextIndicator =
+		view === "log" && messageContextStats.tokens > 0 && contextPercent !== null;
+	const contextIndicatorClassName =
+		contextPercent === null
+			? "bg-slate-900/50 text-slate-500 border-slate-800"
+			: contextPercent > 80
+				? "bg-red-500/10 text-red-300 border-red-500/20"
+				: contextPercent >= 50
+					? "bg-amber-500/10 text-amber-300 border-amber-500/20"
+					: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20";
 
 	useEffect(() => {
 		if (!sessionId) return;
@@ -78,6 +99,41 @@ export function RunDetailsView({
 		};
 		void checkTodos();
 	}, [sessionId]);
+
+	useEffect(() => {
+		const modelID = messageContextStats.modelID || run?.model;
+		if (!modelID) {
+			setContextLimit(null);
+			return;
+		}
+
+		let isActive = true;
+
+		const fetchContextLimit = async () => {
+			try {
+				const response = await api.opencode.listModels();
+				if (!isActive) {
+					return;
+				}
+
+				const matchedModel = response.models.find(
+					(model: OpencodeModel) => model.name === modelID,
+				);
+				setContextLimit(matchedModel?.contextLimit ?? null);
+			} catch (error) {
+				console.error("Failed to fetch model context limit:", error);
+				if (isActive) {
+					setContextLimit(null);
+				}
+			}
+		};
+
+		void fetchContextLimit();
+
+		return () => {
+			isActive = false;
+		};
+	}, [messageContextStats.modelID, run?.model]);
 
 	return (
 		<div className="flex flex-col h-full bg-[#0B0E14] overflow-hidden animate-in fade-in duration-300">
@@ -174,6 +230,19 @@ export function RunDetailsView({
 				</div>
 
 				<div className="flex items-center gap-4">
+					{shouldShowContextIndicator && (
+						<div
+							className={cn(
+								"flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border",
+								contextIndicatorClassName,
+							)}
+							title={`${messageContextStats.tokens.toLocaleString()} tokens used of ${contextLimit?.toLocaleString()} context window`}
+						>
+							<Gauge className="w-3.5 h-3.5" />
+							<span>{contextPercent}%</span>
+							<span className="hidden sm:inline opacity-80">Ctx</span>
+						</div>
+					)}
 					{view === "log" && (
 						<button
 							type="button"
@@ -272,6 +341,7 @@ export function RunDetailsView({
 					<ExecutionLog
 						runId={runId}
 						sessionId={run?.sessionId || ""}
+						onContextStats={setMessageContextStats}
 						showReasoning={showReasoning}
 					/>
 				) : view === "artifacts" ? (
