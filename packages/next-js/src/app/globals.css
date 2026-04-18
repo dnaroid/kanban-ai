@@ -12,6 +12,10 @@
       sans-serif;
   }
 
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
   /* Глобальный темный скроллбар */
   ::-webkit-scrollbar {
     width: 16px; /* Увеличиваем область захвата */

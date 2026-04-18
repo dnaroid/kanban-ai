@@ -628,6 +628,12 @@ export function Component({ value, onChange, disabled = false }: ComponentProps)
 - Используйте `useCallback` для callback функций, передаваемых в пропсы
 - Используйте `useMemo` для дорогостоящих вычислений
 
+## Cursor
+
+- `<button>` elements automatically get `cursor: pointer` via a global CSS rule (`globals.css`). No need to add `cursor-pointer` class manually.
+- Disabled buttons are excluded (`:not(:disabled)`) and should use `disabled:cursor-not-allowed`.
+- Non-interactive hover effects (visual-only highlights on container `<div>`s) should NOT have `cursor-pointer`.
+
 ## Accessibility
 
 - Все кнопки должны иметь текст или aria-label
