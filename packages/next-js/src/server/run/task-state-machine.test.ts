@@ -28,6 +28,15 @@ function buildBoard() {
 				updatedAt: "",
 				systemKey: "ready",
 			},
+			{
+				id: "in-progress-col",
+				boardId: "board-1",
+				name: "In Progress",
+				orderIndex: 2,
+				createdAt: "",
+				updatedAt: "",
+				systemKey: "in_progress",
+			},
 		],
 	};
 }
@@ -93,6 +102,36 @@ describe("TaskStateMachine generation invariants", () => {
 				descriptionMd: ["## Title", "Recovered story"].join("\n"),
 				type: "feature",
 				difficulty: "easy",
+			}),
+		);
+	});
+
+	it("moves rejected ready task to running in progress on run start", () => {
+		const machine = new TaskStateMachine();
+
+		const result = machine.transition({
+			task: {
+				id: "task-rejected",
+				boardId: "board-1",
+				status: "rejected",
+				columnId: "ready-col",
+				tags: "[]",
+			},
+			board: buildBoard(),
+			trigger: "run:start",
+			runKind: "task-run",
+			outcomeContent: "",
+			hasSessionExisted: true,
+			isManualStatusGracePeriod: false,
+		});
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				action: "update",
+				patch: expect.objectContaining({
+					status: "running",
+					columnId: "in-progress-col",
+				}),
 			}),
 		);
 	});

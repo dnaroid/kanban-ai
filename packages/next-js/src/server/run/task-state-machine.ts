@@ -768,6 +768,8 @@ function compactPatch(patch: TaskPatch): TaskPatch {
 	if (patch.difficulty !== undefined) compacted.difficulty = patch.difficulty;
 	if (patch.commitMessage !== undefined)
 		compacted.commitMessage = patch.commitMessage;
+	if (patch.isGenerated !== undefined)
+		compacted.isGenerated = patch.isGenerated;
 
 	return compacted;
 }

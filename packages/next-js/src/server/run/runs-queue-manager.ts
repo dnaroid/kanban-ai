@@ -3545,6 +3545,13 @@ export class RunsQueueManager {
 			: modelName;
 
 		taskRepo.update(taskId, { modelName: fullModelName });
+		publishSseEvent("task:event", {
+			taskId: task.id,
+			boardId: task.boardId,
+			projectId: task.projectId,
+			eventType: "task:updated",
+			updatedAt: new Date().toISOString(),
+		});
 		log.info("Auto-filled task model from session", {
 			taskId,
 			modelName: fullModelName,

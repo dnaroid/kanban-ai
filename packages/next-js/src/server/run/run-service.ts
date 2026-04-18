@@ -1173,7 +1173,7 @@ export class RunService {
 		}
 
 		const resumedAt = new Date().toISOString();
-		runRepo.update(completedRun.id, {
+		const resumedRun = runRepo.update(completedRun.id, {
 			status: "running",
 			startedAt: resumedAt,
 			finishedAt: null,
@@ -1215,6 +1215,15 @@ export class RunService {
 			eventType: "task:updated",
 			updatedAt: new Date().toISOString(),
 		});
+		runEventRepo.create({
+			runId: resumedRun.id,
+			eventType: "status",
+			payload: {
+				status: "running",
+				message: "Execution run resumed after QA rejection",
+			},
+		});
+		publishRunUpdate(resumedRun);
 
 		return { runId: completedRun.id };
 	}
