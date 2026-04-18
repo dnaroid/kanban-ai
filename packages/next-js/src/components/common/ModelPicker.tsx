@@ -50,6 +50,7 @@ interface ModelPickerProps {
 	allowAuto?: boolean;
 	difficulty?: string;
 	showVariantSelector?: boolean;
+	disabled?: boolean;
 }
 
 const getModelDisplayName = (name: string) => name.split("/").pop() || name;
@@ -63,6 +64,7 @@ export function ModelPicker({
 	allowAuto = false,
 	difficulty,
 	showVariantSelector = true,
+	disabled = false,
 }: ModelPickerProps) {
 	const [isPickerOpen, setIsPickerOpen] = useState(false);
 	const [hoveredModel, setHoveredModel] = useState<string | null>(null);
@@ -87,26 +89,29 @@ export function ModelPicker({
 	};
 
 	return (
-		<div className={cn("flex items-center gap-2", className)}>
-			<div className="relative">
+		<div className={cn("flex flex-wrap items-center gap-2", className)}>
+			<div className="relative" onMouseLeave={() => setIsPickerOpen(false)}>
 				<button
 					type="button"
-					onClick={() => setIsPickerOpen(!isPickerOpen)}
+					disabled={disabled}
+					onClick={() => !disabled && setIsPickerOpen(!isPickerOpen)}
 					className={cn(
-						"w-max flex items-center justify-between px-3 h-8 rounded-lg text-[11px] transition-all border whitespace-nowrap",
-						isPickerOpen
-							? cn(
-									modelStyles.bg,
-									modelStyles.text,
-									modelStyles.border,
-									modelStyles.glow,
-								)
-							: cn(
-									"bg-slate-800/50 border-slate-700",
-									modelStyles.text,
-									modelStyles.border,
-									modelStyles.hover,
-								),
+						"w-max flex items-center justify-between px-3 h-8 rounded-lg text-[11px] transition-all border whitespace-nowrap cursor-pointer",
+						disabled && "opacity-50 cursor-not-allowed pointer-events-none",
+						!disabled &&
+							(isPickerOpen
+								? cn(
+										modelStyles.bg,
+										modelStyles.text,
+										modelStyles.border,
+										modelStyles.glow,
+									)
+								: cn(
+										"bg-slate-800/50 border-slate-700",
+										modelStyles.text,
+										modelStyles.border,
+										modelStyles.hover,
+									)),
 					)}
 				>
 					<div className="flex items-center gap-1.5">
@@ -130,82 +135,75 @@ export function ModelPicker({
 				</button>
 
 				{isPickerOpen && (
-					<>
-						<button
-							type="button"
-							aria-label="Close model picker"
-							className="fixed inset-0 z-10"
-							onClick={() => setIsPickerOpen(false)}
-						/>
-						<div className="absolute left-0 top-full mt-2 min-w-full w-max max-h-64 overflow-y-auto no-scrollbar bg-[#161B26] border border-slate-800 rounded-xl shadow-2xl z-20 py-2 animate-in fade-in zoom-in-95 duration-200">
-							{models.length === 0 ? (
-								<div className="px-3 py-4 text-center text-xs text-slate-500 italic">
-									No models available.
-								</div>
-							) : (
-								<>
-									{allowAuto && (
+					<div className="absolute left-0 top-full mt-0 min-w-full w-max max-h-64 overflow-y-auto no-scrollbar bg-[#161B26] border border-slate-800 rounded-xl shadow-2xl z-20 py-2 animate-in fade-in zoom-in-95 duration-200">
+						{models.length === 0 ? (
+							<div className="px-3 py-4 text-center text-xs text-slate-500 italic">
+								No models available.
+							</div>
+						) : (
+							<>
+								{allowAuto && (
+									<button
+										type="button"
+										onClick={() => handleSelectModel(null)}
+										onMouseEnter={() => setHoveredModel("auto")}
+										onMouseLeave={() => setHoveredModel(null)}
+										className={cn(
+											"w-full flex items-center px-3 py-2 rounded-lg text-xs transition-all text-left",
+											!value || hoveredModel === "auto"
+												? cn(modelStyles.bg, modelStyles.text)
+												: "text-slate-400 opacity-70",
+										)}
+									>
+										<span className="italic">Auto (based on difficulty)</span>
+									</button>
+								)}
+								{models.map((model) => {
+									const isSelected = baseName === model.name;
+									const isHovered = hoveredModel === model.name;
+									const styles =
+										DIFFICULTY_STYLES[
+											model.difficulty as keyof typeof DIFFICULTY_STYLES
+										] || DIFFICULTY_STYLES.easy;
+									return (
 										<button
 											type="button"
-											onClick={() => handleSelectModel(null)}
-											onMouseEnter={() => setHoveredModel("auto")}
+											key={model.name}
+											onClick={() => {
+												const variants = model.variants
+													? model.variants.split(",").map((v) => v.trim())
+													: [];
+												const defaultVariant =
+													showVariantSelector && variants.length > 0
+														? variants[0]
+														: undefined;
+												handleSelectModel(model.name, defaultVariant);
+											}}
+											onMouseEnter={() => setHoveredModel(model.name)}
 											onMouseLeave={() => setHoveredModel(null)}
 											className={cn(
-												"w-full flex items-center px-3 py-2 rounded-lg text-xs transition-all text-left",
-												!value || hoveredModel === "auto"
-													? cn(modelStyles.bg, modelStyles.text)
-													: "text-slate-400 opacity-70",
+												"w-full flex items-center px-3 py-2 rounded-lg text-xs transition-all text-left cursor-pointer",
+												isSelected || isHovered
+													? cn(styles.bg, styles.text)
+													: cn(styles.text, "opacity-70"),
 											)}
 										>
-											<span className="italic">Auto (based on difficulty)</span>
+											<span className="font-medium">
+												{getModelDisplayName(model.name)}
+											</span>
 										</button>
-									)}
-									{models.map((model) => {
-										const isSelected = baseName === model.name;
-										const isHovered = hoveredModel === model.name;
-										const styles =
-											DIFFICULTY_STYLES[
-												model.difficulty as keyof typeof DIFFICULTY_STYLES
-											] || DIFFICULTY_STYLES.easy;
-										return (
-											<button
-												type="button"
-												key={model.name}
-												onClick={() => {
-													const variants = model.variants
-														? model.variants.split(",").map((v) => v.trim())
-														: [];
-													const defaultVariant =
-														showVariantSelector && variants.length > 0
-															? variants[0]
-															: undefined;
-													handleSelectModel(model.name, defaultVariant);
-												}}
-												onMouseEnter={() => setHoveredModel(model.name)}
-												onMouseLeave={() => setHoveredModel(null)}
-												className={cn(
-													"w-full flex items-center px-3 py-2 rounded-lg text-xs transition-all text-left",
-													isSelected || isHovered
-														? cn(styles.bg, styles.text)
-														: cn(styles.text, "opacity-70"),
-												)}
-											>
-												<span className="font-medium">
-													{getModelDisplayName(model.name)}
-												</span>
-											</button>
-										);
-									})}
-								</>
-							)}
-						</div>
-					</>
+									);
+								})}
+							</>
+						)}
+					</div>
 				)}
 			</div>
 
 			{showVariantSelector && currentModel && currentModel.variants && (
 				<div className="relative group/variant">
 					<select
+						disabled={disabled}
 						value={variant || currentModel.variants.split(",")[0].trim()}
 						onChange={(e) =>
 							handleSelectModel(currentModel.name, e.target.value)
@@ -213,6 +211,7 @@ export function ModelPicker({
 						className={cn(
 							"appearance-none bg-slate-800/40 border border-slate-700/50 rounded-lg pl-2 pr-6 h-8 text-[10px] font-bold uppercase tracking-wider text-blue-400 cursor-pointer outline-none hover:bg-slate-800/60 hover:border-blue-500/30 transition-all",
 							"group-hover/variant:border-blue-500/30",
+							disabled && "opacity-50 cursor-not-allowed pointer-events-none",
 						)}
 					>
 						{currentModel.variants.split(",").map((v) => {

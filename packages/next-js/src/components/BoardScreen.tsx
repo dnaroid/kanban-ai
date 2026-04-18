@@ -5,24 +5,12 @@ import {
 	horizontalListSortingStrategy,
 	SortableContext,
 } from "@dnd-kit/sortable";
-import {
-	AlertCircle,
-	Clock,
-	LayoutGrid,
-	List,
-	ChevronDown,
-	ChevronUp,
-	Plus,
-	Play,
-	Upload,
-} from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { AlertCircle, Clock, Plus, Play, Upload, Zap } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import { SortableColumn } from "./kanban/board/SortableColumn";
 import { SortableTask } from "./kanban/board/SortableTask";
-import { ListView, ListItemView } from "./kanban/board/ListView";
 import { QuickCreateModal } from "./kanban/board/QuickCreateModal";
 import { RejectModal, type RejectAttachment } from "./kanban/board/RejectModal";
-import { ProjectSelect } from "./ProjectSelect";
 import { useBoardModel } from "@/features/board/model/use-board-model";
 import { cn } from "@/lib/utils";
 import { ConfirmationModal } from "@/components/common/ConfirmationModal";
@@ -35,6 +23,27 @@ interface BoardScreenProps {
 	projectColor?: string;
 }
 
+export interface ActiveExecutionSessionConfirmationState {
+	message: string;
+	forceDirtyGit: boolean;
+}
+
+export function buildConfirmedReadyStartOptions(
+	confirmation: ActiveExecutionSessionConfirmationState | null,
+): {
+	forceDirtyGit: boolean;
+	confirmActiveSession: true;
+} | null {
+	if (!confirmation) {
+		return null;
+	}
+
+	return {
+		forceDirtyGit: confirmation.forceDirtyGit,
+		confirmActiveSession: true,
+	};
+}
+
 export function BoardScreen({
 	projectId,
 	projectName,
@@ -42,14 +51,24 @@ export function BoardScreen({
 }: BoardScreenProps) {
 	const { addToast } = useToast();
 
-	const [viewMode, setViewMode] = useState<"board" | "list">(() => {
-		if (typeof window !== "undefined") {
-			return (
-				(localStorage.getItem("boardViewMode") as "board" | "list") || "board"
-			);
-		}
-		return "board";
-	});
+	const [isQuickCreateModalOpen, setIsQuickCreateModalOpen] = useState(false);
+	const [isPushing, setIsPushing] = useState(false);
+	const [hasUnpushedCommits, setHasUnpushedCommits] = useState(true);
+
+	const refreshGitStatus = useCallback(() => {
+		api.git
+			.status({ projectId })
+			.then(({ aheadCount }) => {
+				setHasUnpushedCommits(aheadCount > 0);
+			})
+			.catch(() => {
+				setHasUnpushedCommits(true);
+			});
+	}, [projectId]);
+
+	useEffect(() => {
+		refreshGitStatus();
+	}, [refreshGitStatus]);
 
 	const {
 		board,
@@ -89,97 +108,17 @@ export function BoardScreen({
 		handleBulkDelete,
 		confirmBulkDelete,
 		handleRejectTask,
-	} = useBoardModel({ projectId });
+		deletingTaskId,
+		refreshBoardTasksFromServer,
+		loadBoard,
+	} = useBoardModel({ projectId, onTasksRefreshed: refreshGitStatus });
 
-	const [expandedColumns, setExpandedColumns] = useState<
-		Record<string, boolean>
-	>({});
-	const manualTogglesRef = useRef<Record<string, boolean>>({});
-	const prevTaskCountsRef = useRef<Record<string, number>>({});
-
-	const [isQuickCreateModalOpen, setIsQuickCreateModalOpen] = useState(false);
-	const [isPushing, setIsPushing] = useState(false);
+	const [activeExecutionSessionConfirm, setActiveExecutionSessionConfirm] =
+		useState<ActiveExecutionSessionConfirmationState | null>(null);
 
 	const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
 	const [rejectTaskId, setRejectTaskId] = useState<string | null>(null);
 	const [rejectTaskTitle, setRejectTaskTitle] = useState<string>("");
-
-	useEffect(() => {
-		localStorage.setItem("boardViewMode", viewMode);
-	}, [viewMode]);
-
-	useEffect(() => {
-		if (viewMode !== "list") return;
-
-		const newTaskCounts: Record<string, number> = {};
-		for (const col of columns) {
-			newTaskCounts[col.id] = 0;
-		}
-		for (const t of tasks) {
-			if (newTaskCounts[t.columnId] !== undefined) {
-				newTaskCounts[t.columnId]++;
-			}
-		}
-
-		const prevCounts = prevTaskCountsRef.current;
-		const manualToggles = manualTogglesRef.current;
-		const isFirstLoad =
-			Object.keys(prevCounts).length === 0 && columns.length > 0;
-
-		let needUpdate = false;
-		for (const col of columns) {
-			if (prevCounts[col.id] !== newTaskCounts[col.id] || isFirstLoad) {
-				needUpdate = true;
-				break;
-			}
-		}
-
-		if (!needUpdate) return;
-
-		setExpandedColumns((prevExpanded) => {
-			let hasChanges = false;
-			const nextExpanded = { ...prevExpanded };
-
-			for (const col of columns) {
-				const id = col.id;
-				const count = newTaskCounts[id];
-				const prevCount = prevCounts[id];
-
-				if (prevCount !== count || isFirstLoad) {
-					if (manualToggles[id]) {
-						manualToggles[id] = false;
-					}
-
-					const shouldBeExpanded = count > 0;
-					if (nextExpanded[id] !== shouldBeExpanded && !manualToggles[id]) {
-						nextExpanded[id] = shouldBeExpanded;
-						hasChanges = true;
-					}
-				}
-			}
-			return hasChanges ? nextExpanded : prevExpanded;
-		});
-
-		prevTaskCountsRef.current = newTaskCounts;
-	}, [tasks, columns, viewMode]);
-
-	const expandAll = () => {
-		const next: Record<string, boolean> = {};
-		for (const col of columns) {
-			next[col.id] = true;
-			manualTogglesRef.current[col.id] = true;
-		}
-		setExpandedColumns(next);
-	};
-
-	const collapseAll = () => {
-		const next: Record<string, boolean> = {};
-		for (const col of columns) {
-			next[col.id] = false;
-			manualTogglesRef.current[col.id] = true;
-		}
-		setExpandedColumns(next);
-	};
 
 	if (loading)
 		return (
@@ -195,6 +134,12 @@ export function BoardScreen({
 		);
 
 	const firstColumnId = columns[0]?.id;
+	const readyColumnId = columns.find((col) => col.systemKey === "ready")?.id;
+	const hasReadyTasks = readyColumnId
+		? tasks.some((t) => t.columnId === readyColumnId)
+		: false;
+	const startReadyDisabled = isQueueingSignalRuns || !hasReadyTasks;
+	const pushDisabled = isPushing || !hasUnpushedCommits;
 
 	const handleOpenRejectModal = (taskId: string) => {
 		const task = tasks.find((t) => t.id === taskId);
@@ -213,108 +158,141 @@ export function BoardScreen({
 		setRejectTaskId(null);
 	};
 
+	const handleReadyStartRequest = async () => {
+		try {
+			await handleStartReadyTasks();
+		} catch (startError) {
+			if (
+				startError instanceof Error &&
+				(startError as Error & { isDirtyGit?: boolean }).isDirtyGit
+			) {
+				setDirtyGitConfirm(true);
+				return;
+			}
+
+			if (
+				startError instanceof Error &&
+				(startError as Error & { isActiveExecutionSessionRisk?: boolean })
+					.isActiveExecutionSessionRisk
+			) {
+				setActiveExecutionSessionConfirm({
+					message: startError.message,
+					forceDirtyGit: false,
+				});
+				return;
+			}
+
+			const message =
+				startError instanceof Error
+					? startError.message
+					: "Failed to start the next Ready task";
+			setSignalErrorConfirm({ isOpen: true, message });
+			// Error toast handled by ApiClient.onError.
+		}
+	};
+
+	const handleDirtyGitConfirmStart = async () => {
+		try {
+			await handleStartReadyTasks({ forceDirtyGit: true });
+		} catch (forceError) {
+			if (
+				forceError instanceof Error &&
+				(forceError as Error & { isActiveExecutionSessionRisk?: boolean })
+					.isActiveExecutionSessionRisk
+			) {
+				setActiveExecutionSessionConfirm({
+					message: forceError.message,
+					forceDirtyGit: true,
+				});
+				return;
+			}
+
+			const message =
+				forceError instanceof Error
+					? forceError.message
+					: "Failed to start the next Ready task";
+			setSignalErrorConfirm({ isOpen: true, message });
+			// Error toast handled by ApiClient.onError.
+		}
+	};
+
+	const handleActiveExecutionConfirmStart = async () => {
+		const confirmation = activeExecutionSessionConfirm;
+		const requestOptions = buildConfirmedReadyStartOptions(confirmation);
+		if (!requestOptions) {
+			return;
+		}
+
+		try {
+			await handleStartReadyTasks(requestOptions);
+		} catch (forceError) {
+			const message =
+				forceError instanceof Error
+					? forceError.message
+					: "Failed to start the next Ready task";
+			setSignalErrorConfirm({ isOpen: true, message });
+			// Error toast handled by ApiClient.onError.
+		}
+	};
+
 	return (
 		<div className="flex flex-col h-full overflow-hidden">
-			<div className="relative z-10 flex items-center justify-between px-8 py-2 border-b border-slate-800/50 bg-slate-900/20 backdrop-blur-md shrink-0">
-				<div className="flex items-center gap-4">
-					<ProjectSelect
-						projectId={projectId}
-						projectName={projectName}
-						projectColor={projectColor}
-					/>
-					<div className="bg-slate-800/50 p-1 rounded-xl flex gap-1">
-						<button
-							type="button"
-							onClick={() => setViewMode("board")}
-							className={cn(
-								"flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all",
-								viewMode === "board"
-									? "bg-blue-600 text-white shadow-lg shadow-blue-900/20"
-									: "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50",
-							)}
-						>
-							<LayoutGrid className="w-4 h-4" />
-							Board
-						</button>
-						<button
-							type="button"
-							onClick={() => setViewMode("list")}
-							className={cn(
-								"flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all",
-								viewMode === "list"
-									? "bg-blue-600 text-white shadow-lg shadow-blue-900/20"
-									: "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50",
-							)}
-						>
-							<List className="w-4 h-4" />
-							List
-						</button>
-					</div>
-
-					{viewMode === "list" && (
-						<div className="flex items-center gap-2 border-l border-slate-800 pl-4 ml-2">
-							<button
-								type="button"
-								onClick={expandAll}
-								className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all"
-								title="Expand All"
-							>
-								<ChevronDown className="w-3.5 h-3.5" />
-								Expand All
-							</button>
-							<button
-								type="button"
-								onClick={collapseAll}
-								className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all"
-								title="Collapse All"
-							>
-								<ChevronUp className="w-3.5 h-3.5" />
-								Collapse All
-							</button>
-						</div>
+			<div className="relative z-10 flex items-center gap-3 px-8 py-2 border-b border-slate-800/50 bg-slate-900/20 backdrop-blur-md shrink-0">
+				<div className="flex items-center gap-2 shrink-0">
+					{projectColor && (
+						<div
+							className="w-3 h-3 rounded-full shrink-0"
+							style={{ backgroundColor: projectColor }}
+						/>
 					)}
+					<h2 className="text-lg font-bold text-slate-200">{projectName}</h2>
 				</div>
+
+				<div className="flex-1" />
 
 				<div className="flex items-center gap-2">
 					<button
 						type="button"
-						onClick={() => setIsQuickCreateModalOpen(true)}
-						className="flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20"
-						title="Quick Create Task"
+						onClick={() => {
+							if (firstColumnId) void handleAddTask(firstColumnId);
+						}}
+						className="flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all bg-violet-600 text-white hover:bg-violet-500 shadow-lg shadow-violet-900/20 cursor-pointer"
+						title="Create a new task"
 					>
 						<Plus className="w-4 h-4" />
-						Add Task
+						New Task
+					</button>
+					<button
+						type="button"
+						onClick={() => setIsQuickCreateModalOpen(true)}
+						className="flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20 cursor-pointer"
+						title="Quick Create Task"
+					>
+						<Zap className="w-4 h-4" />
+						Instant Task
 					</button>
 					<button
 						type="button"
 						onClick={() => {
-							void handleStartReadyTasks(false).catch((startError) => {
-								if (
-									startError instanceof Error &&
-									(startError as Error & { isDirtyGit?: boolean }).isDirtyGit
-								) {
-									setDirtyGitConfirm(true);
-									return;
-								}
-								const message =
-									startError instanceof Error
-										? startError.message
-										: "Failed to queue tasks";
-								setSignalErrorConfirm({ isOpen: true, message });
-								addToast(message, "error");
-							});
+							void handleReadyStartRequest();
 						}}
-						disabled={isQueueingSignalRuns}
+						disabled={startReadyDisabled}
 						className={cn(
-							"flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all",
-							isQueueingSignalRuns
+							"flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all cursor-pointer",
+							startReadyDisabled
 								? "bg-slate-800 text-slate-500 cursor-not-allowed"
 								: "bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-900/20",
 						)}
-						title="Queue ready tasks for execution"
+						title={
+							isQueueingSignalRuns
+								? "Starting..."
+								: !hasReadyTasks
+									? "No tasks in Ready column"
+									: "Start the next Ready task"
+						}
 					>
 						<Play className="w-4 h-4" />
-						{isQueueingSignalRuns ? "Queueing..." : "Execute Queue"}
+						{isQueueingSignalRuns ? "Starting..." : "Start Ready"}
 					</button>
 					<button
 						type="button"
@@ -325,25 +303,28 @@ export function BoardScreen({
 								.then(() => {
 									addToast("Pushed successfully", "success");
 								})
-								.catch((pushError) => {
-									const message =
-										pushError instanceof Error
-											? pushError.message
-											: "Failed to push";
-									addToast(message, "error");
+								.catch(() => {
+									// Error toast handled by ApiClient.onError.
 								})
 								.finally(() => {
 									setIsPushing(false);
+									refreshGitStatus();
 								});
 						}}
-						disabled={isPushing}
+						disabled={pushDisabled}
 						className={cn(
-							"flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all",
-							isPushing
+							"flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all cursor-pointer",
+							pushDisabled
 								? "bg-slate-800 text-slate-500 cursor-not-allowed"
 								: "bg-slate-700 text-slate-200 hover:bg-slate-600",
 						)}
-						title="Push current branch to origin"
+						title={
+							isPushing
+								? "Pushing..."
+								: !hasUnpushedCommits
+									? "Nothing to push"
+									: "Push current branch to origin"
+						}
 					>
 						<Upload className="w-4 h-4" />
 						{isPushing ? "Pushing..." : "Push"}
@@ -358,73 +339,41 @@ export function BoardScreen({
 					onDragStart={handleDragStart}
 					onDragEnd={handleDragEnd}
 				>
-					{viewMode === "board" ? (
-						<div className="h-full overflow-x-auto custom-scrollbar">
-							<div className="inline-flex h-full items-stretch gap-0 pl-5 pr-5 pt-8 pb-8">
-								<SortableContext
-									items={columns.map((c) => c.id)}
-									strategy={horizontalListSortingStrategy}
-								>
-									{columns.map((column) => (
-										<SortableColumn
-											key={column.id}
-											id={column.id}
-											name={column.name}
-											color={column.color || ""}
-											systemKey={column.systemKey}
-											globalTags={globalTags}
-											tasks={tasks
-												.filter((t) => t.columnId === column.id)
-												.sort((a, b) => a.orderInColumn - b.orderInColumn)}
-											onTaskClick={handleTaskClick}
-											onDeleteTask={handleDeleteTask}
-											onBulkDelete={handleBulkDelete}
-											onContextAction={handleContextAction}
-											onUpdateTask={handleTaskUpdate}
-											onRejectAction={handleOpenRejectModal}
-										/>
-									))}
-								</SortableContext>
-							</div>
+					<div className="h-full overflow-x-auto custom-scrollbar">
+						<div className="inline-flex h-full items-stretch gap-0 pl-5 pr-5 pt-8 pb-8">
+							<SortableContext
+								items={columns.map((c) => c.id)}
+								strategy={horizontalListSortingStrategy}
+							>
+								{columns.map((column) => (
+									<SortableColumn
+										key={column.id}
+										id={column.id}
+										name={column.name}
+										color={column.color || ""}
+										systemKey={column.systemKey}
+										globalTags={globalTags}
+										tasks={tasks
+											.filter((t) => t.columnId === column.id)
+											.sort((a, b) => a.orderInColumn - b.orderInColumn)}
+										onTaskClick={handleTaskClick}
+										onDeleteTask={handleDeleteTask}
+										onBulkDelete={handleBulkDelete}
+										onContextAction={handleContextAction}
+										onUpdateTask={handleTaskUpdate}
+										onRejectAction={handleOpenRejectModal}
+										deletingTaskId={deletingTaskId}
+									/>
+								))}
+							</SortableContext>
 						</div>
-					) : (
-						<ListView
-							columns={board.columns}
-							tasks={tasks}
-							globalTags={globalTags}
-							onAddTask={handleAddTask}
-							onDeleteTask={handleDeleteTask}
-							onContextAction={handleContextAction}
-							onUpdateTask={handleTaskUpdate}
-							onRejectAction={handleOpenRejectModal}
-							expandedColumns={expandedColumns}
-							onToggleColumn={(columnId) => {
-								manualTogglesRef.current[columnId] = true;
-								setExpandedColumns((prev) => ({
-									...prev,
-									[columnId]: !prev[columnId],
-								}));
-							}}
-							projectId={projectId}
-							onBulkDeleteColumn={handleBulkDelete}
-						/>
-					)}
+					</div>
 
 					<DragOverlay>
 						{activeTask ? (
-							viewMode === "board" ? (
-								<div className="w-80 rotate-3 scale-105 pointer-events-none">
-									<SortableTask task={activeTask} globalTags={globalTags} />
-								</div>
-							) : (
-								<div className="w-[600px] pointer-events-none">
-									<ListItemView
-										task={activeTask}
-										globalTags={globalTags}
-										isOverlay
-									/>
-								</div>
-							)
+							<div className="w-80 rotate-3 scale-105 pointer-events-none">
+								<SortableTask task={activeTask} globalTags={globalTags} />
+							</div>
 						) : activeColumn ? (
 							<div className="bg-[#11151C]/80 border-2 border-blue-500 rounded-2xl w-80 shadow-2xl rotate-2 opacity-90 p-4 pointer-events-none backdrop-blur-md h-[calc(100vh-180px)] flex flex-col">
 								<div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-800/50">
@@ -510,7 +459,7 @@ export function BoardScreen({
 					title="Workflow Engine Error"
 					description={
 						signalErrorConfirm.message ||
-						"An error occurred while queueing tasks by signal."
+						"An error occurred while starting the next Ready task."
 					}
 					confirmLabel="Close"
 					variant="danger"
@@ -519,19 +468,24 @@ export function BoardScreen({
 				<ConfirmationModal
 					isOpen={dirtyGitConfirm}
 					onClose={() => setDirtyGitConfirm(false)}
-					onConfirm={() => {
-						void handleStartReadyTasks(true).catch((forceError) => {
-							const message =
-								forceError instanceof Error
-									? forceError.message
-									: "Failed to queue tasks";
-							setSignalErrorConfirm({ isOpen: true, message });
-							addToast(message, "error");
-						});
-					}}
+					onConfirm={handleDirtyGitConfirmStart}
 					title="Uncommitted Changes Detected"
 					description="The working tree has uncommitted changes. Running tasks with a dirty git state may cause conflicts or data loss. Proceed at your own risk."
 					confirmLabel="Run Anyway"
+					cancelLabel="Cancel"
+					variant="warning"
+				/>
+
+				<ConfirmationModal
+					isOpen={activeExecutionSessionConfirm !== null}
+					onClose={() => setActiveExecutionSessionConfirm(null)}
+					onConfirm={handleActiveExecutionConfirmStart}
+					title="Execution Session Already Running"
+					description={
+						activeExecutionSessionConfirm?.message ||
+						"This project already has a working execution session. Starting another Ready task can create conflicts."
+					}
+					confirmLabel="Start Anyway"
 					cancelLabel="Cancel"
 					variant="warning"
 				/>

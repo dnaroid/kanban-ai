@@ -117,7 +117,7 @@ export function IconPicker({
 						setIsOpen(true);
 					}}
 					className={cn(
-						"inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wider transition-all hover:brightness-110",
+						"inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wider transition-all hover:brightness-110 hover:border-slate-700 hover:bg-slate-800",
 						isOpen &&
 							"ring-1 ring-offset-1 ring-offset-[#0B0E14] ring-slate-700",
 					)}

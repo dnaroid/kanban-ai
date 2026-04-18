@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import {
+	useState,
+	useEffect,
+	useRef,
+	useCallback,
+	useLayoutEffect,
+} from "react";
+import { createPortal } from "react-dom";
 import {
 	Plus,
 	FolderKanban,
@@ -15,21 +22,16 @@ import type { Project } from "@/server/types";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { Modal } from "@/components/common/Modal";
+import { DEFAULT_PRESET_COLORS } from "@/components/settings/color-palette";
 
 interface ProjectsScreenProps {
 	onProjectSelect: (id: string, name: string) => void;
 }
 
-const PROJECT_COLORS = [
-	{ name: "Blue", value: "#3B82F6" },
-	{ name: "Emerald", value: "#10B981" },
-	{ name: "Violet", value: "#8B5CF6" },
-	{ name: "Rose", value: "#F43F5E" },
-	{ name: "Amber", value: "#F59E0B" },
-	{ name: "Cyan", value: "#06B6D4" },
-	{ name: "Indigo", value: "#6366F1" },
-	{ name: "Slate", value: "#475569" },
-];
+const PROJECT_COLORS = DEFAULT_PRESET_COLORS.map((hex) => ({
+	name: hex,
+	value: hex,
+}));
 
 function CreateProjectModal({
 	isOpen,
@@ -198,18 +200,45 @@ function ProjectCard({
 	const [isEditing, setIsEditing] = useState(false);
 	const [newName, setNewName] = useState(project.name);
 	const [showColorPicker, setShowColorPicker] = useState(false);
-	const menuRef = useRef<HTMLDivElement>(null);
+	const [menuPosition, setMenuPosition] = useState<{
+		top: number;
+		right: number;
+	} | null>(null);
+	const triggerRef = useRef<HTMLButtonElement>(null);
+
+	const updateMenuPosition = useCallback(() => {
+		if (!triggerRef.current) return;
+		const rect = triggerRef.current.getBoundingClientRect();
+		setMenuPosition({
+			top: rect.bottom + 4,
+			right: window.innerWidth - rect.right,
+		});
+	}, []);
+
+	useLayoutEffect(() => {
+		if (!showMenu) return;
+		updateMenuPosition();
+		const frame = requestAnimationFrame(updateMenuPosition);
+		window.addEventListener("resize", updateMenuPosition);
+		window.addEventListener("scroll", updateMenuPosition, true);
+		return () => {
+			cancelAnimationFrame(frame);
+			window.removeEventListener("resize", updateMenuPosition);
+			window.removeEventListener("scroll", updateMenuPosition, true);
+		};
+	}, [showMenu, updateMenuPosition]);
 
 	useEffect(() => {
+		if (!showMenu) return;
 		const handleClickOutside = (event: MouseEvent) => {
-			if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-				setShowMenu(false);
-				setShowColorPicker(false);
-			}
+			const target = event.target as HTMLElement;
+			if (target.closest("[data-project-menu]")) return;
+			setShowMenu(false);
+			setShowColorPicker(false);
 		};
 		document.addEventListener("mousedown", handleClickOutside);
 		return () => document.removeEventListener("mousedown", handleClickOutside);
-	}, []);
+	}, [showMenu]);
 
 	const handleRename = async () => {
 		if (newName.trim() && newName !== project.name) {
@@ -248,64 +277,84 @@ function ProjectCard({
 				boxShadow: `0 0 40px -20px ${color}15`,
 			}}
 		>
-			<div className="absolute top-2 right-2 z-10" ref={menuRef}>
+			<div className="absolute top-2 right-2 z-10">
 				<button
+					ref={triggerRef}
 					type="button"
 					onClick={(e) => {
 						e.stopPropagation();
 						setShowMenu(!showMenu);
+						setShowColorPicker(false);
 					}}
 					className="p-2 text-slate-500 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
 				>
 					<MoreVertical className="w-4 h-4" />
 				</button>
-
-				{showMenu && (
-					<div className="absolute right-0 mt-1 w-48 bg-[#161B26] border border-slate-800 rounded-xl shadow-2xl z-20 py-1.5 animate-in fade-in zoom-in-95 duration-100">
-						<button
-							type="button"
-							onClick={(e) => {
-								e.stopPropagation();
-								setIsEditing(true);
-								setShowMenu(false);
-							}}
-							className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
-						>
-							<Edit2 className="w-4 h-4" /> Rename
-						</button>
-						<button
-							type="button"
-							onClick={(e) => {
-								e.stopPropagation();
-								setShowColorPicker(!showColorPicker);
-							}}
-							className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
-						>
-							<Palette className="w-4 h-4" /> Change Color
-						</button>
-						{showColorPicker && (
-							<div className="px-4 py-3 border-t border-slate-800 mt-1.5 grid grid-cols-4 gap-2">
-								{PROJECT_COLORS.map((c) => (
-									<button
-										key={c.value}
-										type="button"
-										onClick={(e) => {
-											e.stopPropagation();
-											handleColorChange(c.value);
-										}}
-										className={cn(
-											"w-6 h-6 rounded-full transition-transform hover:scale-125 border border-white/10",
-											project.color === c.value &&
-												"ring-2 ring-white ring-offset-2 ring-offset-[#161B26]",
-										)}
-										style={{ backgroundColor: c.value }}
-									/>
-								))}
-							</div>
-						)}
-					</div>
-				)}
 			</div>
+
+			{showMenu && menuPosition
+				? createPortal(
+						<>
+							<button
+								type="button"
+								className="fixed inset-0 z-40 cursor-default"
+								onClick={() => {
+									setShowMenu(false);
+									setShowColorPicker(false);
+								}}
+								aria-label="Close menu"
+							/>
+							<div
+								data-project-menu
+								className="fixed z-50 w-48 bg-[#161B26] border border-slate-800 rounded-xl shadow-2xl py-1.5 animate-in fade-in zoom-in-95 duration-100"
+								style={{ top: menuPosition.top, right: menuPosition.right }}
+							>
+								<button
+									type="button"
+									onClick={(e) => {
+										e.stopPropagation();
+										setIsEditing(true);
+										setShowMenu(false);
+									}}
+									className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+								>
+									<Edit2 className="w-4 h-4" /> Rename
+								</button>
+								<button
+									type="button"
+									onClick={(e) => {
+										e.stopPropagation();
+										setShowColorPicker(!showColorPicker);
+									}}
+									className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+								>
+									<Palette className="w-4 h-4" /> Change Color
+								</button>
+								{showColorPicker && (
+									<div className="px-4 py-3 border-t border-slate-800 mt-1.5 grid grid-cols-6 gap-2 max-h-56 overflow-y-auto">
+										{PROJECT_COLORS.map((c) => (
+											<button
+												key={c.value}
+												type="button"
+												onClick={(e) => {
+													e.stopPropagation();
+													handleColorChange(c.value);
+												}}
+												className={cn(
+													"w-6 h-6 rounded-full transition-transform hover:scale-125 border border-white/10",
+													project.color === c.value &&
+														"ring-2 ring-white ring-offset-2 ring-offset-[#161B26]",
+												)}
+												style={{ backgroundColor: c.value }}
+											/>
+										))}
+									</div>
+								)}
+							</div>
+						</>,
+						document.body,
+					)
+				: null}
 
 			<div
 				className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110"

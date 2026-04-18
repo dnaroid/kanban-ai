@@ -1,5 +1,8 @@
 import { createLogger } from "@/lib/logger";
-import { extractOpencodeStatus } from "@/lib/opencode-status";
+import {
+	buildOpencodeStatusLine,
+	extractOpencodeStatus,
+} from "@/lib/opencode-status";
 import { buildTaskPrompt } from "@/server/run/prompts/task";
 import type {
 	PermissionData,
@@ -10,6 +13,7 @@ import type {
 import { getOpencodeService } from "@/server/opencode/opencode-service";
 import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
 import { ensureSessionLive } from "@/server/opencode/session-store";
+import { artifactRepo } from "@/server/repositories/artifact";
 import { contextSnapshotRepo } from "@/server/repositories/context-snapshot";
 import { projectRepo } from "@/server/repositories/project";
 import type { AgentRolePreset } from "@/server/repositories/role";
@@ -20,18 +24,23 @@ import { taskLinkRepo } from "@/server/repositories/task-link";
 import { taskRepo } from "@/server/repositories/task";
 import { boardRepo } from "@/server/repositories/board";
 import {
+	getWorkflowColumnIdBySystemKey,
+	getWorkflowColumnSystemKey,
 	getTaskStateMachine,
 	resolveTransitionTrigger,
 	type TaskTransitionInput,
 	type TaskTransitionTrigger,
 } from "@/server/run/task-state-machine";
-import { getWorkflowColumnIdBySystemKey } from "@/server/workflow/task-workflow-manager";
-import { getWorkflowColumnSystemKey } from "@/server/workflow/task-workflow-manager";
 import { publishRunUpdate } from "@/server/run/run-publisher";
 import { publishSseEvent } from "@/server/events/sse-broker";
 import { getVcsManager } from "@/server/vcs/vcs-manager";
 import type { TaskPriority } from "@/types/kanban";
-import type { Run, RunStatus, RunVcsMetadata } from "@/types/ipc";
+import type {
+	Run,
+	RunLastExecutionStatus,
+	RunStatus,
+	RunVcsMetadata,
+} from "@/types/ipc";
 import type { Task } from "@/server/types";
 
 const generationRunKind = "task-description-improve";
@@ -132,11 +141,10 @@ function deriveMetaStatus(
 		}
 	}
 
-	if (inspection.probeStatus === "not_found") {
-		return { kind: "dead" };
-	}
-
-	if (inspection.probeStatus === "transient_error") {
+	if (
+		inspection.probeStatus === "not_found" ||
+		inspection.probeStatus === "transient_error"
+	) {
 		return { kind: "running" };
 	}
 
@@ -150,7 +158,85 @@ function deriveMetaStatus(
 		return { kind: "question", questions: inspection.pendingQuestions };
 	}
 
+	if (inspection.sessionStatus === "idle") {
+		const latestMessage = inspection.messages[inspection.messages.length - 1];
+		if (latestMessage?.role === "user") {
+			return { kind: "running" };
+		}
+
+		const content = findStoryContent(inspection);
+		return { kind: "completed", marker: "done", content };
+	}
+
 	return { kind: "running" };
+}
+
+function toRunLastExecutionStatus(
+	meta: SessionMetaStatus,
+	sessionId: string,
+): RunLastExecutionStatus {
+	const updatedAt = new Date().toISOString();
+
+	switch (meta.kind) {
+		case "completed":
+		case "failed":
+			return {
+				kind: meta.kind,
+				marker: meta.marker,
+				content: meta.content,
+				sessionId,
+				updatedAt,
+			};
+		case "permission":
+			return {
+				kind: "permission",
+				sessionId,
+				permissionId: meta.permission.id,
+				updatedAt,
+			};
+		case "question":
+			return {
+				kind: "question",
+				sessionId,
+				questionId: meta.questions[0]?.id,
+				updatedAt,
+			};
+		case "running":
+			return {
+				kind: "running",
+				sessionId,
+				updatedAt,
+			};
+		case "dead":
+			return {
+				kind: "dead",
+				sessionId,
+				updatedAt,
+			};
+	}
+}
+
+async function hydrateGenerationOutcomeContent(
+	run: Run,
+	content: string,
+	sessionManager: ReturnType<typeof getOpencodeSessionManager>,
+): Promise<string> {
+	if (content.trim().length > 0 || run.metadata?.kind !== generationRunKind) {
+		return content;
+	}
+
+	const sessionId = run.sessionId.trim();
+	if (sessionId.length === 0) {
+		return content;
+	}
+
+	try {
+		const inspection = await sessionManager.inspectSession(sessionId);
+		const hydrated = findStoryContent(inspection);
+		return hydrated.trim().length > 0 ? hydrated : content;
+	} catch {
+		return content;
+	}
 }
 
 function findCompletionContent(inspection: SessionInspectionResult): string {
@@ -367,6 +453,7 @@ export class RunsQueueManager {
 	private readonly queueKeyByRunId = new Map<string, string>();
 	private readonly runInputs = new Map<string, QueuedRunInput>();
 	private readonly activeRunSessions = new Map<string, string>();
+	private readonly pendingGeneratedExecutionTaskIds = new Map<string, string>();
 	private readonly opencodeService = getOpencodeService();
 	private readonly sessionManager = getOpencodeSessionManager();
 	private readonly stateMachine = getTaskStateMachine();
@@ -405,10 +492,8 @@ export class RunsQueueManager {
 		string,
 		Map<string, number>
 	>();
-	private reconciliationTimer: ReturnType<typeof setTimeout> | null = null;
 	private readonly projectPollingIntervalMs = 5_000;
 	private readonly projectBoardWatcherTtlMs = 15_000;
-	private readonly reconciliationIntervalMs = 30_000;
 	private readonly staleRunThresholdMs = 10 * 60 * 1000;
 	private readonly manualStatusGraceMs = 15_000;
 	private readonly retryTimers = new Map<
@@ -416,12 +501,7 @@ export class RunsQueueManager {
 		ReturnType<typeof setTimeout>
 	>();
 
-	public constructor() {
-		queueMicrotask(() => {
-			void this.rehydrateAndReconcileRuns();
-		});
-		this.schedulePeriodicReconciliation();
-	}
+	public constructor() {}
 
 	private applyTaskTransition(
 		run: Run,
@@ -623,6 +703,9 @@ export class RunsQueueManager {
 			isGeneration,
 		});
 		queue.push(runId);
+		if (currentRun && !isGeneration) {
+			this.applyTaskTransition(currentRun, "run:start", "");
+		}
 		log.info("Run enqueued", {
 			runId,
 			projectScope,
@@ -837,6 +920,16 @@ export class RunsQueueManager {
 						running.delete(runId);
 						this.queueKeyByRunId.delete(runId);
 						this.cleanupQueueState(queueKey);
+						const pendingGeneratedTaskId =
+							this.pendingGeneratedExecutionTaskIds.get(runId);
+						if (pendingGeneratedTaskId) {
+							this.pendingGeneratedExecutionTaskIds.delete(runId);
+							queueMicrotask(() => {
+								void this.enqueueExecutionForGeneratedTask(
+									pendingGeneratedTaskId,
+								);
+							});
+						}
 						this.scheduleDrain();
 					});
 				}
@@ -865,6 +958,13 @@ export class RunsQueueManager {
 			status: "running",
 			startedAt,
 			errorText: "",
+			metadata: {
+				...(current.metadata ?? {}),
+				lastExecutionStatus: {
+					kind: "running",
+					updatedAt: startedAt,
+				},
+			},
 		});
 
 		log.info("Run started", {
@@ -940,8 +1040,43 @@ export class RunsQueueManager {
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : "Run execution failed";
+			const latestRun = runRepo.getById(runId) ?? runningRun;
 
 			if (isNetworkError(error)) {
+				if (latestRun.sessionId.trim().length > 0) {
+					const recoveredAt = new Date().toISOString();
+					const resumedRun = runRepo.update(runId, {
+						status: "running",
+						errorText: message,
+						metadata: {
+							...(latestRun.metadata ?? {}),
+							errorText: message,
+							lastExecutionStatus: {
+								kind: "running",
+								sessionId: latestRun.sessionId.trim(),
+								updatedAt: recoveredAt,
+							},
+						},
+					});
+					runEventRepo.create({
+						runId,
+						eventType: "status",
+						payload: {
+							status: "running",
+							message: `Network error after session creation; waiting for polling recovery: ${message}`,
+						},
+					});
+					publishRunUpdate(resumedRun);
+					log.warn(
+						"Network error after session creation; keeping run active for polling recovery",
+						{
+							runId,
+							sessionId: latestRun.sessionId,
+							error: message,
+						},
+					);
+					return;
+				}
 				const retried = this.scheduleRetryAfterNetworkError(runId, message);
 				if (retried) {
 					return;
@@ -960,6 +1095,15 @@ export class RunsQueueManager {
 				finishedAt,
 				errorText: message,
 				durationSec: this.durationSec(startedAt, finishedAt),
+				metadata: {
+					...(current.metadata ?? {}),
+					lastExecutionStatus: {
+						kind: "failed",
+						content: message,
+						sessionId: current.sessionId.trim() || undefined,
+						updatedAt: finishedAt,
+					},
+				},
 			});
 			failedRun = await this.syncRunWorkspaceState(failedRun);
 
@@ -1067,7 +1211,7 @@ export class RunsQueueManager {
 
 		viewers.set(normalizedViewerId, Date.now());
 		this.ensureProjectPollingActive();
-		void this.reconcileProjectRuns(normalizedProjectId);
+		void this.pollProjectRuns(normalizedProjectId);
 	}
 
 	public stopProjectBoardPolling(projectId: string, viewerId: string): void {
@@ -1117,7 +1261,7 @@ export class RunsQueueManager {
 		}
 
 		for (const projectId of this.activeProjectBoardWatchers.keys()) {
-			await this.reconcileProjectRuns(projectId);
+			await this.pollProjectRuns(projectId);
 		}
 	}
 
@@ -1139,149 +1283,6 @@ export class RunsQueueManager {
 				this.activeProjectBoardWatchers.delete(projectId);
 			}
 		}
-	}
-
-	private async finalizeDeadRun(runId: string): Promise<void> {
-		const run = runRepo.getById(runId);
-		if (!run) {
-			return;
-		}
-
-		if (
-			run.status === "completed" ||
-			run.status === "failed" ||
-			run.status === "cancelled"
-		) {
-			this.activeRunSessions.delete(runId);
-			return;
-		}
-
-		const finishedAt = new Date().toISOString();
-		let failedRun = runRepo.update(runId, {
-			status: "failed",
-			finishedAt,
-			errorText: "Session not found or unreachable",
-			durationSec: this.durationSec(run.startedAt ?? finishedAt, finishedAt),
-		});
-		failedRun = await this.syncRunWorkspaceState(failedRun);
-
-		runEventRepo.create({
-			runId,
-			eventType: "status",
-			payload: { status: "failed", message: "Session not found" },
-		});
-
-		this.applyTaskTransition(
-			failedRun,
-			"run:dead",
-			"Session not found or unreachable",
-		);
-
-		publishRunUpdate(failedRun);
-		this.activeRunSessions.delete(runId);
-		this.runInputs.delete(runId);
-	}
-
-	private async pauseRunForPendingPermission(
-		runId: string,
-		permission: PermissionData,
-	): Promise<void> {
-		log.info("Permission request received, pausing run", {
-			runId,
-			permissionId: permission.id,
-			permissionType: permission.permissionType,
-			title: permission.title,
-		});
-
-		const run = runRepo.getById(runId);
-		if (!run || run.status !== "running") {
-			log.warn("Run not found or not running, cannot pause for permission", {
-				runId,
-				currentStatus: run?.status,
-			});
-			return;
-		}
-
-		const pausedRun = runRepo.update(runId, { status: "paused" });
-		runEventRepo.create({
-			runId,
-			eventType: "permission",
-			payload: {
-				status: "paused",
-				permissionId: permission.id,
-				permissionType: permission.permissionType,
-				pattern: permission.pattern,
-				title: permission.title,
-				sessionId: permission.sessionId,
-				messageId: permission.messageId,
-				message: `Permission requested: ${permission.title}`,
-			},
-		});
-
-		publishSseEvent("run:permission", {
-			runId,
-			taskId: pausedRun.taskId,
-			permissionId: permission.id,
-			permissionType: permission.permissionType,
-			pattern: permission.pattern,
-			title: permission.title,
-			sessionId: permission.sessionId,
-			messageId: permission.messageId,
-			createdAt: permission.createdAt,
-		});
-		publishRunUpdate(pausedRun);
-
-		this.applyTaskTransition(
-			pausedRun,
-			"run:question",
-			`Permission requested: ${permission.title}`,
-		);
-	}
-
-	private async pauseRunForPendingQuestion(
-		runId: string,
-		question: QuestionData,
-	): Promise<void> {
-		log.info("Question received, pausing run", {
-			runId,
-			questionId: question.id,
-			questions: question.questions.map((item) => item.question),
-			sessionId: question.sessionId,
-		});
-
-		const run = runRepo.getById(runId);
-		if (!run || run.status !== "running") {
-			log.warn("Run not found or not running, cannot pause for question", {
-				runId,
-				currentStatus: run?.status,
-			});
-			return;
-		}
-
-		const pausedRun = runRepo.update(runId, { status: "paused" });
-		runEventRepo.create({
-			runId,
-			eventType: "question",
-			payload: {
-				status: "paused",
-				questionId: question.id,
-				questions: question.questions.map((item) => item.question),
-				sessionId: question.sessionId,
-				message: "Question asked",
-			},
-		});
-
-		publishSseEvent("run:question", {
-			runId,
-			taskId: pausedRun.taskId,
-			questionId: question.id,
-			questions: question.questions,
-			sessionId: question.sessionId,
-			createdAt: question.createdAt,
-		});
-		publishRunUpdate(pausedRun);
-
-		this.applyTaskTransition(pausedRun, "run:question", "Question asked");
 	}
 
 	private async resumeRunAfterPermissionApproval(
@@ -1471,12 +1472,42 @@ export class RunsQueueManager {
 			});
 		}
 
+		const hydratedOutcome = {
+			...outcome,
+			content: await hydrateGenerationOutcomeContent(
+				run,
+				outcome.content,
+				this.sessionManager,
+			),
+		};
+
 		const finishedAt = new Date().toISOString();
+		const nextExecutionStatus: RunLastExecutionStatus = {
+			kind: status === "completed" ? "completed" : "failed",
+			sessionId: run.sessionId.trim() || undefined,
+			updatedAt: finishedAt,
+		};
+		if (
+			hydratedOutcome.marker === "done" ||
+			hydratedOutcome.marker === "generated" ||
+			hydratedOutcome.marker === "test_ok" ||
+			hydratedOutcome.marker === "fail" ||
+			hydratedOutcome.marker === "test_fail"
+		) {
+			nextExecutionStatus.marker = hydratedOutcome.marker;
+		}
+		if (hydratedOutcome.content.trim().length > 0) {
+			nextExecutionStatus.content = hydratedOutcome.content;
+		}
 		let nextRun = runRepo.update(runId, {
 			status,
 			finishedAt,
 			errorText: status === "failed" ? "Run failed" : "",
 			durationSec: this.durationSec(run.startedAt ?? finishedAt, finishedAt),
+			metadata: {
+				...(run.metadata ?? {}),
+				lastExecutionStatus: nextExecutionStatus,
+			},
 		});
 		nextRun = await this.syncRunWorkspaceState(nextRun);
 
@@ -1493,16 +1524,20 @@ export class RunsQueueManager {
 		});
 
 		try {
-			const trigger = this.resolveTriggerFromOutcome(nextRun, status, outcome);
+			const trigger = this.resolveTriggerFromOutcome(
+				nextRun,
+				status,
+				hydratedOutcome,
+			);
 			if (trigger) {
-				this.applyTaskTransition(nextRun, trigger, outcome.content);
+				this.applyTaskTransition(nextRun, trigger, hydratedOutcome.content);
 			}
 			if (
 				status === "completed" &&
 				this.isGenerationRun(nextRun) &&
 				this.shouldAutoExecuteAfterGeneration()
 			) {
-				await this.enqueueExecutionForGeneratedTask(nextRun.taskId);
+				this.pendingGeneratedExecutionTaskIds.set(runId, nextRun.taskId);
 			}
 
 			if (status === "completed" && !this.isGenerationRun(nextRun)) {
@@ -1520,17 +1555,13 @@ export class RunsQueueManager {
 			});
 		}
 
-		publishRunUpdate(nextRun);
+		const latestRun = runRepo.getById(runId) ?? nextRun;
+		publishRunUpdate(latestRun);
 		this.activeRunSessions.delete(runId);
 		this.runInputs.delete(runId);
 	}
 
-	public async rehydrateAndReconcileRuns(): Promise<void> {
-		const activeRuns = this.listActiveRunsForReconciliation();
-		await this.reconcileRuns(activeRuns);
-	}
-
-	public async reconcileProjectRuns(projectId: string): Promise<void> {
+	public async pollProjectRuns(projectId: string): Promise<void> {
 		if (this.reconcilingProjects.has(projectId)) {
 			return;
 		}
@@ -1545,7 +1576,11 @@ export class RunsQueueManager {
 			const activeRuns = this.listActiveRunsForReconciliation().filter((run) =>
 				scopedBoard.taskIds.has(run.taskId),
 			);
+			const recoverableRuns = this.listRecoverableRunsForProject(
+				scopedBoard.allTaskIds,
+			);
 			await this.reconcileRuns(activeRuns);
+			await this.reconcileRuns(recoverableRuns);
 			await this.reconcileTaskStatuses(
 				projectId,
 				scopedBoard.board,
@@ -1553,41 +1588,6 @@ export class RunsQueueManager {
 			);
 		} finally {
 			this.reconcilingProjects.delete(projectId);
-		}
-	}
-
-	public async recoverOrphanedRuns(): Promise<void> {
-		const failedRuns = runRepo.listByStatus("failed");
-		const recoverableRuns = failedRuns.filter(
-			(run) =>
-				run.sessionId.trim().length > 0 &&
-				getRunErrorText(run).toLowerCase() === "fetch failed",
-		);
-
-		for (const run of recoverableRuns) {
-			try {
-				const inspection = await this.sessionManager.inspectSession(
-					run.sessionId,
-				);
-				const meta = deriveMetaStatus(inspection);
-
-				if (meta.kind === "completed" || meta.kind === "failed") {
-					const runStatus =
-						meta.kind === "completed"
-							? ("completed" as RunStatus)
-							: ("failed" as RunStatus);
-					await this.finalizeRunFromSession(run.id, runStatus, {
-						marker: meta.marker,
-						content: meta.content,
-					});
-				}
-			} catch (error) {
-				log.warn("Failed to recover orphaned run from session", {
-					runId: run.id,
-					sessionId: run.sessionId,
-					error: error instanceof Error ? error.message : String(error),
-				});
-			}
 		}
 	}
 
@@ -1616,10 +1616,22 @@ export class RunsQueueManager {
 		}
 	}
 
+	private listRecoverableRunsForProject(taskIds: Set<string>): Run[] {
+		return runRepo
+			.listByStatus("failed")
+			.filter(
+				(run) =>
+					taskIds.has(run.taskId) &&
+					run.sessionId.trim().length > 0 &&
+					getRunErrorText(run).toLowerCase() === "fetch failed",
+			);
+	}
+
 	private getPollableBoardContext(projectId: string): {
 		board: ReturnType<typeof boardRepo.getByProjectId> extends infer T
 			? Exclude<T, null>
 			: never;
+		allTaskIds: Set<string>;
 		tasks: Task[];
 		taskIds: Set<string>;
 	} | null {
@@ -1631,13 +1643,15 @@ export class RunsQueueManager {
 			return null;
 		}
 
-		const tasks = taskRepo.listByBoard(board.id).filter((task) => {
+		const allTasks = taskRepo.listByBoard(board.id);
+		const tasks = allTasks.filter((task) => {
 			const columnKey = getWorkflowColumnSystemKey(board, task.columnId);
 			return columnKey !== "deferred" && columnKey !== "closed";
 		});
 
 		return {
 			board,
+			allTaskIds: new Set(allTasks.map((task) => task.id)),
 			tasks,
 			taskIds: new Set(tasks.map((task) => task.id)),
 		};
@@ -1736,7 +1750,11 @@ export class RunsQueueManager {
 
 						if (meta.kind === "completed" || meta.kind === "failed") {
 							derivedMarker = meta.marker;
-							derivedContent = meta.content;
+							derivedContent = await hydrateGenerationOutcomeContent(
+								latestSettledRun,
+								meta.content,
+								this.sessionManager,
+							);
 							source = "session";
 						} else {
 							log.warn(
@@ -1784,7 +1802,17 @@ export class RunsQueueManager {
 							derivedContent = meta.content;
 							source = "session";
 						} else {
-							derivedMarker = "fail";
+							log.info(
+								"Skipping task failure projection; recoverable failed run is still non-terminal",
+								{
+									projectId,
+									taskId: task.id,
+									runId: latestSettledRun.id,
+									sessionId,
+									inspectionKind: meta.kind,
+								},
+							);
+							continue;
 						}
 					} catch (error) {
 						log.warn(
@@ -1797,7 +1825,7 @@ export class RunsQueueManager {
 								error: error instanceof Error ? error.message : String(error),
 							},
 						);
-						derivedMarker = "fail";
+						continue;
 					}
 				} else {
 					derivedMarker = "fail";
@@ -1896,6 +1924,18 @@ export class RunsQueueManager {
 
 		try {
 			const inspection = await this.sessionManager.inspectSession(sessionId);
+			if (inspection.probeStatus !== "alive") {
+				log.warn(
+					"Skipping stale run finalization; session probe is not confirmed alive",
+					{
+						projectId,
+						taskId,
+						runId: run.id,
+						probeStatus: inspection.probeStatus,
+					},
+				);
+				return;
+			}
 			const meta = deriveMetaStatus(inspection);
 
 			if (meta.kind === "completed" || meta.kind === "failed") {
@@ -1996,10 +2036,16 @@ export class RunsQueueManager {
 			return;
 		}
 
+		const isRecoverableFailedRun =
+			run.status === "failed" &&
+			run.sessionId.trim().length > 0 &&
+			getRunErrorText(run).toLowerCase() === "fetch failed";
+
 		if (
 			run.status !== "queued" &&
 			run.status !== "running" &&
-			run.status !== "paused"
+			run.status !== "paused" &&
+			!isRecoverableFailedRun
 		) {
 			return;
 		}
@@ -2051,6 +2097,16 @@ export class RunsQueueManager {
 		inspection: SessionInspectionResult,
 	): Promise<void> {
 		const meta = deriveMetaStatus(inspection);
+		const observedRun = runRepo.update(run.id, {
+			metadata: {
+				...(run.metadata ?? {}),
+				lastExecutionStatus: toRunLastExecutionStatus(meta, sessionId),
+			},
+		});
+
+		if (!this.isGenerationRun(run)) {
+			this.tryFillTaskModelFromSession(run.taskId, inspection);
+		}
 
 		switch (meta.kind) {
 			case "completed":
@@ -2059,7 +2115,7 @@ export class RunsQueueManager {
 					meta.kind === "completed"
 						? ("completed" as RunStatus)
 						: ("failed" as RunStatus);
-				await this.finalizeRunFromSession(run.id, runStatus, {
+				await this.finalizeRunFromSession(observedRun.id, runStatus, {
 					marker: meta.marker,
 					content: meta.content,
 				});
@@ -2067,7 +2123,7 @@ export class RunsQueueManager {
 			}
 			case "dead":
 				await this.failRunDuringReconciliation(
-					run,
+					observedRun,
 					"Session not found during reconciliation",
 					"Session not found",
 				);
@@ -2075,51 +2131,65 @@ export class RunsQueueManager {
 			case "running":
 				break;
 			case "permission": {
-				const nextRun = this.ensureRunPausedForPermission(run, meta.permission);
+				const nextRun = this.ensureRunPausedForPermission(
+					observedRun,
+					meta.permission,
+				);
 				this.attachReconciledSession(nextRun.id, sessionId);
 				return;
 			}
 			case "question": {
-				const nextRun = this.ensureRunPausedForQuestion(run, meta.questions[0]);
+				const nextRun = this.ensureRunPausedForQuestion(
+					observedRun,
+					meta.questions[0],
+				);
 				this.attachReconciledSession(nextRun.id, sessionId);
 				return;
 			}
 		}
 
 		if (
-			run.status === "running" &&
-			this.isRunStale(run) &&
-			inspection.probeStatus !== "transient_error"
+			observedRun.status === "running" &&
+			this.isRunStale(observedRun) &&
+			inspection.probeStatus === "alive"
 		) {
-			const fallbackMarker = this.staleRunFallbackMarker(run);
-			await this.finalizeRunFromSession(run.id, "completed", {
+			const fallbackMarker = this.staleRunFallbackMarker(observedRun);
+			await this.finalizeRunFromSession(observedRun.id, "completed", {
 				marker: fallbackMarker,
 				content: "",
 			});
 			log.info("Force-finalized stale running run during reconciliation", {
-				runId: run.id,
+				runId: observedRun.id,
 				sessionId,
 				marker: fallbackMarker,
-				runKind: run.metadata?.kind ?? null,
+				runKind: observedRun.metadata?.kind ?? null,
 			});
 			return;
 		}
 
-		if (run.status === "paused") {
-			await this.reconcilePausedRun(run.id, sessionId);
-			this.attachReconciledSession(run.id, sessionId);
+		if (observedRun.status === "paused") {
+			await this.reconcilePausedRun(observedRun.id, sessionId);
+			this.attachReconciledSession(observedRun.id, sessionId);
 			return;
 		}
 
-		if (run.status === "queued") {
+		if (observedRun.status === "queued") {
 			const startedAt = run.startedAt ?? new Date().toISOString();
-			const resumedRun = runRepo.update(run.id, {
+			const resumedRun = runRepo.update(observedRun.id, {
 				status: "running",
 				startedAt,
 				errorText: "",
+				metadata: {
+					...(observedRun.metadata ?? {}),
+					lastExecutionStatus: {
+						kind: "running",
+						sessionId,
+						updatedAt: startedAt,
+					},
+				},
 			});
 			runEventRepo.create({
-				runId: run.id,
+				runId: observedRun.id,
 				eventType: "status",
 				payload: {
 					status: "running",
@@ -2133,7 +2203,7 @@ export class RunsQueueManager {
 				"Run resumed during reconciliation",
 			);
 			log.info("Reattached queued run as running during reconciliation", {
-				runId: run.id,
+				runId: observedRun.id,
 				sessionId,
 			});
 			this.attachReconciledSession(resumedRun.id, sessionId);
@@ -2141,11 +2211,11 @@ export class RunsQueueManager {
 		}
 
 		log.info("Reattached active run during reconciliation", {
-			runId: run.id,
+			runId: observedRun.id,
 			sessionId,
-			status: run.status,
+			status: observedRun.status,
 		});
-		this.attachReconciledSession(run.id, sessionId);
+		this.attachReconciledSession(observedRun.id, sessionId);
 	}
 
 	private async reconcilePausedRun(
@@ -2278,6 +2348,15 @@ export class RunsQueueManager {
 			finishedAt,
 			errorText,
 			durationSec: this.durationSec(run.startedAt ?? finishedAt, finishedAt),
+			metadata: {
+				...(run.metadata ?? {}),
+				lastExecutionStatus: {
+					kind: "failed",
+					content: assistantContent,
+					sessionId: run.sessionId.trim() || undefined,
+					updatedAt: finishedAt,
+				},
+			},
 		});
 		failedRun = await this.syncRunWorkspaceState(failedRun);
 
@@ -2298,19 +2377,6 @@ export class RunsQueueManager {
 
 		this.activeRunSessions.delete(run.id);
 		this.removeFromQueue(run.id);
-	}
-
-	private schedulePeriodicReconciliation(): void {
-		if (this.reconciliationTimer) {
-			return;
-		}
-
-		this.reconciliationTimer = setTimeout(() => {
-			this.reconciliationTimer = null;
-			void this.rehydrateAndReconcileRuns().finally(() => {
-				this.schedulePeriodicReconciliation();
-			});
-		}, this.reconciliationIntervalMs);
 	}
 
 	private async syncRunWorkspaceState(run: Run): Promise<Run> {
@@ -2645,6 +2711,10 @@ export class RunsQueueManager {
 				boardId: mergedTask.boardId,
 			});
 
+			if (await this.resumeRejectedTaskRun(nextTask)) {
+				return;
+			}
+
 			await this.enqueueExecutionForNextTask(nextTask.id);
 		} catch (error) {
 			log.error("startNextReadyTaskAfterMerge: failed", {
@@ -2680,15 +2750,7 @@ export class RunsQueueManager {
 			return;
 		}
 
-		const activeExecutionRun = runRepo
-			.listByTask(task.id)
-			.find(
-				(run) =>
-					!this.isGenerationRun(run) &&
-					(run.status === "queued" ||
-						run.status === "running" ||
-						run.status === "paused"),
-			);
+		const activeExecutionRun = this.getActiveTaskRunForTask(task.id);
 		if (activeExecutionRun) {
 			log.info("Execution run already active for task", {
 				taskId: task.id,
@@ -2738,10 +2800,11 @@ export class RunsQueueManager {
 			},
 		});
 
-		const executionRun = runRepo.create({
+		const executionRun = this.prepareTaskRunForTask({
 			taskId: task.id,
 			roleId,
 			mode: "execute",
+			kind: "task-run",
 			contextSnapshotId: snapshotId,
 		});
 
@@ -2829,6 +2892,149 @@ export class RunsQueueManager {
 		});
 	}
 
+	private transitionTaskToInProgress(task: Task): void {
+		const board =
+			boardRepo.getById(task.boardId) ??
+			boardRepo.getByProjectId(task.projectId);
+
+		if (board) {
+			const inProgressColumnId = getWorkflowColumnIdBySystemKey(
+				board,
+				"in_progress",
+			);
+			if (inProgressColumnId) {
+				const existingInColumn = taskRepo
+					.listByBoard(board.id)
+					.filter((item) => item.columnId === inProgressColumnId).length;
+				taskRepo.update(task.id, {
+					status: "running",
+					columnId: inProgressColumnId,
+					orderInColumn: existingInColumn,
+				});
+			} else {
+				taskRepo.update(task.id, { status: "running" });
+			}
+		} else {
+			taskRepo.update(task.id, { status: "running" });
+		}
+
+		publishSseEvent("task:event", {
+			taskId: task.id,
+			boardId: task.boardId,
+			projectId: task.projectId,
+			eventType: "task:updated",
+			updatedAt: new Date().toISOString(),
+		});
+	}
+
+	private listAllTaskRuns(taskId: string): Run[] {
+		const repository = runRepo as typeof runRepo & {
+			listAllByTask?: (taskId: string) => Run[];
+		};
+
+		if (typeof repository.listAllByTask === "function") {
+			return repository.listAllByTask(taskId);
+		}
+
+		return repository.listByTask(taskId);
+	}
+
+	private isExecutionRun(run: Run): boolean {
+		return (run.metadata?.kind ?? "task-run") === "task-run";
+	}
+
+	private async resumeRejectedTaskRun(task: Task): Promise<boolean> {
+		if (task.status !== "rejected" || !task.qaReport) {
+			return false;
+		}
+
+		const completedRun = this.listAllTaskRuns(task.id).find(
+			(run) =>
+				this.isExecutionRun(run) &&
+				run.status === "completed" &&
+				typeof run.sessionId === "string" &&
+				run.sessionId.trim().length > 0,
+		);
+		if (!completedRun?.sessionId) {
+			return false;
+		}
+
+		const board =
+			boardRepo.getById(task.boardId) ??
+			boardRepo.getByProjectId(task.projectId);
+		if (!board) {
+			return false;
+		}
+
+		const qaMessage = [
+			"",
+			"This task did not pass QA review. Reasons:",
+			task.qaReport,
+			"",
+			"Fix ALL issues listed above. Do NOT skip any item.",
+			"",
+			`When done, output exactly one status line: ${buildOpencodeStatusLine("done")} or ${buildOpencodeStatusLine("fail")} or ${buildOpencodeStatusLine("question")}`,
+		].join("\n");
+
+		await this.sessionManager.sendPrompt(completedRun.sessionId, qaMessage);
+
+		const resumedAt = new Date().toISOString();
+		const resumedRun = runRepo.update(completedRun.id, {
+			status: "running",
+			startedAt: resumedAt,
+			finishedAt: null,
+			errorText: "",
+			metadata: {
+				...(completedRun.metadata ?? {}),
+				lastExecutionStatus: {
+					kind: "running",
+					sessionId: completedRun.sessionId,
+					updatedAt: resumedAt,
+				},
+			},
+		});
+
+		const inProgressColumnId = getWorkflowColumnIdBySystemKey(
+			board,
+			"in_progress",
+		);
+		if (inProgressColumnId) {
+			const existingInColumn = taskRepo
+				.listByBoard(board.id)
+				.filter((item) => item.columnId === inProgressColumnId).length;
+			taskRepo.update(task.id, {
+				status: "running",
+				columnId: inProgressColumnId,
+				orderInColumn: existingInColumn,
+				qaReport: null,
+			});
+		} else {
+			taskRepo.update(task.id, {
+				status: "running",
+				qaReport: null,
+			});
+		}
+
+		runEventRepo.create({
+			runId: resumedRun.id,
+			eventType: "status",
+			payload: {
+				status: "running",
+				message: "Execution run resumed after QA rejection",
+			},
+		});
+		publishRunUpdate(resumedRun);
+		publishSseEvent("task:event", {
+			taskId: task.id,
+			boardId: task.boardId,
+			projectId: task.projectId,
+			eventType: "task:updated",
+			updatedAt: resumedAt,
+		});
+
+		return true;
+	}
+
 	private async enqueueExecutionForNextTask(taskId: string): Promise<void> {
 		const task = taskRepo.getById(taskId);
 		if (!task) {
@@ -2843,15 +3049,7 @@ export class RunsQueueManager {
 			return;
 		}
 
-		const activeExecutionRun = runRepo
-			.listByTask(task.id)
-			.find(
-				(run) =>
-					!this.isGenerationRun(run) &&
-					(run.status === "queued" ||
-						run.status === "running" ||
-						run.status === "paused"),
-			);
+		const activeExecutionRun = this.getActiveTaskRunForTask(task.id);
 		if (activeExecutionRun) {
 			log.info("enqueueExecutionForNextTask: execution run already active", {
 				taskId: task.id,
@@ -2901,10 +3099,11 @@ export class RunsQueueManager {
 			},
 		});
 
-		const executionRun = runRepo.create({
+		const executionRun = this.prepareTaskRunForTask({
 			taskId: task.id,
 			roleId,
 			mode: "execute",
+			kind: "task-run",
 			contextSnapshotId: snapshotId,
 		});
 
@@ -2968,6 +3167,8 @@ export class RunsQueueManager {
 			}
 		}
 
+		this.transitionTaskToInProgress(task);
+
 		this.enqueue(queuedExecutionRun.id, {
 			projectPath: executionProjectPath,
 			projectId: project.id,
@@ -3022,6 +3223,96 @@ export class RunsQueueManager {
 			preferredModelVariant: modelVariant,
 			preferredLlmAgent: llmAgent,
 		};
+	}
+
+	private getActiveTaskRunForTask(taskId: string): Run | null {
+		const run = this.getCurrentTaskRun(taskId);
+		if (!run) {
+			return null;
+		}
+
+		return run.status === "queued" ||
+			run.status === "running" ||
+			run.status === "paused"
+			? run
+			: null;
+	}
+
+	private prepareTaskRunForTask(input: {
+		taskId: string;
+		roleId: string;
+		mode: string;
+		kind: string;
+		contextSnapshotId: string;
+	}): Run {
+		const existingRuns = this.listAllTaskRuns(input.taskId);
+		const currentRun = existingRuns[0] ?? null;
+
+		if (!currentRun) {
+			return runRepo.create({
+				taskId: input.taskId,
+				roleId: input.roleId,
+				mode: input.mode,
+				kind: input.kind,
+				contextSnapshotId: input.contextSnapshotId,
+				metadata: {},
+			});
+		}
+
+		this.deleteRunHistory(currentRun.id);
+
+		const resetRun = runRepo.update(currentRun.id, {
+			status: "queued",
+			sessionId: "",
+			startedAt: null,
+			finishedAt: null,
+			errorText: "",
+			mode: input.mode,
+			roleId: input.roleId,
+			kind: input.kind,
+			budget: {},
+			tokensIn: 0,
+			tokensOut: 0,
+			costUsd: 0,
+			durationSec: 0,
+			metadata: {},
+		});
+
+		for (const run of existingRuns.slice(1)) {
+			this.deleteRunHistory(run.id);
+			runRepo.delete(run.id);
+		}
+
+		const repository = runRepo as {
+			deleteAllExceptTaskRun?: (taskId: string, keepRunId: string) => void;
+		};
+		repository.deleteAllExceptTaskRun?.(input.taskId, resetRun.id);
+		return resetRun;
+	}
+
+	private getCurrentTaskRun(taskId: string): Run | null {
+		const repository = runRepo as {
+			getByTask?: (taskId: string) => Run | null;
+			listByTask: (taskId: string) => Run[];
+		};
+
+		if (typeof repository.getByTask === "function") {
+			return repository.getByTask(taskId);
+		}
+
+		return repository.listByTask(taskId)[0] ?? null;
+	}
+
+	private deleteRunHistory(runId: string): void {
+		const eventRepository = runEventRepo as {
+			deleteByRun?: (runId: string) => void;
+		};
+		const artifactsRepository = artifactRepo as {
+			deleteByRun?: (runId: string) => void;
+		};
+
+		eventRepository.deleteByRun?.(runId);
+		artifactsRepository.deleteByRun?.(runId);
 	}
 
 	private parseTaskTags(rawTags: unknown): string[] {
@@ -3262,6 +3553,46 @@ export class RunsQueueManager {
 
 		const ageMs = Date.now() - finishedMs;
 		return ageMs >= 0 && ageMs <= lateCompletionRecoveryWindowMs;
+	}
+
+	private tryFillTaskModelFromSession(
+		taskId: string,
+		inspection: SessionInspectionResult,
+	): void {
+		const task = taskRepo.getById(taskId);
+		if (!task || (task.modelName && task.modelName.trim().length > 0)) {
+			return;
+		}
+
+		const assistantMsg = inspection.messages.find(
+			(msg) =>
+				msg.role === "assistant" &&
+				msg.modelID &&
+				msg.modelID.trim().length > 0 &&
+				msg.providerID &&
+				msg.providerID.trim().length > 0,
+		);
+		if (!assistantMsg) {
+			return;
+		}
+
+		const modelName = `${assistantMsg.providerID}/${assistantMsg.modelID}`;
+		const fullModelName = assistantMsg.variant
+			? `${modelName}#${assistantMsg.variant}`
+			: modelName;
+
+		taskRepo.update(taskId, { modelName: fullModelName });
+		publishSseEvent("task:event", {
+			taskId: task.id,
+			boardId: task.boardId,
+			projectId: task.projectId,
+			eventType: "task:updated",
+			updatedAt: new Date().toISOString(),
+		});
+		log.info("Auto-filled task model from session", {
+			taskId,
+			modelName: fullModelName,
+		});
 	}
 }
 

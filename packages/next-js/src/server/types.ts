@@ -59,6 +59,7 @@ export interface Task {
 	descriptionMd: string | null;
 	status: string;
 	blockedReason: "question" | "paused" | "failed" | null;
+	blockedReasonText: string | null;
 	closedReason: "done" | "failed" | null;
 	priority: string;
 	difficulty: string;
@@ -73,6 +74,7 @@ export interface Task {
 	modelName: string | null;
 	commitMessage: string | null;
 	qaReport: string | null;
+	isGenerated: boolean;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -85,6 +87,7 @@ export interface CreateTaskInput {
 	description?: string;
 	status?: string;
 	blockedReason?: "question" | "paused" | "failed" | null;
+	blockedReasonText?: string | null;
 	closedReason?: "done" | "failed" | null;
 	priority?: string;
 	difficulty?: string;
@@ -94,6 +97,7 @@ export interface CreateTaskInput {
 	modelName?: string | null;
 	commitMessage?: string;
 	qaReport?: string | null;
+	isGenerated?: boolean;
 }
 
 export interface UpdateTaskInput {
@@ -103,6 +107,7 @@ export interface UpdateTaskInput {
 	descriptionMd?: string | null;
 	status?: string;
 	blockedReason?: "question" | "paused" | "failed" | null;
+	blockedReasonText?: string | null;
 	closedReason?: "done" | "failed" | null;
 	priority?: string;
 	difficulty?: string;
@@ -117,6 +122,7 @@ export interface UpdateTaskInput {
 	modelName?: string | null;
 	commitMessage?: string | null;
 	qaReport?: string | null;
+	isGenerated?: boolean;
 }
 
 export interface Run {

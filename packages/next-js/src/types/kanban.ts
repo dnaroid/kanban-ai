@@ -23,6 +23,7 @@ export interface KanbanTask {
 	descriptionMd: string | null;
 	status: TaskStatus;
 	blockedReason: BlockedReason | null;
+	blockedReasonText: string | null;
 	closedReason: ClosedReason | null;
 	priority: TaskPriority;
 	difficulty: TaskDifficulty;
@@ -38,6 +39,7 @@ export interface KanbanTask {
 	latestSessionId: string | null;
 	opencodeWebUrl: string | null;
 	qaReport: string | null;
+	isGenerated: boolean;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -63,6 +65,7 @@ export interface KanbanTaskPatch {
 	descriptionMd?: string | null;
 	status?: TaskStatus;
 	blockedReason?: BlockedReason | null;
+	blockedReasonText?: string | null;
 	closedReason?: ClosedReason | null;
 	priority?: TaskPriority;
 	difficulty?: TaskDifficulty;
@@ -77,9 +80,9 @@ export interface KanbanTaskPatch {
 	assignee?: string | null;
 	modelName?: string | null;
 	qaReport?: string | null;
+	isGenerated?: boolean;
 }
 
-// Tag type
 export interface Tag {
 	id: string;
 	name: string;
@@ -116,4 +119,5 @@ export interface OpencodeModel {
 	enabled: boolean;
 	difficulty: TaskDifficulty;
 	variants: string;
+	contextLimit?: number;
 }

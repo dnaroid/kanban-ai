@@ -34,6 +34,8 @@ export function TaskDetailsModel({ task, onUpdate }: TaskDetailsModelProps) {
 		onUpdate?.(task.id, { modelName: fullId });
 	};
 
+	const isDisabled = task.status === "running" || task.status === "generating";
+
 	return (
 		<div className="flex items-center gap-2">
 			<ModelPicker
@@ -42,6 +44,7 @@ export function TaskDetailsModel({ task, onUpdate }: TaskDetailsModelProps) {
 				onChange={selectModel}
 				allowAuto
 				difficulty={task.difficulty}
+				disabled={isDisabled}
 			/>
 		</div>
 	);

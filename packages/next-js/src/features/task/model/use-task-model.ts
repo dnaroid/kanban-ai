@@ -16,6 +16,8 @@ function mapPatchToUpdateInput(patch: KanbanTaskPatch): UpdateTaskInput {
 	if (patch.status !== undefined) updateData.status = patch.status;
 	if (patch.blockedReason !== undefined)
 		updateData.blockedReason = patch.blockedReason;
+	if (patch.blockedReasonText !== undefined)
+		updateData.blockedReasonText = patch.blockedReasonText;
 	if (patch.closedReason !== undefined)
 		updateData.closedReason = patch.closedReason;
 	if (patch.priority !== undefined) updateData.priority = patch.priority;
@@ -33,6 +35,9 @@ function mapPatchToUpdateInput(patch: KanbanTaskPatch): UpdateTaskInput {
 		updateData.estimateHours = patch.estimateHours;
 	if (patch.assignee !== undefined) updateData.assignee = patch.assignee;
 	if (patch.modelName !== undefined) updateData.modelName = patch.modelName;
+	if (patch.isGenerated !== undefined)
+		updateData.isGenerated = patch.isGenerated;
+	if (patch.qaReport !== undefined) updateData.qaReport = patch.qaReport;
 
 	return updateData;
 }
@@ -188,6 +193,7 @@ export function useTaskModel(projectId: string, taskId: string) {
 		columnSystemKey: column?.systemKey ?? null,
 		loading,
 		error,
+		refreshTaskFromServer,
 		handleUpdate,
 		board,
 	};

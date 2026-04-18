@@ -8,11 +8,13 @@ import { publishSseEvent } from "@/server/events/sse-broker";
 import type { SessionStartPreferences } from "@/server/opencode/session-manager";
 import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
 import { publishRunUpdate } from "@/server/run/run-publisher";
+import { getWorkflowColumnIdBySystemKey } from "@/server/run/task-state-machine";
 import type { QueueStats } from "@/server/run/runs-queue-manager";
 import { getRunsQueueManager } from "@/server/run/runs-queue-manager";
 import { contextSnapshotRepo } from "@/server/repositories/context-snapshot";
 import { projectRepo } from "@/server/repositories/project";
 import { boardRepo } from "@/server/repositories/board";
+import { artifactRepo } from "@/server/repositories/artifact";
 import type {
 	AgentRoleBehavior,
 	AgentRolePreset,
@@ -40,6 +42,7 @@ const allowedDifficulties = ["easy", "medium", "hard", "epic"] as const;
 const agentRoleTagPrefix = "agent:";
 const generationRunKind = "task-description-improve";
 const qaTestingRunKind = "task-qa-testing";
+const defaultRunKind = "task-run";
 const activeSpecializedRunStatuses = new Set(["queued", "running", "paused"]);
 const activeExecutionRunStatuses = new Set(["queued", "running", "paused"]);
 const priorityScore: Record<string, number> = {
@@ -63,9 +66,23 @@ interface StartRunsBySignalResult {
 	runIds: string[];
 }
 
+interface ProjectExecutionSessionRisk {
+	taskId: string;
+	taskTitle: string;
+	runId: string;
+	sessionId: string;
+}
+
+interface StartReadyTasksOptions {
+	force?: boolean;
+	forceDirtyGit?: boolean;
+	confirmActiveSession?: boolean;
+}
+
 export class RunService {
 	private readonly queueManager = getRunsQueueManager();
 	private readonly vcsManager = getVcsManager();
+	private readonly sessionManager = getOpencodeSessionManager();
 
 	private static resolveStoryLanguage(): StoryLanguage {
 		const raw = process.env.STORY_LANGUAGE?.trim().toLowerCase();
@@ -161,6 +178,21 @@ export class RunService {
 			throw new Error(`Task not found: ${input.taskId}`);
 		}
 
+		const activeRun = this.getActiveTaskRun(task.id);
+		if (activeRun) {
+			log.info("Task already has active run", {
+				taskId: task.id,
+				runId: activeRun.id,
+				status: activeRun.status,
+			});
+			return { runId: activeRun.id };
+		}
+
+		const resumedRun = await this.resumeRejectedTaskRun(task);
+		if (resumedRun) {
+			return resumedRun;
+		}
+
 		const availableRoles = roleRepo.listWithPresets();
 		const taskTags = this.parseTaskTags(task.tags);
 		const assignedRoleId = this.resolveAssignedRoleIdFromTags(taskTags);
@@ -200,10 +232,11 @@ export class RunService {
 			},
 		});
 
-		const run = runRepo.create({
+		const run = this.prepareTaskRun({
 			taskId: task.id,
 			roleId: selectedRoleId,
 			mode: input.mode ?? "execute",
+			kind: defaultRunKind,
 			contextSnapshotId: snapshotId,
 		});
 
@@ -271,6 +304,7 @@ export class RunService {
 			runId: run.id,
 			projectPath: executionProjectPath,
 		});
+		this.transitionTaskToInProgress(task);
 		this.queueManager.enqueue(run.id, {
 			projectPath: executionProjectPath,
 			projectId: project.id,
@@ -285,6 +319,7 @@ export class RunService {
 				{
 					title: task.title,
 					description: task.description,
+					qaReport: task.qaReport,
 				},
 				{
 					id: project.id,
@@ -301,6 +336,45 @@ export class RunService {
 
 		log.info("Run enqueued", { runId: run.id });
 		return { runId: run.id };
+	}
+
+	private transitionTaskToInProgress(task: {
+		id: string;
+		boardId: string;
+		projectId: string;
+	}): void {
+		const board =
+			boardRepo.getById(task.boardId) ??
+			boardRepo.getByProjectId(task.projectId);
+
+		if (board) {
+			const inProgressColumnId = getWorkflowColumnIdBySystemKey(
+				board,
+				"in_progress",
+			);
+			if (inProgressColumnId) {
+				const existingInColumn = taskRepo
+					.listByBoard(board.id)
+					.filter((item) => item.columnId === inProgressColumnId).length;
+				taskRepo.update(task.id, {
+					status: "running",
+					columnId: inProgressColumnId,
+					orderInColumn: existingInColumn,
+				});
+			} else {
+				taskRepo.update(task.id, { status: "running" });
+			}
+		} else {
+			taskRepo.update(task.id, { status: "running" });
+		}
+
+		publishSseEvent("task:event", {
+			taskId: task.id,
+			boardId: task.boardId,
+			projectId: task.projectId,
+			eventType: "task:updated",
+			updatedAt: new Date().toISOString(),
+		});
 	}
 
 	public async merge(runId: string): Promise<{ run: Run }> {
@@ -337,14 +411,12 @@ export class RunService {
 				},
 			});
 			publishRunUpdate(updatedRun);
-			getRunsQueueManager()
-				.startNextReadyTaskAfterMerge(run.taskId)
-				.catch((err) =>
-					log.error("startNextReadyTaskAfterMerge failed after merge", {
-						runId: run.id,
-						error: err instanceof Error ? err.message : String(err),
-					}),
-				);
+			this.startNextReadyTaskAfterMerge(run.taskId).catch((err: unknown) =>
+				log.error("startNextReadyTaskAfterMerge failed after merge", {
+					runId: run.id,
+					error: err instanceof Error ? err.message : String(err),
+				}),
+			);
 			return { run: updatedRun };
 		} catch (error) {
 			const message =
@@ -413,17 +485,15 @@ export class RunService {
 		});
 		publishRunUpdate(updatedRun);
 
-		getRunsQueueManager()
-			.startNextReadyTaskAfterMerge(run.taskId)
-			.catch((err) =>
-				log.error(
-					"startNextReadyTaskAfterMerge failed after mergeWithoutWorktree",
-					{
-						runId: run.id,
-						error: err instanceof Error ? err.message : String(err),
-					},
-				),
-			);
+		this.startNextReadyTaskAfterMerge(run.taskId).catch((err: unknown) =>
+			log.error(
+				"startNextReadyTaskAfterMerge failed after mergeWithoutWorktree",
+				{
+					runId: run.id,
+					error: err instanceof Error ? err.message : String(err),
+				},
+			),
+		);
 
 		return { run: updatedRun };
 	}
@@ -437,20 +507,15 @@ export class RunService {
 			throw new Error(`Task not found: ${taskId}`);
 		}
 
-		const activeGenerationRun = runRepo
-			.listByTask(task.id)
-			.find(
-				(run) =>
-					run.metadata?.kind === generationRunKind &&
-					activeSpecializedRunStatuses.has(run.status),
-			);
-		if (activeGenerationRun) {
-			log.info("User story generation already active for task", {
+		const activeRun = this.getActiveTaskRun(task.id);
+		if (activeRun) {
+			log.info("Task already has active run", {
 				taskId: task.id,
-				runId: activeGenerationRun.id,
-				status: activeGenerationRun.status,
+				runId: activeRun.id,
+				status: activeRun.status,
+				kind: activeRun.metadata?.kind ?? defaultRunKind,
 			});
-			return { runId: activeGenerationRun.id };
+			return { runId: activeRun.id };
 		}
 
 		const roleId = this.resolveSpecializedRoleId(
@@ -484,7 +549,7 @@ export class RunService {
 			},
 		});
 
-		const run = runRepo.create({
+		const run = this.prepareTaskRun({
 			taskId: task.id,
 			roleId,
 			mode: "execute",
@@ -578,20 +643,15 @@ export class RunService {
 			throw new Error(`Task not found: ${taskId}`);
 		}
 
-		const activeQaTestingRun = runRepo
-			.listByTask(task.id)
-			.find(
-				(run) =>
-					run.metadata?.kind === qaTestingRunKind &&
-					activeSpecializedRunStatuses.has(run.status),
-			);
-		if (activeQaTestingRun) {
-			log.info("QA testing run already active for task", {
+		const activeRun = this.getActiveTaskRun(task.id);
+		if (activeRun) {
+			log.info("Task already has active run", {
 				taskId: task.id,
-				runId: activeQaTestingRun.id,
-				status: activeQaTestingRun.status,
+				runId: activeRun.id,
+				status: activeRun.status,
+				kind: activeRun.metadata?.kind ?? defaultRunKind,
 			});
-			return { runId: activeQaTestingRun.id };
+			return { runId: activeRun.id };
 		}
 
 		const roleId = this.resolveSpecializedRoleId(task, "preferredForQaTesting");
@@ -622,7 +682,7 @@ export class RunService {
 			},
 		});
 
-		const run = runRepo.create({
+		const run = this.prepareTaskRun({
 			taskId: task.id,
 			roleId,
 			mode: "execute",
@@ -698,8 +758,17 @@ export class RunService {
 
 	public async startReadyTasks(
 		projectId: string,
-		force?: boolean,
+		options?: boolean | StartReadyTasksOptions,
 	): Promise<StartRunsBySignalResult> {
+		const normalizedOptions =
+			typeof options === "boolean" ? { force: options } : (options ?? {});
+		const skipDirtyGitCheck =
+			normalizedOptions.force === true ||
+			normalizedOptions.forceDirtyGit === true;
+		const skipActiveSessionConfirm =
+			normalizedOptions.force === true ||
+			normalizedOptions.confirmActiveSession === true;
+
 		const board = boardRepo.getByProjectId(projectId);
 		if (!board) {
 			throw new Error(`Board not found for project: ${projectId}`);
@@ -743,7 +812,7 @@ export class RunService {
 		}
 
 		const project = projectRepo.getById(projectId);
-		if (project?.path && !force) {
+		if (project?.path && !skipDirtyGitCheck) {
 			const hasChanges = await this.vcsManager.hasUncommittedChanges(
 				project.path,
 			);
@@ -776,79 +845,21 @@ export class RunService {
 		}
 
 		if (taskToStart) {
-			if (taskToStart.status === "rejected" && taskToStart.qaReport) {
-				const runs = runRepo.listByTask(taskToStart.id);
-				const completedRun = runs.find(
-					(r) =>
-						r.status === "completed" &&
-						r.sessionId &&
-						r.sessionId.trim().length > 0,
+			if (!skipActiveSessionConfirm) {
+				const activeSessionRisk = await this.findProjectExecutionSessionRisk(
+					board.id,
 				);
-
-				if (completedRun && completedRun.sessionId) {
-					const qaMessage = [
-						"",
-						"This task did not pass QA review. Reasons:",
-						taskToStart.qaReport,
-						"",
-						"Fix ALL issues listed above. Do NOT skip any item.",
-						"",
-						`When done, output exactly one status line: ${buildOpencodeStatusLine("done")} or ${buildOpencodeStatusLine("fail")} or ${buildOpencodeStatusLine("question")}`,
-					].join("\n");
-
-					try {
-						await sendSessionMessage(completedRun.sessionId, qaMessage);
-
-						const inProgressColumn = board.columns.find(
-							(col) => col.systemKey === "in_progress",
-						);
-						if (inProgressColumn) {
-							const existingInColumn = taskRepo
-								.listByBoard(board.id)
-								.filter((t) => t.columnId === inProgressColumn.id).length;
-							taskRepo.update(taskToStart.id, {
-								status: "running",
-								columnId: inProgressColumn.id,
-								orderInColumn: existingInColumn,
-								qaReport: null,
-							});
-						} else {
-							taskRepo.update(taskToStart.id, {
-								status: "running",
-								qaReport: null,
-							});
-						}
-
-						publishSseEvent("task:event", {
-							taskId: taskToStart.id,
-							boardId: taskToStart.boardId,
-							projectId: taskToStart.projectId,
-							eventType: "task:updated",
-							updatedAt: new Date().toISOString(),
-						});
-
-						taskIds.push(taskToStart.id);
-					} catch (sessionError) {
-						log.warn(
-							"Failed to reuse completed run session for rejected task, starting new run",
-							{
-								taskId: taskToStart.id,
-								sessionId: completedRun.sessionId,
-								error:
-									sessionError instanceof Error
-										? sessionError.message
-										: String(sessionError),
-							},
-						);
-						const started = await this.start({ taskId: taskToStart.id });
-						taskIds.push(taskToStart.id);
-						runIds.push(started.runId);
-					}
-				} else {
-					const started = await this.start({ taskId: taskToStart.id });
-					taskIds.push(taskToStart.id);
-					runIds.push(started.runId);
+				if (activeSessionRisk) {
+					throw new Error(
+						`ACTIVE_EXECUTION_SESSION: Task "${activeSessionRisk.taskTitle}" already has a working execution session in this project. Starting another Ready task may conflict with it.`,
+					);
 				}
+			}
+
+			const resumedRun = await this.resumeRejectedTaskRun(taskToStart);
+			if (resumedRun) {
+				taskIds.push(taskToStart.id);
+				runIds.push(resumedRun.runId);
 			} else {
 				const started = await this.start({ taskId: taskToStart.id });
 				taskIds.push(taskToStart.id);
@@ -864,6 +875,62 @@ export class RunService {
 			taskIds,
 			runIds,
 		};
+	}
+
+	private async findProjectExecutionSessionRisk(
+		boardId: string,
+	): Promise<ProjectExecutionSessionRisk | null> {
+		const projectTasks = taskRepo.listByBoard(boardId);
+
+		for (const task of projectTasks) {
+			const activeExecutionRuns = runRepo.listByTask(task.id).filter((run) => {
+				return (
+					this.isExecutionRun(run) &&
+					activeExecutionRunStatuses.has(run.status) &&
+					typeof run.sessionId === "string" &&
+					run.sessionId.trim().length > 0
+				);
+			});
+
+			for (const run of activeExecutionRuns) {
+				let inspection: Awaited<
+					ReturnType<typeof this.sessionManager.inspectSession>
+				>;
+				try {
+					inspection = await this.sessionManager.inspectSession(run.sessionId);
+				} catch (error) {
+					log.warn(
+						"Failed to inspect execution session while checking Ready-task start risk",
+						{
+							taskId: task.id,
+							runId: run.id,
+							sessionId: run.sessionId,
+							error: error instanceof Error ? error.message : String(error),
+						},
+					);
+					continue;
+				}
+
+				if (
+					inspection.probeStatus === "alive" &&
+					(inspection.sessionStatus === "busy" ||
+						inspection.sessionStatus === "retry")
+				) {
+					return {
+						taskId: task.id,
+						taskTitle: task.title,
+						runId: run.id,
+						sessionId: run.sessionId,
+					};
+				}
+			}
+		}
+
+		return null;
+	}
+
+	private isExecutionRun(run: Run): boolean {
+		return (run.metadata?.kind ?? defaultRunKind) === defaultRunKind;
 	}
 
 	public listByTask(taskId: string): Run[] {
@@ -915,6 +982,18 @@ export class RunService {
 
 	public getQueueStats(): QueueStats {
 		return this.queueManager.getQueueStats();
+	}
+
+	public startProjectBoardPolling(projectId: string, viewerId: string): void {
+		this.queueManager.startProjectBoardPolling(projectId, viewerId);
+	}
+
+	public stopProjectBoardPolling(projectId: string, viewerId: string): void {
+		this.queueManager.stopProjectBoardPolling(projectId, viewerId);
+	}
+
+	public async startNextReadyTaskAfterMerge(taskId: string): Promise<void> {
+		await this.queueManager.startNextReadyTaskAfterMerge(taskId);
 	}
 
 	public async cancel(runId: string): Promise<void> {
@@ -976,6 +1055,230 @@ export class RunService {
 		} catch {
 			return [];
 		}
+	}
+
+	private getActiveTaskRun(taskId: string): Run | null {
+		const run = this.getCurrentTaskRun(taskId);
+		if (!run) {
+			return null;
+		}
+
+		return activeSpecializedRunStatuses.has(run.status) ? run : null;
+	}
+
+	private prepareTaskRun(input: {
+		taskId: string;
+		roleId: string;
+		mode: string;
+		kind: string;
+		contextSnapshotId: string;
+	}): Run {
+		const existingRuns = this.listAllTaskRuns(input.taskId);
+		const currentRun = existingRuns[0] ?? null;
+
+		if (!currentRun) {
+			return runRepo.create({
+				taskId: input.taskId,
+				roleId: input.roleId,
+				mode: input.mode,
+				kind: input.kind,
+				contextSnapshotId: input.contextSnapshotId,
+				metadata: {},
+			});
+		}
+
+		this.deleteRunHistory(currentRun.id);
+
+		const resetRun = runRepo.update(currentRun.id, {
+			status: "queued",
+			sessionId: "",
+			startedAt: null,
+			finishedAt: null,
+			errorText: "",
+			mode: input.mode,
+			roleId: input.roleId,
+			kind: input.kind,
+			budget: {},
+			tokensIn: 0,
+			tokensOut: 0,
+			costUsd: 0,
+			durationSec: 0,
+			metadata: {},
+		});
+
+		this.cleanupDuplicateRuns(input.taskId, resetRun.id, existingRuns.slice(1));
+		return resetRun;
+	}
+
+	private cleanupDuplicateRuns(
+		taskId: string,
+		keepRunId: string,
+		runs?: Run[],
+	): void {
+		const duplicates = (runs ?? this.listAllTaskRuns(taskId).slice(1)).filter(
+			(run) => run.id !== keepRunId,
+		);
+
+		for (const run of duplicates) {
+			this.deleteRunHistory(run.id);
+			runRepo.delete(run.id);
+		}
+
+		const repository = runRepo as {
+			deleteAllExceptTaskRun?: (taskId: string, keepRunId: string) => void;
+		};
+		repository.deleteAllExceptTaskRun?.(taskId, keepRunId);
+	}
+
+	private getCurrentTaskRun(taskId: string): Run | null {
+		const repository = runRepo as {
+			getByTask?: (taskId: string) => Run | null;
+			listByTask: (taskId: string) => Run[];
+		};
+
+		if (typeof repository.getByTask === "function") {
+			return repository.getByTask(taskId);
+		}
+
+		return repository.listByTask(taskId)[0] ?? null;
+	}
+
+	private listAllTaskRuns(taskId: string): Run[] {
+		const repository = runRepo as {
+			listAllByTask?: (taskId: string) => Run[];
+			listByTask: (taskId: string) => Run[];
+		};
+
+		if (typeof repository.listAllByTask === "function") {
+			return repository.listAllByTask(taskId);
+		}
+
+		return repository.listByTask(taskId);
+	}
+
+	private async resumeRejectedTaskRun(task: {
+		id: string;
+		boardId: string;
+		projectId: string;
+		status: string;
+		columnId: string;
+		qaReport: string | null;
+	}): Promise<{ runId: string } | null> {
+		if (task.status !== "rejected" || !task.qaReport) {
+			return null;
+		}
+
+		const completedRun = this.listAllTaskRuns(task.id).find(
+			(run) =>
+				this.isExecutionRun(run) &&
+				run.status === "completed" &&
+				typeof run.sessionId === "string" &&
+				run.sessionId.trim().length > 0,
+		);
+		if (!completedRun?.sessionId) {
+			return null;
+		}
+
+		const board =
+			boardRepo.getById(task.boardId) ??
+			boardRepo.getByProjectId(task.projectId);
+		if (!board) {
+			return null;
+		}
+
+		const qaMessage = [
+			"",
+			"This task did not pass QA review. Reasons:",
+			task.qaReport,
+			"",
+			"Fix ALL issues listed above. Do NOT skip any item.",
+			"",
+			`When done, output exactly one status line: ${buildOpencodeStatusLine("done")} or ${buildOpencodeStatusLine("fail")} or ${buildOpencodeStatusLine("question")}`,
+		].join("\n");
+
+		try {
+			await sendSessionMessage(completedRun.sessionId, qaMessage);
+		} catch (sessionError) {
+			log.warn(
+				"Failed to reuse completed run session for rejected task, starting new run",
+				{
+					taskId: task.id,
+					sessionId: completedRun.sessionId,
+					error:
+						sessionError instanceof Error
+							? sessionError.message
+							: String(sessionError),
+				},
+			);
+			return null;
+		}
+
+		const resumedAt = new Date().toISOString();
+		const resumedRun = runRepo.update(completedRun.id, {
+			status: "running",
+			startedAt: resumedAt,
+			finishedAt: null,
+			errorText: "",
+			metadata: {
+				...(completedRun.metadata ?? {}),
+				lastExecutionStatus: {
+					kind: "running",
+					sessionId: completedRun.sessionId,
+					updatedAt: resumedAt,
+				},
+			},
+		});
+
+		const inProgressColumn = board.columns.find(
+			(column) => column.systemKey === "in_progress",
+		);
+		if (inProgressColumn) {
+			const existingInColumn = taskRepo
+				.listByBoard(board.id)
+				.filter((item) => item.columnId === inProgressColumn.id).length;
+			taskRepo.update(task.id, {
+				status: "running",
+				columnId: inProgressColumn.id,
+				orderInColumn: existingInColumn,
+				qaReport: null,
+			});
+		} else {
+			taskRepo.update(task.id, {
+				status: "running",
+				qaReport: null,
+			});
+		}
+
+		publishSseEvent("task:event", {
+			taskId: task.id,
+			boardId: task.boardId,
+			projectId: task.projectId,
+			eventType: "task:updated",
+			updatedAt: new Date().toISOString(),
+		});
+		runEventRepo.create({
+			runId: resumedRun.id,
+			eventType: "status",
+			payload: {
+				status: "running",
+				message: "Execution run resumed after QA rejection",
+			},
+		});
+		publishRunUpdate(resumedRun);
+
+		return { runId: completedRun.id };
+	}
+
+	private deleteRunHistory(runId: string): void {
+		const eventRepository = runEventRepo as {
+			deleteByRun?: (runId: string) => void;
+		};
+		const artifactsRepository = artifactRepo as {
+			deleteByRun?: (runId: string) => void;
+		};
+
+		eventRepository.deleteByRun?.(runId);
+		artifactsRepository.deleteByRun?.(runId);
 	}
 
 	private resolveAssignedRoleIdFromTags(tags: string[]): string | null {

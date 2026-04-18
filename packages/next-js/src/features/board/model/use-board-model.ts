@@ -15,6 +15,7 @@ import { useToast } from "@/components/common/toast/ToastContext";
 
 interface UseBoardModelArgs {
 	projectId: string;
+	onTasksRefreshed?: () => void;
 }
 
 type PromptAttachment = {
@@ -58,7 +59,10 @@ export function normalizeQuickRunRawStoryInput(
 	};
 }
 
-export function useBoardModel({ projectId }: UseBoardModelArgs) {
+export function useBoardModel({
+	projectId,
+	onTasksRefreshed,
+}: UseBoardModelArgs) {
 	const router = useRouter();
 	const pathname = usePathname();
 	const { addToast } = useToast();
@@ -81,6 +85,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		isOpen: false,
 		taskId: null,
 	});
+	const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
 	const [deleteColumnConfirm, setDeleteColumnConfirm] = useState<{
 		isOpen: boolean;
 		columnId: string | null;
@@ -208,10 +213,11 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 				}
 				return nextTasks.find((task) => task.id === prev.id) ?? null;
 			});
+			onTasksRefreshed?.();
 		} catch (refreshError) {
 			console.error("Failed to refresh board tasks from server:", refreshError);
 		}
-	}, [board]);
+	}, [board, onTasksRefreshed]);
 	const refreshSingleTaskFromServer = refreshTaskFromServer;
 
 	const scheduleDebouncedBoardTasksRefresh = useCallback(
@@ -530,7 +536,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			addToast("Task created successfully", "success");
 		} catch (createError) {
 			console.error("Failed to create task:", createError);
-			addToast("Failed to create task", "error");
+			// Error toast handled by ApiClient.onError.
 		}
 	};
 
@@ -636,7 +642,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			addToast("User story generation started", "info");
 		} catch (generateError) {
 			console.error("Failed to quick-create generated story:", generateError);
-			addToast("Failed to generate user story", "error");
+			// Error toast handled by ApiClient.onError.
 			throw new Error(
 				generateError instanceof Error
 					? generateError.message
@@ -749,7 +755,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			addToast("Raw story queued for execution", "success");
 		} catch (createError) {
 			console.error("Failed to quick-run raw story:", createError);
-			addToast("Failed to run raw story", "error");
+			// Error toast handled by ApiClient.onError.
 			throw new Error(
 				createError instanceof Error
 					? createError.message
@@ -758,61 +764,129 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		}
 	};
 
-	const handleDeleteTask = (taskId: string) => {
+	const handleDeleteTask = async (taskId: string) => {
+		const task = tasks.find((t) => t.id === taskId);
+		const column = board?.columns?.find((c) => c.id === task?.columnId);
+		if (column?.systemKey === "closed") {
+			try {
+				await api.deleteTask(taskId);
+				setDeletingTaskId(taskId);
+				setTimeout(() => {
+					setTasks((prev) => prev.filter((t) => t.id !== taskId));
+					setActiveTask((prev) => (prev && prev.id === taskId ? null : prev));
+					setDeletingTaskId(null);
+				}, 1000);
+				addToast("Task deleted successfully", "success");
+			} catch (deleteError) {
+				console.error("Failed to delete task:", deleteError);
+				// Error toast handled by ApiClient.onError.
+			}
+			return;
+		}
 		setDeleteTaskConfirm({ isOpen: true, taskId });
 	};
 
 	const confirmDeleteTask = async () => {
 		if (!deleteTaskConfirm.taskId) return;
+		const taskId = deleteTaskConfirm.taskId;
 		try {
-			await api.deleteTask(deleteTaskConfirm.taskId);
-			await loadBoard();
+			await api.deleteTask(taskId);
+			setDeletingTaskId(taskId);
+			setTimeout(() => {
+				setTasks((prev) => prev.filter((task) => task.id !== taskId));
+				setActiveTask((prev) => (prev && prev.id === taskId ? null : prev));
+				setDeletingTaskId(null);
+			}, 1000);
 			addToast("Task deleted successfully", "success");
 		} catch (deleteError) {
 			console.error("Failed to delete task:", deleteError);
-			addToast("Failed to delete task", "error");
+			// Error toast handled by ApiClient.onError.
 		} finally {
 			setDeleteTaskConfirm({ isOpen: false, taskId: null });
 		}
 	};
 
-	const handleBulkDelete = (columnId: string, taskCount: number) => {
+	const handleBulkDelete = async (columnId: string, taskCount: number) => {
 		if (taskCount === 0) return;
+		const column = board?.columns?.find((c) => c.id === columnId);
+		if (column?.systemKey === "closed") {
+			const columnTasks = tasks.filter((task) => task.columnId === columnId);
+			const columnTaskIds = new Set(columnTasks.map((task) => task.id));
+			try {
+				await Promise.all(columnTasks.map((task) => api.deleteTask(task.id)));
+				setTasks((prev) => prev.filter((task) => task.columnId !== columnId));
+				setActiveTask((prev) =>
+					prev && columnTaskIds.has(prev.id) ? null : prev,
+				);
+				addToast(
+					`Deleted ${columnTasks.length} task${columnTasks.length === 1 ? "" : "s"} successfully`,
+					"success",
+				);
+			} catch (deleteError) {
+				console.error("Failed to bulk delete tasks:", deleteError);
+				// Error toast handled by ApiClient.onError.
+			}
+			return;
+		}
 		setBulkDeleteConfirm({ isOpen: true, columnId, taskCount });
 	};
 
 	const confirmBulkDelete = async () => {
 		if (!bulkDeleteConfirm.columnId) return;
-		const columnTasks = tasks.filter(
-			(task) => task.columnId === bulkDeleteConfirm.columnId,
-		);
+		const columnId = bulkDeleteConfirm.columnId;
+		const columnTasks = tasks.filter((task) => task.columnId === columnId);
+		const columnTaskIds = new Set(columnTasks.map((task) => task.id));
 		try {
 			await Promise.all(columnTasks.map((task) => api.deleteTask(task.id)));
-			await loadBoard();
+			setTasks((prev) => prev.filter((task) => task.columnId !== columnId));
+			setActiveTask((prev) =>
+				prev && columnTaskIds.has(prev.id) ? null : prev,
+			);
 			addToast(
 				`Deleted ${columnTasks.length} task${columnTasks.length === 1 ? "" : "s"} successfully`,
 				"success",
 			);
 		} catch (deleteError) {
 			console.error("Failed to bulk delete tasks:", deleteError);
-			addToast("Failed to delete tasks", "error");
+			// Error toast handled by ApiClient.onError.
 		} finally {
 			setBulkDeleteConfirm({ isOpen: false, columnId: null, taskCount: 0 });
 		}
 	};
 
-	const handleStartReadyTasks = async (force = false) => {
+	const handleStartReadyTasks = async (options?: {
+		force?: boolean;
+		forceDirtyGit?: boolean;
+		confirmActiveSession?: boolean;
+	}) => {
+		const requestOptions = options ?? {};
 		setIsQueueingSignalRuns(true);
 		try {
-			const result = await api.run.startReadyTasks({ projectId, force });
+			const result = await api.run.startReadyTasks({
+				projectId,
+				force: requestOptions.force,
+				forceDirtyGit: requestOptions.forceDirtyGit,
+				confirmActiveSession: requestOptions.confirmActiveSession,
+			});
 			await refreshBoardTasksFromServer();
-			addToast("Tasks queued for execution", "success");
+
+			if (result.startedCount > 0) {
+				addToast("Started the next Ready task", "success");
+			} else if (result.skippedActiveRunCount > 0) {
+				addToast(
+					"No Ready task was started because an execution run is already active for the available task.",
+					"info",
+				);
+			} else {
+				addToast("No Ready task available to start", "info");
+			}
+
 			return result;
 		} catch (startError) {
 			const message =
 				startError instanceof Error
 					? startError.message
-					: "Failed to queue runs";
+					: "Failed to start the next Ready task";
 
 			if (message.startsWith("DIRTY_GIT:")) {
 				throw Object.assign(new Error(message.replace("DIRTY_GIT: ", "")), {
@@ -820,8 +894,17 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 				});
 			}
 
-			console.error("Failed to queue runs:", startError);
-			addToast("Failed to queue tasks", "error");
+			if (message.startsWith("ACTIVE_EXECUTION_SESSION:")) {
+				throw Object.assign(
+					new Error(message.replace("ACTIVE_EXECUTION_SESSION: ", "")),
+					{
+						isActiveExecutionSessionRisk: true,
+					},
+				);
+			}
+
+			console.error("Failed to start the next Ready task:", startError);
+			// Error toast handled by ApiClient.onError.
 			throw new Error(message);
 		} finally {
 			setIsQueueingSignalRuns(false);
@@ -926,7 +1009,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			addToast("Column deleted", "success");
 		} catch (deleteError) {
 			console.error("Failed to delete column:", deleteError);
-			addToast("Failed to delete column", "error");
+			// Error toast handled by ApiClient.onError.
 		} finally {
 			setDeleteColumnConfirm({ isOpen: false, columnId: null });
 		}
@@ -952,6 +1035,8 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		if (patch.status !== undefined) updateData.status = patch.status;
 		if (patch.blockedReason !== undefined)
 			updateData.blockedReason = patch.blockedReason;
+		if (patch.blockedReasonText !== undefined)
+			updateData.blockedReasonText = patch.blockedReasonText;
 		if (patch.closedReason !== undefined)
 			updateData.closedReason = patch.closedReason;
 		if (patch.priority !== undefined) updateData.priority = patch.priority;
@@ -970,6 +1055,8 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			updateData.estimateHours = patch.estimateHours;
 		if (patch.assignee !== undefined) updateData.assignee = patch.assignee;
 		if (patch.modelName !== undefined) updateData.modelName = patch.modelName;
+		if (patch.isGenerated !== undefined)
+			updateData.isGenerated = patch.isGenerated;
 
 		const optimisticTask: KanbanTask = {
 			...previousTask,
@@ -995,7 +1082,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 				prev.map((task) => (task.id === taskId ? previousTask : task)),
 			);
 			console.error("Failed to update task:", updateError);
-			addToast("Failed to update task", "error");
+			// Error toast handled by ApiClient.onError.
 			return false;
 		}
 	};
@@ -1038,17 +1125,9 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 					break;
 				}
 				case "ready": {
-					const targetColumn = findColumnBySystemKey("deferred");
-					if (!targetColumn) {
-						addToast("Deferred column not found", "error");
-						return;
-					}
-					const newIndex = tasks.filter(
-						(task) => task.columnId === targetColumn.id,
-					).length;
-					await api.moveTask(taskId, targetColumn.id, newIndex);
+					await api.run.start({ taskId });
 					await refreshBoardTasksFromServer();
-					addToast("Task moved to Deferred", "success");
+					addToast("Run started", "success");
 					break;
 				}
 				case "deferred": {
@@ -1105,10 +1184,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			}
 		} catch (actionError) {
 			console.error("Context action failed:", actionError);
-			addToast(
-				actionError instanceof Error ? actionError.message : "Action failed",
-				"error",
-			);
+			// Error toast handled by ApiClient.onError.
 		}
 	};
 
@@ -1132,10 +1208,7 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 			addToast("Task rejected, moved back to Ready", "success");
 		} catch (rejectError) {
 			console.error("Reject failed:", rejectError);
-			addToast(
-				rejectError instanceof Error ? rejectError.message : "Reject failed",
-				"error",
-			);
+			// Error toast handled by ApiClient.onError.
 		}
 	};
 
@@ -1162,6 +1235,8 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		handleDeleteColumn,
 		handleTaskUpdate,
 		refreshTaskFromServer: refreshSingleTaskFromServer,
+		refreshBoardTasksFromServer,
+		loadBoard,
 		handleContextAction,
 		closeColumnModal,
 		openEditColumnModal,
@@ -1185,5 +1260,6 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		handleBulkDelete,
 		confirmBulkDelete,
 		handleRejectTask,
+		deletingTaskId,
 	};
 }

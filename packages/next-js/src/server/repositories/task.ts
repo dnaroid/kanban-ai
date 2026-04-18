@@ -14,6 +14,7 @@ export class TaskRepository {
 			throw new Error("Task status is required");
 		}
 		const blockedReason = input.blockedReason ?? null;
+		const blockedReasonText = input.blockedReasonText ?? null;
 		const closedReason = input.closedReason ?? null;
 		const priority = input.priority ?? "normal";
 		const difficulty = input.difficulty ?? "medium";
@@ -34,11 +35,12 @@ export class TaskRepository {
 		const stmt = this.db.prepare(`
       INSERT INTO tasks (
 				id, project_id, board_id, column_id, title, description, description_md,
-				status, blocked_reason, closed_reason, priority, difficulty, type, order_in_column, tags_json,
+				status, blocked_reason, blocked_reason_text, closed_reason, priority, difficulty, type, order_in_column, tags_json,
 				start_date, due_date, estimate_points, estimate_hours, assignee, model_name, commit_message, qa_report,
+				is_generated,
 				created_at, updated_at
 			)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
 		stmt.run(
@@ -51,6 +53,7 @@ export class TaskRepository {
 			null, // description_md
 			status,
 			blockedReason,
+			blockedReasonText,
 			closedReason,
 			priority,
 			difficulty,
@@ -65,6 +68,7 @@ export class TaskRepository {
 			input.modelName ?? null,
 			input.commitMessage ?? null,
 			input.qaReport ?? null,
+			input.isGenerated ? "1" : "0",
 			now,
 			now,
 		);
@@ -84,6 +88,7 @@ export class TaskRepository {
         description_md as descriptionMd,
         status,
         blocked_reason as blockedReason,
+        blocked_reason_text as blockedReasonText,
         closed_reason as closedReason,
         priority,
         difficulty,
@@ -98,6 +103,7 @@ export class TaskRepository {
         model_name as modelName,
         commit_message as commitMessage,
         qa_report as qaReport,
+        (is_generated = '1') as isGenerated,
         created_at as createdAt,
         updated_at as updatedAt
       FROM tasks
@@ -120,6 +126,7 @@ export class TaskRepository {
         description_md as descriptionMd,
         status,
         blocked_reason as blockedReason,
+        blocked_reason_text as blockedReasonText,
         closed_reason as closedReason,
         priority,
         difficulty,
@@ -134,6 +141,7 @@ export class TaskRepository {
         model_name as modelName,
         commit_message as commitMessage,
         qa_report as qaReport,
+        (is_generated = '1') as isGenerated,
         created_at as createdAt,
         updated_at as updatedAt
       FROM tasks
@@ -172,6 +180,10 @@ export class TaskRepository {
 		if (updates.blockedReason !== undefined) {
 			sets.push("blocked_reason = ?");
 			values.push(updates.blockedReason);
+		}
+		if (updates.blockedReasonText !== undefined) {
+			sets.push("blocked_reason_text = ?");
+			values.push(updates.blockedReasonText);
 		}
 		if (updates.closedReason !== undefined) {
 			sets.push("closed_reason = ?");
@@ -228,6 +240,10 @@ export class TaskRepository {
 		if (updates.qaReport !== undefined) {
 			sets.push("qa_report = ?");
 			values.push(updates.qaReport);
+		}
+		if (updates.isGenerated !== undefined) {
+			sets.push("is_generated = ?");
+			values.push(updates.isGenerated ? "1" : "0");
 		}
 
 		if (sets.length === 0) return this.getById(id);

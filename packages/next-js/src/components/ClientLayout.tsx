@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
+import { ApiErrorProvider } from "@/components/common/toast/ApiErrorProvider";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { ToastProvider } from "@/components/common/toast/ToastContext";
@@ -33,6 +34,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 	const [activeProject, setActiveProject] = useState<{
 		id: string;
 		name: string;
+		color?: string;
 	} | null>(null);
 	const router = useRouter();
 	const pathname = usePathname();
@@ -47,7 +49,11 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 				try {
 					const project = await api.getProject(projectId);
 					if (project) {
-						setActiveProject({ id: project.id, name: project.name });
+						setActiveProject({
+							id: project.id,
+							name: project.name,
+							color: project.color,
+						});
 						localStorage.setItem(LAST_PROJECT_ID_KEY, project.id);
 					}
 				} catch (error) {
@@ -57,54 +63,44 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 				// Clear active project when on projects list
 				setActiveProject(null);
 			} else {
-				// Try to load last project from settings
-				try {
-					const lastProjectId = await api.getLastProjectId();
-					if (lastProjectId) {
-						const project = await api.getProject(lastProjectId);
-						if (project) {
-							setActiveProject({ id: project.id, name: project.name });
-							localStorage.setItem(LAST_PROJECT_ID_KEY, project.id);
-						}
-					}
-				} catch (error) {
-					console.error("Failed to load last project:", error);
-				}
+				setActiveProject(null);
 			}
 		};
 
 		loadActiveProject();
 	}, [pathname]);
 
-	const handleProjectSelect = (id: string, name: string) => {
-		setActiveProject({ id, name });
+	const handleProjectSelect = (id: string, name: string, color?: string) => {
+		setActiveProject({ id, name, color });
 		localStorage.setItem(LAST_PROJECT_ID_KEY, id);
 		router.push(`/board/${id}`);
 	};
 
 	return (
 		<ToastProvider>
-			<div className="min-h-screen bg-[#0B0E14] text-slate-200">
-				<Sidebar
-					isSidebarCollapsed={isSidebarCollapsed}
-					onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-					activeProject={activeProject}
-					onProjectSelect={handleProjectSelect}
-				/>
-				<main
-					className={cn(
-						"transition-all duration-300 min-h-screen overflow-x-hidden",
-						isSidebarCollapsed ? "pl-16" : "pl-64",
-					)}
-				>
-					{pathname.startsWith("/board/") ? (
-						<div className="h-screen flex flex-col">{children}</div>
-					) : (
-						<div className="min-h-screen flex flex-col">{children}</div>
-					)}
-				</main>
-			</div>
-			<ToastContainer />
+			<ApiErrorProvider>
+				<div className="min-h-screen bg-[#0B0E14] text-slate-200">
+					<Sidebar
+						isSidebarCollapsed={isSidebarCollapsed}
+						onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+						activeProject={activeProject}
+						onProjectSelect={handleProjectSelect}
+					/>
+					<main
+						className={cn(
+							"transition-all duration-300 min-h-screen overflow-x-hidden",
+							isSidebarCollapsed ? "pl-16" : "pl-64",
+						)}
+					>
+						{pathname.startsWith("/board/") ? (
+							<div className="h-screen flex flex-col">{children}</div>
+						) : (
+							<div className="min-h-screen flex flex-col">{children}</div>
+						)}
+					</main>
+				</div>
+				<ToastContainer />
+			</ApiErrorProvider>
 		</ToastProvider>
 	);
 }

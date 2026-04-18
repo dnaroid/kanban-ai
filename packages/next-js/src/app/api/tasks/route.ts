@@ -11,7 +11,7 @@ import {
 	isStatusAllowedInWorkflowColumn,
 	isWorkflowTaskStatus,
 	resolveTaskStatusReasons,
-} from "@/server/workflow/task-workflow-manager";
+} from "@/server/run/task-state-machine";
 
 function getLatestSessionId(taskId: string): string | null {
 	const runs = runService.listByTask(taskId);
@@ -163,7 +163,14 @@ export async function POST(request: NextRequest) {
 			updatedAt: task.updatedAt,
 		});
 
-		return NextResponse.json({ success: true, data: task });
+		return NextResponse.json({
+			success: true,
+			data: {
+				...task,
+				blockedReason: task.blockedReason,
+				blockedReasonText: null,
+			},
+		});
 	} catch (error) {
 		console.error("[API] Error creating task:", error);
 		return NextResponse.json(

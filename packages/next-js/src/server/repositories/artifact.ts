@@ -44,6 +44,10 @@ export class ArtifactRepository {
 
 		return row ? mapArtifact(row) : null;
 	}
+
+	public deleteByRun(runId: string): void {
+		this.db.prepare("DELETE FROM artifacts WHERE run_id = ?").run(runId);
+	}
 }
 
 export const artifactRepo = new ArtifactRepository(dbManager.connect());

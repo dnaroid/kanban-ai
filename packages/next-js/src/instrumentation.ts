@@ -7,4 +7,9 @@ export async function register(): Promise<void> {
 		"./server/opencode/opencode-bootstrap"
 	);
 	void bootstrapOpencodeService();
+
+	const { cleanupStaleUploads } = await import(
+		"./server/upload/startup-cleanup"
+	);
+	void cleanupStaleUploads();
 }

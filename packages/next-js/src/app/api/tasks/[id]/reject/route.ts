@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { boardRepo, taskRepo } from "@/server/repositories";
 import { getTaskStateMachine } from "@/server/run/task-state-machine";
 import type { TaskTransitionInput } from "@/server/run/task-state-machine";
+import { getWorkflowColumnSystemKey } from "@/server/run/task-state-machine";
 import { publishSseEvent } from "@/server/events/sse-broker";
-import { getWorkflowColumnSystemKey } from "@/server/workflow/task-workflow-manager";
 
 interface RouteParams {
 	params: Promise<{ id: string }>;

@@ -8,10 +8,13 @@ import {
 } from "@dnd-kit/sortable";
 import { useDndContext } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { AlertCircle, Trash2 } from "lucide-react";
+import { AlertCircle, BrushCleaning } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { KanbanTask, Tag } from "@/types/kanban";
 import { cn } from "@/lib/utils";
 import { SortableTask } from "./SortableTask";
+import { getWorkflowIcon } from "../workflow-display";
+import { useWorkflowDisplayConfig } from "../useWorkflowDisplayConfig";
 
 export interface SortableColumnProps {
 	id: string;
@@ -26,6 +29,7 @@ export interface SortableColumnProps {
 	onContextAction?: (taskId: string, systemKey: string) => Promise<void>;
 	onUpdateTask?: (id: string, patch: Partial<KanbanTask>) => void;
 	onRejectAction?: (taskId: string) => void;
+	deletingTaskId?: string | null;
 }
 
 export function SortableColumn({
@@ -41,7 +45,14 @@ export function SortableColumn({
 	onContextAction,
 	onUpdateTask,
 	onRejectAction,
+	deletingTaskId,
 }: SortableColumnProps) {
+	const workflowConfig = useWorkflowDisplayConfig();
+	const columnConfig = workflowConfig?.columns.find(
+		(c) => c.systemKey === systemKey,
+	);
+	const ColumnIcon: LucideIcon = getWorkflowIcon(columnConfig?.icon);
+
 	const { active, over } = useDndContext();
 	const isDraggingAnyTask = active?.data.current?.type === "task";
 
@@ -130,6 +141,10 @@ export function SortableColumn({
 									: "opacity-100 translate-x-0 pointer-events-auto",
 							)}
 						>
+							<ColumnIcon
+								className="w-4 h-4 shrink-0"
+								style={color ? { color } : undefined}
+							/>
 							<span className="text-sm font-bold text-slate-200 truncate px-1">
 								{name}
 							</span>
@@ -144,10 +159,10 @@ export function SortableColumn({
 										onBulkDelete?.(id, tasks.length);
 									}}
 									disabled={tasks.length === 0}
-									className="ml-auto p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors disabled:opacity-50 disabled:pointer-events-none shrink-0"
-									title="Empty trash"
+									className="ml-auto p-1.5 text-slate-500 hover:text-amber-500 hover:bg-amber-500/10 rounded-md transition-colors disabled:opacity-50 disabled:pointer-events-none shrink-0"
+									title="Clear completed tasks"
 								>
-									<Trash2 className="w-4 h-4" />
+									<BrushCleaning className="w-4 h-4" />
 								</button>
 							)}
 						</div>
@@ -158,9 +173,10 @@ export function SortableColumn({
 								isMinimized ? "opacity-100 scale-100" : "opacity-0 scale-150",
 							)}
 						>
-							<span className="text-lg font-black text-slate-500/50 uppercase tracking-tighter">
-								{name.charAt(0)}
-							</span>
+							<ColumnIcon
+								className="w-6 h-6"
+								style={color ? { color: `${color}80` } : undefined}
+							/>
 						</div>
 					</div>
 				</div>
@@ -196,6 +212,7 @@ export function SortableColumn({
 									onContextAction={onContextAction}
 									onUpdate={onUpdateTask}
 									onRejectAction={onRejectAction}
+									isDeleting={deletingTaskId === task.id}
 								/>
 							))
 						)}

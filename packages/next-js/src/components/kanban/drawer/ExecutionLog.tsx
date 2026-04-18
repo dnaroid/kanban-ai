@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	Bot,
 	CheckCircle2,
 	ChevronsDown,
+	ChevronsUp,
 	Circle,
+	ArrowLeft,
 	HelpCircle,
 	RefreshCw,
 	Send,
@@ -16,6 +18,7 @@ import {
 	ConfirmationPart,
 	FilePart,
 	ReasoningPart,
+	SubtaskPartView,
 	SystemNotificationPart,
 	TextPart,
 	ToolPart,
@@ -23,6 +26,7 @@ import {
 import { TodoWriteToolView } from "@/components/chat/TodoWriteToolView";
 import { cn } from "@/lib/utils";
 import type {
+	MessageTokens,
 	OpenCodeMessage,
 	Part,
 	PermissionData,
@@ -61,6 +65,7 @@ const isRenderablePart = (part: Part): boolean => {
 		case "tool":
 		case "file":
 		case "agent":
+		case "subtask":
 			return true;
 		case "text":
 			return ("ignored" in part && part.ignored) || part.text.trim().length > 0;
@@ -195,15 +200,26 @@ const formatAssistantLabel = ({
 export function ExecutionLog({
 	runId,
 	sessionId,
+	onContextStats,
 	showReasoning,
+	onNavigateToSubAgent,
+	isSubAgent = false,
 }: {
 	runId: string;
 	sessionId: string;
+	onContextStats?: (stats: {
+		tokens: number;
+		percent: number | null;
+		modelID: string | null;
+	}) => void;
 	showReasoning?: boolean;
+	onNavigateToSubAgent?: (sessionId: string) => void;
+	isSubAgent?: boolean;
 }) {
 	const [events, setEvents] = useState<RunEvent[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [autoScroll, setAutoScroll] = useState(true);
+	const [scrolledFromTop, setScrolledFromTop] = useState(false);
 	const [streamingMessageIds, setStreamingMessageIds] = useState<Set<string>>(
 		new Set(),
 	);
@@ -240,6 +256,10 @@ export function ExecutionLog({
 		if (typed.message) return typed.message;
 		if (typed.status) return typed.status;
 		return coerceText(payload);
+	};
+
+	const handleNavigateToSubAgent = (childSessionId: string) => {
+		onNavigateToSubAgent?.(childSessionId);
 	};
 
 	const extractStatusLineFromParts = useCallback(
@@ -299,12 +319,22 @@ export function ExecutionLog({
 			const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
 
 			setAutoScroll(isAtBottom);
+			setScrolledFromTop(scrollTop > 200);
 		}
 	};
 
 	const handleJumpToEnd = () => {
 		if (scrollRef.current) {
-			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+			scrollRef.current.scrollTo({
+				top: scrollRef.current.scrollHeight,
+				behavior: "smooth",
+			});
+		}
+	};
+
+	const handleJumpToTop = () => {
+		if (scrollRef.current) {
+			scrollRef.current.scrollTo({ top: 0, behavior: "smooth" });
 		}
 	};
 
@@ -352,6 +382,7 @@ export function ExecutionLog({
 				content?: string;
 				parts?: Part[];
 				modelID?: string;
+				tokens?: MessageTokens;
 			},
 			ts: string = new Date().toISOString(),
 		): RunEvent => ({
@@ -364,14 +395,70 @@ export function ExecutionLog({
 				content: message.content ?? "",
 				parts: message.parts ?? [],
 				modelID: message.modelID,
+				tokens: message.tokens,
 			},
 		}),
 		[effectiveSessionId],
 	);
 
+	const contextStats = useMemo(() => {
+		for (let index = events.length - 1; index >= 0; index -= 1) {
+			const event = events[index];
+			if (event.eventType !== "message") {
+				continue;
+			}
+
+			const payload = event.payload as {
+				role?: string;
+				tokens?: MessageTokens;
+				modelID?: string;
+			};
+			if (payload.role !== "assistant" || !payload.tokens) {
+				continue;
+			}
+
+			const totalTokens =
+				payload.tokens.input +
+				payload.tokens.output +
+				payload.tokens.reasoning +
+				payload.tokens.cache.read +
+				payload.tokens.cache.write;
+
+			if (totalTokens > 0) {
+				return {
+					tokens: totalTokens,
+					percent: null,
+					modelID: payload.modelID ?? null,
+				};
+			}
+		}
+
+		return { tokens: 0, percent: null, modelID: null };
+	}, [events]);
+
+	useEffect(() => {
+		onContextStats?.(contextStats);
+	}, [contextStats, onContextStats]);
+
 	useEffect(() => {
 		setEffectiveSessionId(sessionId);
 	}, [sessionId]);
+
+	useEffect(() => {
+		setEvents([]);
+		setStreamingMessageIds(new Set());
+		setIsLoading(true);
+		setAutoScroll(true);
+		setPendingPermissions(new Map());
+		setPendingQuestions(new Map());
+		seenMessageIdsRef.current.clear();
+		hiddenUserMessageIdRef.current = null;
+		for (const timeout of streamingTimeoutsRef.current.values()) {
+			clearTimeout(timeout);
+		}
+		streamingTimeoutsRef.current.clear();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [effectiveSessionId]);
 
 	useEffect(() => {
 		if (!runId) return;
@@ -420,6 +507,7 @@ export function ExecutionLog({
 			content?: string;
 			parts?: Part[];
 			modelID?: string;
+			tokens?: MessageTokens;
 		}) => {
 			const payloadId = payload?.id;
 			if (!payloadId) return;
@@ -429,15 +517,17 @@ export function ExecutionLog({
 				upsertStatusEvent(statusLine);
 			}
 
-			if (payload.role === "user" && !hiddenUserMessageIdRef.current) {
-				hiddenUserMessageIdRef.current = payloadId;
-			}
+			if (!isSubAgent) {
+				if (payload.role === "user" && !hiddenUserMessageIdRef.current) {
+					hiddenUserMessageIdRef.current = payloadId;
+				}
 
-			if (hiddenUserMessageIdRef.current === payloadId) {
-				setEvents((prev) =>
-					prev.filter((item) => item.id !== `msg-${payloadId}`),
-				);
-				return;
+				if (hiddenUserMessageIdRef.current === payloadId) {
+					setEvents((prev) =>
+						prev.filter((item) => item.id !== `msg-${payloadId}`),
+					);
+					return;
+				}
 			}
 			const id = `msg-${payloadId}`;
 			setEvents((prev) => {
@@ -453,6 +543,7 @@ export function ExecutionLog({
 				const existingPayload = existing.payload as {
 					parts?: Part[];
 					role?: string;
+					tokens?: MessageTokens;
 				};
 
 				const mergedPayload = {
@@ -462,6 +553,7 @@ export function ExecutionLog({
 							? payload.parts
 							: existingPayload.parts || [],
 					role: payload.role || existingPayload.role || "assistant",
+					tokens: payload.tokens ?? existingPayload.tokens,
 				};
 
 				const updatedEvent = buildMessageEvent(
@@ -627,6 +719,7 @@ export function ExecutionLog({
 						parts?: Part[];
 						modelId?: string;
 						modelID?: string;
+						tokens?: MessageTokens;
 					};
 					const messageId =
 						typeof message.id === "string" && message.id.length > 0
@@ -642,6 +735,7 @@ export function ExecutionLog({
 							typeof message.modelID === "string" && message.modelID.length > 0
 								? message.modelID
 								: message.modelId,
+						tokens: message.tokens,
 					});
 					setIsLoading(false);
 				}
@@ -774,6 +868,7 @@ export function ExecutionLog({
 		buildMessageEvent,
 		extractStatusLineFromMessage,
 		upsertStatusEvent,
+		isSubAgent,
 	]);
 
 	useEffect(() => {
@@ -835,7 +930,7 @@ export function ExecutionLog({
 						}
 					}
 
-					if (!hiddenUserMessageIdRef.current) {
+					if (!isSubAgent && !hiddenUserMessageIdRef.current) {
 						let firstUserMessage: OpenCodeMessage | null = null;
 						for (const message of messagesResponse.messages) {
 							if (message.role !== "user") continue;
@@ -859,7 +954,7 @@ export function ExecutionLog({
 						});
 
 						messagesResponse.messages.forEach((msg: OpenCodeMessage) => {
-							if (hiddenUserMessageIdRef.current === msg.id) {
+							if (!isSubAgent && hiddenUserMessageIdRef.current === msg.id) {
 								return;
 							}
 							const id = `msg-${msg.id}`;
@@ -873,6 +968,7 @@ export function ExecutionLog({
 									content: msg.content,
 									parts: msg.parts,
 									modelID: msg.modelID,
+									tokens: msg.tokens,
 								},
 							};
 
@@ -923,7 +1019,12 @@ export function ExecutionLog({
 			isActive = false;
 			refreshMessagesRef.current = null;
 		};
-	}, [effectiveSessionId, extractStatusLineFromMessage, upsertStatusEvent]);
+	}, [
+		effectiveSessionId,
+		extractStatusLineFromMessage,
+		upsertStatusEvent,
+		isSubAgent,
+	]);
 
 	useEffect(() => {
 		if (events.length === 0) return;
@@ -1038,7 +1139,13 @@ export function ExecutionLog({
 
 		if (event.eventType === "message") {
 			const messagePayload = event.payload as
-				| { role?: string; content?: string; parts?: Part[]; modelID?: string }
+				| {
+						role?: string;
+						content?: string;
+						parts?: Part[];
+						modelID?: string;
+						tokens?: MessageTokens;
+				  }
 				| string;
 
 			if (typeof messagePayload === "string") {
@@ -1151,6 +1258,29 @@ export function ExecutionLog({
 											if (part.tool === "todowrite") {
 												return <TodoWriteToolView key={key} part={part} />;
 											}
+											if (part.tool === "task") {
+												const taskMeta = (
+													part as { metadata?: Record<string, unknown> }
+												).metadata;
+												const taskInput = part.input as Record<
+													string,
+													unknown
+												> | null;
+												return (
+													<SubtaskPartView
+														key={key}
+														part={{
+															type: "subtask" as const,
+															sessionID: (taskMeta?.sessionId as string) ?? "",
+															description:
+																(taskInput?.description as string) ?? "",
+															prompt: (taskInput?.prompt as string) ?? "",
+															agent: (taskInput?.subagent_type as string) ?? "",
+														}}
+														onNavigateToSession={handleNavigateToSubAgent}
+													/>
+												);
+											}
 											return (
 												<ToolPart
 													key={key}
@@ -1169,6 +1299,14 @@ export function ExecutionLog({
 											return <FilePart key={key} part={part} />;
 										case "agent":
 											return <AgentPart key={key} part={part} />;
+										case "subtask":
+											return (
+												<SubtaskPartView
+													key={key}
+													part={part}
+													onNavigateToSession={handleNavigateToSubAgent}
+												/>
+											);
 										case "text":
 											if ("ignored" in part && part.ignored) {
 												return <SystemNotificationPart key={key} part={part} />;
@@ -1291,14 +1429,23 @@ export function ExecutionLog({
 					)}
 				</div>
 
+				{scrolledFromTop && (
+					<button
+						type="button"
+						onClick={handleJumpToTop}
+						className="absolute top-6 right-6 p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-xl shadow-blue-500/20 animate-in fade-in slide-in-from-top-2 duration-300 z-10 transition-colors"
+					>
+						<ChevronsUp className="w-4 h-4" />
+					</button>
+				)}
+
 				{!autoScroll && (
 					<button
 						type="button"
 						onClick={handleJumpToEnd}
-						className="absolute bottom-6 right-6 flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-full text-[10px] font-bold uppercase tracking-wider shadow-xl shadow-blue-500/20 animate-in fade-in slide-in-from-bottom-2 duration-300 z-10"
+						className="absolute bottom-6 right-6 p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-xl shadow-blue-500/20 animate-in fade-in slide-in-from-bottom-2 duration-300 z-10 transition-colors"
 					>
-						<ChevronsDown className="w-3.5 h-3.5" />
-						Jump to End
+						<ChevronsDown className="w-4 h-4" />
 					</button>
 				)}
 			</div>

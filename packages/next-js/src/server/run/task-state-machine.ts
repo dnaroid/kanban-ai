@@ -1,15 +1,516 @@
 import type { Board } from "@/server/types";
-import {
-	canTransitionColumn,
-	getBlockedReasonForStatus,
-	getClosedReasonForStatus,
-	getPreferredColumnIdForStatus,
-	getWorkflowColumnSystemKey,
-	isStatusAllowedInWorkflowColumn,
-	resolveTaskStatusReasons,
-} from "@/server/workflow/task-workflow-manager";
 import type { BlockedReason, ClosedReason, TaskStatus } from "@/types/kanban";
 import type { RunStatus } from "@/types/ipc";
+import type { WorkflowIconKey } from "@/types/workflow";
+import { normalizeWorkflowIconKey } from "@/types/workflow";
+
+export const WORKFLOW_COLUMN_SYSTEM_KEYS = [
+	"deferred",
+	"backlog",
+	"ready",
+	"in_progress",
+	"blocked",
+	"review",
+	"closed",
+] as const;
+
+export type WorkflowColumnSystemKey = string;
+export type WorkflowRunStatus = RunStatus;
+export type WorkflowTaskStatus = string;
+
+export interface WorkflowColumnTemplate {
+	name: string;
+	systemKey: WorkflowColumnSystemKey;
+	color: string;
+	icon: WorkflowIconKey;
+}
+
+export interface WorkflowStatusConfig {
+	status: WorkflowTaskStatus;
+	orderIndex: number;
+	preferredColumnSystemKey: WorkflowColumnSystemKey;
+	blockedReason: BlockedReason | null;
+	closedReason: ClosedReason | null;
+	color: string;
+	icon: WorkflowIconKey;
+}
+
+export interface WorkflowColumnConfig {
+	systemKey: WorkflowColumnSystemKey;
+	name: string;
+	color: string;
+	icon: WorkflowIconKey;
+	orderIndex: number;
+	defaultStatus: WorkflowTaskStatus;
+	allowedStatuses: WorkflowTaskStatus[];
+}
+
+export interface WorkflowConfig {
+	statuses: WorkflowStatusConfig[];
+	columns: WorkflowColumnConfig[];
+	statusTransitions: Record<WorkflowTaskStatus, WorkflowTaskStatus[]>;
+	columnTransitions: Record<string, string[]>;
+}
+
+const WORKFLOW_COLUMN_SYSTEM_KEY_PATTERN = /^[a-z][a-z0-9_-]*$/;
+
+function createColumnTemplate(
+	name: string,
+	systemKey: WorkflowColumnSystemKey,
+	color: string,
+	icon: WorkflowIconKey,
+): WorkflowColumnTemplate {
+	return { name, systemKey, color, icon };
+}
+
+const DEFAULT_WORKFLOW_COLUMNS_FALLBACK: readonly WorkflowColumnTemplate[] = [
+	createColumnTemplate("Backlog", "backlog", "#6366f1", "list"),
+	createColumnTemplate("Ready", "ready", "#0ea5e9", "check-circle"),
+	createColumnTemplate("Deferred", "deferred", "#6b7280", "clock"),
+	createColumnTemplate("In Progress", "in_progress", "#f59e0b", "play"),
+	createColumnTemplate("Blocked", "blocked", "#ef4444", "shield-alert"),
+	createColumnTemplate("Review / QA", "review", "#8b5cf6", "eye"),
+	createColumnTemplate("Closed", "closed", "#10b981", "archive"),
+];
+
+export const DEFAULT_WORKFLOW_COLUMNS = DEFAULT_WORKFLOW_COLUMNS_FALLBACK;
+
+const TASK_STATUS_VALUES: readonly WorkflowTaskStatus[] = [
+	"pending",
+	"rejected",
+	"running",
+	"question",
+	"paused",
+	"done",
+	"failed",
+	"generating",
+];
+
+const BLOCKED_REASON_VALUES: readonly BlockedReason[] = [
+	"question",
+	"paused",
+	"failed",
+];
+
+const CLOSED_REASON_VALUES: readonly ClosedReason[] = ["done", "failed"];
+
+const RUN_STATUS_VALUES: readonly WorkflowRunStatus[] = [
+	"queued",
+	"running",
+	"completed",
+	"failed",
+	"cancelled",
+	"timeout",
+	"paused",
+];
+
+const BLOCKED_REASON_BY_STATUS_FALLBACK: Record<
+	WorkflowTaskStatus,
+	BlockedReason | null
+> = {
+	pending: null,
+	rejected: null,
+	running: null,
+	question: "question",
+	paused: "paused",
+	done: null,
+	failed: "failed",
+	generating: null,
+};
+
+const CLOSED_REASON_BY_STATUS_FALLBACK: Record<
+	WorkflowTaskStatus,
+	ClosedReason | null
+> = {
+	pending: null,
+	rejected: null,
+	running: null,
+	question: null,
+	paused: null,
+	done: "done",
+	failed: "failed",
+	generating: null,
+};
+
+const STATUS_VISUALS_FALLBACK: Record<
+	WorkflowTaskStatus,
+	{ color: string; icon: WorkflowIconKey }
+> = {
+	pending: { color: "#f59e0b", icon: "clock" },
+	rejected: { color: "#ef4444", icon: "x-circle" },
+	running: { color: "#3b82f6", icon: "play" },
+	question: { color: "#f97316", icon: "help-circle" },
+	paused: { color: "#eab308", icon: "pause" },
+	done: { color: "#10b981", icon: "check-circle" },
+	failed: { color: "#ef4444", icon: "x-circle" },
+	generating: { color: "#8b5cf6", icon: "sparkles" },
+};
+
+const STATUS_TO_WORKFLOW_COLUMN_FALLBACK: Record<
+	WorkflowTaskStatus,
+	WorkflowColumnSystemKey
+> = {
+	pending: "ready",
+	rejected: "ready",
+	running: "in_progress",
+	question: "blocked",
+	paused: "blocked",
+	done: "review",
+	failed: "blocked",
+	generating: "backlog",
+};
+
+const COLUMN_DEFAULT_STATUS_FALLBACK: Record<
+	WorkflowColumnSystemKey,
+	WorkflowTaskStatus
+> = {
+	backlog: "pending",
+	ready: "pending",
+	deferred: "pending",
+	in_progress: "running",
+	blocked: "paused",
+	review: "done",
+	closed: "done",
+};
+
+const COLUMN_ALLOWED_STATUSES_FALLBACK: Record<
+	WorkflowColumnSystemKey,
+	readonly WorkflowTaskStatus[]
+> = {
+	backlog: ["pending", "generating"],
+	ready: ["pending", "rejected"],
+	deferred: ["pending"],
+	in_progress: ["running"],
+	blocked: ["question", "paused", "failed"],
+	review: ["done"],
+	closed: ["done", "failed"],
+};
+
+const STATUS_TRANSITIONS_FALLBACK: Record<
+	WorkflowTaskStatus,
+	readonly WorkflowTaskStatus[]
+> = {
+	pending: [
+		"running",
+		"generating",
+		"done",
+		"failed",
+		"paused",
+		"question",
+		"rejected",
+	],
+	rejected: ["running", "pending", "failed"],
+	running: ["pending", "paused", "question", "failed", "done"],
+	question: ["pending", "running", "paused", "failed", "done"],
+	paused: ["pending", "running", "question", "failed", "done"],
+	done: ["pending", "running", "failed"],
+	failed: ["pending", "running", "paused"],
+	generating: ["pending", "paused", "question", "failed", "done"],
+};
+
+const COLUMN_TRANSITIONS_FALLBACK: Record<
+	WorkflowColumnSystemKey,
+	readonly WorkflowColumnSystemKey[]
+> = {
+	backlog: ["ready", "deferred", "in_progress"],
+	ready: ["backlog", "deferred", "in_progress"],
+	deferred: ["backlog", "ready", "in_progress"],
+	in_progress: ["blocked", "review", "ready", "deferred", "backlog"],
+	blocked: ["in_progress", "review", "ready", "deferred", "backlog", "closed"],
+	review: ["in_progress", "blocked", "ready", "closed"],
+	closed: ["ready", "review", "backlog"],
+};
+
+interface WorkflowRuntimeConfig {
+	defaultColumns: readonly WorkflowColumnTemplate[];
+	statusToColumn: Record<WorkflowTaskStatus, WorkflowColumnSystemKey>;
+	columnDefaultStatus: Record<WorkflowColumnSystemKey, WorkflowTaskStatus>;
+	columnAllowedStatuses: Record<
+		WorkflowColumnSystemKey,
+		readonly WorkflowTaskStatus[]
+	>;
+	statusTransitions: Record<WorkflowTaskStatus, readonly WorkflowTaskStatus[]>;
+	columnTransitions: Record<
+		WorkflowColumnSystemKey,
+		readonly WorkflowColumnSystemKey[]
+	>;
+	blockedReasonByStatus: Record<WorkflowTaskStatus, BlockedReason | null>;
+	closedReasonByStatus: Record<WorkflowTaskStatus, ClosedReason | null>;
+}
+
+let workflowRuntimeConfig: WorkflowRuntimeConfig | null = null;
+
+function cloneStatuses(): WorkflowStatusConfig[] {
+	return TASK_STATUS_VALUES.map(function mapStatus(status, orderIndex) {
+		const visual = STATUS_VISUALS_FALLBACK[status];
+		return {
+			status,
+			orderIndex,
+			preferredColumnSystemKey: STATUS_TO_WORKFLOW_COLUMN_FALLBACK[status],
+			blockedReason: BLOCKED_REASON_BY_STATUS_FALLBACK[status],
+			closedReason: CLOSED_REASON_BY_STATUS_FALLBACK[status],
+			color: visual.color,
+			icon: normalizeWorkflowIconKey(visual.icon) ?? "list",
+		};
+	});
+}
+
+function cloneColumns(): WorkflowColumnConfig[] {
+	const templates = new Map(
+		DEFAULT_WORKFLOW_COLUMNS_FALLBACK.map(function toEntry(column) {
+			return [column.systemKey, column] as const;
+		}),
+	);
+
+	return WORKFLOW_COLUMN_SYSTEM_KEYS.map(
+		function mapColumn(systemKey, orderIndex) {
+			const template = templates.get(systemKey);
+			return {
+				systemKey,
+				name: template?.name ?? systemKey,
+				color: template?.color ?? "#6b7280",
+				icon: normalizeWorkflowIconKey(template?.icon ?? "list") ?? "list",
+				orderIndex,
+				defaultStatus: COLUMN_DEFAULT_STATUS_FALLBACK[systemKey],
+				allowedStatuses: [...COLUMN_ALLOWED_STATUSES_FALLBACK[systemKey]],
+			};
+		},
+	);
+}
+
+function cloneStatusTransitions(): Record<
+	WorkflowTaskStatus,
+	WorkflowTaskStatus[]
+> {
+	const transitions: Record<WorkflowTaskStatus, WorkflowTaskStatus[]> = {};
+	for (const status of TASK_STATUS_VALUES)
+		transitions[status] = [...STATUS_TRANSITIONS_FALLBACK[status]];
+	return transitions;
+}
+
+function cloneColumnTransitions(): Record<string, string[]> {
+	const transitions: Record<string, string[]> = {};
+	for (const [from, to] of Object.entries(COLUMN_TRANSITIONS_FALLBACK))
+		transitions[from] = [...to];
+	return transitions;
+}
+
+function createWorkflowConfig(): WorkflowConfig {
+	return {
+		statuses: cloneStatuses(),
+		columns: cloneColumns(),
+		statusTransitions: cloneStatusTransitions(),
+		columnTransitions: cloneColumnTransitions(),
+	};
+}
+
+function createWorkflowRuntimeConfig(): WorkflowRuntimeConfig {
+	const config = createWorkflowConfig();
+	const statusToColumn = { ...STATUS_TO_WORKFLOW_COLUMN_FALLBACK };
+	const columnDefaultStatus = { ...COLUMN_DEFAULT_STATUS_FALLBACK };
+	const blockedReasonByStatus = { ...BLOCKED_REASON_BY_STATUS_FALLBACK };
+	const closedReasonByStatus = { ...CLOSED_REASON_BY_STATUS_FALLBACK };
+	const columnAllowedStatuses: Record<
+		WorkflowColumnSystemKey,
+		readonly WorkflowTaskStatus[]
+	> = {};
+	const columnTransitions: Record<
+		WorkflowColumnSystemKey,
+		readonly WorkflowColumnSystemKey[]
+	> = {};
+
+	for (const [systemKey, statuses] of Object.entries(
+		COLUMN_ALLOWED_STATUSES_FALLBACK,
+	)) {
+		columnAllowedStatuses[systemKey] = [...statuses];
+	}
+	for (const [systemKey, nextKeys] of Object.entries(
+		COLUMN_TRANSITIONS_FALLBACK,
+	)) {
+		columnTransitions[systemKey] = [...nextKeys];
+	}
+	for (const status of config.statuses) {
+		statusToColumn[status.status] = status.preferredColumnSystemKey;
+		blockedReasonByStatus[status.status] = status.blockedReason;
+		closedReasonByStatus[status.status] = status.closedReason;
+	}
+	for (const column of config.columns) {
+		columnDefaultStatus[column.systemKey] = column.defaultStatus;
+		columnAllowedStatuses[column.systemKey] = [...column.allowedStatuses];
+	}
+	for (const [systemKey, nextKeys] of Object.entries(
+		config.columnTransitions,
+	)) {
+		columnTransitions[systemKey] = [...nextKeys];
+	}
+
+	return {
+		defaultColumns: config.columns.map(function toTemplate(column) {
+			return {
+				name: column.name,
+				systemKey: column.systemKey,
+				color: column.color,
+				icon: column.icon,
+			};
+		}),
+		statusToColumn,
+		columnDefaultStatus,
+		columnAllowedStatuses,
+		statusTransitions: config.statusTransitions,
+		columnTransitions,
+		blockedReasonByStatus,
+		closedReasonByStatus,
+	};
+}
+
+function getWorkflowRuntimeConfig(): WorkflowRuntimeConfig {
+	if (!workflowRuntimeConfig)
+		workflowRuntimeConfig = createWorkflowRuntimeConfig();
+	return workflowRuntimeConfig;
+}
+
+export function canTransitionStatus(
+	from: WorkflowTaskStatus,
+	to: WorkflowTaskStatus,
+): boolean {
+	if (!isWorkflowTaskStatus(from) || !isWorkflowTaskStatus(to)) return false;
+	if (from === to) return true;
+	return (getWorkflowRuntimeConfig().statusTransitions[from] ?? []).includes(
+		to,
+	);
+}
+
+export function canTransitionColumn(
+	from: WorkflowColumnSystemKey,
+	to: WorkflowColumnSystemKey,
+): boolean {
+	if (from === to) return true;
+	return (getWorkflowRuntimeConfig().columnTransitions[from] ?? []).includes(
+		to,
+	);
+}
+
+export function getDefaultWorkflowColumns(): readonly WorkflowColumnTemplate[] {
+	return getWorkflowRuntimeConfig().defaultColumns;
+}
+
+export function getPreferredColumnIdForStatus(
+	board: Board,
+	status: WorkflowTaskStatus,
+): string | null {
+	const systemKey = getWorkflowRuntimeConfig().statusToColumn[status];
+	return systemKey ? getWorkflowColumnIdBySystemKey(board, systemKey) : null;
+}
+
+export function getBlockedReasonForStatus(
+	status: WorkflowTaskStatus,
+): BlockedReason | null {
+	return getWorkflowRuntimeConfig().blockedReasonByStatus[status] ?? null;
+}
+
+export function getClosedReasonForStatus(
+	status: WorkflowTaskStatus,
+): ClosedReason | null {
+	return getWorkflowRuntimeConfig().closedReasonByStatus[status] ?? null;
+}
+
+export function resolveTaskStatusReasons(
+	status: WorkflowTaskStatus,
+	columnSystemKey: WorkflowColumnSystemKey | null,
+): { blockedReason: BlockedReason | null; closedReason: ClosedReason | null } {
+	if (columnSystemKey === "blocked") {
+		return {
+			blockedReason: getBlockedReasonForStatus(status),
+			closedReason: null,
+		};
+	}
+	if (columnSystemKey === "closed") {
+		return {
+			blockedReason: null,
+			closedReason: getClosedReasonForStatus(status),
+		};
+	}
+	return { blockedReason: null, closedReason: null };
+}
+
+export function isStatusAllowedInWorkflowColumn(
+	status: WorkflowTaskStatus,
+	systemKey: WorkflowColumnSystemKey,
+): boolean {
+	return (
+		getWorkflowRuntimeConfig().columnAllowedStatuses[systemKey] ?? []
+	).includes(status);
+}
+
+export function getDefaultStatusForWorkflowColumn(
+	systemKey: WorkflowColumnSystemKey,
+	currentStatus?: WorkflowTaskStatus,
+): WorkflowTaskStatus {
+	const runtime = getWorkflowRuntimeConfig();
+	if (
+		currentStatus &&
+		(runtime.columnAllowedStatuses[systemKey] ?? []).includes(currentStatus)
+	) {
+		return currentStatus;
+	}
+	return runtime.columnDefaultStatus[systemKey] ?? "pending";
+}
+
+export function getWorkflowColumnSystemKey(
+	board: Board,
+	columnId: string,
+): WorkflowColumnSystemKey | null {
+	const column = board.columns.find(function findColumn(item) {
+		return item.id === columnId;
+	});
+	if (!column) return null;
+	return isWorkflowColumnSystemKey(column.systemKey) ? column.systemKey : null;
+}
+
+export function getWorkflowColumnIdBySystemKey(
+	board: Board,
+	systemKey: WorkflowColumnSystemKey,
+): string | null {
+	return (
+		board.columns.find(function findColumn(item) {
+			return item.systemKey === systemKey;
+		})?.id ?? null
+	);
+}
+
+export function isWorkflowColumnSystemKey(
+	value: string,
+): value is WorkflowColumnSystemKey {
+	return WORKFLOW_COLUMN_SYSTEM_KEY_PATTERN.test(value);
+}
+
+export function isWorkflowTaskStatus(value: string): boolean {
+	const runtime = getWorkflowRuntimeConfig();
+	return (
+		Object.prototype.hasOwnProperty.call(runtime.statusTransitions, value) ||
+		Object.prototype.hasOwnProperty.call(runtime.statusToColumn, value)
+	);
+}
+
+export function isTaskStatus(value: string): boolean {
+	return isWorkflowTaskStatus(value);
+}
+
+export function isBlockedReason(value: string): value is BlockedReason {
+	return (BLOCKED_REASON_VALUES as readonly string[]).includes(value);
+}
+
+export function isClosedReason(value: string): value is ClosedReason {
+	return (CLOSED_REASON_VALUES as readonly string[]).includes(value);
+}
+
+export function isWorkflowRunStatus(value: string): value is WorkflowRunStatus {
+	return (RUN_STATUS_VALUES as readonly string[]).includes(value);
+}
+
+export function resetWorkflowRuntimeConfigForTests(): void {
+	workflowRuntimeConfig = null;
+}
 
 const allowedTaskTypes = ["feature", "bug", "chore", "improvement"] as const;
 const allowedDifficulties = ["easy", "medium", "hard", "epic"] as const;
@@ -50,6 +551,7 @@ export interface TaskTransitionInput {
 		boardId: string;
 		status: TaskStatus;
 		columnId: string;
+		tags?: string;
 	};
 	board: Board;
 	trigger: TaskTransitionTrigger;
@@ -65,6 +567,7 @@ export interface TaskTransitionResult {
 		status?: TaskStatus;
 		columnId?: string;
 		blockedReason?: BlockedReason | null;
+		blockedReasonText?: string | null;
 		closedReason?: ClosedReason | null;
 		description?: string;
 		descriptionMd?: string;
@@ -72,7 +575,9 @@ export interface TaskTransitionResult {
 		tags?: string;
 		type?: string;
 		difficulty?: string;
+		modelName?: string | null;
 		commitMessage?: string | null;
+		isGenerated?: boolean;
 	};
 	effects: TaskEffect[];
 }
@@ -229,6 +734,15 @@ function shouldExtractCommitMessage(input: TaskTransitionInput): boolean {
 	return input.trigger === "run:done";
 }
 
+function hasRequiredStoryContent(input: TaskTransitionInput): boolean {
+	if (!shouldParseStoryContent(input)) {
+		return true;
+	}
+
+	const parsed = parseUserStoryResponse(input.outcomeContent);
+	return parsed.description.trim().length > 0;
+}
+
 function readCurrentTaskTags(task: TaskTransitionInput["task"]): string[] {
 	if (!("tags" in task)) {
 		return [];
@@ -245,6 +759,8 @@ function compactPatch(patch: TaskPatch): TaskPatch {
 	if (patch.columnId !== undefined) compacted.columnId = patch.columnId;
 	if (patch.blockedReason !== undefined)
 		compacted.blockedReason = patch.blockedReason;
+	if (patch.blockedReasonText !== undefined)
+		compacted.blockedReasonText = patch.blockedReasonText;
 	if (patch.closedReason !== undefined)
 		compacted.closedReason = patch.closedReason;
 	if (patch.description !== undefined)
@@ -257,6 +773,8 @@ function compactPatch(patch: TaskPatch): TaskPatch {
 	if (patch.difficulty !== undefined) compacted.difficulty = patch.difficulty;
 	if (patch.commitMessage !== undefined)
 		compacted.commitMessage = patch.commitMessage;
+	if (patch.isGenerated !== undefined)
+		compacted.isGenerated = patch.isGenerated;
 
 	return compacted;
 }
@@ -345,6 +863,10 @@ export function resolveTransitionTrigger(params: {
 export class TaskStateMachine {
 	public transition(input: TaskTransitionInput): TaskTransitionResult {
 		if (input.isManualStatusGracePeriod) {
+			return createSkipResult();
+		}
+
+		if (!hasRequiredStoryContent(input)) {
 			return createSkipResult();
 		}
 
@@ -474,8 +996,7 @@ export class TaskStateMachine {
 		const nextColumnId = this.resolveColumnIdForStatus(input, nextStatus);
 		const nextColumnKey = getWorkflowColumnSystemKey(input.board, nextColumnId);
 		const reasons = resolveTaskStatusReasons(nextStatus, nextColumnKey);
-
-		return {
+		const patch: TaskPatch = {
 			status: nextStatus,
 			columnId: nextColumnId,
 			blockedReason:
@@ -483,6 +1004,14 @@ export class TaskStateMachine {
 			closedReason:
 				reasons.closedReason ?? getClosedReasonForStatus(nextStatus),
 		};
+
+		if (nextStatus === "failed") {
+			patch.blockedReasonText = input.outcomeContent || null;
+		} else if (input.task.status === "failed" && nextStatus !== "failed") {
+			patch.blockedReasonText = null;
+		}
+
+		return patch;
 	}
 
 	private buildStoryPatch(input: TaskTransitionInput): TaskPatch {
@@ -496,6 +1025,8 @@ export class TaskStateMachine {
 		if (shouldParseStoryContent(input)) {
 			patch.description = parsed.description;
 			patch.descriptionMd = parsed.description;
+			patch.isGenerated = true;
+			patch.modelName = null;
 
 			if (parsed.title) {
 				patch.title = parsed.title;

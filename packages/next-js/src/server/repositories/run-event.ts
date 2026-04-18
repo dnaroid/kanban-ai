@@ -83,6 +83,10 @@ export class RunEventRepository {
 
 		return rows.map(mapRunEvent).reverse();
 	}
+
+	public deleteByRun(runId: string): void {
+		this.db.prepare("DELETE FROM run_events WHERE run_id = ?").run(runId);
+	}
 }
 
 export const runEventRepo = new RunEventRepository(dbManager.connect());

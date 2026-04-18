@@ -59,3 +59,55 @@ ALTER TABLE tasks ADD COLUMN commit_message TEXT;
 export const v028TaskQaReportSql = `
 ALTER TABLE tasks ADD COLUMN qa_report TEXT;
 `;
+
+export const v029ModelContextLimitSql = `
+ALTER TABLE opencode_models ADD COLUMN context_limit INTEGER NOT NULL DEFAULT 0;
+`;
+
+export const v030TaskIsGeneratedSql = `
+ALTER TABLE tasks ADD COLUMN is_generated TEXT NOT NULL DEFAULT '0';
+`;
+
+export const v031DropDeadTablesSql = `
+-- Drop unused tables (zero references in application code)
+
+-- PM feature never implemented
+DROP TABLE IF EXISTS release_items;
+DROP TABLE IF EXISTS releases;
+
+-- Plugin system never implemented
+DROP TABLE IF EXISTS plugins;
+
+-- Metrics table never used (replaced by in-memory tracking)
+DROP TABLE IF EXISTS app_metrics;
+
+-- Scheduling stored directly in tasks table
+DROP TABLE IF EXISTS task_schedule;
+
+-- Events tracked via run_events instead
+DROP TABLE IF EXISTS task_events;
+
+-- Queue managed in-memory by RunsQueueManager
+DROP TABLE IF EXISTS task_queue;
+DROP TABLE IF EXISTS role_slots;
+DROP TABLE IF EXISTS resource_locks;
+`;
+
+export const v032TaskBlockedReasonTextSql = `
+ALTER TABLE tasks ADD COLUMN blocked_reason_text TEXT;
+`;
+
+export const v033UploadsSql = `
+CREATE TABLE IF NOT EXISTS uploads (
+  id TEXT PRIMARY KEY,
+  task_id TEXT,
+  stored_name TEXT NOT NULL,
+  original_name TEXT NOT NULL,
+  absolute_path TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_uploads_task_id ON uploads(task_id);
+`;

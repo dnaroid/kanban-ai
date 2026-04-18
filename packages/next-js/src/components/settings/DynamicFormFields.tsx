@@ -132,7 +132,7 @@ function DynamicSelectField({
 					disabled={disabled}
 					className={cn(
 						"w-full appearance-none bg-[#161B26] border border-slate-700",
-						"rounded-xl px-4 py-2.5 pr-10 text-sm text-slate-200",
+						"rounded-xl px-4 py-2.5 pr-10 text-sm text-slate-200 cursor-pointer",
 						"hover:border-slate-600 transition-all",
 						"focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 focus:shadow-[0_0_20px_rgba(59,130,246,0.1)]",
 						value === undefined && "text-slate-500",
@@ -236,7 +236,7 @@ function DynamicArrayField({
 									<select
 										value={item}
 										onChange={(e) => handleChange(index, e.target.value)}
-										className="w-full appearance-none bg-[#161B26] border border-slate-700 rounded-xl px-4 py-2 text-sm text-slate-200 hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all"
+										className="w-full appearance-none bg-[#161B26] border border-slate-700 rounded-xl px-4 py-2 text-sm text-slate-200 cursor-pointer hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all"
 									>
 										<option value="">Select...</option>
 										{items.enum.map((opt) => (
@@ -258,7 +258,7 @@ function DynamicArrayField({
 							<button
 								type="button"
 								onClick={() => handleRemove(index)}
-								className="text-slate-500 hover:text-red-400 px-2 transition-colors"
+								className="text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg px-2 transition-colors"
 							>
 								×
 							</button>
@@ -571,7 +571,7 @@ function ObjectTreeNode({
 										value={newKeyName}
 										onChange={(e) => setNewKeyName(e.target.value)}
 										placeholder="Enter key name..."
-										className="flex-1 bg-[#161B26] border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50"
+										className="flex-1 bg-[#161B26] border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
 										ref={(input) => {
 											if (input && showAddModal) {
 												input.focus();
@@ -892,7 +892,7 @@ function DynamicField({
 						else if (newVariant.type === "boolean") onChange(false);
 						else onChange(null);
 					}}
-					className="w-full bg-[#161B26] border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 mb-4 hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all"
+					className="w-full bg-[#161B26] border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 mb-4 cursor-pointer hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all"
 				>
 					{variants.map((v, i) => (
 						<option key={`${v.type}-${i}`} value={i}>

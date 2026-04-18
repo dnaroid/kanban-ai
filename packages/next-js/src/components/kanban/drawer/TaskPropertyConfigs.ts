@@ -43,17 +43,11 @@ export const difficultyConfig = {
 } as const;
 
 export const priorityConfig = {
-	postpone: {
-		icon: Clock,
-		color: "text-slate-400",
-		bg: "bg-slate-400/10",
-		border: "border-slate-400/20",
-	},
-	low: {
-		icon: ChevronDown,
-		color: "text-emerald-400",
-		bg: "bg-emerald-400/10",
-		border: "border-emerald-400/20",
+	urgent: {
+		icon: AlertTriangle,
+		color: "text-red-400",
+		bg: "bg-red-400/10",
+		border: "border-red-400/20",
 	},
 	normal: {
 		icon: ArrowUpRight,
@@ -61,11 +55,17 @@ export const priorityConfig = {
 		bg: "bg-blue-400/10",
 		border: "border-blue-400/20",
 	},
-	urgent: {
-		icon: AlertTriangle,
-		color: "text-red-400",
-		bg: "bg-red-400/10",
-		border: "border-red-400/20",
+	low: {
+		icon: ChevronDown,
+		color: "text-emerald-400",
+		bg: "bg-emerald-400/10",
+		border: "border-emerald-400/20",
+	},
+	postpone: {
+		icon: Clock,
+		color: "text-slate-400",
+		bg: "bg-slate-400/10",
+		border: "border-slate-400/20",
 	},
 } as const;
 

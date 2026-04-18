@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Trash2, Loader2, ExternalLink, XCircle } from "lucide-react";
@@ -18,6 +18,7 @@ import {
 	getContextActionConfig,
 	INACTIVE_CONTEXT_ACTION_STATUSES,
 } from "./contextActions";
+import { TaskDetailsModel } from "../drawer/sections/TaskDetailsModel";
 
 export interface SortableTaskProps {
 	task: KanbanTask;
@@ -28,6 +29,7 @@ export interface SortableTaskProps {
 	onContextAction?: (taskId: string, systemKey: string) => Promise<void>;
 	onUpdate?: (id: string, patch: Partial<KanbanTask>) => void;
 	onRejectAction?: (taskId: string) => void;
+	isDeleting?: boolean;
 }
 
 export function SortableTask({
@@ -39,8 +41,10 @@ export function SortableTask({
 	onContextAction,
 	onUpdate,
 	onRejectAction,
+	isDeleting,
 }: SortableTaskProps) {
 	const [isLoading, setIsLoading] = useState(false);
+	const cardRef = useRef<HTMLDivElement | null>(null);
 	const workflowConfig = useWorkflowDisplayConfig();
 	const {
 		attributes,
@@ -57,16 +61,57 @@ export function SortableTask({
 		},
 	});
 
+	const setCombinedRef = useCallback(
+		(node: HTMLDivElement | null) => {
+			cardRef.current = node;
+			setNodeRef(node);
+		},
+		[setNodeRef],
+	);
+
+	useEffect(() => {
+		if (!isDeleting || !cardRef.current) return;
+
+		const el = cardRef.current;
+		const { height } = el.getBoundingClientRect();
+		const computedStyle = getComputedStyle(el);
+		const marginBottom = parseFloat(computedStyle.marginBottom);
+
+		el.style.overflow = "hidden";
+
+		el.animate(
+			[
+				{
+					height: `${height}px`,
+					opacity: 1,
+					marginBottom: `${marginBottom}px`,
+				},
+				{
+					height: "0px",
+					opacity: 0,
+					marginBottom: "0px",
+				},
+			],
+			{
+				duration: 1000,
+				easing: "ease-in-out",
+				fill: "forwards",
+			},
+		);
+	}, [isDeleting]);
+
 	const statusVisual = task.status
 		? getWorkflowStatusVisual(workflowConfig, task.status)
 		: null;
 	const statusBadge = statusVisual ? toneBadgeStyle(statusVisual.tone) : null;
 
-	const style = {
-		transform: CSS.Transform.toString(transform),
-		transition,
-		borderColor: statusBadge?.borderColor,
-	};
+	const style: React.CSSProperties = isDeleting
+		? { overflow: "hidden" }
+		: {
+				transform: CSS.Transform.toString(transform),
+				transition,
+				borderColor: statusBadge?.borderColor,
+			};
 
 	const tConfig =
 		typeConfig[task.type as keyof typeof typeConfig] || typeConfig.chore;
@@ -106,17 +151,21 @@ export function SortableTask({
 
 	return (
 		<div
-			ref={setNodeRef}
+			ref={setCombinedRef}
 			style={style}
-			{...attributes}
-			{...listeners}
+			{...(isDeleting ? {} : { ...attributes, ...listeners })}
 			className={cn(
-				"bg-slate-900/40 backdrop-blur-md border rounded-xl mb-3 group hover:shadow-lg hover:shadow-black/20 transition-all cursor-grab active:cursor-grabbing overflow-hidden relative",
-				"border-slate-700 hover:border-slate-600",
+				"bg-slate-900/40 backdrop-blur-md border rounded-xl mb-3 group hover:shadow-lg hover:shadow-black/20 cursor-grab active:cursor-grabbing relative z-10 hover:z-20 border-slate-700 hover:border-slate-600",
+				!isDeleting && "transition-all overflow-visible",
 				isDragging && "opacity-50 shadow-2xl scale-105",
-				task.status === "running" && "animate-card-pulse-blue",
-				task.status === "generating" && "animate-card-pulse-purple",
-				task.status === "question" && "animate-card-pulse-yellow",
+				isDeleting && "pointer-events-none",
+				task.status === "running" && !isDeleting && "animate-card-pulse-blue",
+				task.status === "generating" &&
+					!isDeleting &&
+					"animate-card-pulse-purple",
+				task.status === "question" &&
+					!isDeleting &&
+					"animate-card-pulse-yellow",
 			)}
 		>
 			{statusVisual && (
@@ -197,6 +246,12 @@ export function SortableTask({
 				</button>
 			</div>
 
+			{onUpdate && (
+				<div className="px-4 pb-3" onPointerDown={(e) => e.stopPropagation()}>
+					<TaskDetailsModel task={task} onUpdate={onUpdate} />
+				</div>
+			)}
+
 			<div className="px-4 pb-4 flex flex-wrap items-center gap-2 border-t border-slate-700/60 pt-3">
 				{task.latestSessionId && task.opencodeWebUrl && (
 					<a
@@ -220,7 +275,9 @@ export function SortableTask({
 						disabled={isLoading}
 						className={cn(
 							"inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
-							"text-blue-500/85 hover:text-blue-400 hover:bg-blue-500/10 active:bg-blue-500/20",
+							systemKey === "review"
+								? "text-emerald-400/85 hover:text-emerald-300 hover:bg-emerald-500/10 active:bg-emerald-500/20"
+								: "text-blue-500/85 hover:text-blue-400 hover:bg-blue-500/10 active:bg-blue-500/20",
 							isLoading ? "pointer-events-none opacity-80" : "opacity-90",
 						)}
 						title={actionConfig.label}
@@ -241,7 +298,7 @@ export function SortableTask({
 							onRejectAction(task.id);
 						}}
 						onPointerDown={(e) => e.stopPropagation()}
-						className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-red-400/85 transition-colors hover:bg-red-500/10 hover:text-red-300 active:bg-red-500/20"
+						className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-orange-400/85 transition-colors hover:bg-orange-500/10 hover:text-orange-300 active:bg-orange-500/20"
 						title="Reject Task"
 					>
 						<XCircle className="h-3.5 w-3.5" />
@@ -255,7 +312,7 @@ export function SortableTask({
 						onDelete?.(task.id);
 					}}
 					onPointerDown={(e) => e.stopPropagation()}
-					className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-blue-500/80 transition-colors hover:bg-blue-500/10 hover:text-blue-400 active:bg-blue-500/20"
+					className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-red-400/85 transition-colors hover:bg-red-500/10 hover:text-red-300 active:bg-red-500/20"
 					title="Delete Task"
 				>
 					<Trash2 className="h-3.5 w-3.5" />

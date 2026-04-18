@@ -186,7 +186,7 @@ export function PillSelect({
 												onMouseEnter={() => setHoveredKey(key)}
 												onMouseLeave={() => setHoveredKey(null)}
 												className={cn(
-													"w-full flex items-center gap-2 px-3 py-2 text-[11px] font-medium whitespace-nowrap transition-all text-left rounded-lg",
+													"w-full flex items-center gap-2 px-3 py-2 text-[11px] font-medium whitespace-nowrap transition-all text-left rounded-lg cursor-pointer",
 													isSelected || isHovered
 														? cn(opt.bg, opt.color)
 														: cn(opt.color, "opacity-70"),

@@ -7,9 +7,12 @@ const {
 	mockRunRepo,
 	mockRoleRepo,
 	mockProjectRepo,
+	mockBoardRepo,
 	mockContextSnapshotRepo,
 	mockRunEventRepo,
 	mockVcsManager,
+	mockSessionManager,
+	mockSendSessionMessage,
 } = vi.hoisted(() => ({
 	mockQueueManager: {
 		enqueue: vi.fn(),
@@ -19,11 +22,14 @@ const {
 	},
 	mockTaskRepo: {
 		getById: vi.fn(),
+		listByBoard: vi.fn(),
 		update: vi.fn(),
 	},
 	mockRunRepo: {
 		listByTask: vi.fn(),
+		listAllByTask: vi.fn(),
 		create: vi.fn(),
+		delete: vi.fn(),
 		getById: vi.fn(),
 		update: vi.fn(),
 	},
@@ -34,6 +40,10 @@ const {
 	},
 	mockProjectRepo: {
 		getById: vi.fn(),
+	},
+	mockBoardRepo: {
+		getById: vi.fn(),
+		getByProjectId: vi.fn(),
 	},
 	mockContextSnapshotRepo: {
 		create: vi.fn(),
@@ -47,7 +57,12 @@ const {
 		cleanupRunWorkspace: vi.fn(),
 		syncRunWorkspace: vi.fn(),
 		syncVcsMetadata: vi.fn(),
+		hasUncommittedChanges: vi.fn(),
 	},
+	mockSessionManager: {
+		inspectSession: vi.fn(),
+	},
+	mockSendSessionMessage: vi.fn(),
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -95,6 +110,10 @@ vi.mock("@/server/repositories/project", () => ({
 	projectRepo: mockProjectRepo,
 }));
 
+vi.mock("@/server/repositories/board", () => ({
+	boardRepo: mockBoardRepo,
+}));
+
 vi.mock("@/server/repositories/context-snapshot", () => ({
 	contextSnapshotRepo: mockContextSnapshotRepo,
 }));
@@ -111,9 +130,46 @@ vi.mock("@/server/events/sse-broker", () => ({
 	publishSseEvent: vi.fn(),
 }));
 
-import { RunService } from "@/server/run/run-service";
+vi.mock("@/server/opencode/session-manager", () => ({
+	getOpencodeSessionManager: () => mockSessionManager,
+}));
 
-function buildTask(overrides: Partial<ReturnType<typeof buildTaskBase>> = {}) {
+vi.mock("@/server/opencode/session-store", () => ({
+	sendSessionMessage: mockSendSessionMessage,
+}));
+
+import { RunService } from "@/server/run/run-service";
+import { buildTaskPrompt } from "@/server/run/prompts/task";
+import { publishSseEvent } from "@/server/events/sse-broker";
+
+type TestTask = {
+	id: string;
+	projectId: string;
+	boardId: string;
+	columnId: string;
+	title: string;
+	description: string;
+	descriptionMd: string | null;
+	status: string;
+	blockedReason: string | null;
+	closedReason: string | null;
+	priority: string;
+	difficulty: string;
+	type: string;
+	orderInColumn: number;
+	tags: string;
+	startDate: string | null;
+	dueDate: string | null;
+	estimatePoints: number | null;
+	estimateHours: number | null;
+	assignee: string | null;
+	modelName: string | null;
+	qaReport: string | null;
+	createdAt: string;
+	updatedAt: string;
+};
+
+function buildTask(overrides: Partial<TestTask> = {}) {
 	return {
 		...buildTaskBase(),
 		...overrides,
@@ -144,6 +200,33 @@ function buildTaskBase() {
 		estimateHours: null,
 		assignee: null,
 		modelName: null,
+		qaReport: null,
+		createdAt: now,
+		updatedAt: now,
+	};
+}
+
+function buildBoard() {
+	const now = new Date().toISOString();
+	return {
+		id: "board-1",
+		projectId: "project-1",
+		name: "Board",
+		columns: [
+			{ id: "column-todo", name: "Todo", systemKey: "todo", orderIndex: 0 },
+			{
+				id: "column-ready",
+				name: "Ready",
+				systemKey: "ready",
+				orderIndex: 1,
+			},
+			{
+				id: "column-progress",
+				name: "In Progress",
+				systemKey: "in_progress",
+				orderIndex: 2,
+			},
+		],
 		createdAt: now,
 		updatedAt: now,
 	};
@@ -172,11 +255,13 @@ describe("RunService.generateUserStory", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mockTaskRepo.getById.mockReturnValue(buildTask());
+		mockTaskRepo.listByBoard = vi.fn().mockReturnValue([]);
 		mockTaskRepo.update.mockImplementation((_taskId, updates) => ({
 			...buildTask(),
 			...updates,
 		}));
 		mockRunRepo.listByTask.mockReturnValue([]);
+		mockRunRepo.listAllByTask.mockReturnValue([]);
 		mockRunRepo.create.mockReturnValue(buildRun("queued", "run-new"));
 		const roles = [
 			{ id: "ba", name: "Business Analyst" },
@@ -192,6 +277,18 @@ describe("RunService.generateUserStory", () => {
 			color: "#111111",
 			createdAt: new Date().toISOString(),
 			updatedAt: new Date().toISOString(),
+		});
+		mockBoardRepo.getById.mockReturnValue(buildBoard());
+		mockBoardRepo.getByProjectId.mockReturnValue(buildBoard());
+		mockVcsManager.hasUncommittedChanges.mockResolvedValue(false);
+		mockSessionManager.inspectSession.mockResolvedValue({
+			probeStatus: "alive",
+			sessionStatus: "idle",
+			messages: [],
+			todos: [],
+			pendingPermissions: [],
+			pendingQuestions: [],
+			completionMarker: null,
 		});
 		mockContextSnapshotRepo.create.mockReturnValue("snapshot-1");
 		const storedRuns = new Map<string, Run>();
@@ -354,7 +451,9 @@ describe("RunService.start", () => {
 		vi.clearAllMocks();
 		process.env.RUNS_WORKTREE_ENABLED = "true";
 		mockTaskRepo.getById.mockReturnValue(buildTask());
+		mockTaskRepo.listByBoard = vi.fn().mockReturnValue([]);
 		mockRunRepo.listByTask.mockReturnValue([]);
+		mockRunRepo.listAllByTask.mockReturnValue([]);
 		mockRoleRepo.listWithPresets.mockReturnValue([
 			{ id: "dev", name: "Developer", preset_json: "{}" },
 		]);
@@ -366,6 +465,17 @@ describe("RunService.start", () => {
 			color: "#111111",
 			createdAt: new Date().toISOString(),
 			updatedAt: new Date().toISOString(),
+		});
+		mockBoardRepo.getByProjectId.mockReturnValue(buildBoard());
+		mockVcsManager.hasUncommittedChanges.mockResolvedValue(false);
+		mockSessionManager.inspectSession.mockResolvedValue({
+			probeStatus: "alive",
+			sessionStatus: "idle",
+			messages: [],
+			todos: [],
+			pendingPermissions: [],
+			pendingQuestions: [],
+			completionMarker: null,
 		});
 		mockContextSnapshotRepo.create.mockReturnValue("snapshot-run");
 		const storedRuns = new Map<string, Run>();
@@ -436,6 +546,47 @@ describe("RunService.start", () => {
 		);
 	});
 
+	it("moves task to in_progress immediately for fresh run starts", async () => {
+		const pendingReadyTask = buildTask({
+			id: "task-ready",
+			boardId: "board-1",
+			columnId: "column-ready",
+			status: "pending",
+		});
+		const existingRunningTask = buildTask({
+			id: "task-running",
+			boardId: "board-1",
+			columnId: "column-progress",
+			status: "running",
+		});
+		mockTaskRepo.getById.mockReturnValue(pendingReadyTask);
+		mockTaskRepo.listByBoard.mockReturnValue([
+			pendingReadyTask,
+			existingRunningTask,
+		]);
+
+		const service = new RunService();
+		await service.start({ taskId: "task-ready" });
+
+		expect(mockTaskRepo.update).toHaveBeenCalledWith(
+			"task-ready",
+			expect.objectContaining({
+				status: "running",
+				columnId: "column-progress",
+				orderInColumn: 1,
+			}),
+		);
+		expect(publishSseEvent).toHaveBeenCalledWith(
+			"task:event",
+			expect.objectContaining({
+				taskId: "task-ready",
+				eventType: "task:updated",
+				boardId: "board-1",
+				projectId: "project-1",
+			}),
+		);
+	});
+
 	it("starts an execution run when model name has no variant suffix", async () => {
 		const service = new RunService();
 
@@ -474,6 +625,495 @@ describe("RunService.start", () => {
 			}),
 		);
 		expect(mockQueueManager.enqueue).not.toHaveBeenCalled();
+	});
+
+	it("reuses the same completed session when manually starting a rejected task", async () => {
+		const rejectedTask = buildTask({
+			id: "task-rejected-manual",
+			boardId: "board-1",
+			columnId: "column-ready",
+			status: "rejected",
+			qaReport: "Fix the failing checks",
+			title: "Rejected task",
+		});
+		mockTaskRepo.getById.mockReturnValue(rejectedTask);
+		mockRunRepo.listByTask.mockImplementation((taskId: string) => {
+			if (taskId === "task-rejected-manual") {
+				return [
+					{
+						...buildRun("completed", "run-manual-completed", "task-run"),
+						taskId: "task-rejected-manual",
+						sessionId: "session-manual-completed",
+					},
+				];
+			}
+
+			return [];
+		});
+		mockRunRepo.listAllByTask.mockImplementation((taskId: string) => {
+			if (taskId === "task-rejected-manual") {
+				return [
+					{
+						...buildRun("completed", "run-manual-completed", "task-run"),
+						taskId: "task-rejected-manual",
+						sessionId: "session-manual-completed",
+					},
+				];
+			}
+
+			return [];
+		});
+
+		const service = new RunService();
+		const result = await service.start({ taskId: "task-rejected-manual" });
+
+		expect(result).toEqual({ runId: "run-manual-completed" });
+		expect(mockSendSessionMessage).toHaveBeenCalledWith(
+			"session-manual-completed",
+			expect.stringContaining("Fix the failing checks"),
+		);
+		expect(mockRunRepo.create).not.toHaveBeenCalled();
+		expect(mockQueueManager.enqueue).not.toHaveBeenCalled();
+		expect(mockRunRepo.update).toHaveBeenCalledWith(
+			"run-manual-completed",
+			expect.objectContaining({
+				status: "running",
+				metadata: expect.objectContaining({
+					lastExecutionStatus: expect.objectContaining({
+						kind: "running",
+						sessionId: "session-manual-completed",
+					}),
+				}),
+			}),
+		);
+	});
+});
+
+describe("RunService.startReadyTasks", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockBoardRepo.getByProjectId.mockReturnValue(buildBoard());
+		mockProjectRepo.getById.mockReturnValue({
+			id: "project-1",
+			name: "Kanban",
+			path: "/tmp/kanban",
+			color: "#111111",
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		});
+		mockVcsManager.hasUncommittedChanges.mockResolvedValue(false);
+		mockSessionManager.inspectSession.mockResolvedValue({
+			probeStatus: "alive",
+			sessionStatus: "idle",
+			messages: [],
+			todos: [],
+			pendingPermissions: [],
+			pendingQuestions: [],
+			completionMarker: null,
+		});
+		mockSendSessionMessage.mockResolvedValue(undefined);
+	});
+
+	it("starts the highest-priority Ready task directly when no working execution session exists", async () => {
+		const readyLow = buildTask({
+			id: "task-low",
+			columnId: "column-ready",
+			status: "pending",
+			priority: "low",
+			orderInColumn: 1,
+			title: "Low task",
+		});
+		const readyUrgent = buildTask({
+			id: "task-urgent",
+			columnId: "column-ready",
+			status: "pending",
+			priority: "urgent",
+			orderInColumn: 2,
+			title: "Urgent task",
+		});
+
+		mockTaskRepo.listByBoard = vi.fn().mockReturnValue([readyLow, readyUrgent]);
+		mockRunRepo.listByTask.mockImplementation((taskId: string) => {
+			if (taskId === "task-low") return [];
+			if (taskId === "task-urgent") return [];
+			return [];
+		});
+
+		const service = new RunService();
+		const startSpy = vi
+			.spyOn(service, "start")
+			.mockResolvedValue({ runId: "run-started" });
+
+		const result = await service.startReadyTasks("project-1");
+
+		expect(startSpy).toHaveBeenCalledWith({ taskId: "task-urgent" });
+		expect(result).toEqual({
+			startedCount: 1,
+			skippedNoRuleCount: 0,
+			skippedActiveRunCount: 0,
+			skippedPostponeCount: 0,
+			taskIds: ["task-urgent"],
+			runIds: ["run-started"],
+		});
+	});
+
+	it("requires force when this project already has a working execution session", async () => {
+		const readyTask = buildTask({
+			id: "task-ready",
+			columnId: "column-ready",
+			status: "pending",
+			priority: "normal",
+			title: "Ready task",
+		});
+		const runningTask = buildTask({
+			id: "task-running",
+			columnId: "column-progress",
+			status: "running",
+			priority: "normal",
+			title: "Running task",
+		});
+
+		mockTaskRepo.listByBoard = vi
+			.fn()
+			.mockReturnValue([readyTask, runningTask]);
+		mockRunRepo.listByTask.mockImplementation((taskId: string) => {
+			if (taskId === "task-ready") {
+				return [];
+			}
+
+			if (taskId === "task-running") {
+				return [
+					{
+						...buildRun("running", "run-busy", "task-run"),
+						taskId: "task-running",
+						sessionId: "session-busy",
+					},
+				];
+			}
+
+			return [];
+		});
+		mockSessionManager.inspectSession.mockResolvedValue({
+			probeStatus: "alive",
+			sessionStatus: "busy",
+			messages: [],
+			todos: [],
+			pendingPermissions: [],
+			pendingQuestions: [],
+			completionMarker: null,
+		});
+
+		const service = new RunService();
+		const startSpy = vi
+			.spyOn(service, "start")
+			.mockResolvedValue({ runId: "run-started" });
+
+		await expect(service.startReadyTasks("project-1")).rejects.toThrow(
+			'ACTIVE_EXECUTION_SESSION: Task "Running task" already has a working execution session in this project. Starting another Ready task may conflict with it.',
+		);
+		expect(startSpy).not.toHaveBeenCalled();
+
+		await expect(service.startReadyTasks("project-1", true)).resolves.toEqual({
+			startedCount: 1,
+			skippedNoRuleCount: 0,
+			skippedActiveRunCount: 0,
+			skippedPostponeCount: 0,
+			taskIds: ["task-ready"],
+			runIds: ["run-started"],
+		});
+	});
+
+	it("still requires active-session confirmation after dirty-git confirmation", async () => {
+		const readyTask = buildTask({
+			id: "task-ready",
+			columnId: "column-ready",
+			status: "pending",
+			priority: "normal",
+			title: "Ready task",
+		});
+		const runningTask = buildTask({
+			id: "task-running",
+			columnId: "column-progress",
+			status: "running",
+			title: "Running task",
+		});
+
+		mockTaskRepo.listByBoard = vi
+			.fn()
+			.mockReturnValue([readyTask, runningTask]);
+		mockRunRepo.listByTask.mockImplementation((taskId: string) => {
+			if (taskId === "task-running") {
+				return [
+					{
+						...buildRun("running", "run-busy", "task-run"),
+						taskId: "task-running",
+						sessionId: "session-busy",
+					},
+				];
+			}
+
+			return [];
+		});
+		mockVcsManager.hasUncommittedChanges.mockResolvedValue(true);
+		mockSessionManager.inspectSession.mockResolvedValue({
+			probeStatus: "alive",
+			sessionStatus: "busy",
+			messages: [],
+			todos: [],
+			pendingPermissions: [],
+			pendingQuestions: [],
+			completionMarker: null,
+		});
+
+		const service = new RunService();
+		const startSpy = vi
+			.spyOn(service, "start")
+			.mockResolvedValue({ runId: "run-started" });
+
+		await expect(service.startReadyTasks("project-1")).rejects.toThrow(
+			"DIRTY_GIT: working tree has uncommitted changes. Commit or stash them first.",
+		);
+		await expect(
+			service.startReadyTasks("project-1", { forceDirtyGit: true }),
+		).rejects.toThrow(
+			'ACTIVE_EXECUTION_SESSION: Task "Running task" already has a working execution session in this project. Starting another Ready task may conflict with it.',
+		);
+		await expect(
+			service.startReadyTasks("project-1", {
+				forceDirtyGit: true,
+				confirmActiveSession: true,
+			}),
+		).resolves.toEqual({
+			startedCount: 1,
+			skippedNoRuleCount: 0,
+			skippedActiveRunCount: 0,
+			skippedPostponeCount: 0,
+			taskIds: ["task-ready"],
+			runIds: ["run-started"],
+		});
+		expect(startSpy).toHaveBeenCalledTimes(1);
+	});
+
+	it("counts a resumed rejected task as started when reusing a completed session", async () => {
+		const rejectedTask = buildTask({
+			id: "task-rejected",
+			columnId: "column-ready",
+			status: "rejected",
+			qaReport: "Fix the failing checks",
+			title: "Rejected task",
+		});
+
+		mockTaskRepo.listByBoard = vi.fn().mockReturnValue([rejectedTask]);
+		mockRunRepo.listByTask.mockImplementation((taskId: string) => {
+			if (taskId === "task-rejected") {
+				return [
+					{
+						...buildRun("completed", "run-completed", "task-run"),
+						taskId: "task-rejected",
+						sessionId: "session-completed",
+					},
+				];
+			}
+
+			return [];
+		});
+		mockRunRepo.listAllByTask.mockImplementation((taskId: string) => {
+			if (taskId === "task-rejected") {
+				return [
+					{
+						...buildRun("completed", "run-completed", "task-run"),
+						taskId: "task-rejected",
+						sessionId: "session-completed",
+					},
+				];
+			}
+
+			return [];
+		});
+
+		const service = new RunService();
+		const startSpy = vi
+			.spyOn(service, "start")
+			.mockResolvedValue({ runId: "run-new" });
+
+		const result = await service.startReadyTasks("project-1");
+
+		expect(mockSendSessionMessage).toHaveBeenCalledWith(
+			"session-completed",
+			expect.stringContaining("This task did not pass QA review. Reasons:"),
+		);
+		expect(mockRunRepo.update).toHaveBeenCalledWith(
+			"run-completed",
+			expect.objectContaining({
+				status: "running",
+				finishedAt: null,
+				errorText: "",
+				metadata: expect.objectContaining({
+					lastExecutionStatus: expect.objectContaining({
+						kind: "running",
+						sessionId: "session-completed",
+					}),
+				}),
+			}),
+		);
+		expect(startSpy).not.toHaveBeenCalled();
+		expect(result).toEqual({
+			startedCount: 1,
+			skippedNoRuleCount: 0,
+			skippedActiveRunCount: 0,
+			skippedPostponeCount: 0,
+			taskIds: ["task-rejected"],
+			runIds: ["run-completed"],
+		});
+	});
+
+	it("reuses an older completed execution session when a newer QA run exists", async () => {
+		const rejectedTask = buildTask({
+			id: "task-rejected",
+			columnId: "column-ready",
+			status: "rejected",
+			qaReport: "Fix the failing checks",
+			title: "Rejected task",
+		});
+
+		mockTaskRepo.listByBoard = vi.fn().mockReturnValue([rejectedTask]);
+		mockRunRepo.listByTask.mockImplementation((taskId: string) => {
+			if (taskId === "task-rejected") {
+				return [
+					{
+						...buildRun("completed", "run-qa", "task-qa-testing"),
+						taskId: "task-rejected",
+						sessionId: "",
+					},
+				];
+			}
+
+			return [];
+		});
+		mockRunRepo.listAllByTask.mockImplementation((taskId: string) => {
+			if (taskId === "task-rejected") {
+				return [
+					{
+						...buildRun("completed", "run-qa", "task-qa-testing"),
+						taskId: "task-rejected",
+						sessionId: "",
+					},
+					{
+						...buildRun("completed", "run-exec", "task-run"),
+						taskId: "task-rejected",
+						sessionId: "session-exec",
+					},
+				];
+			}
+
+			return [];
+		});
+
+		const service = new RunService();
+		const startSpy = vi
+			.spyOn(service, "start")
+			.mockResolvedValue({ runId: "run-new" });
+
+		const result = await service.startReadyTasks("project-1");
+
+		expect(mockSendSessionMessage).toHaveBeenCalledWith(
+			"session-exec",
+			expect.stringContaining("Fix the failing checks"),
+		);
+		expect(mockRunRepo.update).toHaveBeenCalledWith(
+			"run-exec",
+			expect.objectContaining({
+				status: "running",
+				metadata: expect.objectContaining({
+					lastExecutionStatus: expect.objectContaining({
+						kind: "running",
+						sessionId: "session-exec",
+					}),
+				}),
+			}),
+		);
+		expect(startSpy).not.toHaveBeenCalled();
+		expect(result.runIds).toEqual(["run-exec"]);
+	});
+
+	it("includes qaReport in a fresh execution prompt for rejected tasks", async () => {
+		const rejectedTask = buildTask({
+			id: "task-rejected",
+			status: "rejected",
+			qaReport: "Address QA notes before resuming",
+			title: "Rejected task",
+		});
+
+		mockTaskRepo.getById.mockReturnValue(rejectedTask);
+		mockRunRepo.listAllByTask.mockImplementation((taskId: string) => {
+			if (taskId === "task-rejected") {
+				return [];
+			}
+
+			return [];
+		});
+
+		const service = new RunService();
+		await service.start({ taskId: "task-rejected" });
+
+		expect(buildTaskPrompt).toHaveBeenCalledWith(
+			expect.objectContaining({
+				title: "Rejected task",
+				qaReport: "Address QA notes before resuming",
+			}),
+			expect.any(Object),
+			expect.any(Object),
+		);
+	});
+
+	it("ignores session inspection failures when checking project execution risk", async () => {
+		const readyTask = buildTask({
+			id: "task-ready",
+			columnId: "column-ready",
+			status: "pending",
+			title: "Ready task",
+		});
+		const runningTask = buildTask({
+			id: "task-running",
+			columnId: "column-progress",
+			status: "running",
+			title: "Running task",
+		});
+
+		mockTaskRepo.listByBoard = vi
+			.fn()
+			.mockReturnValue([readyTask, runningTask]);
+		mockRunRepo.listByTask.mockImplementation((taskId: string) => {
+			if (taskId === "task-running") {
+				return [
+					{
+						...buildRun("running", "run-busy", "task-run"),
+						taskId: "task-running",
+						sessionId: "session-stale",
+					},
+				];
+			}
+
+			return [];
+		});
+		mockSessionManager.inspectSession.mockRejectedValue(
+			new Error("session not found"),
+		);
+
+		const service = new RunService();
+		const startSpy = vi
+			.spyOn(service, "start")
+			.mockResolvedValue({ runId: "run-started" });
+
+		await expect(service.startReadyTasks("project-1")).resolves.toEqual({
+			startedCount: 1,
+			skippedNoRuleCount: 0,
+			skippedActiveRunCount: 0,
+			skippedPostponeCount: 0,
+			taskIds: ["task-ready"],
+			runIds: ["run-started"],
+		});
+		expect(startSpy).toHaveBeenCalledWith({ taskId: "task-ready" });
 	});
 });
 

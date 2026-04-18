@@ -6,6 +6,7 @@ export type PartType =
 	| "tool"
 	| "reasoning"
 	| "agent"
+	| "subtask"
 	| "step-start"
 	| "snapshot"
 	| "other";
@@ -36,6 +37,7 @@ export interface ToolPart extends PartBase {
 	input?: unknown;
 	output?: unknown;
 	error?: string;
+	metadata?: Record<string, unknown>;
 }
 
 export interface ReasoningPart extends PartBase {
@@ -46,6 +48,24 @@ export interface ReasoningPart extends PartBase {
 export interface AgentPart extends PartBase {
 	type: "agent";
 	name: string;
+	source?: {
+		value: string;
+		start: number;
+		end: number;
+	};
+}
+
+export interface SubtaskPart extends PartBase {
+	type: "subtask";
+	sessionID: string;
+	prompt: string;
+	description: string;
+	agent: string;
+	model?: {
+		providerID: string;
+		modelID: string;
+	};
+	command?: string;
 }
 
 export interface StepStartPart extends PartBase {
@@ -96,9 +116,20 @@ export type Part =
 	| ToolPart
 	| ReasoningPart
 	| AgentPart
+	| SubtaskPart
 	| StepStartPart
 	| SnapshotPart
 	| OtherPart;
+
+export interface MessageTokens {
+	input: number;
+	output: number;
+	reasoning: number;
+	cache: {
+		read: number;
+		write: number;
+	};
+}
 
 export interface OpenCodeMessage {
 	id: string;
@@ -107,6 +138,9 @@ export interface OpenCodeMessage {
 	parts: Part[];
 	timestamp: number;
 	modelID?: string;
+	providerID?: string;
+	variant?: string;
+	tokens?: MessageTokens;
 }
 
 export interface OpenCodeTodo {
@@ -121,6 +155,7 @@ export interface OpencodeModel {
 	enabled: boolean;
 	difficulty: "easy" | "medium" | "hard" | "epic";
 	variants: string;
+	contextLimit?: number;
 }
 
 export interface OpencodeAgent {
@@ -169,6 +204,16 @@ export interface RunVcsMetadata {
 	lastCleanupError?: string;
 }
 
+export interface RunLastExecutionStatus {
+	kind: "completed" | "failed" | "question" | "permission" | "running" | "dead";
+	marker?: "done" | "generated" | "test_ok" | "fail" | "test_fail";
+	content?: string;
+	sessionId?: string;
+	permissionId?: string;
+	questionId?: string;
+	updatedAt: string;
+}
+
 export interface RunMetadata {
 	kind?: string;
 	errorText?: string;
@@ -177,6 +222,7 @@ export interface RunMetadata {
 	tokensOut?: number;
 	costUsd?: number;
 	durationSec?: number;
+	lastExecutionStatus?: RunLastExecutionStatus;
 	vcs?: RunVcsMetadata;
 	[key: string]: unknown;
 }

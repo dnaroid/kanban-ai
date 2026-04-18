@@ -4,6 +4,8 @@ import { runService } from "@/server/run/run-service";
 interface StartReadyTasksBody {
 	projectId?: unknown;
 	force?: unknown;
+	forceDirtyGit?: unknown;
+	confirmActiveSession?: unknown;
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -20,7 +22,13 @@ export async function POST(request: Request): Promise<Response> {
 		}
 
 		const force = body.force === true;
-		const data = await runService.startReadyTasks(projectId, force);
+		const forceDirtyGit = body.forceDirtyGit === true;
+		const confirmActiveSession = body.confirmActiveSession === true;
+		const data = await runService.startReadyTasks(projectId, {
+			force,
+			forceDirtyGit,
+			confirmActiveSession,
+		});
 		return NextResponse.json({ success: true, data });
 	} catch (error) {
 		const message =

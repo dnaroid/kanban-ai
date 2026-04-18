@@ -9,6 +9,7 @@ export const ENABLE_SKILLS_IN_PROMPTS = false;
 interface TaskPromptInput {
 	title: string;
 	description: string | null;
+	qaReport?: string | null;
 }
 
 interface TaskPromptRole {
@@ -49,6 +50,15 @@ export function buildTaskPrompt(
 	const descriptionLine = descriptionDiffersFromTitle
 		? `Description: ${task.description}`
 		: "";
+	const qaReport = normalizeText(task.qaReport);
+	const qaSection = qaReport
+		? [
+				"",
+				"This task is being resumed after QA rejection.",
+				"Address every issue from this QA report before continuing:",
+				task.qaReport,
+			].join("\n")
+		: "";
 
 	return [
 		rolePrompt,
@@ -57,6 +67,7 @@ export function buildTaskPrompt(
 		`TASK: ${task.title}`,
 		"",
 		descriptionLine,
+		qaSection,
 		"",
 		"Project context:",
 		`- Project path: ${project.path}`,
@@ -64,7 +75,7 @@ export function buildTaskPrompt(
 		"",
 		"Requirements:",
 		"1. Complete the task in the project directory.",
-		`2. At the end of your response, output exactly one status line: ${buildOpencodeStatusLine("done")} or ${buildOpencodeStatusLine("fail")} or ${buildOpencodeStatusLine("question")} or ${buildOpencodeStatusLine("test_ok")} or ${buildOpencodeStatusLine("test_fail")}`,
+		`2. At the end of your response, output exactly one status line: ${buildOpencodeStatusLine("done")} or ${buildOpencodeStatusLine("fail")} or ${buildOpencodeStatusLine("question")}`,
 		"3. If the task failed, state the reason before the fail status line.",
 		"4. If you need user input, ask a specific question before the question status line.",
 	].join("\n");
