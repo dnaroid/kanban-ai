@@ -35,6 +35,27 @@ interface BoardScreenProps {
 	projectColor?: string;
 }
 
+export interface ActiveExecutionSessionConfirmationState {
+	message: string;
+	forceDirtyGit: boolean;
+}
+
+export function buildConfirmedReadyStartOptions(
+	confirmation: ActiveExecutionSessionConfirmationState | null,
+): {
+	forceDirtyGit: boolean;
+	confirmActiveSession: true;
+} | null {
+	if (!confirmation) {
+		return null;
+	}
+
+	return {
+		forceDirtyGit: confirmation.forceDirtyGit,
+		confirmActiveSession: true,
+	};
+}
+
 export function BoardScreen({
 	projectId,
 	projectName,
@@ -100,7 +121,7 @@ export function BoardScreen({
 	const [isQuickCreateModalOpen, setIsQuickCreateModalOpen] = useState(false);
 	const [isPushing, setIsPushing] = useState(false);
 	const [activeExecutionSessionConfirm, setActiveExecutionSessionConfirm] =
-		useState<{ message: string; forceDirtyGit: boolean } | null>(null);
+		useState<ActiveExecutionSessionConfirmationState | null>(null);
 
 	const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
 	const [rejectTaskId, setRejectTaskId] = useState<string | null>(null);
@@ -215,6 +236,83 @@ export function BoardScreen({
 		setRejectTaskId(null);
 	};
 
+	const handleReadyStartRequest = async () => {
+		try {
+			await handleStartReadyTasks();
+		} catch (startError) {
+			if (
+				startError instanceof Error &&
+				(startError as Error & { isDirtyGit?: boolean }).isDirtyGit
+			) {
+				setDirtyGitConfirm(true);
+				return;
+			}
+
+			if (
+				startError instanceof Error &&
+				(startError as Error & { isActiveExecutionSessionRisk?: boolean })
+					.isActiveExecutionSessionRisk
+			) {
+				setActiveExecutionSessionConfirm({
+					message: startError.message,
+					forceDirtyGit: false,
+				});
+				return;
+			}
+
+			const message =
+				startError instanceof Error
+					? startError.message
+					: "Failed to start the next Ready task";
+			setSignalErrorConfirm({ isOpen: true, message });
+			addToast(message, "error");
+		}
+	};
+
+	const handleDirtyGitConfirmStart = async () => {
+		try {
+			await handleStartReadyTasks({ forceDirtyGit: true });
+		} catch (forceError) {
+			if (
+				forceError instanceof Error &&
+				(forceError as Error & { isActiveExecutionSessionRisk?: boolean })
+					.isActiveExecutionSessionRisk
+			) {
+				setActiveExecutionSessionConfirm({
+					message: forceError.message,
+					forceDirtyGit: true,
+				});
+				return;
+			}
+
+			const message =
+				forceError instanceof Error
+					? forceError.message
+					: "Failed to start the next Ready task";
+			setSignalErrorConfirm({ isOpen: true, message });
+			addToast(message, "error");
+		}
+	};
+
+	const handleActiveExecutionConfirmStart = async () => {
+		const confirmation = activeExecutionSessionConfirm;
+		const requestOptions = buildConfirmedReadyStartOptions(confirmation);
+		if (!requestOptions) {
+			return;
+		}
+
+		try {
+			await handleStartReadyTasks(requestOptions);
+		} catch (forceError) {
+			const message =
+				forceError instanceof Error
+					? forceError.message
+					: "Failed to start the next Ready task";
+			setSignalErrorConfirm({ isOpen: true, message });
+			addToast(message, "error");
+		}
+	};
+
 	return (
 		<div className="flex flex-col h-full overflow-hidden">
 			<div className="relative z-10 flex items-center justify-between px-8 py-2 border-b border-slate-800/50 bg-slate-900/20 backdrop-blur-md shrink-0">
@@ -290,35 +388,7 @@ export function BoardScreen({
 					<button
 						type="button"
 						onClick={() => {
-							void handleStartReadyTasks().catch((startError) => {
-								if (
-									startError instanceof Error &&
-									(startError as Error & { isDirtyGit?: boolean }).isDirtyGit
-								) {
-									setDirtyGitConfirm(true);
-									return;
-								}
-								if (
-									startError instanceof Error &&
-									(
-										startError as Error & {
-											isActiveExecutionSessionRisk?: boolean;
-										}
-									).isActiveExecutionSessionRisk
-								) {
-									setActiveExecutionSessionConfirm({
-										message: startError.message,
-										forceDirtyGit: false,
-									});
-									return;
-								}
-								const message =
-									startError instanceof Error
-										? startError.message
-										: "Failed to start the next Ready task";
-								setSignalErrorConfirm({ isOpen: true, message });
-								addToast(message, "error");
-							});
+							void handleReadyStartRequest();
 						}}
 						disabled={isQueueingSignalRuns}
 						className={cn(
@@ -535,32 +605,7 @@ export function BoardScreen({
 				<ConfirmationModal
 					isOpen={dirtyGitConfirm}
 					onClose={() => setDirtyGitConfirm(false)}
-					onConfirm={() => {
-						void handleStartReadyTasks({ forceDirtyGit: true }).catch(
-							(forceError) => {
-								if (
-									forceError instanceof Error &&
-									(
-										forceError as Error & {
-											isActiveExecutionSessionRisk?: boolean;
-										}
-									).isActiveExecutionSessionRisk
-								) {
-									setActiveExecutionSessionConfirm({
-										message: forceError.message,
-										forceDirtyGit: true,
-									});
-									return;
-								}
-								const message =
-									forceError instanceof Error
-										? forceError.message
-										: "Failed to start the next Ready task";
-								setSignalErrorConfirm({ isOpen: true, message });
-								addToast(message, "error");
-							},
-						);
-					}}
+					onConfirm={handleDirtyGitConfirmStart}
 					title="Uncommitted Changes Detected"
 					description="The working tree has uncommitted changes. Running tasks with a dirty git state may cause conflicts or data loss. Proceed at your own risk."
 					confirmLabel="Run Anyway"
@@ -571,20 +616,7 @@ export function BoardScreen({
 				<ConfirmationModal
 					isOpen={activeExecutionSessionConfirm !== null}
 					onClose={() => setActiveExecutionSessionConfirm(null)}
-					onConfirm={() => {
-						void handleStartReadyTasks({
-							forceDirtyGit:
-								activeExecutionSessionConfirm?.forceDirtyGit ?? false,
-							confirmActiveSession: true,
-						}).catch((forceError) => {
-							const message =
-								forceError instanceof Error
-									? forceError.message
-									: "Failed to start the next Ready task";
-							setSignalErrorConfirm({ isOpen: true, message });
-							addToast(message, "error");
-						});
-					}}
+					onConfirm={handleActiveExecutionConfirmStart}
 					title="Execution Session Already Running"
 					description={
 						activeExecutionSessionConfirm?.message ||

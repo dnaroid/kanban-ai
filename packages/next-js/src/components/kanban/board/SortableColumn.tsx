@@ -9,9 +9,12 @@ import {
 import { useDndContext } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { AlertCircle, Trash2 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { KanbanTask, Tag } from "@/types/kanban";
 import { cn } from "@/lib/utils";
 import { SortableTask } from "./SortableTask";
+import { getWorkflowIcon } from "../workflow-display";
+import { useWorkflowDisplayConfig } from "../useWorkflowDisplayConfig";
 
 export interface SortableColumnProps {
 	id: string;
@@ -42,6 +45,12 @@ export function SortableColumn({
 	onUpdateTask,
 	onRejectAction,
 }: SortableColumnProps) {
+	const workflowConfig = useWorkflowDisplayConfig();
+	const columnConfig = workflowConfig?.columns.find(
+		(c) => c.systemKey === systemKey,
+	);
+	const ColumnIcon: LucideIcon = getWorkflowIcon(columnConfig?.icon);
+
 	const { active, over } = useDndContext();
 	const isDraggingAnyTask = active?.data.current?.type === "task";
 
@@ -130,6 +139,10 @@ export function SortableColumn({
 									: "opacity-100 translate-x-0 pointer-events-auto",
 							)}
 						>
+							<ColumnIcon
+								className="w-4 h-4 shrink-0"
+								style={color ? { color } : undefined}
+							/>
 							<span className="text-sm font-bold text-slate-200 truncate px-1">
 								{name}
 							</span>
@@ -158,9 +171,10 @@ export function SortableColumn({
 								isMinimized ? "opacity-100 scale-100" : "opacity-0 scale-150",
 							)}
 						>
-							<span className="text-lg font-black text-slate-500/50 uppercase tracking-tighter">
-								{name.charAt(0)}
-							</span>
+							<ColumnIcon
+								className="w-6 h-6"
+								style={color ? { color: `${color}80` } : undefined}
+							/>
 						</div>
 					</div>
 				</div>

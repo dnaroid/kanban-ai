@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { PillSelect } from "@/components/common/PillSelect";
 import { priorityConfig, typeConfig } from "../TaskPropertyConfigs";
 import {
+	getWorkflowIcon,
 	getWorkflowStatusVisual,
 	toneBadgeStyle,
 	toneOverlayStyle,
@@ -129,6 +130,12 @@ function ListColumn({
 		},
 	});
 
+	const workflowConfig = useWorkflowDisplayConfig();
+	const columnConfig = workflowConfig?.columns.find(
+		(c) => c.systemKey === column.systemKey,
+	);
+	const ColumnIcon = getWorkflowIcon(columnConfig?.icon);
+
 	return (
 		<div
 			ref={setNodeRef}
@@ -159,6 +166,10 @@ function ListColumn({
 					<div
 						className="w-3 h-3 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]"
 						style={{ backgroundColor: column.color || "#475569" }}
+					/>
+					<ColumnIcon
+						className="w-4 h-4 shrink-0"
+						style={column.color ? { color: column.color } : undefined}
 					/>
 					<h3 className="font-bold text-slate-200 tracking-tight">
 						{column.name}
