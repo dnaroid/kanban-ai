@@ -156,6 +156,7 @@ export function SortableTask({
 			{...(isDeleting ? {} : { ...attributes, ...listeners })}
 			className={cn(
 				"bg-slate-900/40 backdrop-blur-md border rounded-xl mb-3 group hover:shadow-lg hover:shadow-black/20 cursor-grab active:cursor-grabbing relative z-10 hover:z-20 border-slate-700 hover:border-slate-600",
+				!task.isGenerated && "border-dashed",
 				!isDeleting && "transition-all overflow-visible",
 				isDragging && "opacity-50 shadow-2xl scale-105",
 				isDeleting && "pointer-events-none",

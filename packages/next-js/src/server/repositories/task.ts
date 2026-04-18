@@ -264,30 +264,64 @@ export class TaskRepository {
 	move(id: string, columnId: string, toIndex?: number): Task | null {
 		const now = new Date().toISOString();
 
-		// Get the task to move
 		const task = this.getById(id);
 		if (!task) return null;
 
-		// If no index provided, move to end of column
-		if (toIndex === undefined) {
-			const maxOrderStmt = this.db.prepare(`
-				SELECT COALESCE(MAX(order_in_column), -1) as maxOrder
-				FROM tasks
-				WHERE board_id = ? AND column_id = ?
-			`);
-			const result = maxOrderStmt.get(task.boardId, columnId) as {
-				maxOrder: number;
-			};
-			toIndex = result.maxOrder + 1;
+		const isSameColumn = task.columnId === columnId;
+
+		const siblingsInColumn = (colId: string) =>
+			(
+				this.db
+					.prepare(
+						`SELECT id FROM tasks WHERE board_id = ? AND column_id = ? ORDER BY order_in_column ASC`,
+					)
+					.all(task.boardId, colId) as { id: string }[]
+			).map((r) => r.id);
+
+		const renumber = (ids: string[]) => {
+			const updateStmt = this.db.prepare(
+				`UPDATE tasks SET order_in_column = ?, updated_at = ? WHERE id = ?`,
+			);
+			for (let i = 0; i < ids.length; i++) {
+				updateStmt.run(i, now, ids[i]);
+			}
+		};
+
+		if (isSameColumn) {
+			const ids = siblingsInColumn(columnId);
+			const fromIdx = ids.indexOf(id);
+			if (fromIdx === -1) return null;
+
+			const clampedIndex = Math.max(
+				0,
+				Math.min(toIndex ?? ids.length - 1, ids.length - 1),
+			);
+
+			ids.splice(fromIdx, 1);
+			ids.splice(clampedIndex, 0, id);
+			renumber(ids);
+		} else {
+			const sourceIds = siblingsInColumn(task.columnId);
+			const targetIds = siblingsInColumn(columnId);
+
+			sourceIds.splice(sourceIds.indexOf(id), 1);
+
+			const clampedIndex = Math.max(
+				0,
+				Math.min(toIndex ?? targetIds.length, targetIds.length),
+			);
+
+			targetIds.splice(clampedIndex, 0, id);
+
+			this.db
+				.prepare(
+					`UPDATE tasks SET column_id = ?, order_in_column = ?, updated_at = ? WHERE id = ?`,
+				)
+				.run(columnId, clampedIndex, now, id);
+
+			renumber(sourceIds);
+			renumber(targetIds);
 		}
-
-		const stmt = this.db.prepare(`
-      UPDATE tasks
-      SET column_id = ?, order_in_column = ?, updated_at = ?
-      WHERE id = ?
-    `);
-
-		stmt.run(columnId, toIndex, now, id);
 
 		return this.getById(id);
 	}
