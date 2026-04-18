@@ -1012,6 +1012,7 @@ export class TaskStateMachine {
 			patch.description = parsed.description;
 			patch.descriptionMd = parsed.description;
 			patch.isGenerated = true;
+			patch.modelName = null;
 
 			if (parsed.title) {
 				patch.title = parsed.title;
