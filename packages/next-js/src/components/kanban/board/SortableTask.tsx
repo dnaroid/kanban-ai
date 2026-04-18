@@ -227,7 +227,9 @@ export function SortableTask({
 						disabled={isLoading}
 						className={cn(
 							"inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
-							"text-blue-500/85 hover:text-blue-400 hover:bg-blue-500/10 active:bg-blue-500/20",
+							systemKey === "review"
+								? "text-emerald-400/85 hover:text-emerald-300 hover:bg-emerald-500/10 active:bg-emerald-500/20"
+								: "text-blue-500/85 hover:text-blue-400 hover:bg-blue-500/10 active:bg-blue-500/20",
 							isLoading ? "pointer-events-none opacity-80" : "opacity-90",
 						)}
 						title={actionConfig.label}
