@@ -140,6 +140,7 @@ vi.mock("@/server/opencode/session-store", () => ({
 
 import { RunService } from "@/server/run/run-service";
 import { buildTaskPrompt } from "@/server/run/prompts/task";
+import { publishSseEvent } from "@/server/events/sse-broker";
 
 type TestTask = {
 	id: string;
@@ -541,6 +542,47 @@ describe("RunService.start", () => {
 						branchName: "task/task-1-run-start",
 					}),
 				}),
+			}),
+		);
+	});
+
+	it("moves task to in_progress immediately for fresh run starts", async () => {
+		const pendingReadyTask = buildTask({
+			id: "task-ready",
+			boardId: "board-1",
+			columnId: "column-ready",
+			status: "pending",
+		});
+		const existingRunningTask = buildTask({
+			id: "task-running",
+			boardId: "board-1",
+			columnId: "column-progress",
+			status: "running",
+		});
+		mockTaskRepo.getById.mockReturnValue(pendingReadyTask);
+		mockTaskRepo.listByBoard.mockReturnValue([
+			pendingReadyTask,
+			existingRunningTask,
+		]);
+
+		const service = new RunService();
+		await service.start({ taskId: "task-ready" });
+
+		expect(mockTaskRepo.update).toHaveBeenCalledWith(
+			"task-ready",
+			expect.objectContaining({
+				status: "running",
+				columnId: "column-progress",
+				orderInColumn: 1,
+			}),
+		);
+		expect(publishSseEvent).toHaveBeenCalledWith(
+			"task:event",
+			expect.objectContaining({
+				taskId: "task-ready",
+				eventType: "task:updated",
+				boardId: "board-1",
+				projectId: "project-1",
 			}),
 		);
 	});

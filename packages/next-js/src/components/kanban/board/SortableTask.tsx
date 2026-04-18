@@ -61,7 +61,7 @@ export function SortableTask({
 		},
 	});
 
-	const combinedRef = useCallback(
+	const setCombinedRef = useCallback(
 		(node: HTMLDivElement | null) => {
 			cardRef.current = node;
 			setNodeRef(node);
@@ -74,20 +74,30 @@ export function SortableTask({
 
 		const el = cardRef.current;
 		const { height } = el.getBoundingClientRect();
+		const computedStyle = getComputedStyle(el);
+		const marginBottom = parseFloat(computedStyle.marginBottom);
 
-		// Lock current height explicitly
-		el.style.height = `${height}px`;
-		el.style.overflow = "hidden";
-
-		// Force reflow so the browser registers the starting height
-		el.offsetHeight; // eslint-disable-line @typescript-eslint/no-unused-expressions
-
-		// Trigger collapse animation
-		el.style.transition =
-			"height 1000ms ease-in-out, opacity 1000ms ease-in-out, margin-bottom 1000ms ease-in-out";
-		el.style.height = "0px";
-		el.style.opacity = "0";
-		el.style.marginBottom = "0px";
+		el.animate(
+			[
+				{
+					height: `${height}px`,
+					opacity: 1,
+					marginBottom: `${marginBottom}px`,
+					overflow: "hidden",
+				},
+				{
+					height: "0px",
+					opacity: 0,
+					marginBottom: "0px",
+					overflow: "hidden",
+				},
+			],
+			{
+				duration: 1000,
+				easing: "ease-in-out",
+				fill: "forwards",
+			},
+		);
 	}, [isDeleting]);
 
 	const statusVisual = task.status
@@ -97,9 +107,7 @@ export function SortableTask({
 
 	const style = {
 		transform: CSS.Transform.toString(transform),
-		transition: isDeleting
-			? "height 1000ms ease-in-out, opacity 1000ms ease-in-out, margin-bottom 1000ms ease-in-out"
-			: transition,
+		transition,
 		borderColor: statusBadge?.borderColor,
 	};
 
@@ -141,7 +149,7 @@ export function SortableTask({
 
 	return (
 		<div
-			ref={combinedRef}
+			ref={setCombinedRef}
 			style={style}
 			{...(isDeleting ? {} : { ...attributes, ...listeners })}
 			className={cn(
@@ -149,9 +157,13 @@ export function SortableTask({
 				"border-slate-700 hover:border-slate-600",
 				isDragging && "opacity-50 shadow-2xl scale-105",
 				isDeleting && "pointer-events-none overflow-hidden",
-				task.status === "running" && "animate-card-pulse-blue",
-				task.status === "generating" && "animate-card-pulse-purple",
-				task.status === "question" && "animate-card-pulse-yellow",
+				task.status === "running" && !isDeleting && "animate-card-pulse-blue",
+				task.status === "generating" &&
+					!isDeleting &&
+					"animate-card-pulse-purple",
+				task.status === "question" &&
+					!isDeleting &&
+					"animate-card-pulse-yellow",
 			)}
 		>
 			{statusVisual && (

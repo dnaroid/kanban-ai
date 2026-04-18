@@ -2892,6 +2892,41 @@ export class RunsQueueManager {
 		});
 	}
 
+	private transitionTaskToInProgress(task: Task): void {
+		const board =
+			boardRepo.getById(task.boardId) ??
+			boardRepo.getByProjectId(task.projectId);
+
+		if (board) {
+			const inProgressColumnId = getWorkflowColumnIdBySystemKey(
+				board,
+				"in_progress",
+			);
+			if (inProgressColumnId) {
+				const existingInColumn = taskRepo
+					.listByBoard(board.id)
+					.filter((item) => item.columnId === inProgressColumnId).length;
+				taskRepo.update(task.id, {
+					status: "running",
+					columnId: inProgressColumnId,
+					orderInColumn: existingInColumn,
+				});
+			} else {
+				taskRepo.update(task.id, { status: "running" });
+			}
+		} else {
+			taskRepo.update(task.id, { status: "running" });
+		}
+
+		publishSseEvent("task:event", {
+			taskId: task.id,
+			boardId: task.boardId,
+			projectId: task.projectId,
+			eventType: "task:updated",
+			updatedAt: new Date().toISOString(),
+		});
+	}
+
 	private listAllTaskRuns(taskId: string): Run[] {
 		const repository = runRepo as typeof runRepo & {
 			listAllByTask?: (taskId: string) => Run[];
@@ -3131,6 +3166,8 @@ export class RunsQueueManager {
 				return;
 			}
 		}
+
+		this.transitionTaskToInProgress(task);
 
 		this.enqueue(queuedExecutionRun.id, {
 			projectPath: executionProjectPath,

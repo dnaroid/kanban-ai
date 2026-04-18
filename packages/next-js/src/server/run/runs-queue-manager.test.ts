@@ -340,6 +340,7 @@ import {
 	RunsQueueManager,
 	isNetworkError,
 } from "@/server/run/runs-queue-manager";
+import { publishSseEvent } from "@/server/events/sse-broker";
 
 function buildTask(
 	taskId: string,
@@ -2263,6 +2264,59 @@ describe("RunsQueueManager permission handling", () => {
 						sessionId: "session-existing",
 					}),
 				}),
+			}),
+		);
+	});
+
+	it("moves a freshly queued next task to in_progress immediately", async () => {
+		mockBoardRepo.getById.mockReturnValue({
+			id: "board-1",
+			projectId: "project-1",
+			name: "Board",
+			columns: [
+				{ id: "ready-col", name: "Ready", systemKey: "ready" },
+				{ id: "column-1", name: "In Progress", systemKey: "in_progress" },
+			],
+		});
+
+		taskMap.set("merged-task", {
+			...buildTask("merged-task", "normal", "done"),
+			boardId: "board-1",
+			columnId: "closed-col",
+		});
+		taskMap.set("running-task", {
+			...buildTask("running-task", "normal", "running"),
+			boardId: "board-1",
+			columnId: "column-1",
+		});
+		taskMap.set("next-ready-task", {
+			...buildTask("next-ready-task", "urgent", "pending"),
+			boardId: "board-1",
+			columnId: "ready-col",
+			orderInColumn: 0,
+		});
+
+		const manager = new RunsQueueManager();
+		await (
+			manager as unknown as {
+				enqueueExecutionForNextTask: (taskId: string) => Promise<void>;
+			}
+		).enqueueExecutionForNextTask("next-ready-task");
+
+		expect(taskMap.get("next-ready-task")).toEqual(
+			expect.objectContaining({
+				status: "running",
+				columnId: "column-1",
+				orderInColumn: 1,
+			}),
+		);
+		expect(publishSseEvent).toHaveBeenCalledWith(
+			"task:event",
+			expect.objectContaining({
+				taskId: "next-ready-task",
+				eventType: "task:updated",
+				boardId: "board-1",
+				projectId: "project-1",
 			}),
 		);
 	});

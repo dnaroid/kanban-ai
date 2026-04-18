@@ -8,6 +8,7 @@ import { publishSseEvent } from "@/server/events/sse-broker";
 import type { SessionStartPreferences } from "@/server/opencode/session-manager";
 import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
 import { publishRunUpdate } from "@/server/run/run-publisher";
+import { getWorkflowColumnIdBySystemKey } from "@/server/run/task-state-machine";
 import type { QueueStats } from "@/server/run/runs-queue-manager";
 import { getRunsQueueManager } from "@/server/run/runs-queue-manager";
 import { contextSnapshotRepo } from "@/server/repositories/context-snapshot";
@@ -303,6 +304,7 @@ export class RunService {
 			runId: run.id,
 			projectPath: executionProjectPath,
 		});
+		this.transitionTaskToInProgress(task);
 		this.queueManager.enqueue(run.id, {
 			projectPath: executionProjectPath,
 			projectId: project.id,
@@ -334,6 +336,45 @@ export class RunService {
 
 		log.info("Run enqueued", { runId: run.id });
 		return { runId: run.id };
+	}
+
+	private transitionTaskToInProgress(task: {
+		id: string;
+		boardId: string;
+		projectId: string;
+	}): void {
+		const board =
+			boardRepo.getById(task.boardId) ??
+			boardRepo.getByProjectId(task.projectId);
+
+		if (board) {
+			const inProgressColumnId = getWorkflowColumnIdBySystemKey(
+				board,
+				"in_progress",
+			);
+			if (inProgressColumnId) {
+				const existingInColumn = taskRepo
+					.listByBoard(board.id)
+					.filter((item) => item.columnId === inProgressColumnId).length;
+				taskRepo.update(task.id, {
+					status: "running",
+					columnId: inProgressColumnId,
+					orderInColumn: existingInColumn,
+				});
+			} else {
+				taskRepo.update(task.id, { status: "running" });
+			}
+		} else {
+			taskRepo.update(task.id, { status: "running" });
+		}
+
+		publishSseEvent("task:event", {
+			taskId: task.id,
+			boardId: task.boardId,
+			projectId: task.projectId,
+			eventType: "task:updated",
+			updatedAt: new Date().toISOString(),
+		});
 	}
 
 	public async merge(runId: string): Promise<{ run: Run }> {
