@@ -16,7 +16,7 @@ import {
 	Play,
 	Upload,
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { SortableColumn } from "./kanban/board/SortableColumn";
 import { SortableTask } from "./kanban/board/SortableTask";
 import { ListView, ListItemView } from "./kanban/board/ListView";
@@ -120,6 +120,7 @@ export function BoardScreen({
 
 	const [isQuickCreateModalOpen, setIsQuickCreateModalOpen] = useState(false);
 	const [isPushing, setIsPushing] = useState(false);
+	const [hasUnpushedCommits, setHasUnpushedCommits] = useState(true);
 	const [activeExecutionSessionConfirm, setActiveExecutionSessionConfirm] =
 		useState<ActiveExecutionSessionConfirmationState | null>(null);
 
@@ -130,6 +131,21 @@ export function BoardScreen({
 	useEffect(() => {
 		localStorage.setItem("boardViewMode", viewMode);
 	}, [viewMode]);
+
+	const refreshGitStatus = useCallback(() => {
+		api.git
+			.status({ projectId })
+			.then(({ aheadCount }) => {
+				setHasUnpushedCommits(aheadCount > 0);
+			})
+			.catch(() => {
+				setHasUnpushedCommits(true);
+			});
+	}, [projectId]);
+
+	useEffect(() => {
+		refreshGitStatus();
+	}, [refreshGitStatus]);
 
 	useEffect(() => {
 		if (viewMode !== "list") return;
@@ -218,6 +234,12 @@ export function BoardScreen({
 		);
 
 	const firstColumnId = columns[0]?.id;
+	const readyColumnId = columns.find((col) => col.systemKey === "ready")?.id;
+	const hasReadyTasks = readyColumnId
+		? tasks.some((t) => t.columnId === readyColumnId)
+		: false;
+	const startReadyDisabled = isQueueingSignalRuns || !hasReadyTasks;
+	const pushDisabled = isPushing || !hasUnpushedCommits;
 
 	const handleOpenRejectModal = (taskId: string) => {
 		const task = tasks.find((t) => t.id === taskId);
@@ -390,14 +412,20 @@ export function BoardScreen({
 						onClick={() => {
 							void handleReadyStartRequest();
 						}}
-						disabled={isQueueingSignalRuns}
+						disabled={startReadyDisabled}
 						className={cn(
 							"flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all",
-							isQueueingSignalRuns
+							startReadyDisabled
 								? "bg-slate-800 text-slate-500 cursor-not-allowed"
 								: "bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-900/20",
 						)}
-						title="Start the next Ready task"
+						title={
+							isQueueingSignalRuns
+								? "Starting..."
+								: !hasReadyTasks
+									? "No tasks in Ready column"
+									: "Start the next Ready task"
+						}
 					>
 						<Play className="w-4 h-4" />
 						{isQueueingSignalRuns ? "Starting..." : "Start Ready"}
@@ -420,16 +448,23 @@ export function BoardScreen({
 								})
 								.finally(() => {
 									setIsPushing(false);
+									refreshGitStatus();
 								});
 						}}
-						disabled={isPushing}
+						disabled={pushDisabled}
 						className={cn(
 							"flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all",
-							isPushing
+							pushDisabled
 								? "bg-slate-800 text-slate-500 cursor-not-allowed"
 								: "bg-slate-700 text-slate-200 hover:bg-slate-600",
 						)}
-						title="Push current branch to origin"
+						title={
+							isPushing
+								? "Pushing..."
+								: !hasUnpushedCommits
+									? "Nothing to push"
+									: "Push current branch to origin"
+						}
 					>
 						<Upload className="w-4 h-4" />
 						{isPushing ? "Pushing..." : "Push"}

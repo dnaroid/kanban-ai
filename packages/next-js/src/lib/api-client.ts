@@ -1222,6 +1222,25 @@ class ApiClient {
 			const payload = await response.json();
 			return this.unwrapApiData<{ success: boolean; output?: string }>(payload);
 		},
+		status: async ({
+			projectId,
+		}: {
+			projectId: string;
+		}): Promise<{ aheadCount: number }> => {
+			const query = new URLSearchParams({ projectId });
+			const response = await fetch(
+				`${this.baseUrl}/api/git/status?${query.toString()}`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to get git status",
+				);
+				throw new Error(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ aheadCount: number }>(payload);
+		},
 	};
 
 	readonly database = {

@@ -461,6 +461,21 @@ export class VcsManager {
 		return output.length > 0;
 	}
 
+	public async getAheadCount(projectPath: string): Promise<number> {
+		const repoRoot = await this.resolveRepoRoot(projectPath);
+		try {
+			const raw = await this.git(repoRoot, [
+				"rev-list",
+				"--count",
+				"@{upstream}..HEAD",
+			]);
+			const parsed = Number.parseInt(raw, 10);
+			return Number.isFinite(parsed) ? parsed : 0;
+		} catch {
+			return 0;
+		}
+	}
+
 	private async hasStagedChanges(projectPath: string): Promise<boolean> {
 		const output = await this.git(projectPath, [
 			"diff",
