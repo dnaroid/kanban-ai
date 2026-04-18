@@ -27,7 +27,9 @@ const {
 	},
 	mockRunRepo: {
 		listByTask: vi.fn(),
+		listAllByTask: vi.fn(),
 		create: vi.fn(),
+		delete: vi.fn(),
 		getById: vi.fn(),
 		update: vi.fn(),
 	},
@@ -136,6 +138,7 @@ vi.mock("@/server/opencode/session-store", () => ({
 }));
 
 import { RunService } from "@/server/run/run-service";
+import { buildTaskPrompt } from "@/server/run/prompts/task";
 
 type TestTask = {
 	id: string;
@@ -256,6 +259,7 @@ describe("RunService.generateUserStory", () => {
 			...updates,
 		}));
 		mockRunRepo.listByTask.mockReturnValue([]);
+		mockRunRepo.listAllByTask.mockReturnValue([]);
 		mockRunRepo.create.mockReturnValue(buildRun("queued", "run-new"));
 		const roles = [
 			{ id: "ba", name: "Business Analyst" },
@@ -807,6 +811,19 @@ describe("RunService.startReadyTasks", () => {
 
 			return [];
 		});
+		mockRunRepo.listAllByTask.mockImplementation((taskId: string) => {
+			if (taskId === "task-rejected") {
+				return [
+					{
+						...buildRun("completed", "run-completed", "task-run"),
+						taskId: "task-rejected",
+						sessionId: "session-completed",
+					},
+				];
+			}
+
+			return [];
+		});
 
 		const service = new RunService();
 		const startSpy = vi
@@ -828,6 +845,86 @@ describe("RunService.startReadyTasks", () => {
 			taskIds: ["task-rejected"],
 			runIds: ["run-completed"],
 		});
+	});
+
+	it("reuses an older completed execution session when a newer QA run exists", async () => {
+		const rejectedTask = buildTask({
+			id: "task-rejected",
+			columnId: "column-ready",
+			status: "rejected",
+			qaReport: "Fix the failing checks",
+			title: "Rejected task",
+		});
+
+		mockTaskRepo.listByBoard = vi.fn().mockReturnValue([rejectedTask]);
+		mockRunRepo.listByTask.mockImplementation((taskId: string) => {
+			if (taskId === "task-rejected") {
+				return [
+					{
+						...buildRun("completed", "run-qa", "task-qa-testing"),
+						taskId: "task-rejected",
+						sessionId: "",
+					},
+				];
+			}
+
+			return [];
+		});
+		mockRunRepo.listAllByTask.mockImplementation((taskId: string) => {
+			if (taskId === "task-rejected") {
+				return [
+					{
+						...buildRun("completed", "run-qa", "task-qa-testing"),
+						taskId: "task-rejected",
+						sessionId: "",
+					},
+					{
+						...buildRun("completed", "run-exec", "task-run"),
+						taskId: "task-rejected",
+						sessionId: "session-exec",
+					},
+				];
+			}
+
+			return [];
+		});
+
+		const service = new RunService();
+		const startSpy = vi
+			.spyOn(service, "start")
+			.mockResolvedValue({ runId: "run-new" });
+
+		const result = await service.startReadyTasks("project-1");
+
+		expect(mockSendSessionMessage).toHaveBeenCalledWith(
+			"session-exec",
+			expect.stringContaining("Fix the failing checks"),
+		);
+		expect(startSpy).not.toHaveBeenCalled();
+		expect(result.runIds).toEqual(["run-exec"]);
+	});
+
+	it("includes qaReport in a fresh execution prompt for rejected tasks", async () => {
+		const rejectedTask = buildTask({
+			id: "task-rejected",
+			status: "rejected",
+			qaReport: "Address QA notes before resuming",
+			title: "Rejected task",
+		});
+
+		mockTaskRepo.getById.mockReturnValue(rejectedTask);
+
+		const service = new RunService();
+		await service.start({ taskId: "task-rejected" });
+
+		expect(buildTaskPrompt).toHaveBeenCalledWith(
+			expect.objectContaining({
+				title: "Rejected task",
+				qaReport: "Address QA notes before resuming",
+			}),
+			expect.any(Object),
+			expect.any(Object),
+		);
 	});
 
 	it("ignores session inspection failures when checking project execution risk", async () => {

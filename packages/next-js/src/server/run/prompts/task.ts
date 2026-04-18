@@ -9,6 +9,7 @@ export const ENABLE_SKILLS_IN_PROMPTS = false;
 interface TaskPromptInput {
 	title: string;
 	description: string | null;
+	qaReport?: string | null;
 }
 
 interface TaskPromptRole {
@@ -49,6 +50,15 @@ export function buildTaskPrompt(
 	const descriptionLine = descriptionDiffersFromTitle
 		? `Description: ${task.description}`
 		: "";
+	const qaReport = normalizeText(task.qaReport);
+	const qaSection = qaReport
+		? [
+				"",
+				"This task is being resumed after QA rejection.",
+				"Address every issue from this QA report before continuing:",
+				task.qaReport,
+			].join("\n")
+		: "";
 
 	return [
 		rolePrompt,
@@ -57,6 +67,7 @@ export function buildTaskPrompt(
 		`TASK: ${task.title}`,
 		"",
 		descriptionLine,
+		qaSection,
 		"",
 		"Project context:",
 		`- Project path: ${project.path}`,

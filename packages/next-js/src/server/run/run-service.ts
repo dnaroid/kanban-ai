@@ -312,6 +312,7 @@ export class RunService {
 				{
 					title: task.title,
 					description: task.description,
+					qaReport: task.qaReport,
 				},
 				{
 					id: project.id,
@@ -810,9 +811,10 @@ export class RunService {
 			}
 
 			if (taskToStart.status === "rejected" && taskToStart.qaReport) {
-				const runs = runRepo.listByTask(taskToStart.id);
+				const runs = this.listAllTaskRuns(taskToStart.id);
 				const completedRun = runs.find(
 					(r) =>
+						this.isExecutionRun(r) &&
 						r.status === "completed" &&
 						r.sessionId &&
 						r.sessionId.trim().length > 0,
