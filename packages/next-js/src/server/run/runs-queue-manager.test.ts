@@ -2178,4 +2178,65 @@ describe("RunsQueueManager permission handling", () => {
 			expect.objectContaining({ trigger: "run:question" }),
 		);
 	});
+
+	it("reuses the previous rejected-task session for post-merge auto-start", async () => {
+		mockBoardRepo.getById.mockReturnValue({
+			id: "board-1",
+			projectId: "project-1",
+			name: "Board",
+			columns: [
+				{ id: "ready-col", name: "Ready", systemKey: "ready" },
+				{ id: "column-1", name: "In Progress", systemKey: "in_progress" },
+			],
+		});
+
+		taskMap.set("merged-task", {
+			...buildTask("merged-task", "normal", "done"),
+			boardId: "board-1",
+			columnId: "closed-col",
+		});
+		taskMap.set("rejected-task", {
+			...buildTask("rejected-task", "normal", "rejected"),
+			boardId: "board-1",
+			columnId: "ready-col",
+			qaReport: "Fix the QA findings",
+		});
+		runMap.set("run-completed", {
+			...buildRun(
+				"run-completed",
+				"rejected-task",
+				"execution",
+				new Date().toISOString(),
+			),
+			status: "completed",
+			sessionId: "session-existing",
+		});
+
+		const manager = new RunsQueueManager();
+		await manager.startNextReadyTaskAfterMerge("merged-task");
+
+		expect(mockSessionManager.sendPrompt).toHaveBeenCalledWith(
+			"session-existing",
+			expect.stringContaining("Fix the QA findings"),
+		);
+		expect(mockRunRepo.create).not.toHaveBeenCalled();
+		expect(taskMap.get("rejected-task")).toEqual(
+			expect.objectContaining({
+				status: "running",
+				columnId: "column-1",
+				qaReport: null,
+			}),
+		);
+		expect(runMap.get("run-completed")).toEqual(
+			expect.objectContaining({
+				status: "running",
+				metadata: expect.objectContaining({
+					lastExecutionStatus: expect.objectContaining({
+						kind: "running",
+						sessionId: "session-existing",
+					}),
+				}),
+			}),
+		);
+	});
 });

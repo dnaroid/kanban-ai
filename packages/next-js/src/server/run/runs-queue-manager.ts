@@ -1,5 +1,8 @@
 import { createLogger } from "@/lib/logger";
-import { extractOpencodeStatus } from "@/lib/opencode-status";
+import {
+	buildOpencodeStatusLine,
+	extractOpencodeStatus,
+} from "@/lib/opencode-status";
 import { buildTaskPrompt } from "@/server/run/prompts/task";
 import type {
 	PermissionData,
@@ -2098,7 +2101,9 @@ export class RunsQueueManager {
 			},
 		});
 
-		this.tryFillTaskModelFromSession(run.taskId, inspection);
+		if (!this.isGenerationRun(run)) {
+			this.tryFillTaskModelFromSession(run.taskId, inspection);
+		}
 
 		switch (meta.kind) {
 			case "completed":
@@ -2703,6 +2708,10 @@ export class RunsQueueManager {
 				boardId: mergedTask.boardId,
 			});
 
+			if (await this.resumeRejectedTaskRun(nextTask)) {
+				return;
+			}
+
 			await this.enqueueExecutionForNextTask(nextTask.id);
 		} catch (error) {
 			log.error("startNextReadyTaskAfterMerge: failed", {
@@ -2878,6 +2887,114 @@ export class RunsQueueManager {
 				},
 			),
 		});
+	}
+
+	private listAllTaskRuns(taskId: string): Run[] {
+		const repository = runRepo as typeof runRepo & {
+			listAllByTask?: (taskId: string) => Run[];
+		};
+
+		if (typeof repository.listAllByTask === "function") {
+			return repository.listAllByTask(taskId);
+		}
+
+		return repository.listByTask(taskId);
+	}
+
+	private isExecutionRun(run: Run): boolean {
+		return (run.metadata?.kind ?? "task-run") === "task-run";
+	}
+
+	private async resumeRejectedTaskRun(task: Task): Promise<boolean> {
+		if (task.status !== "rejected" || !task.qaReport) {
+			return false;
+		}
+
+		const completedRun = this.listAllTaskRuns(task.id).find(
+			(run) =>
+				this.isExecutionRun(run) &&
+				run.status === "completed" &&
+				typeof run.sessionId === "string" &&
+				run.sessionId.trim().length > 0,
+		);
+		if (!completedRun?.sessionId) {
+			return false;
+		}
+
+		const board =
+			boardRepo.getById(task.boardId) ??
+			boardRepo.getByProjectId(task.projectId);
+		if (!board) {
+			return false;
+		}
+
+		const qaMessage = [
+			"",
+			"This task did not pass QA review. Reasons:",
+			task.qaReport,
+			"",
+			"Fix ALL issues listed above. Do NOT skip any item.",
+			"",
+			`When done, output exactly one status line: ${buildOpencodeStatusLine("done")} or ${buildOpencodeStatusLine("fail")} or ${buildOpencodeStatusLine("question")}`,
+		].join("\n");
+
+		await this.sessionManager.sendPrompt(completedRun.sessionId, qaMessage);
+
+		const resumedAt = new Date().toISOString();
+		const resumedRun = runRepo.update(completedRun.id, {
+			status: "running",
+			startedAt: resumedAt,
+			finishedAt: null,
+			errorText: "",
+			metadata: {
+				...(completedRun.metadata ?? {}),
+				lastExecutionStatus: {
+					kind: "running",
+					sessionId: completedRun.sessionId,
+					updatedAt: resumedAt,
+				},
+			},
+		});
+
+		const inProgressColumnId = getWorkflowColumnIdBySystemKey(
+			board,
+			"in_progress",
+		);
+		if (inProgressColumnId) {
+			const existingInColumn = taskRepo
+				.listByBoard(board.id)
+				.filter((item) => item.columnId === inProgressColumnId).length;
+			taskRepo.update(task.id, {
+				status: "running",
+				columnId: inProgressColumnId,
+				orderInColumn: existingInColumn,
+				qaReport: null,
+			});
+		} else {
+			taskRepo.update(task.id, {
+				status: "running",
+				qaReport: null,
+			});
+		}
+
+		runEventRepo.create({
+			runId: resumedRun.id,
+			eventType: "status",
+			payload: {
+				status: "running",
+				message: "Execution run resumed after QA rejection",
+			},
+		});
+		publishRunUpdate(resumedRun);
+		publishSseEvent("task:event", {
+			taskId: task.id,
+			boardId: task.boardId,
+			projectId: task.projectId,
+			eventType: "task:updated",
+			updatedAt: resumedAt,
+		});
+
+		return true;
 	}
 
 	private async enqueueExecutionForNextTask(taskId: string): Promise<void> {
@@ -3144,19 +3261,6 @@ export class RunsQueueManager {
 		}
 
 		return repository.listByTask(taskId)[0] ?? null;
-	}
-
-	private listAllTaskRuns(taskId: string): Run[] {
-		const repository = runRepo as {
-			listAllByTask?: (taskId: string) => Run[];
-			listByTask: (taskId: string) => Run[];
-		};
-
-		if (typeof repository.listAllByTask === "function") {
-			return repository.listAllByTask(taskId);
-		}
-
-		return repository.listByTask(taskId);
 	}
 
 	private deleteRunHistory(runId: string): void {

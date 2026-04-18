@@ -1453,6 +1453,7 @@ class ApiClient {
 	async getTasks(boardId: string): Promise<KanbanTask[]> {
 		const response = await fetch(
 			`${this.baseUrl}/api/tasks?boardId=${boardId}`,
+			{ cache: "no-store" },
 		);
 		if (!response.ok) throw new Error("Failed to fetch tasks");
 		const payload = await response.json();
@@ -1469,7 +1470,9 @@ class ApiClient {
 	}
 
 	async getTask(id: string): Promise<KanbanTask | null> {
-		const response = await fetch(`${this.baseUrl}/api/tasks/${id}`);
+		const response = await fetch(`${this.baseUrl}/api/tasks/${id}`, {
+			cache: "no-store",
+		});
 		if (!response.ok) return null;
 		const payload = await response.json();
 		const task = this.unwrapApiData<
