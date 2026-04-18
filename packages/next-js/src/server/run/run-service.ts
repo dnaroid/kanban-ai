@@ -187,6 +187,11 @@ export class RunService {
 			return { runId: activeRun.id };
 		}
 
+		const resumedRun = await this.resumeRejectedTaskRun(task);
+		if (resumedRun) {
+			return resumedRun;
+		}
+
 		const availableRoles = roleRepo.listWithPresets();
 		const taskTags = this.parseTaskTags(task.tags);
 		const assignedRoleId = this.resolveAssignedRoleIdFromTags(taskTags);
@@ -810,97 +815,10 @@ export class RunService {
 				}
 			}
 
-			if (taskToStart.status === "rejected" && taskToStart.qaReport) {
-				const runs = this.listAllTaskRuns(taskToStart.id);
-				const completedRun = runs.find(
-					(r) =>
-						this.isExecutionRun(r) &&
-						r.status === "completed" &&
-						r.sessionId &&
-						r.sessionId.trim().length > 0,
-				);
-
-				if (completedRun && completedRun.sessionId) {
-					const qaMessage = [
-						"",
-						"This task did not pass QA review. Reasons:",
-						taskToStart.qaReport,
-						"",
-						"Fix ALL issues listed above. Do NOT skip any item.",
-						"",
-						`When done, output exactly one status line: ${buildOpencodeStatusLine("done")} or ${buildOpencodeStatusLine("fail")} or ${buildOpencodeStatusLine("question")}`,
-					].join("\n");
-
-					try {
-						await sendSessionMessage(completedRun.sessionId, qaMessage);
-
-						const resumedAt = new Date().toISOString();
-						runRepo.update(completedRun.id, {
-							status: "running",
-							startedAt: resumedAt,
-							finishedAt: null,
-							errorText: "",
-							metadata: {
-								...(completedRun.metadata ?? {}),
-								lastExecutionStatus: {
-									kind: "running",
-									sessionId: completedRun.sessionId,
-									updatedAt: resumedAt,
-								},
-							},
-						});
-
-						const inProgressColumn = board.columns.find(
-							(col) => col.systemKey === "in_progress",
-						);
-						if (inProgressColumn) {
-							const existingInColumn = taskRepo
-								.listByBoard(board.id)
-								.filter((t) => t.columnId === inProgressColumn.id).length;
-							taskRepo.update(taskToStart.id, {
-								status: "running",
-								columnId: inProgressColumn.id,
-								orderInColumn: existingInColumn,
-								qaReport: null,
-							});
-						} else {
-							taskRepo.update(taskToStart.id, {
-								status: "running",
-								qaReport: null,
-							});
-						}
-
-						publishSseEvent("task:event", {
-							taskId: taskToStart.id,
-							boardId: taskToStart.boardId,
-							projectId: taskToStart.projectId,
-							eventType: "task:updated",
-							updatedAt: new Date().toISOString(),
-						});
-
-						taskIds.push(taskToStart.id);
-						runIds.push(completedRun.id);
-					} catch (sessionError) {
-						log.warn(
-							"Failed to reuse completed run session for rejected task, starting new run",
-							{
-								taskId: taskToStart.id,
-								sessionId: completedRun.sessionId,
-								error:
-									sessionError instanceof Error
-										? sessionError.message
-										: String(sessionError),
-							},
-						);
-						const started = await this.start({ taskId: taskToStart.id });
-						taskIds.push(taskToStart.id);
-						runIds.push(started.runId);
-					}
-				} else {
-					const started = await this.start({ taskId: taskToStart.id });
-					taskIds.push(taskToStart.id);
-					runIds.push(started.runId);
-				}
+			const resumedRun = await this.resumeRejectedTaskRun(taskToStart);
+			if (resumedRun) {
+				taskIds.push(taskToStart.id);
+				runIds.push(resumedRun.runId);
 			} else {
 				const started = await this.start({ taskId: taskToStart.id });
 				taskIds.push(taskToStart.id);
@@ -1195,6 +1113,110 @@ export class RunService {
 		}
 
 		return repository.listByTask(taskId);
+	}
+
+	private async resumeRejectedTaskRun(task: {
+		id: string;
+		boardId: string;
+		projectId: string;
+		status: string;
+		columnId: string;
+		qaReport: string | null;
+	}): Promise<{ runId: string } | null> {
+		if (task.status !== "rejected" || !task.qaReport) {
+			return null;
+		}
+
+		const completedRun = this.listAllTaskRuns(task.id).find(
+			(run) =>
+				this.isExecutionRun(run) &&
+				run.status === "completed" &&
+				typeof run.sessionId === "string" &&
+				run.sessionId.trim().length > 0,
+		);
+		if (!completedRun?.sessionId) {
+			return null;
+		}
+
+		const board =
+			boardRepo.getById(task.boardId) ??
+			boardRepo.getByProjectId(task.projectId);
+		if (!board) {
+			return null;
+		}
+
+		const qaMessage = [
+			"",
+			"This task did not pass QA review. Reasons:",
+			task.qaReport,
+			"",
+			"Fix ALL issues listed above. Do NOT skip any item.",
+			"",
+			`When done, output exactly one status line: ${buildOpencodeStatusLine("done")} or ${buildOpencodeStatusLine("fail")} or ${buildOpencodeStatusLine("question")}`,
+		].join("\n");
+
+		try {
+			await sendSessionMessage(completedRun.sessionId, qaMessage);
+		} catch (sessionError) {
+			log.warn(
+				"Failed to reuse completed run session for rejected task, starting new run",
+				{
+					taskId: task.id,
+					sessionId: completedRun.sessionId,
+					error:
+						sessionError instanceof Error
+							? sessionError.message
+							: String(sessionError),
+				},
+			);
+			return null;
+		}
+
+		const resumedAt = new Date().toISOString();
+		runRepo.update(completedRun.id, {
+			status: "running",
+			startedAt: resumedAt,
+			finishedAt: null,
+			errorText: "",
+			metadata: {
+				...(completedRun.metadata ?? {}),
+				lastExecutionStatus: {
+					kind: "running",
+					sessionId: completedRun.sessionId,
+					updatedAt: resumedAt,
+				},
+			},
+		});
+
+		const inProgressColumn = board.columns.find(
+			(column) => column.systemKey === "in_progress",
+		);
+		if (inProgressColumn) {
+			const existingInColumn = taskRepo
+				.listByBoard(board.id)
+				.filter((item) => item.columnId === inProgressColumn.id).length;
+			taskRepo.update(task.id, {
+				status: "running",
+				columnId: inProgressColumn.id,
+				orderInColumn: existingInColumn,
+				qaReport: null,
+			});
+		} else {
+			taskRepo.update(task.id, {
+				status: "running",
+				qaReport: null,
+			});
+		}
+
+		publishSseEvent("task:event", {
+			taskId: task.id,
+			boardId: task.boardId,
+			projectId: task.projectId,
+			eventType: "task:updated",
+			updatedAt: new Date().toISOString(),
+		});
+
+		return { runId: completedRun.id };
 	}
 
 	private deleteRunHistory(runId: string): void {

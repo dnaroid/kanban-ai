@@ -2098,6 +2098,8 @@ export class RunsQueueManager {
 			},
 		});
 
+		this.tryFillTaskModelFromSession(run.taskId, inspection);
+
 		switch (meta.kind) {
 			case "completed":
 			case "failed": {
@@ -3407,6 +3409,39 @@ export class RunsQueueManager {
 
 		const ageMs = Date.now() - finishedMs;
 		return ageMs >= 0 && ageMs <= lateCompletionRecoveryWindowMs;
+	}
+
+	private tryFillTaskModelFromSession(
+		taskId: string,
+		inspection: SessionInspectionResult,
+	): void {
+		const task = taskRepo.getById(taskId);
+		if (!task || (task.modelName && task.modelName.trim().length > 0)) {
+			return;
+		}
+
+		const assistantMsg = inspection.messages.find(
+			(msg) =>
+				msg.role === "assistant" &&
+				msg.modelID &&
+				msg.modelID.trim().length > 0 &&
+				msg.providerID &&
+				msg.providerID.trim().length > 0,
+		);
+		if (!assistantMsg) {
+			return;
+		}
+
+		const modelName = `${assistantMsg.providerID}/${assistantMsg.modelID}`;
+		const fullModelName = assistantMsg.variant
+			? `${modelName}#${assistantMsg.variant}`
+			: modelName;
+
+		taskRepo.update(taskId, { modelName: fullModelName });
+		log.info("Auto-filled task model from session", {
+			taskId,
+			modelName: fullModelName,
+		});
 	}
 }
 

@@ -33,6 +33,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 	const [activeProject, setActiveProject] = useState<{
 		id: string;
 		name: string;
+		color?: string;
 	} | null>(null);
 	const router = useRouter();
 	const pathname = usePathname();
@@ -47,7 +48,11 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 				try {
 					const project = await api.getProject(projectId);
 					if (project) {
-						setActiveProject({ id: project.id, name: project.name });
+						setActiveProject({
+							id: project.id,
+							name: project.name,
+							color: project.color,
+						});
 						localStorage.setItem(LAST_PROJECT_ID_KEY, project.id);
 					}
 				} catch (error) {
@@ -63,7 +68,11 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 					if (lastProjectId) {
 						const project = await api.getProject(lastProjectId);
 						if (project) {
-							setActiveProject({ id: project.id, name: project.name });
+							setActiveProject({
+								id: project.id,
+								name: project.name,
+								color: project.color,
+							});
 							localStorage.setItem(LAST_PROJECT_ID_KEY, project.id);
 						}
 					}
@@ -76,8 +85,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 		loadActiveProject();
 	}, [pathname]);
 
-	const handleProjectSelect = (id: string, name: string) => {
-		setActiveProject({ id, name });
+	const handleProjectSelect = (id: string, name: string, color?: string) => {
+		setActiveProject({ id, name, color });
 		localStorage.setItem(LAST_PROJECT_ID_KEY, id);
 		router.push(`/board/${id}`);
 	};

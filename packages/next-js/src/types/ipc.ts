@@ -117,6 +117,8 @@ export interface OpenCodeMessage {
 	parts: Part[];
 	timestamp: number;
 	modelID?: string;
+	providerID?: string;
+	variant?: string;
 	tokens?: MessageTokens;
 }
 

@@ -1,25 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
 	ChevronLeft,
 	ChevronRight,
-	FolderKanban,
 	Layout,
 	LogOut,
 	Settings,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { LAST_PROJECT_ID_KEY } from "@/components/ClientLayout";
 import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 import { api } from "@/lib/api-client";
+import type { Project } from "@/server/types";
 
 interface SidebarProps {
 	isSidebarCollapsed: boolean;
 	onToggleSidebar: () => void;
-	activeProject: { id: string; name: string } | null;
-	onProjectSelect?: (id: string, name: string) => void;
+	activeProject: { id: string; name: string; color?: string } | null;
+	onProjectSelect?: (id: string, name: string, color?: string) => void;
 }
 
 export function Sidebar({
@@ -36,6 +35,19 @@ export function Sidebar({
 	const [busySessionCount, setBusySessionCount] = useState(0);
 	const [queuedRunCount, setQueuedRunCount] = useState(0);
 	const [runningRunCount, setRunningRunCount] = useState(0);
+	const [projects, setProjects] = useState<Project[]>([]);
+
+	useEffect(() => {
+		api
+			.getProjects()
+			.then((data) => {
+				const sorted = [...data].sort((a, b) =>
+					a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+				);
+				setProjects(sorted);
+			})
+			.catch((err) => console.error("Failed to load projects", err));
+	}, []);
 
 	const handleQuitClick = async () => {
 		const queueStatsPromise = api.run.queueStats().catch(() => null);
@@ -63,23 +75,7 @@ export function Sidebar({
 		setIsQuitModalOpen(true);
 	};
 
-	const navItems = [
-		{
-			id: "projects",
-			label: "Projects",
-			icon: FolderKanban,
-			path: "/projects",
-		},
-	];
-
-	const getCurrentScreenId = () => {
-		if (pathname.startsWith("/projects")) return "projects";
-		if (pathname.startsWith("/board")) return "projects";
-		if (pathname.startsWith("/settings")) return "settings";
-		return "projects";
-	};
-
-	const currentScreenId = getCurrentScreenId();
+	const isSettingsScreen = pathname.startsWith("/settings");
 
 	return (
 		<aside
@@ -129,58 +125,64 @@ export function Sidebar({
 				</button>
 			</div>
 
-			<nav
-				className={`flex-1 ${isSidebarCollapsed ? "p-2" : "p-4"} space-y-1 mt-4`}
-			>
-				{navItems.map((item) => {
-					const Icon = item.icon;
-					const isActive = currentScreenId === item.id;
-
-					return (
-						<button
-							key={item.id}
-							type="button"
-							onClick={() => {
-								if (item.id === "projects") {
-									const lastProjectId =
-										localStorage.getItem(LAST_PROJECT_ID_KEY);
-									if (lastProjectId && pathname !== `/board/${lastProjectId}`) {
-										router.push(`/board/${lastProjectId}`);
-										return;
-									}
-								}
-								router.push(item.path);
-							}}
-							className={cn(
-								"flex items-center rounded-xl transition-all duration-200 group",
-								isSidebarCollapsed
-									? "justify-center w-12 h-12"
-									: "gap-3 px-4 py-3 w-full",
-								isActive
-									? "bg-blue-600/10 text-blue-400 ring-1 ring-inset ring-blue-500/20"
-									: "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200",
-							)}
-							title={item.label}
-						>
-							<Icon
-								className={cn(
-									"transition-transform duration-200",
-									isSidebarCollapsed ? "w-6 h-6" : "w-5 h-5",
-									isActive
-										? "text-blue-400"
-										: "text-slate-500 group-hover:text-slate-300",
-								)}
-							/>
-							{!isSidebarCollapsed && (
-								<span className="font-medium">{item.label}</span>
-							)}
-						</button>
-					);
-				})}
-			</nav>
+			{projects.length > 0 && (
+				<div
+					className={cn(
+						"flex-1 min-h-0 overflow-y-auto border-t border-slate-800/50",
+						isSidebarCollapsed ? "px-2 py-2" : "px-4 py-2",
+					)}
+				>
+					{!isSidebarCollapsed && (
+						<div className="mb-2 px-3">
+							<span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+								Projects
+							</span>
+						</div>
+					)}
+					<div className="space-y-0.5">
+						{projects.map((project) => {
+							const isActive = activeProject?.id === project.id;
+							return (
+								<button
+									key={project.id}
+									type="button"
+									onClick={() => {
+										if (!isActive) {
+											router.push(`/board/${project.id}`);
+										}
+									}}
+									title={isSidebarCollapsed ? project.name : undefined}
+									className={cn(
+										"flex items-center rounded-xl transition-all duration-200 w-full group",
+										isSidebarCollapsed
+											? "justify-center w-12 h-10 mx-auto"
+											: "gap-2.5 px-3 py-2",
+										isActive
+											? "bg-blue-600/10 text-blue-400 ring-1 ring-inset ring-blue-500/20"
+											: "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200",
+									)}
+								>
+									<div
+										className={cn(
+											"rounded-full shrink-0",
+											isSidebarCollapsed ? "w-4 h-4" : "w-3 h-3",
+										)}
+										style={{ backgroundColor: project.color || "#64748b" }}
+									/>
+									{!isSidebarCollapsed && (
+										<span className="text-sm font-medium truncate text-left">
+											{project.name}
+										</span>
+									)}
+								</button>
+							);
+						})}
+					</div>
+				</div>
+			)}
 
 			<div
-				className={`border-t border-slate-800/50 ${isSidebarCollapsed ? "p-2" : "p-4"}`}
+				className={`shrink-0 border-t border-slate-800/50 ${isSidebarCollapsed ? "p-2" : "p-4"}`}
 			>
 				<div className="flex flex-col gap-1">
 					<button
@@ -193,7 +195,7 @@ export function Sidebar({
 							isSidebarCollapsed
 								? "justify-center w-12 h-12"
 								: "gap-3 px-4 py-3 w-full",
-							currentScreenId === "settings"
+							isSettingsScreen
 								? "bg-blue-600/10 text-blue-400 ring-1 ring-inset ring-blue-500/20"
 								: "text-slate-500 hover:bg-slate-800/50 hover:text-slate-300",
 						)}
@@ -202,7 +204,7 @@ export function Sidebar({
 						<Settings
 							className={cn(
 								isSidebarCollapsed ? "w-6 h-6" : "w-5 h-5",
-								currentScreenId === "settings"
+								isSettingsScreen
 									? "text-blue-400"
 									: "text-slate-500 group-hover:text-slate-300",
 							)}

@@ -42,6 +42,7 @@ const {
 		getById: vi.fn(),
 	},
 	mockBoardRepo: {
+		getById: vi.fn(),
 		getByProjectId: vi.fn(),
 	},
 	mockContextSnapshotRepo: {
@@ -276,6 +277,7 @@ describe("RunService.generateUserStory", () => {
 			createdAt: new Date().toISOString(),
 			updatedAt: new Date().toISOString(),
 		});
+		mockBoardRepo.getById.mockReturnValue(buildBoard());
 		mockBoardRepo.getByProjectId.mockReturnValue(buildBoard());
 		mockVcsManager.hasUncommittedChanges.mockResolvedValue(false);
 		mockSessionManager.inspectSession.mockResolvedValue({
@@ -450,6 +452,7 @@ describe("RunService.start", () => {
 		mockTaskRepo.getById.mockReturnValue(buildTask());
 		mockTaskRepo.listByBoard = vi.fn().mockReturnValue([]);
 		mockRunRepo.listByTask.mockReturnValue([]);
+		mockRunRepo.listAllByTask.mockReturnValue([]);
 		mockRoleRepo.listWithPresets.mockReturnValue([
 			{ id: "dev", name: "Developer", preset_json: "{}" },
 		]);
@@ -580,6 +583,67 @@ describe("RunService.start", () => {
 			}),
 		);
 		expect(mockQueueManager.enqueue).not.toHaveBeenCalled();
+	});
+
+	it("reuses the same completed session when manually starting a rejected task", async () => {
+		const rejectedTask = buildTask({
+			id: "task-rejected-manual",
+			boardId: "board-1",
+			columnId: "column-ready",
+			status: "rejected",
+			qaReport: "Fix the failing checks",
+			title: "Rejected task",
+		});
+		mockTaskRepo.getById.mockReturnValue(rejectedTask);
+		mockRunRepo.listByTask.mockImplementation((taskId: string) => {
+			if (taskId === "task-rejected-manual") {
+				return [
+					{
+						...buildRun("completed", "run-manual-completed", "task-run"),
+						taskId: "task-rejected-manual",
+						sessionId: "session-manual-completed",
+					},
+				];
+			}
+
+			return [];
+		});
+		mockRunRepo.listAllByTask.mockImplementation((taskId: string) => {
+			if (taskId === "task-rejected-manual") {
+				return [
+					{
+						...buildRun("completed", "run-manual-completed", "task-run"),
+						taskId: "task-rejected-manual",
+						sessionId: "session-manual-completed",
+					},
+				];
+			}
+
+			return [];
+		});
+
+		const service = new RunService();
+		const result = await service.start({ taskId: "task-rejected-manual" });
+
+		expect(result).toEqual({ runId: "run-manual-completed" });
+		expect(mockSendSessionMessage).toHaveBeenCalledWith(
+			"session-manual-completed",
+			expect.stringContaining("Fix the failing checks"),
+		);
+		expect(mockRunRepo.create).not.toHaveBeenCalled();
+		expect(mockQueueManager.enqueue).not.toHaveBeenCalled();
+		expect(mockRunRepo.update).toHaveBeenCalledWith(
+			"run-manual-completed",
+			expect.objectContaining({
+				status: "running",
+				metadata: expect.objectContaining({
+					lastExecutionStatus: expect.objectContaining({
+						kind: "running",
+						sessionId: "session-manual-completed",
+					}),
+				}),
+			}),
+		);
 	});
 });
 
@@ -939,6 +1003,13 @@ describe("RunService.startReadyTasks", () => {
 		});
 
 		mockTaskRepo.getById.mockReturnValue(rejectedTask);
+		mockRunRepo.listAllByTask.mockImplementation((taskId: string) => {
+			if (taskId === "task-rejected") {
+				return [];
+			}
+
+			return [];
+		});
 
 		const service = new RunService();
 		await service.start({ taskId: "task-rejected" });

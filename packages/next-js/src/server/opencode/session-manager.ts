@@ -1187,6 +1187,8 @@ export class OpencodeSessionManager {
 			timestamp: createdAt,
 			parts,
 			modelID: asString(info.modelID) ?? undefined,
+			providerID: asString(info.providerID) ?? undefined,
+			variant: asString(info.variant) ?? undefined,
 			tokens: this.normalizeTokens(info.tokens),
 		};
 	}
