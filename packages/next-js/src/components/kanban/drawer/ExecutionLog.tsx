@@ -323,13 +323,16 @@ export function ExecutionLog({
 
 	const handleJumpToEnd = () => {
 		if (scrollRef.current) {
-			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+			scrollRef.current.scrollTo({
+				top: scrollRef.current.scrollHeight,
+				behavior: "smooth",
+			});
 		}
 	};
 
 	const handleJumpToTop = () => {
 		if (scrollRef.current) {
-			scrollRef.current.scrollTop = 0;
+			scrollRef.current.scrollTo({ top: 0, behavior: "smooth" });
 		}
 	};
 
