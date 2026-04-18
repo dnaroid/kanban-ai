@@ -13,7 +13,7 @@ export const OPENCODE_STATUS_VALUES = [
 export type OpencodeStatus = (typeof OPENCODE_STATUS_VALUES)[number];
 
 export const OPENCODE_STATUS_REGEX = new RegExp(
-	`^${OPENCODE_STATUS_TOKEN}(${OPENCODE_STATUS_VALUES.join("|")})$`,
+	`^(?:.+?:\\s*)?${OPENCODE_STATUS_TOKEN}(${OPENCODE_STATUS_VALUES.join("|")})$`,
 	"i",
 );
 

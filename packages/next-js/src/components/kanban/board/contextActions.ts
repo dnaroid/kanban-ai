@@ -1,7 +1,7 @@
 import {
 	CheckCircle,
-	Clock,
 	GitMerge,
+	Play,
 	Square,
 	Sparkles,
 	XCircle,
@@ -30,8 +30,8 @@ export const CONTEXT_ACTION_MAP: Record<
 		label: "Generate User Story",
 	},
 	ready: {
-		icon: Clock,
-		label: "Defer Task",
+		icon: Play,
+		label: "Run",
 	},
 	deferred: {
 		icon: CheckCircle,

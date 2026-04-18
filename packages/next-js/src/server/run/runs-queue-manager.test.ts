@@ -1621,6 +1621,60 @@ describe("RunsQueueManager scheduling", () => {
 		});
 	});
 
+	it("handles prompt-style prefixed generated markers during polling and strips the label", async () => {
+		taskMap.set("task-prefixed-marker", {
+			...buildTask("task-prefixed-marker", "normal", "generating"),
+			updatedAt: new Date(Date.now() - 60_000).toISOString(),
+		});
+		runMap.set("run-settled-prefixed-marker", {
+			...buildRun(
+				"run-settled-prefixed-marker",
+				"task-prefixed-marker",
+				"generation",
+				"2026-01-01T00:00:00.000Z",
+			),
+			status: "completed",
+			sessionId: "session-settled-prefixed-marker",
+			startedAt: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
+			finishedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+		});
+
+		mockSessionManager.inspectSession.mockResolvedValue(
+			buildInspection({
+				marker: "generated",
+				messages: [
+					{
+						id: "msg-prefixed",
+						role: "assistant",
+						content: [
+							'<META>{"type":"feature"}</META>',
+							"<STORY>",
+							"## Title",
+							"Prefixed marker story",
+							"</STORY>",
+							`success: ${buildOpencodeStatusLine("generated")}`,
+						].join("\n"),
+						parts: [],
+						timestamp: Date.now(),
+					},
+				],
+			}),
+		);
+
+		const manager = new RunsQueueManager();
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
+
+		expectTransitionCall("generate:ok", {
+			outcomeContent: [
+				'<META>{"type":"feature"}</META>',
+				"<STORY>",
+				"## Title",
+				"Prefixed marker story",
+				"</STORY>",
+			].join("\n"),
+		});
+	});
+
 	it("anchors extracted content to the completion marker message even if later assistant text exists", async () => {
 		taskMap.set(
 			"task-marker-anchor",

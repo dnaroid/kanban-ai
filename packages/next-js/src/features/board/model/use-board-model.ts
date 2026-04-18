@@ -1070,17 +1070,9 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 					break;
 				}
 				case "ready": {
-					const targetColumn = findColumnBySystemKey("deferred");
-					if (!targetColumn) {
-						addToast("Deferred column not found", "error");
-						return;
-					}
-					const newIndex = tasks.filter(
-						(task) => task.columnId === targetColumn.id,
-					).length;
-					await api.moveTask(taskId, targetColumn.id, newIndex);
+					await api.run.start({ taskId });
 					await refreshBoardTasksFromServer();
-					addToast("Task moved to Deferred", "success");
+					addToast("Run started", "success");
 					break;
 				}
 				case "deferred": {
