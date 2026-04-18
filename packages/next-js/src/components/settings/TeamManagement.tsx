@@ -860,7 +860,7 @@ export function TeamManagement() {
 											setPreferredModelName(event.target.value);
 											setPreferredModelVariant("");
 										}}
-										className="w-full bg-slate-900/60 border border-slate-800/80 text-sm text-slate-100 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+										className="w-full bg-slate-900/60 border border-slate-800/80 text-sm text-slate-100 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer hover:border-slate-700 transition-colors"
 									>
 										<option value="">(default)</option>
 										{enabledModels.map((model) => (
@@ -885,7 +885,7 @@ export function TeamManagement() {
 											setPreferredModelVariant(event.target.value)
 										}
 										disabled={!preferredModelName || modelVariants.length === 0}
-										className="w-full bg-slate-900/60 border border-slate-800/80 text-sm text-slate-100 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
+										className="w-full bg-slate-900/60 border border-slate-800/80 text-sm text-slate-100 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:border-slate-700 transition-colors"
 									>
 										<option value="">(default)</option>
 										{modelVariants.map((variant) => (
@@ -909,7 +909,7 @@ export function TeamManagement() {
 										onChange={(event) =>
 											setPreferredLlmAgent(event.target.value)
 										}
-										className="w-full bg-slate-900/60 border border-slate-800/80 text-sm text-slate-100 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+										className="w-full bg-slate-900/60 border border-slate-800/80 text-sm text-slate-100 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer hover:border-slate-700 transition-colors"
 									>
 										<option value="">(default)</option>
 										{agentsCatalog.map((agent) => (

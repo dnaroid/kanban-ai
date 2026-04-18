@@ -179,7 +179,7 @@ export function DangerZoneSettings({
 							<select
 								value={selectedProjectId}
 								onChange={(event) => setSelectedProjectId(event.target.value)}
-								className="w-full max-w-xs bg-[#0B0E14]/80 border border-red-900/30 text-sm text-red-200/80 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500/20 transition-all appearance-none"
+								className="w-full max-w-xs bg-[#0B0E14]/80 border border-red-900/30 text-sm text-red-200/80 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500/20 transition-all appearance-none cursor-pointer hover:border-red-900/50"
 							>
 								<option value="">Select project to destroy</option>
 								{projects.map((project) => (
