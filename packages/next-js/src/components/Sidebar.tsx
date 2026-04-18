@@ -116,7 +116,7 @@ export function Sidebar({
 					type="button"
 					onClick={onToggleSidebar}
 					className={cn(
-						"p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all duration-200",
+						"p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all duration-200 cursor-pointer",
 					)}
 				>
 					{isSidebarCollapsed ? (
@@ -211,7 +211,7 @@ export function Sidebar({
 							router.push("/settings");
 						}}
 						className={cn(
-							"w-full flex items-center rounded-xl transition-all duration-200 group",
+							"w-full flex items-center rounded-xl transition-all duration-200 group cursor-pointer",
 							isSidebarCollapsed
 								? "justify-center w-12 h-12"
 								: "gap-3 px-4 py-3 w-full",
