@@ -283,20 +283,30 @@ class ApiClient {
 		startReadyTasks: async ({
 			projectId,
 			force,
+			forceDirtyGit,
+			confirmActiveSession,
 		}: {
 			projectId: string;
 			force?: boolean;
+			forceDirtyGit?: boolean;
+			confirmActiveSession?: boolean;
 		}): Promise<{
 			startedCount: number;
 			skippedNoRuleCount: number;
 			skippedActiveRunCount: number;
+			skippedPostponeCount: number;
 			taskIds: string[];
 			runIds: string[];
 		}> => {
 			const response = await fetch(`${this.baseUrl}/api/run/startReadyTasks`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ projectId, force: force ?? false }),
+				body: JSON.stringify({
+					projectId,
+					force: force ?? false,
+					forceDirtyGit: forceDirtyGit ?? false,
+					confirmActiveSession: confirmActiveSession ?? false,
+				}),
 			});
 			if (!response.ok) {
 				const message = await this.getErrorMessage(
@@ -310,6 +320,7 @@ class ApiClient {
 				startedCount: number;
 				skippedNoRuleCount: number;
 				skippedActiveRunCount: number;
+				skippedPostponeCount: number;
 				taskIds: string[];
 				runIds: string[];
 			}>(payload);

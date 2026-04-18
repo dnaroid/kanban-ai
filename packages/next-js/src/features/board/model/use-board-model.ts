@@ -801,18 +801,39 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 		}
 	};
 
-	const handleStartReadyTasks = async (force = false) => {
+	const handleStartReadyTasks = async (options?: {
+		force?: boolean;
+		forceDirtyGit?: boolean;
+		confirmActiveSession?: boolean;
+	}) => {
+		const requestOptions = options ?? {};
 		setIsQueueingSignalRuns(true);
 		try {
-			const result = await api.run.startReadyTasks({ projectId, force });
+			const result = await api.run.startReadyTasks({
+				projectId,
+				force: requestOptions.force,
+				forceDirtyGit: requestOptions.forceDirtyGit,
+				confirmActiveSession: requestOptions.confirmActiveSession,
+			});
 			await refreshBoardTasksFromServer();
-			addToast("Tasks queued for execution", "success");
+
+			if (result.startedCount > 0) {
+				addToast("Started the next Ready task", "success");
+			} else if (result.skippedActiveRunCount > 0) {
+				addToast(
+					"No Ready task was started because an execution run is already active for the available task.",
+					"info",
+				);
+			} else {
+				addToast("No Ready task available to start", "info");
+			}
+
 			return result;
 		} catch (startError) {
 			const message =
 				startError instanceof Error
 					? startError.message
-					: "Failed to queue runs";
+					: "Failed to start the next Ready task";
 
 			if (message.startsWith("DIRTY_GIT:")) {
 				throw Object.assign(new Error(message.replace("DIRTY_GIT: ", "")), {
@@ -820,8 +841,17 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 				});
 			}
 
-			console.error("Failed to queue runs:", startError);
-			addToast("Failed to queue tasks", "error");
+			if (message.startsWith("ACTIVE_EXECUTION_SESSION:")) {
+				throw Object.assign(
+					new Error(message.replace("ACTIVE_EXECUTION_SESSION: ", "")),
+					{
+						isActiveExecutionSessionRisk: true,
+					},
+				);
+			}
+
+			console.error("Failed to start the next Ready task:", startError);
+			addToast("Failed to start the next Ready task", "error");
 			throw new Error(message);
 		} finally {
 			setIsQueueingSignalRuns(false);

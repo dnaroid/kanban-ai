@@ -99,6 +99,8 @@ export function BoardScreen({
 
 	const [isQuickCreateModalOpen, setIsQuickCreateModalOpen] = useState(false);
 	const [isPushing, setIsPushing] = useState(false);
+	const [activeExecutionSessionConfirm, setActiveExecutionSessionConfirm] =
+		useState<{ message: string; forceDirtyGit: boolean } | null>(null);
 
 	const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
 	const [rejectTaskId, setRejectTaskId] = useState<string | null>(null);
@@ -288,7 +290,7 @@ export function BoardScreen({
 					<button
 						type="button"
 						onClick={() => {
-							void handleStartReadyTasks(false).catch((startError) => {
+							void handleStartReadyTasks().catch((startError) => {
 								if (
 									startError instanceof Error &&
 									(startError as Error & { isDirtyGit?: boolean }).isDirtyGit
@@ -296,10 +298,24 @@ export function BoardScreen({
 									setDirtyGitConfirm(true);
 									return;
 								}
+								if (
+									startError instanceof Error &&
+									(
+										startError as Error & {
+											isActiveExecutionSessionRisk?: boolean;
+										}
+									).isActiveExecutionSessionRisk
+								) {
+									setActiveExecutionSessionConfirm({
+										message: startError.message,
+										forceDirtyGit: false,
+									});
+									return;
+								}
 								const message =
 									startError instanceof Error
 										? startError.message
-										: "Failed to queue tasks";
+										: "Failed to start the next Ready task";
 								setSignalErrorConfirm({ isOpen: true, message });
 								addToast(message, "error");
 							});
@@ -311,10 +327,10 @@ export function BoardScreen({
 								? "bg-slate-800 text-slate-500 cursor-not-allowed"
 								: "bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-900/20",
 						)}
-						title="Queue ready tasks for execution"
+						title="Start the next Ready task"
 					>
 						<Play className="w-4 h-4" />
-						{isQueueingSignalRuns ? "Queueing..." : "Execute Queue"}
+						{isQueueingSignalRuns ? "Starting..." : "Start Ready"}
 					</button>
 					<button
 						type="button"
@@ -510,7 +526,7 @@ export function BoardScreen({
 					title="Workflow Engine Error"
 					description={
 						signalErrorConfirm.message ||
-						"An error occurred while queueing tasks by signal."
+						"An error occurred while starting the next Ready task."
 					}
 					confirmLabel="Close"
 					variant="danger"
@@ -520,18 +536,61 @@ export function BoardScreen({
 					isOpen={dirtyGitConfirm}
 					onClose={() => setDirtyGitConfirm(false)}
 					onConfirm={() => {
-						void handleStartReadyTasks(true).catch((forceError) => {
-							const message =
-								forceError instanceof Error
-									? forceError.message
-									: "Failed to queue tasks";
-							setSignalErrorConfirm({ isOpen: true, message });
-							addToast(message, "error");
-						});
+						void handleStartReadyTasks({ forceDirtyGit: true }).catch(
+							(forceError) => {
+								if (
+									forceError instanceof Error &&
+									(
+										forceError as Error & {
+											isActiveExecutionSessionRisk?: boolean;
+										}
+									).isActiveExecutionSessionRisk
+								) {
+									setActiveExecutionSessionConfirm({
+										message: forceError.message,
+										forceDirtyGit: true,
+									});
+									return;
+								}
+								const message =
+									forceError instanceof Error
+										? forceError.message
+										: "Failed to start the next Ready task";
+								setSignalErrorConfirm({ isOpen: true, message });
+								addToast(message, "error");
+							},
+						);
 					}}
 					title="Uncommitted Changes Detected"
 					description="The working tree has uncommitted changes. Running tasks with a dirty git state may cause conflicts or data loss. Proceed at your own risk."
 					confirmLabel="Run Anyway"
+					cancelLabel="Cancel"
+					variant="warning"
+				/>
+
+				<ConfirmationModal
+					isOpen={activeExecutionSessionConfirm !== null}
+					onClose={() => setActiveExecutionSessionConfirm(null)}
+					onConfirm={() => {
+						void handleStartReadyTasks({
+							forceDirtyGit:
+								activeExecutionSessionConfirm?.forceDirtyGit ?? false,
+							confirmActiveSession: true,
+						}).catch((forceError) => {
+							const message =
+								forceError instanceof Error
+									? forceError.message
+									: "Failed to start the next Ready task";
+							setSignalErrorConfirm({ isOpen: true, message });
+							addToast(message, "error");
+						});
+					}}
+					title="Execution Session Already Running"
+					description={
+						activeExecutionSessionConfirm?.message ||
+						"This project already has a working execution session. Starting another Ready task can create conflicts."
+					}
+					confirmLabel="Start Anyway"
 					cancelLabel="Cancel"
 					variant="warning"
 				/>

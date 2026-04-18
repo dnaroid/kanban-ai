@@ -65,9 +65,23 @@ interface StartRunsBySignalResult {
 	runIds: string[];
 }
 
+interface ProjectExecutionSessionRisk {
+	taskId: string;
+	taskTitle: string;
+	runId: string;
+	sessionId: string;
+}
+
+interface StartReadyTasksOptions {
+	force?: boolean;
+	forceDirtyGit?: boolean;
+	confirmActiveSession?: boolean;
+}
+
 export class RunService {
 	private readonly queueManager = getRunsQueueManager();
 	private readonly vcsManager = getVcsManager();
+	private readonly sessionManager = getOpencodeSessionManager();
 
 	private static resolveStoryLanguage(): StoryLanguage {
 		const raw = process.env.STORY_LANGUAGE?.trim().toLowerCase();
@@ -697,8 +711,17 @@ export class RunService {
 
 	public async startReadyTasks(
 		projectId: string,
-		force?: boolean,
+		options?: boolean | StartReadyTasksOptions,
 	): Promise<StartRunsBySignalResult> {
+		const normalizedOptions =
+			typeof options === "boolean" ? { force: options } : (options ?? {});
+		const skipDirtyGitCheck =
+			normalizedOptions.force === true ||
+			normalizedOptions.forceDirtyGit === true;
+		const skipActiveSessionConfirm =
+			normalizedOptions.force === true ||
+			normalizedOptions.confirmActiveSession === true;
+
 		const board = boardRepo.getByProjectId(projectId);
 		if (!board) {
 			throw new Error(`Board not found for project: ${projectId}`);
@@ -742,7 +765,7 @@ export class RunService {
 		}
 
 		const project = projectRepo.getById(projectId);
-		if (project?.path && !force) {
+		if (project?.path && !skipDirtyGitCheck) {
 			const hasChanges = await this.vcsManager.hasUncommittedChanges(
 				project.path,
 			);
@@ -775,6 +798,17 @@ export class RunService {
 		}
 
 		if (taskToStart) {
+			if (!skipActiveSessionConfirm) {
+				const activeSessionRisk = await this.findProjectExecutionSessionRisk(
+					board.id,
+				);
+				if (activeSessionRisk) {
+					throw new Error(
+						`ACTIVE_EXECUTION_SESSION: Task "${activeSessionRisk.taskTitle}" already has a working execution session in this project. Starting another Ready task may conflict with it.`,
+					);
+				}
+			}
+
 			if (taskToStart.status === "rejected" && taskToStart.qaReport) {
 				const runs = runRepo.listByTask(taskToStart.id);
 				const completedRun = runs.find(
@@ -827,6 +861,7 @@ export class RunService {
 						});
 
 						taskIds.push(taskToStart.id);
+						runIds.push(completedRun.id);
 					} catch (sessionError) {
 						log.warn(
 							"Failed to reuse completed run session for rejected task, starting new run",
@@ -863,6 +898,62 @@ export class RunService {
 			taskIds,
 			runIds,
 		};
+	}
+
+	private async findProjectExecutionSessionRisk(
+		boardId: string,
+	): Promise<ProjectExecutionSessionRisk | null> {
+		const projectTasks = taskRepo.listByBoard(boardId);
+
+		for (const task of projectTasks) {
+			const activeExecutionRuns = runRepo.listByTask(task.id).filter((run) => {
+				return (
+					this.isExecutionRun(run) &&
+					activeExecutionRunStatuses.has(run.status) &&
+					typeof run.sessionId === "string" &&
+					run.sessionId.trim().length > 0
+				);
+			});
+
+			for (const run of activeExecutionRuns) {
+				let inspection: Awaited<
+					ReturnType<typeof this.sessionManager.inspectSession>
+				>;
+				try {
+					inspection = await this.sessionManager.inspectSession(run.sessionId);
+				} catch (error) {
+					log.warn(
+						"Failed to inspect execution session while checking Ready-task start risk",
+						{
+							taskId: task.id,
+							runId: run.id,
+							sessionId: run.sessionId,
+							error: error instanceof Error ? error.message : String(error),
+						},
+					);
+					continue;
+				}
+
+				if (
+					inspection.probeStatus === "alive" &&
+					(inspection.sessionStatus === "busy" ||
+						inspection.sessionStatus === "retry")
+				) {
+					return {
+						taskId: task.id,
+						taskTitle: task.title,
+						runId: run.id,
+						sessionId: run.sessionId,
+					};
+				}
+			}
+		}
+
+		return null;
+	}
+
+	private isExecutionRun(run: Run): boolean {
+		return (run.metadata?.kind ?? defaultRunKind) === defaultRunKind;
 	}
 
 	public listByTask(taskId: string): Run[] {
