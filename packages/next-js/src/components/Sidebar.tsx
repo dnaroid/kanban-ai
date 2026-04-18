@@ -169,7 +169,7 @@ export function Sidebar({
 											className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-white font-semibold text-sm"
 											style={{ backgroundColor: project.color || "#64748b" }}
 										>
-											{project.name.charAt(0).toUpperCase()}
+											{project.name.slice(0, 2).toUpperCase()}
 										</div>
 									) : (
 										<div
