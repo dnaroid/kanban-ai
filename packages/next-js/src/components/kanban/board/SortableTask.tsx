@@ -199,7 +199,7 @@ export function SortableTask({
 			</div>
 
 			{onUpdate && (
-				<div className="px-4 pb-0" onPointerDown={(e) => e.stopPropagation()}>
+				<div className="px-4 pb-3" onPointerDown={(e) => e.stopPropagation()}>
 					<TaskDetailsModel task={task} onUpdate={onUpdate} />
 				</div>
 			)}
