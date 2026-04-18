@@ -64,6 +64,8 @@ function taskToKanban(
 class ApiClient {
 	private baseUrl: string;
 
+	onError?: (message: string) => void;
+
 	readonly project = {
 		getAll: async (): Promise<Project[]> => this.getProjects(),
 		delete: async ({ id }: { id: string }): Promise<{ ok: boolean }> => ({
@@ -109,7 +111,7 @@ class ApiClient {
 				const error = await response
 					.json()
 					.catch(() => ({ error: "Reject failed" }));
-				throw new Error(error.error || "Reject failed");
+				this.fail(error.error || "Reject failed");
 			}
 			return response.json();
 		},
@@ -130,7 +132,7 @@ class ApiClient {
 					response,
 					"Failed to list runs",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			const data = this.unwrapApiData<{
@@ -163,7 +165,7 @@ class ApiClient {
 					response,
 					"Failed to start run",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ runId?: string }>(payload);
@@ -187,7 +189,7 @@ class ApiClient {
 					response,
 					"Failed to cancel run",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			return { success: true };
 		},
@@ -206,7 +208,7 @@ class ApiClient {
 					response,
 					"Failed to delete run",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			return { success: true };
 		},
@@ -221,7 +223,7 @@ class ApiClient {
 					response,
 					"Failed to merge run changes",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ run?: Run | null }>(payload);
@@ -240,7 +242,7 @@ class ApiClient {
 					response,
 					"Failed to get run",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ run?: Run | null }>(payload);
@@ -260,7 +262,7 @@ class ApiClient {
 					response,
 					"Failed to get run diff",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ files?: DiffFile[] }>(payload);
@@ -276,7 +278,7 @@ class ApiClient {
 					response,
 					"Failed to get queue stats",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<QueueStatsResponse>(payload);
@@ -314,7 +316,7 @@ class ApiClient {
 					response,
 					"Failed to start ready tasks",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{
@@ -345,7 +347,7 @@ class ApiClient {
 					res,
 					"Failed to reply to permission",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 		},
 	};
@@ -364,7 +366,7 @@ class ApiClient {
 					response,
 					"Failed to fetch task dependencies",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ links: TaskLink[] }>(payload);
@@ -389,7 +391,7 @@ class ApiClient {
 					response,
 					"Failed to create task dependency",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ link: TaskLink }>(payload);
@@ -406,7 +408,7 @@ class ApiClient {
 					response,
 					"Failed to remove task dependency",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ ok?: boolean }>(payload);
@@ -432,7 +434,7 @@ class ApiClient {
 					response,
 					"Failed to delete tag",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			return { ok: true };
 		},
@@ -455,7 +457,7 @@ class ApiClient {
 					response,
 					"Failed to update tag",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<Tag>(payload);
@@ -472,7 +474,7 @@ class ApiClient {
 					response,
 					"Failed to list roles",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			const data = this.unwrapApiData<{
@@ -497,7 +499,7 @@ class ApiClient {
 					response,
 					"Failed to list roles with presets",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			const data = this.unwrapApiData<{
@@ -532,7 +534,7 @@ class ApiClient {
 					response,
 					"Failed to save role",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			return { success: true };
 		},
@@ -547,7 +549,7 @@ class ApiClient {
 					response,
 					"Failed to delete role",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			return { success: true };
 		},
@@ -572,7 +574,7 @@ class ApiClient {
 					response,
 					"Failed to generate user story",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ runId: string }>(payload);
@@ -595,7 +597,7 @@ class ApiClient {
 					response,
 					"Failed to start QA testing",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ runId: string }>(payload);
@@ -618,7 +620,7 @@ class ApiClient {
 					response,
 					"Failed to generate user stories",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ runIds?: string[] }>(payload);
@@ -631,7 +633,7 @@ class ApiClient {
 					response,
 					"Failed to fetch OpenCode skills",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ skills?: string[] }>(payload);
@@ -644,7 +646,7 @@ class ApiClient {
 					response,
 					"Failed to fetch OpenCode agents",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ agents?: OpencodeAgent[] }>(payload);
@@ -664,7 +666,7 @@ class ApiClient {
 					response,
 					"Failed to refresh skill assignments",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{
@@ -682,7 +684,7 @@ class ApiClient {
 					response,
 					"Failed to fetch enabled models",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ models: OpencodeModel[] }>(payload);
@@ -694,7 +696,7 @@ class ApiClient {
 					response,
 					"Failed to fetch models",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ models: OpencodeModel[] }>(payload);
@@ -719,7 +721,7 @@ class ApiClient {
 					response,
 					"Failed to toggle model",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ model: OpencodeModel }>(payload);
@@ -744,7 +746,7 @@ class ApiClient {
 					response,
 					"Failed to update model difficulty",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ model: OpencodeModel }>(payload);
@@ -761,7 +763,7 @@ class ApiClient {
 					response,
 					"Failed to refresh models",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ models: OpencodeModel[] }>(payload);
@@ -784,7 +786,7 @@ class ApiClient {
 					response,
 					"Failed to export models config",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{
@@ -824,7 +826,7 @@ class ApiClient {
 					response,
 					"Failed to import models config",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{
@@ -850,7 +852,7 @@ class ApiClient {
 					response,
 					"Failed to restart opencode serve",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ restarted: boolean }>(payload);
@@ -868,7 +870,7 @@ class ApiClient {
 					response,
 					"Failed to get active session stats",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{
@@ -890,7 +892,7 @@ class ApiClient {
 					response,
 					"Failed to fetch session todos",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ todos: OpenCodeTodo[] }>(payload);
@@ -916,7 +918,7 @@ class ApiClient {
 					response,
 					"Failed to send message",
 				);
-				throw new Error(errorMessage);
+				this.fail(errorMessage);
 			}
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ ok: boolean }>(payload);
@@ -941,7 +943,7 @@ class ApiClient {
 					response,
 					"Failed to fetch session messages",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ messages: OpenCodeMessage[] }>(payload);
@@ -999,7 +1001,7 @@ class ApiClient {
 					response,
 					"Failed to reply to question",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 		},
 		rejectQuestion: async ({
@@ -1022,7 +1024,7 @@ class ApiClient {
 					response,
 					"Failed to reject question",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 		},
 	};
@@ -1037,7 +1039,7 @@ class ApiClient {
 					response,
 					"Failed to fetch schema",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ schema: JSONSchema }>(payload);
@@ -1057,7 +1059,7 @@ class ApiClient {
 					response,
 					"Failed to read OMC config",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ config: unknown; path?: string }>(payload);
@@ -1079,7 +1081,7 @@ class ApiClient {
 					response,
 					"Failed to save OMC config",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			return { ok: true };
 		},
@@ -1096,7 +1098,7 @@ class ApiClient {
 					response,
 					"Failed to list OMC presets",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ presets: string[] }>(payload);
@@ -1120,7 +1122,7 @@ class ApiClient {
 					response,
 					"Failed to save OMC preset",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ ok: boolean; presetPath?: string }>(payload);
@@ -1142,7 +1144,7 @@ class ApiClient {
 					response,
 					"Failed to load OMC preset",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ config: unknown }>(payload);
@@ -1162,7 +1164,7 @@ class ApiClient {
 					response,
 					"Failed to backup OMC config",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ ok: boolean; backupPath: string }>(payload);
@@ -1178,7 +1180,7 @@ class ApiClient {
 					response,
 					"Failed to restore OMC config",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			return { ok: true };
 		},
@@ -1198,7 +1200,7 @@ class ApiClient {
 					response,
 					"Failed to check path",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ exists: boolean }>(payload);
@@ -1218,7 +1220,7 @@ class ApiClient {
 			});
 			if (!response.ok) {
 				const message = await this.getErrorMessage(response, "Failed to push");
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ success: boolean; output?: string }>(payload);
@@ -1237,7 +1239,7 @@ class ApiClient {
 					response,
 					"Failed to get git status",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			return this.unwrapApiData<{ aheadCount: number }>(payload);
@@ -1254,7 +1256,7 @@ class ApiClient {
 					response,
 					"Failed to wipe database",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			return { ok: true };
 		},
@@ -1304,7 +1306,7 @@ class ApiClient {
 					response,
 					"Failed to list artifacts",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ artifacts?: Artifact[] }>(payload);
@@ -1324,7 +1326,7 @@ class ApiClient {
 					response,
 					"Failed to fetch artifact",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ artifact?: Artifact | null }>(payload);
@@ -1344,7 +1346,7 @@ class ApiClient {
 					response,
 					"Failed to open path",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			return { success: true };
 		},
@@ -1362,7 +1364,7 @@ class ApiClient {
 					response,
 					"Failed to shutdown application",
 				);
-				throw new Error(message);
+				this.fail(message);
 			}
 			return { success: true };
 		},
@@ -1386,6 +1388,11 @@ class ApiClient {
 		return fallback;
 	}
 
+	private fail(message: string): never {
+		this.onError?.(message);
+		throw new Error(message);
+	}
+
 	private unwrapApiData<T>(payload: T | { data?: T }): T {
 		if (payload && typeof payload === "object" && "data" in payload) {
 			const data = (payload as { data?: T }).data;
@@ -1400,7 +1407,7 @@ class ApiClient {
 	// Projects
 	async getProjects(): Promise<Project[]> {
 		const response = await fetch(`${this.baseUrl}/api/projects`);
-		if (!response.ok) throw new Error("Failed to fetch projects");
+		if (!response.ok) this.fail("Failed to fetch projects");
 		const payload = await response.json();
 		return this.unwrapApiData<Project[]>(payload);
 	}
@@ -1423,7 +1430,7 @@ class ApiClient {
 				response,
 				"Failed to create project",
 			);
-			throw new Error(message);
+			this.fail(message);
 		}
 		const payload = await response.json();
 		return this.unwrapApiData<Project>(payload);
@@ -1456,7 +1463,7 @@ class ApiClient {
 			`${this.baseUrl}/api/tasks?boardId=${boardId}`,
 			{ cache: "no-store" },
 		);
-		if (!response.ok) throw new Error("Failed to fetch tasks");
+		if (!response.ok) this.fail("Failed to fetch tasks");
 		const payload = await response.json();
 		const tasks =
 			this.unwrapApiData<
@@ -1491,7 +1498,7 @@ class ApiClient {
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(input),
 		});
-		if (!response.ok) throw new Error("Failed to create task");
+		if (!response.ok) this.fail("Failed to create task");
 		const payload = await response.json();
 		const task = this.unwrapApiData<Task>(payload);
 		return taskToKanban(task);
@@ -1563,7 +1570,7 @@ class ApiClient {
 				response,
 				"Failed to start board polling",
 			);
-			throw new Error(message);
+			this.fail(message);
 		}
 	}
 
@@ -1586,7 +1593,7 @@ class ApiClient {
 				response,
 				"Failed to stop board polling",
 			);
-			throw new Error(message);
+			this.fail(message);
 		}
 	}
 
@@ -1608,7 +1615,7 @@ class ApiClient {
 				body: JSON.stringify({ columns }),
 			},
 		);
-		if (!response.ok) throw new Error("Failed to update columns");
+		if (!response.ok) this.fail("Failed to update columns");
 		const payload = await response.json();
 		return this.unwrapApiData<BoardColumn[]>(payload);
 	}
@@ -1616,7 +1623,7 @@ class ApiClient {
 	// Tags
 	async getGlobalTags(): Promise<Tag[]> {
 		const response = await fetch(`${this.baseUrl}/api/tags`);
-		if (!response.ok) throw new Error("Failed to fetch tags");
+		if (!response.ok) this.fail("Failed to fetch tags");
 		const payload = await response.json();
 		return this.unwrapApiData<Tag[]>(payload);
 	}
@@ -1627,7 +1634,7 @@ class ApiClient {
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(input),
 		});
-		if (!response.ok) throw new Error("Failed to create tag");
+		if (!response.ok) this.fail("Failed to create tag");
 		const payload = await response.json();
 		return this.unwrapApiData<Tag>(payload);
 	}
@@ -1680,7 +1687,7 @@ class ApiClient {
 	}> {
 		const pathParam = dirPath ? `?path=${encodeURIComponent(dirPath)}` : "";
 		const response = await fetch(`${this.baseUrl}/api/browse${pathParam}`);
-		if (!response.ok) throw new Error("Failed to browse directory");
+		if (!response.ok) this.fail("Failed to browse directory");
 		return response.json();
 	}
 }

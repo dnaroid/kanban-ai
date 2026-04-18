@@ -29,6 +29,7 @@ export interface SortableColumnProps {
 	onContextAction?: (taskId: string, systemKey: string) => Promise<void>;
 	onUpdateTask?: (id: string, patch: Partial<KanbanTask>) => void;
 	onRejectAction?: (taskId: string) => void;
+	deletingTaskId?: string | null;
 }
 
 export function SortableColumn({
@@ -44,6 +45,7 @@ export function SortableColumn({
 	onContextAction,
 	onUpdateTask,
 	onRejectAction,
+	deletingTaskId,
 }: SortableColumnProps) {
 	const workflowConfig = useWorkflowDisplayConfig();
 	const columnConfig = workflowConfig?.columns.find(
@@ -210,6 +212,7 @@ export function SortableColumn({
 									onContextAction={onContextAction}
 									onUpdate={onUpdateTask}
 									onRejectAction={onRejectAction}
+									isDeleting={deletingTaskId === task.id}
 								/>
 							))
 						)}

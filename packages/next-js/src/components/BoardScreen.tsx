@@ -11,7 +11,6 @@ import { SortableColumn } from "./kanban/board/SortableColumn";
 import { SortableTask } from "./kanban/board/SortableTask";
 import { QuickCreateModal } from "./kanban/board/QuickCreateModal";
 import { RejectModal, type RejectAttachment } from "./kanban/board/RejectModal";
-import { ProjectSelect } from "./ProjectSelect";
 import { useBoardModel } from "@/features/board/model/use-board-model";
 import { cn } from "@/lib/utils";
 import { ConfirmationModal } from "@/components/common/ConfirmationModal";
@@ -84,7 +83,6 @@ export function BoardScreen({
 		handleDragStart,
 		handleDragEnd,
 		handleTaskClick,
-		handleAddTask,
 		handleQuickGenerateStory,
 		handleQuickRunRawStory,
 		handleDeleteTask,
@@ -109,6 +107,7 @@ export function BoardScreen({
 		handleBulkDelete,
 		confirmBulkDelete,
 		handleRejectTask,
+		deletingTaskId,
 	} = useBoardModel({ projectId, onTasksRefreshed: refreshGitStatus });
 
 	const [activeExecutionSessionConfirm, setActiveExecutionSessionConfirm] =
@@ -185,7 +184,7 @@ export function BoardScreen({
 					? startError.message
 					: "Failed to start the next Ready task";
 			setSignalErrorConfirm({ isOpen: true, message });
-			addToast(message, "error");
+			// Error toast handled by ApiClient.onError.
 		}
 	};
 
@@ -210,7 +209,7 @@ export function BoardScreen({
 					? forceError.message
 					: "Failed to start the next Ready task";
 			setSignalErrorConfirm({ isOpen: true, message });
-			addToast(message, "error");
+			// Error toast handled by ApiClient.onError.
 		}
 	};
 
@@ -229,7 +228,7 @@ export function BoardScreen({
 					? forceError.message
 					: "Failed to start the next Ready task";
 			setSignalErrorConfirm({ isOpen: true, message });
-			addToast(message, "error");
+			// Error toast handled by ApiClient.onError.
 		}
 	};
 
@@ -290,12 +289,8 @@ export function BoardScreen({
 								.then(() => {
 									addToast("Pushed successfully", "success");
 								})
-								.catch((pushError) => {
-									const message =
-										pushError instanceof Error
-											? pushError.message
-											: "Failed to push";
-									addToast(message, "error");
+								.catch(() => {
+									// Error toast handled by ApiClient.onError.
 								})
 								.finally(() => {
 									setIsPushing(false);
@@ -353,6 +348,7 @@ export function BoardScreen({
 										onContextAction={handleContextAction}
 										onUpdateTask={handleTaskUpdate}
 										onRejectAction={handleOpenRejectModal}
+										deletingTaskId={deletingTaskId}
 									/>
 								))}
 							</SortableContext>

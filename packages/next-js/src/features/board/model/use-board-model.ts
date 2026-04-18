@@ -85,6 +85,7 @@ export function useBoardModel({
 		isOpen: false,
 		taskId: null,
 	});
+	const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
 	const [deleteColumnConfirm, setDeleteColumnConfirm] = useState<{
 		isOpen: boolean;
 		columnId: string | null;
@@ -535,7 +536,7 @@ export function useBoardModel({
 			addToast("Task created successfully", "success");
 		} catch (createError) {
 			console.error("Failed to create task:", createError);
-			addToast("Failed to create task", "error");
+			// Error toast handled by ApiClient.onError.
 		}
 	};
 
@@ -641,7 +642,7 @@ export function useBoardModel({
 			addToast("User story generation started", "info");
 		} catch (generateError) {
 			console.error("Failed to quick-create generated story:", generateError);
-			addToast("Failed to generate user story", "error");
+			// Error toast handled by ApiClient.onError.
 			throw new Error(
 				generateError instanceof Error
 					? generateError.message
@@ -754,7 +755,7 @@ export function useBoardModel({
 			addToast("Raw story queued for execution", "success");
 		} catch (createError) {
 			console.error("Failed to quick-run raw story:", createError);
-			addToast("Failed to run raw story", "error");
+			// Error toast handled by ApiClient.onError.
 			throw new Error(
 				createError instanceof Error
 					? createError.message
@@ -769,12 +770,16 @@ export function useBoardModel({
 		if (column?.systemKey === "closed") {
 			try {
 				await api.deleteTask(taskId);
-				setTasks((prev) => prev.filter((t) => t.id !== taskId));
-				setActiveTask((prev) => (prev && prev.id === taskId ? null : prev));
+				setDeletingTaskId(taskId);
+				setTimeout(() => {
+					setTasks((prev) => prev.filter((t) => t.id !== taskId));
+					setActiveTask((prev) => (prev && prev.id === taskId ? null : prev));
+					setDeletingTaskId(null);
+				}, 1000);
 				addToast("Task deleted successfully", "success");
 			} catch (deleteError) {
 				console.error("Failed to delete task:", deleteError);
-				addToast("Failed to delete task", "error");
+				// Error toast handled by ApiClient.onError.
 			}
 			return;
 		}
@@ -786,12 +791,16 @@ export function useBoardModel({
 		const taskId = deleteTaskConfirm.taskId;
 		try {
 			await api.deleteTask(taskId);
-			setTasks((prev) => prev.filter((task) => task.id !== taskId));
-			setActiveTask((prev) => (prev && prev.id === taskId ? null : prev));
+			setDeletingTaskId(taskId);
+			setTimeout(() => {
+				setTasks((prev) => prev.filter((task) => task.id !== taskId));
+				setActiveTask((prev) => (prev && prev.id === taskId ? null : prev));
+				setDeletingTaskId(null);
+			}, 1000);
 			addToast("Task deleted successfully", "success");
 		} catch (deleteError) {
 			console.error("Failed to delete task:", deleteError);
-			addToast("Failed to delete task", "error");
+			// Error toast handled by ApiClient.onError.
 		} finally {
 			setDeleteTaskConfirm({ isOpen: false, taskId: null });
 		}
@@ -815,7 +824,7 @@ export function useBoardModel({
 				);
 			} catch (deleteError) {
 				console.error("Failed to bulk delete tasks:", deleteError);
-				addToast("Failed to delete tasks", "error");
+				// Error toast handled by ApiClient.onError.
 			}
 			return;
 		}
@@ -839,7 +848,7 @@ export function useBoardModel({
 			);
 		} catch (deleteError) {
 			console.error("Failed to bulk delete tasks:", deleteError);
-			addToast("Failed to delete tasks", "error");
+			// Error toast handled by ApiClient.onError.
 		} finally {
 			setBulkDeleteConfirm({ isOpen: false, columnId: null, taskCount: 0 });
 		}
@@ -895,7 +904,7 @@ export function useBoardModel({
 			}
 
 			console.error("Failed to start the next Ready task:", startError);
-			addToast("Failed to start the next Ready task", "error");
+			// Error toast handled by ApiClient.onError.
 			throw new Error(message);
 		} finally {
 			setIsQueueingSignalRuns(false);
@@ -1000,7 +1009,7 @@ export function useBoardModel({
 			addToast("Column deleted", "success");
 		} catch (deleteError) {
 			console.error("Failed to delete column:", deleteError);
-			addToast("Failed to delete column", "error");
+			// Error toast handled by ApiClient.onError.
 		} finally {
 			setDeleteColumnConfirm({ isOpen: false, columnId: null });
 		}
@@ -1073,7 +1082,7 @@ export function useBoardModel({
 				prev.map((task) => (task.id === taskId ? previousTask : task)),
 			);
 			console.error("Failed to update task:", updateError);
-			addToast("Failed to update task", "error");
+			// Error toast handled by ApiClient.onError.
 			return false;
 		}
 	};
@@ -1175,10 +1184,7 @@ export function useBoardModel({
 			}
 		} catch (actionError) {
 			console.error("Context action failed:", actionError);
-			addToast(
-				actionError instanceof Error ? actionError.message : "Action failed",
-				"error",
-			);
+			// Error toast handled by ApiClient.onError.
 		}
 	};
 
@@ -1202,10 +1208,7 @@ export function useBoardModel({
 			addToast("Task rejected, moved back to Ready", "success");
 		} catch (rejectError) {
 			console.error("Reject failed:", rejectError);
-			addToast(
-				rejectError instanceof Error ? rejectError.message : "Reject failed",
-				"error",
-			);
+			// Error toast handled by ApiClient.onError.
 		}
 	};
 
@@ -1255,5 +1258,6 @@ export function useBoardModel({
 		handleBulkDelete,
 		confirmBulkDelete,
 		handleRejectTask,
+		deletingTaskId,
 	};
 }

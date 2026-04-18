@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Trash2, Loader2, ExternalLink, XCircle } from "lucide-react";
@@ -29,6 +29,7 @@ export interface SortableTaskProps {
 	onContextAction?: (taskId: string, systemKey: string) => Promise<void>;
 	onUpdate?: (id: string, patch: Partial<KanbanTask>) => void;
 	onRejectAction?: (taskId: string) => void;
+	isDeleting?: boolean;
 }
 
 export function SortableTask({
@@ -40,8 +41,10 @@ export function SortableTask({
 	onContextAction,
 	onUpdate,
 	onRejectAction,
+	isDeleting,
 }: SortableTaskProps) {
 	const [isLoading, setIsLoading] = useState(false);
+	const cardRef = useRef<HTMLDivElement | null>(null);
 	const workflowConfig = useWorkflowDisplayConfig();
 	const {
 		attributes,
@@ -58,6 +61,35 @@ export function SortableTask({
 		},
 	});
 
+	const combinedRef = useCallback(
+		(node: HTMLDivElement | null) => {
+			cardRef.current = node;
+			setNodeRef(node);
+		},
+		[setNodeRef],
+	);
+
+	useEffect(() => {
+		if (!isDeleting || !cardRef.current) return;
+
+		const el = cardRef.current;
+		const { height } = el.getBoundingClientRect();
+
+		// Lock current height explicitly
+		el.style.height = `${height}px`;
+		el.style.overflow = "hidden";
+
+		// Force reflow so the browser registers the starting height
+		el.offsetHeight; // eslint-disable-line @typescript-eslint/no-unused-expressions
+
+		// Trigger collapse animation
+		el.style.transition =
+			"height 1000ms ease-in-out, opacity 1000ms ease-in-out, margin-bottom 1000ms ease-in-out";
+		el.style.height = "0px";
+		el.style.opacity = "0";
+		el.style.marginBottom = "0px";
+	}, [isDeleting]);
+
 	const statusVisual = task.status
 		? getWorkflowStatusVisual(workflowConfig, task.status)
 		: null;
@@ -65,7 +97,9 @@ export function SortableTask({
 
 	const style = {
 		transform: CSS.Transform.toString(transform),
-		transition,
+		transition: isDeleting
+			? "height 1000ms ease-in-out, opacity 1000ms ease-in-out, margin-bottom 1000ms ease-in-out"
+			: transition,
 		borderColor: statusBadge?.borderColor,
 	};
 
@@ -107,14 +141,14 @@ export function SortableTask({
 
 	return (
 		<div
-			ref={setNodeRef}
+			ref={combinedRef}
 			style={style}
-			{...attributes}
-			{...listeners}
+			{...(isDeleting ? {} : { ...attributes, ...listeners })}
 			className={cn(
 				"bg-slate-900/40 backdrop-blur-md border rounded-xl mb-3 group hover:shadow-lg hover:shadow-black/20 transition-all cursor-grab active:cursor-grabbing overflow-visible relative z-10 hover:z-20",
 				"border-slate-700 hover:border-slate-600",
 				isDragging && "opacity-50 shadow-2xl scale-105",
+				isDeleting && "pointer-events-none overflow-hidden",
 				task.status === "running" && "animate-card-pulse-blue",
 				task.status === "generating" && "animate-card-pulse-purple",
 				task.status === "question" && "animate-card-pulse-yellow",

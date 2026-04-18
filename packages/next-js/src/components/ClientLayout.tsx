@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
+import { ApiErrorProvider } from "@/components/common/toast/ApiErrorProvider";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { ToastProvider } from "@/components/common/toast/ToastContext";
@@ -93,27 +94,29 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
 	return (
 		<ToastProvider>
-			<div className="min-h-screen bg-[#0B0E14] text-slate-200">
-				<Sidebar
-					isSidebarCollapsed={isSidebarCollapsed}
-					onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-					activeProject={activeProject}
-					onProjectSelect={handleProjectSelect}
-				/>
-				<main
-					className={cn(
-						"transition-all duration-300 min-h-screen overflow-x-hidden",
-						isSidebarCollapsed ? "pl-16" : "pl-64",
-					)}
-				>
-					{pathname.startsWith("/board/") ? (
-						<div className="h-screen flex flex-col">{children}</div>
-					) : (
-						<div className="min-h-screen flex flex-col">{children}</div>
-					)}
-				</main>
-			</div>
-			<ToastContainer />
+			<ApiErrorProvider>
+				<div className="min-h-screen bg-[#0B0E14] text-slate-200">
+					<Sidebar
+						isSidebarCollapsed={isSidebarCollapsed}
+						onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+						activeProject={activeProject}
+						onProjectSelect={handleProjectSelect}
+					/>
+					<main
+						className={cn(
+							"transition-all duration-300 min-h-screen overflow-x-hidden",
+							isSidebarCollapsed ? "pl-16" : "pl-64",
+						)}
+					>
+						{pathname.startsWith("/board/") ? (
+							<div className="h-screen flex flex-col">{children}</div>
+						) : (
+							<div className="min-h-screen flex flex-col">{children}</div>
+						)}
+					</main>
+				</div>
+				<ToastContainer />
+			</ApiErrorProvider>
 		</ToastProvider>
 	);
 }
