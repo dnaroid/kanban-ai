@@ -190,6 +190,7 @@ export function useTaskModel(projectId: string, taskId: string) {
 		columnSystemKey: column?.systemKey ?? null,
 		loading,
 		error,
+		refreshTaskFromServer,
 		handleUpdate,
 		board,
 	};

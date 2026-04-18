@@ -507,7 +507,7 @@ export function ListItemView({
 								onRejectAction(task.id);
 							}}
 							onPointerDown={(e) => e.stopPropagation()}
-							className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-red-400/85 transition-colors hover:bg-red-500/10 hover:text-red-300 active:bg-red-500/20"
+							className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-orange-400/85 transition-colors hover:bg-orange-500/10 hover:text-orange-300 active:bg-orange-500/20"
 							title="Reject Task"
 						>
 							<XCircle className="h-3.5 w-3.5" />
@@ -521,7 +521,7 @@ export function ListItemView({
 							onDeleteTask?.(task.id);
 						}}
 						onPointerDown={(e) => e.stopPropagation()}
-						className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-blue-500/80 transition-colors hover:bg-blue-500/10 hover:text-blue-400 active:bg-blue-500/20"
+						className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-red-400/85 transition-colors hover:bg-red-500/10 hover:text-red-300 active:bg-red-500/20"
 						title="Delete Task"
 					>
 						<Trash2 className="h-3.5 w-3.5" />

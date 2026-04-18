@@ -22,6 +22,7 @@ interface TaskDrawerProps {
 	isOpen: boolean;
 	onClose: () => void;
 	onUpdate?: (id: string, patch: Partial<KanbanTask>) => void;
+	onRefreshTask?: () => Promise<void> | void;
 	columnName?: string;
 }
 
@@ -30,6 +31,7 @@ export function TaskDrawer({
 	isOpen,
 	onClose,
 	onUpdate,
+	onRefreshTask,
 	columnName,
 }: TaskDrawerProps) {
 	const [isExpanded, setIsExpanded] = useState(false);
@@ -55,6 +57,7 @@ export function TaskDrawer({
 					task={task}
 					onClose={onClose}
 					onUpdate={onUpdate}
+					onRefreshTask={onRefreshTask}
 					columnName={columnName}
 					isExpanded={isExpanded}
 					onToggleExpand={() => setIsExpanded((prev) => !prev)}
@@ -69,6 +72,7 @@ interface TaskDrawerContentProps {
 	task: KanbanTask;
 	onClose: () => void;
 	onUpdate?: (id: string, patch: Partial<KanbanTask>) => void;
+	onRefreshTask?: () => Promise<void> | void;
 	columnName?: string;
 	isExpanded?: boolean;
 	onToggleExpand?: () => void;
@@ -80,6 +84,7 @@ export function TaskDrawerContent({
 	task,
 	onClose,
 	onUpdate,
+	onRefreshTask,
 	columnName,
 	isExpanded = false,
 	onToggleExpand,
@@ -272,7 +277,11 @@ export function TaskDrawerContent({
 						activeTab !== "runs" && "hidden",
 					)}
 				>
-					<TaskDrawerRuns task={task} isActive={activeTab === "runs"} />
+					<TaskDrawerRuns
+						task={task}
+						isActive={activeTab === "runs"}
+						onRefreshTask={onRefreshTask}
+					/>
 				</div>
 
 				{task.qaReport && (

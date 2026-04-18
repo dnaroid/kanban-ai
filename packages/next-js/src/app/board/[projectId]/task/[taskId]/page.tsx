@@ -18,8 +18,15 @@ export default function StandaloneTaskPage() {
 		| "properties"
 		| null;
 
-	const { task, columnName, columnSystemKey, loading, error, handleUpdate } =
-		useTaskModel(projectId, taskId);
+	const {
+		task,
+		columnName,
+		columnSystemKey,
+		loading,
+		error,
+		refreshTaskFromServer,
+		handleUpdate,
+	} = useTaskModel(projectId, taskId);
 
 	if (loading) {
 		return (
@@ -62,6 +69,7 @@ export default function StandaloneTaskPage() {
 					task={task}
 					columnName={columnName}
 					onUpdate={handleUpdate}
+					onRefreshTask={refreshTaskFromServer}
 					onClose={() => router.push(`/board/${projectId}`)}
 					defaultTab={defaultTab}
 				/>

@@ -11,6 +11,7 @@ import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 interface TaskDrawerRunsProps {
 	task: KanbanTask;
 	isActive: boolean;
+	onRefreshTask?: () => Promise<void> | void;
 }
 
 interface RunEventUpdate {
@@ -83,7 +84,11 @@ function selectRunId(
 	return sortedRuns[0].id;
 }
 
-export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
+export function TaskDrawerRuns({
+	task,
+	isActive,
+	onRefreshTask,
+}: TaskDrawerRunsProps) {
 	const [runs, setRuns] = useState<Run[]>([]);
 	const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 	const [isLoadingRuns, setIsLoadingRuns] = useState(false);
@@ -173,10 +178,12 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 				roleId: selectedRoleId,
 				modelName: task.modelName ?? null,
 			});
+			await onRefreshTask?.();
 			await fetchRuns();
 			setSelectedRunId(response.runId);
 		} catch (error) {
 			console.error("Failed to start run:", error);
+			await onRefreshTask?.();
 			await fetchRuns();
 		} finally {
 			setIsStartingRun(false);
@@ -187,6 +194,7 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 		e.stopPropagation();
 		try {
 			await api.run.cancel({ runId });
+			await onRefreshTask?.();
 			await fetchRuns();
 		} catch (error) {
 			console.error("Failed to cancel run:", error);
@@ -229,10 +237,12 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 				mode: run.mode,
 				modelName: task.modelName ?? null,
 			});
+			await onRefreshTask?.();
 			await fetchRuns();
 			setSelectedRunId(response.runId);
 		} catch (error) {
 			console.error("Failed to retry run:", error);
+			await onRefreshTask?.();
 			await fetchRuns();
 		}
 	};
@@ -246,10 +256,12 @@ export function TaskDrawerRuns({ task, isActive }: TaskDrawerRunsProps) {
 		setMergingRunId(runId);
 		try {
 			await api.run.merge({ runId });
+			await onRefreshTask?.();
 			await fetchRuns();
 			setSelectedRunId(runId);
 		} catch (error) {
 			console.error("Failed to merge run:", error);
+			await onRefreshTask?.();
 			await fetchRuns();
 		} finally {
 			setMergingRunId(null);
