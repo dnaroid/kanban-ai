@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 import {
-	Activity,
-	CalendarRange,
 	ChevronLeft,
 	ChevronRight,
 	FolderKanban,
@@ -72,24 +70,10 @@ export function Sidebar({
 			icon: FolderKanban,
 			path: "/projects",
 		},
-		{
-			id: "diagnostics",
-			label: "Diagnostics",
-			icon: Activity,
-			path: "/diagnostics",
-		},
-		{
-			id: "timeline",
-			label: "Timeline",
-			icon: CalendarRange,
-			path: "/timeline",
-		},
 	];
 
 	const getCurrentScreenId = () => {
 		if (pathname.startsWith("/projects")) return "projects";
-		if (pathname.startsWith("/diagnostics")) return "diagnostics";
-		if (pathname.startsWith("/timeline")) return "timeline";
 		if (pathname.startsWith("/board")) return "projects";
 		if (pathname.startsWith("/settings")) return "settings";
 		return "projects";
@@ -151,18 +135,12 @@ export function Sidebar({
 				{navItems.map((item) => {
 					const Icon = item.icon;
 					const isActive = currentScreenId === item.id;
-					const isDisabled = item.id === "timeline" && !activeProject;
 
 					return (
 						<button
 							key={item.id}
 							type="button"
 							onClick={() => {
-								if (item.id === "timeline") {
-									if (!activeProject) return;
-									router.push(`/timeline/${activeProject.id}`);
-									return;
-								}
 								if (item.id === "projects") {
 									const lastProjectId =
 										localStorage.getItem(LAST_PROJECT_ID_KEY);
@@ -173,7 +151,6 @@ export function Sidebar({
 								}
 								router.push(item.path);
 							}}
-							disabled={isDisabled}
 							className={cn(
 								"flex items-center rounded-xl transition-all duration-200 group",
 								isSidebarCollapsed
@@ -182,8 +159,6 @@ export function Sidebar({
 								isActive
 									? "bg-blue-600/10 text-blue-400 ring-1 ring-inset ring-blue-500/20"
 									: "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200",
-								isDisabled &&
-									"opacity-50 cursor-not-allowed hover:bg-transparent",
 							)}
 							title={item.label}
 						>

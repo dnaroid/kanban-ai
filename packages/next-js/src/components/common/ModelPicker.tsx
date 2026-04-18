@@ -87,8 +87,8 @@ export function ModelPicker({
 	};
 
 	return (
-		<div className={cn("flex items-center gap-2", className)}>
-			<div className="relative">
+		<div className={cn("flex flex-wrap items-center gap-2", className)}>
+			<div className="relative" onMouseLeave={() => setIsPickerOpen(false)}>
 				<button
 					type="button"
 					onClick={() => setIsPickerOpen(!isPickerOpen)}
@@ -130,76 +130,68 @@ export function ModelPicker({
 				</button>
 
 				{isPickerOpen && (
-					<>
-						<button
-							type="button"
-							aria-label="Close model picker"
-							className="fixed inset-0 z-10"
-							onClick={() => setIsPickerOpen(false)}
-						/>
-						<div className="absolute left-0 top-full mt-2 min-w-full w-max max-h-64 overflow-y-auto no-scrollbar bg-[#161B26] border border-slate-800 rounded-xl shadow-2xl z-20 py-2 animate-in fade-in zoom-in-95 duration-200">
-							{models.length === 0 ? (
-								<div className="px-3 py-4 text-center text-xs text-slate-500 italic">
-									No models available.
-								</div>
-							) : (
-								<>
-									{allowAuto && (
+					<div className="absolute left-0 top-full mt-0 min-w-full w-max max-h-64 overflow-y-auto no-scrollbar bg-[#161B26] border border-slate-800 rounded-xl shadow-2xl z-20 py-2 animate-in fade-in zoom-in-95 duration-200">
+						{models.length === 0 ? (
+							<div className="px-3 py-4 text-center text-xs text-slate-500 italic">
+								No models available.
+							</div>
+						) : (
+							<>
+								{allowAuto && (
+									<button
+										type="button"
+										onClick={() => handleSelectModel(null)}
+										onMouseEnter={() => setHoveredModel("auto")}
+										onMouseLeave={() => setHoveredModel(null)}
+										className={cn(
+											"w-full flex items-center px-3 py-2 rounded-lg text-xs transition-all text-left",
+											!value || hoveredModel === "auto"
+												? cn(modelStyles.bg, modelStyles.text)
+												: "text-slate-400 opacity-70",
+										)}
+									>
+										<span className="italic">Auto (based on difficulty)</span>
+									</button>
+								)}
+								{models.map((model) => {
+									const isSelected = baseName === model.name;
+									const isHovered = hoveredModel === model.name;
+									const styles =
+										DIFFICULTY_STYLES[
+											model.difficulty as keyof typeof DIFFICULTY_STYLES
+										] || DIFFICULTY_STYLES.easy;
+									return (
 										<button
 											type="button"
-											onClick={() => handleSelectModel(null)}
-											onMouseEnter={() => setHoveredModel("auto")}
+											key={model.name}
+											onClick={() => {
+												const variants = model.variants
+													? model.variants.split(",").map((v) => v.trim())
+													: [];
+												const defaultVariant =
+													showVariantSelector && variants.length > 0
+														? variants[0]
+														: undefined;
+												handleSelectModel(model.name, defaultVariant);
+											}}
+											onMouseEnter={() => setHoveredModel(model.name)}
 											onMouseLeave={() => setHoveredModel(null)}
 											className={cn(
 												"w-full flex items-center px-3 py-2 rounded-lg text-xs transition-all text-left",
-												!value || hoveredModel === "auto"
-													? cn(modelStyles.bg, modelStyles.text)
-													: "text-slate-400 opacity-70",
+												isSelected || isHovered
+													? cn(styles.bg, styles.text)
+													: cn(styles.text, "opacity-70"),
 											)}
 										>
-											<span className="italic">Auto (based on difficulty)</span>
+											<span className="font-medium">
+												{getModelDisplayName(model.name)}
+											</span>
 										</button>
-									)}
-									{models.map((model) => {
-										const isSelected = baseName === model.name;
-										const isHovered = hoveredModel === model.name;
-										const styles =
-											DIFFICULTY_STYLES[
-												model.difficulty as keyof typeof DIFFICULTY_STYLES
-											] || DIFFICULTY_STYLES.easy;
-										return (
-											<button
-												type="button"
-												key={model.name}
-												onClick={() => {
-													const variants = model.variants
-														? model.variants.split(",").map((v) => v.trim())
-														: [];
-													const defaultVariant =
-														showVariantSelector && variants.length > 0
-															? variants[0]
-															: undefined;
-													handleSelectModel(model.name, defaultVariant);
-												}}
-												onMouseEnter={() => setHoveredModel(model.name)}
-												onMouseLeave={() => setHoveredModel(null)}
-												className={cn(
-													"w-full flex items-center px-3 py-2 rounded-lg text-xs transition-all text-left",
-													isSelected || isHovered
-														? cn(styles.bg, styles.text)
-														: cn(styles.text, "opacity-70"),
-												)}
-											>
-												<span className="font-medium">
-													{getModelDisplayName(model.name)}
-												</span>
-											</button>
-										);
-									})}
-								</>
-							)}
-						</div>
-					</>
+									);
+								})}
+							</>
+						)}
+					</div>
 				)}
 			</div>
 
