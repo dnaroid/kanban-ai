@@ -379,6 +379,7 @@ export function RunDetailsView({
 						onContextStats={setMessageContextStats}
 						showReasoning={showReasoning}
 						onNavigateToSubAgent={handleNavigateToSubAgent}
+						isSubAgent={isViewingSubAgent}
 					/>
 				) : view === "artifacts" ? (
 					<ArtifactsPanel runId={runId} />

@@ -203,6 +203,7 @@ export function ExecutionLog({
 	onContextStats,
 	showReasoning,
 	onNavigateToSubAgent,
+	isSubAgent = false,
 }: {
 	runId: string;
 	sessionId: string;
@@ -213,6 +214,7 @@ export function ExecutionLog({
 	}) => void;
 	showReasoning?: boolean;
 	onNavigateToSubAgent?: (sessionId: string) => void;
+	isSubAgent?: boolean;
 }) {
 	const [events, setEvents] = useState<RunEvent[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
@@ -515,15 +517,17 @@ export function ExecutionLog({
 				upsertStatusEvent(statusLine);
 			}
 
-			if (payload.role === "user" && !hiddenUserMessageIdRef.current) {
-				hiddenUserMessageIdRef.current = payloadId;
-			}
+			if (!isSubAgent) {
+				if (payload.role === "user" && !hiddenUserMessageIdRef.current) {
+					hiddenUserMessageIdRef.current = payloadId;
+				}
 
-			if (hiddenUserMessageIdRef.current === payloadId) {
-				setEvents((prev) =>
-					prev.filter((item) => item.id !== `msg-${payloadId}`),
-				);
-				return;
+				if (hiddenUserMessageIdRef.current === payloadId) {
+					setEvents((prev) =>
+						prev.filter((item) => item.id !== `msg-${payloadId}`),
+					);
+					return;
+				}
 			}
 			const id = `msg-${payloadId}`;
 			setEvents((prev) => {
@@ -864,6 +868,7 @@ export function ExecutionLog({
 		buildMessageEvent,
 		extractStatusLineFromMessage,
 		upsertStatusEvent,
+		isSubAgent,
 	]);
 
 	useEffect(() => {
@@ -925,7 +930,7 @@ export function ExecutionLog({
 						}
 					}
 
-					if (!hiddenUserMessageIdRef.current) {
+					if (!isSubAgent && !hiddenUserMessageIdRef.current) {
 						let firstUserMessage: OpenCodeMessage | null = null;
 						for (const message of messagesResponse.messages) {
 							if (message.role !== "user") continue;
@@ -949,7 +954,7 @@ export function ExecutionLog({
 						});
 
 						messagesResponse.messages.forEach((msg: OpenCodeMessage) => {
-							if (hiddenUserMessageIdRef.current === msg.id) {
+							if (!isSubAgent && hiddenUserMessageIdRef.current === msg.id) {
 								return;
 							}
 							const id = `msg-${msg.id}`;
@@ -1016,9 +1021,9 @@ export function ExecutionLog({
 		};
 	}, [
 		effectiveSessionId,
-		effectiveSessionId,
 		extractStatusLineFromMessage,
 		upsertStatusEvent,
+		isSubAgent,
 	]);
 
 	useEffect(() => {
