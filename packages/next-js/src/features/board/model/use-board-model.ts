@@ -651,6 +651,55 @@ export function useBoardModel({
 		}
 	};
 
+	const handleQuickSaveDraft = async (
+		columnId: string,
+		prompt: string,
+		selectedAttachments?: PromptAttachment[],
+	) => {
+		if (!board) {
+			throw new Error("Board not found");
+		}
+
+		const cleanPrompt = normalizeQuickRunPrompt(prompt);
+		if (!cleanPrompt) {
+			throw new Error("Prompt cannot be empty");
+		}
+
+		const backlogColumnId = getBacklogColumnId(columnId);
+
+		const firstLine = cleanPrompt.split(/\r?\n/)[0]?.trim() ?? "";
+		const title = (firstLine.length > 0 ? firstLine : cleanPrompt).slice(
+			0,
+			120,
+		);
+		const promptWithFiles = appendFileReferencesToPrompt(
+			cleanPrompt,
+			selectedAttachments,
+		);
+
+		try {
+			await api.createTask({
+				boardId: board.id,
+				columnId: backlogColumnId,
+				title,
+				description: promptWithFiles,
+				priority: "normal",
+				difficulty: "medium",
+				type: "feature",
+				projectId,
+				tags: [],
+			});
+
+			await loadBoard();
+			addToast("Draft saved", "success");
+		} catch (saveError) {
+			console.error("Failed to save draft:", saveError);
+			throw new Error(
+				saveError instanceof Error ? saveError.message : "Failed to save draft",
+			);
+		}
+	};
+
 	const handleQuickRunRawStory = async (
 		columnId: string,
 		prompt: string,
@@ -1229,6 +1278,7 @@ export function useBoardModel({
 		handleTaskClick,
 		handleAddTask,
 		handleQuickGenerateStory,
+		handleQuickSaveDraft,
 		handleQuickRunRawStory,
 		handleDeleteTask,
 		handleColumnSubmit,

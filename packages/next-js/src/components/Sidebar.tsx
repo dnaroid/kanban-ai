@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import {
 	ChevronLeft,
 	ChevronRight,
+	ChevronUp,
+	ChevronDown,
 	Layout,
 	LogOut,
 	Settings,
@@ -40,14 +42,36 @@ export function Sidebar({
 	useEffect(() => {
 		api
 			.getProjects()
-			.then((data) => {
-				const sorted = [...data].sort((a, b) =>
-					a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
-				);
-				setProjects(sorted);
-			})
+			.then((data) => setProjects(data))
 			.catch((err) => console.error("Failed to load projects", err));
 	}, []);
+
+	const handleReorder = async (projectId: string, direction: "up" | "down") => {
+		const currentIndex = projects.findIndex((p) => p.id === projectId);
+		const swapIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+		if (swapIndex < 0 || swapIndex >= projects.length) return;
+
+		// Optimistic update: swap in local state
+		const newProjects = [...projects];
+		[newProjects[currentIndex], newProjects[swapIndex]] = [
+			newProjects[swapIndex],
+			newProjects[currentIndex],
+		];
+		setProjects(newProjects);
+
+		// Persist to server
+		try {
+			const updated = await api.reorderProject(projectId, direction);
+			if (!updated) {
+				// Rollback
+				const data = await api.getProjects();
+				setProjects(data);
+			}
+		} catch {
+			// Rollback on error
+			api.getProjects().then(setProjects).catch(console.error);
+		}
+	};
 
 	const handleQuitClick = async () => {
 		const queueStatsPromise = api.run.queueStats().catch(() => null);
@@ -142,15 +166,24 @@ export function Sidebar({
 						</div>
 					)}
 					<div className="space-y-0.5">
-						{projects.map((project) => {
+						{projects.map((project, index) => {
 							const isActive = activeProject?.id === project.id;
 							return (
-								<button
+								<div
 									key={project.id}
-									type="button"
+									role="button"
+									tabIndex={0}
 									onClick={() => {
 										if (!isActive) {
 											router.push(`/board/${project.id}`);
+										}
+									}}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" || e.key === " ") {
+											e.preventDefault();
+											if (!isActive) {
+												router.push(`/board/${project.id}`);
+											}
 										}
 									}}
 									title={isSidebarCollapsed ? project.name : undefined}
@@ -190,11 +223,39 @@ export function Sidebar({
 										/>
 									)}
 									{!isSidebarCollapsed && (
-										<span className="text-sm font-medium truncate text-left">
+										<span className="text-sm font-medium truncate text-left flex-1">
 											{project.name}
 										</span>
 									)}
-								</button>
+									{!isSidebarCollapsed && (
+										<div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+											<button
+												type="button"
+												disabled={index === 0}
+												onClick={(e) => {
+													e.stopPropagation();
+													handleReorder(project.id, "up");
+												}}
+												className="p-0.5 text-slate-500 hover:text-slate-300 disabled:opacity-20 disabled:cursor-default cursor-pointer transition-colors"
+												title="Move up"
+											>
+												<ChevronUp className="w-3.5 h-3.5" />
+											</button>
+											<button
+												type="button"
+												disabled={index === projects.length - 1}
+												onClick={(e) => {
+													e.stopPropagation();
+													handleReorder(project.id, "down");
+												}}
+												className="p-0.5 text-slate-500 hover:text-slate-300 disabled:opacity-20 disabled:cursor-default cursor-pointer transition-colors"
+												title="Move down"
+											>
+												<ChevronDown className="w-3.5 h-3.5" />
+											</button>
+										</div>
+									)}
+								</div>
 							);
 						})}
 					</div>

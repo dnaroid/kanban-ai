@@ -13,6 +13,7 @@ import {
 	Mic,
 	MicOff,
 	Paperclip,
+	Pencil,
 	Play,
 	Sparkles,
 	X,
@@ -72,6 +73,10 @@ interface QuickCreateModalProps {
 		modelName: string | null,
 		selectedAttachments: QuickCreateAttachment[],
 	) => Promise<void>;
+	onSaveDraft: (
+		prompt: string,
+		selectedAttachments: QuickCreateAttachment[],
+	) => Promise<void>;
 }
 
 export interface QuickCreateAttachment {
@@ -85,12 +90,13 @@ export function QuickCreateModal({
 	onClose,
 	onGenerateStory,
 	onRunRawStory,
+	onSaveDraft,
 }: QuickCreateModalProps) {
 	const [prompt, setPrompt] = useState("");
 	const [liveTranscript, setLiveTranscript] = useState("");
 	const [isListening, setIsListening] = useState(false);
 	const [submittingAction, setSubmittingAction] = useState<
-		"generate" | "runRaw" | null
+		"generate" | "runRaw" | "draft" | null
 	>(null);
 	const [models, setModels] = useState<OpencodeModel[]>([]);
 	const [selectedModel, setSelectedModel] = useState<string | null>(null);
@@ -326,6 +332,26 @@ export function QuickCreateModal({
 		}
 	};
 
+	const handleSaveDraft = async () => {
+		const fullPrompt = `${prompt.trim()} ${liveTranscript.trim()}`.trim();
+		if (!fullPrompt) {
+			setError("Enter or dictate task details first.");
+			return;
+		}
+
+		setError(null);
+		setSubmittingAction("draft");
+
+		try {
+			await onSaveDraft(fullPrompt, selectedAttachments);
+			onClose();
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to save draft.");
+		} finally {
+			setSubmittingAction(null);
+		}
+	};
+
 	const extractClipboardFiles = (clipboardData: DataTransfer): File[] => {
 		const directFiles = Array.from(clipboardData.files ?? []);
 		const itemFiles = Array.from(clipboardData.items ?? [])
@@ -459,6 +485,24 @@ export function QuickCreateModal({
 						/>
 					</div>
 					<div className="flex items-center gap-2">
+						<button
+							type="button"
+							onClick={handleSaveDraft}
+							disabled={isSubmitting}
+							className={cn(
+								"inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all border",
+								isSubmitting
+									? "cursor-not-allowed opacity-50 bg-slate-800/50 text-slate-500 border-slate-700/50"
+									: "bg-slate-800/50 text-slate-400 border-slate-700/50 hover:bg-slate-700/60 hover:text-slate-200",
+							)}
+						>
+							{submittingAction === "draft" ? (
+								<Loader2 className="w-4 h-4 animate-spin" />
+							) : (
+								<Pencil className="w-4 h-4" />
+							)}
+							Save as Draft
+						</button>
 						<button
 							type="button"
 							onClick={handleRunRawStory}

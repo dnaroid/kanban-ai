@@ -8,6 +8,7 @@ export interface Project {
 	createdAt: string;
 	updatedAt: string;
 	lastActivityAt: string | null;
+	orderIndex: number;
 }
 
 export interface CreateProjectInput {
@@ -20,6 +21,7 @@ export interface UpdateProjectInput {
 	name?: string;
 	path?: string;
 	color?: string;
+	orderIndex?: number;
 }
 
 export interface BoardColumn {

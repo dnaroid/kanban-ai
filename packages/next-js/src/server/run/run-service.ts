@@ -55,7 +55,7 @@ const behaviorSkillsFallback = {
 	preferredForStoryGeneration: "business-analyst",
 	preferredForQaTesting: "qa-expert",
 } as const;
-type StoryLanguage = "en" | "ru";
+type StoryLanguage = string;
 
 interface StartRunsBySignalResult {
 	startedCount: number;
@@ -85,9 +85,7 @@ export class RunService {
 	private readonly sessionManager = getOpencodeSessionManager();
 
 	private static resolveStoryLanguage(): StoryLanguage {
-		const raw = process.env.STORY_LANGUAGE?.trim().toLowerCase();
-		if (raw === "ru") return "ru";
-		return "en";
+		return process.env.STORY_LANGUAGE?.trim().toLowerCase() || "en";
 	}
 
 	private extractSessionPreferencesFromPreset(

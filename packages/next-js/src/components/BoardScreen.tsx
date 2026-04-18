@@ -85,6 +85,7 @@ export function BoardScreen({
 		handleTaskClick,
 		handleAddTask,
 		handleQuickGenerateStory,
+		handleQuickSaveDraft,
 		handleQuickRunRawStory,
 		handleDeleteTask,
 		handleTaskUpdate,
@@ -416,6 +417,15 @@ export function BoardScreen({
 								modelName,
 								selectedAttachments,
 							});
+						}
+					}}
+					onSaveDraft={async (prompt, selectedAttachments) => {
+						if (firstColumnId) {
+							await handleQuickSaveDraft(
+								firstColumnId,
+								prompt,
+								selectedAttachments,
+							);
 						}
 					}}
 				/>

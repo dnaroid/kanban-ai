@@ -40,7 +40,7 @@ cp packages/next-js/.env.local.example packages/next-js/.env.local
 |---|---|---|
 | `OPENCODE_PORT` | `.env` | Port for the OpenCode server (default: `4096`) |
 | `OPENCODE_URL` | `.env` | URL for connecting to the OpenCode SDK |
-| `STORY_LANGUAGE` | `.env` | Language for AI-generated stories: `en` or `ru` (default: `en`) |
+| `STORY_LANGUAGE` | `.env` | Language for AI-generated stories — any ISO 639-1 code, e.g. `en`, `ru`, `de`, `fr` (default: `en`) |
 | `NEXT_PUBLIC_API_URL` | `packages/next-js/.env.local` | API URL (default: `http://127.0.0.1:3000`) |
 | `NEXT_PUBLIC_APP_URL` | `packages/next-js/.env.local` | App URL (default: `http://127.0.0.1:3100`) |
 | `RUNS_DEFAULT_CONCURRENCY` | `packages/next-js/.env.local` | Default run concurrency |

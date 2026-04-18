@@ -15,7 +15,7 @@ interface UserStoryPromptProject {
 	path: string;
 }
 
-type StoryLanguage = "en" | "ru";
+type StoryLanguage = string;
 
 interface UserStoryPromptOptions {
 	availableTags?: string[];
@@ -67,10 +67,13 @@ export function buildUserStoryPrompt(
 		roleSkills.length > 0 ? roleSkills.join(", ") : "(not set)";
 
 	const language = options.language ?? "en";
+	const languageName =
+		new Intl.DisplayNames(["en"], { type: "language" }).of(language) ??
+		language;
 	const languageInstruction =
-		language === "ru"
-			? "Generate the ENTIRE user story (title, goal, requirements, acceptance criteria, expected outcome and all text fields inside <STORY>) in Russian."
-			: "Generate the ENTIRE user story (title, goal, requirements, acceptance criteria, expected outcome and all text fields inside <STORY>) in English.";
+		language === "en"
+			? "Generate the ENTIRE user story (title, goal, requirements, acceptance criteria, expected outcome and all text fields inside <STORY>) in English."
+			: `Generate the ENTIRE user story (title, goal, requirements, acceptance criteria, expected outcome and all text fields inside <STORY>) in ${languageName}.`;
 
 	return `You are generating a user story for a CODE-EXECUTOR.
 The generator role (if specified below) should NOT automatically become the executor.

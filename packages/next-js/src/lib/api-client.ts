@@ -1450,6 +1450,26 @@ class ApiClient {
 		return this.unwrapApiData<Project>(payload);
 	}
 
+	async reorderProject(
+		id: string,
+		direction: "up" | "down",
+	): Promise<Project | null> {
+		const response = await fetch(`${this.baseUrl}/api/projects/${id}/reorder`, {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ direction }),
+		});
+		if (!response.ok) {
+			const message = await this.getErrorMessage(
+				response,
+				"Failed to reorder project",
+			);
+			this.fail(message);
+		}
+		const payload = await response.json();
+		return this.unwrapApiData<Project>(payload);
+	}
+
 	async deleteProject(id: string): Promise<boolean> {
 		const response = await fetch(`${this.baseUrl}/api/projects/${id}`, {
 			method: "DELETE",

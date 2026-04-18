@@ -111,3 +111,15 @@ CREATE TABLE IF NOT EXISTS uploads (
 );
 CREATE INDEX IF NOT EXISTS idx_uploads_task_id ON uploads(task_id);
 `;
+
+export const v034ProjectOrderIndexSql = `
+ALTER TABLE projects ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0;
+
+UPDATE projects
+SET order_index = sub.row_num
+FROM (
+  SELECT id, ROW_NUMBER() OVER (ORDER BY updated_at ASC) AS row_num
+  FROM projects
+) AS sub
+WHERE projects.id = sub.id;
+`;
