@@ -4,6 +4,7 @@ import {
 	CheckCircle2,
 	ChevronsDown,
 	Circle,
+	ArrowLeft,
 	HelpCircle,
 	RefreshCw,
 	Send,
@@ -16,6 +17,7 @@ import {
 	ConfirmationPart,
 	FilePart,
 	ReasoningPart,
+	SubtaskPartView,
 	SystemNotificationPart,
 	TextPart,
 	ToolPart,
@@ -62,6 +64,7 @@ const isRenderablePart = (part: Part): boolean => {
 		case "tool":
 		case "file":
 		case "agent":
+		case "subtask":
 			return true;
 		case "text":
 			return ("ignored" in part && part.ignored) || part.text.trim().length > 0;
@@ -198,6 +201,7 @@ export function ExecutionLog({
 	sessionId,
 	onContextStats,
 	showReasoning,
+	onNavigateToSubAgent,
 }: {
 	runId: string;
 	sessionId: string;
@@ -207,6 +211,7 @@ export function ExecutionLog({
 		modelID: string | null;
 	}) => void;
 	showReasoning?: boolean;
+	onNavigateToSubAgent?: (sessionId: string) => void;
 }) {
 	const [events, setEvents] = useState<RunEvent[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
@@ -247,6 +252,10 @@ export function ExecutionLog({
 		if (typed.message) return typed.message;
 		if (typed.status) return typed.status;
 		return coerceText(payload);
+	};
+
+	const handleNavigateToSubAgent = (childSessionId: string) => {
+		onNavigateToSubAgent?.(childSessionId);
 	};
 
 	const extractStatusLineFromParts = useCallback(
@@ -420,6 +429,22 @@ export function ExecutionLog({
 	useEffect(() => {
 		setEffectiveSessionId(sessionId);
 	}, [sessionId]);
+
+	useEffect(() => {
+		setEvents([]);
+		setStreamingMessageIds(new Set());
+		setIsLoading(true);
+		setAutoScroll(true);
+		setPendingPermissions(new Map());
+		setPendingQuestions(new Map());
+		seenMessageIdsRef.current.clear();
+		hiddenUserMessageIdRef.current = null;
+		for (const timeout of streamingTimeoutsRef.current.values()) {
+			clearTimeout(timeout);
+		}
+		streamingTimeoutsRef.current.clear();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [effectiveSessionId]);
 
 	useEffect(() => {
 		if (!runId) return;
@@ -977,7 +1002,12 @@ export function ExecutionLog({
 			isActive = false;
 			refreshMessagesRef.current = null;
 		};
-	}, [effectiveSessionId, extractStatusLineFromMessage, upsertStatusEvent]);
+	}, [
+		effectiveSessionId,
+		effectiveSessionId,
+		extractStatusLineFromMessage,
+		upsertStatusEvent,
+	]);
 
 	useEffect(() => {
 		if (events.length === 0) return;
@@ -1211,6 +1241,29 @@ export function ExecutionLog({
 											if (part.tool === "todowrite") {
 												return <TodoWriteToolView key={key} part={part} />;
 											}
+											if (part.tool === "task") {
+												const taskMeta = (
+													part as { metadata?: Record<string, unknown> }
+												).metadata;
+												const taskInput = part.input as Record<
+													string,
+													unknown
+												> | null;
+												return (
+													<SubtaskPartView
+														key={key}
+														part={{
+															type: "subtask" as const,
+															sessionID: (taskMeta?.sessionId as string) ?? "",
+															description:
+																(taskInput?.description as string) ?? "",
+															prompt: (taskInput?.prompt as string) ?? "",
+															agent: (taskInput?.subagent_type as string) ?? "",
+														}}
+														onNavigateToSession={handleNavigateToSubAgent}
+													/>
+												);
+											}
 											return (
 												<ToolPart
 													key={key}
@@ -1229,6 +1282,14 @@ export function ExecutionLog({
 											return <FilePart key={key} part={part} />;
 										case "agent":
 											return <AgentPart key={key} part={part} />;
+										case "subtask":
+											return (
+												<SubtaskPartView
+													key={key}
+													part={part}
+													onNavigateToSession={handleNavigateToSubAgent}
+												/>
+											);
 										case "text":
 											if ("ignored" in part && part.ignored) {
 												return <SystemNotificationPart key={key} part={part} />;

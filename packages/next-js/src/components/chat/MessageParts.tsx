@@ -21,6 +21,7 @@ import type {
 	QuestionData,
 	QuestionItem,
 	QuestionOption,
+	SubtaskPart,
 	ToolState,
 } from "@/types/ipc";
 import { extractOpencodeStatus } from "@/lib/opencode-status";
@@ -586,6 +587,56 @@ export function AgentPart({ part }: { part: { name: string } }) {
 	);
 }
 
+export function SubtaskPartView({
+	part,
+	onNavigateToSession,
+}: {
+	part: SubtaskPart;
+	onNavigateToSession?: (sessionId: string) => void;
+}) {
+	const hasTarget = part.sessionID.length > 0;
+	const canNavigate = hasTarget && Boolean(onNavigateToSession);
+
+	return (
+		<button
+			type="button"
+			disabled={!canNavigate}
+			onClick={() => canNavigate && onNavigateToSession?.(part.sessionID)}
+			className={cn(
+				"flex items-center gap-3 w-full p-3 rounded-xl border transition-all text-left",
+				canNavigate
+					? "bg-cyan-500/[0.06] border-cyan-500/20 hover:bg-cyan-500/10 hover:border-cyan-500/40 cursor-pointer"
+					: "bg-slate-800/30 border-slate-700/30 cursor-default",
+			)}
+		>
+			<div className="flex items-center justify-center w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 shrink-0">
+				<Bot className="w-4 h-4 text-cyan-400" />
+			</div>
+			<div className="flex-1 min-w-0">
+				<div className="flex items-center gap-2">
+					<span className="text-[10px] font-bold text-cyan-300 uppercase tracking-wider">
+						Sub-agent
+					</span>
+					<span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+						{part.agent}
+					</span>
+					{part.model && (
+						<span className="text-[9px] font-mono text-slate-500">
+							{part.model.modelID}
+						</span>
+					)}
+				</div>
+				<p className="text-xs text-slate-300 mt-0.5 truncate">
+					{part.description || part.prompt.slice(0, 100)}
+				</p>
+			</div>
+			{canNavigate && (
+				<ChevronRight className="w-4 h-4 text-cyan-400/60 shrink-0" />
+			)}
+		</button>
+	);
+}
+
 export function SystemNotificationPart({ part }: { part: Part }) {
 	const textContent =
 		"text" in part && typeof part.text === "string" ? part.text : "";
@@ -605,9 +656,11 @@ export function SystemNotificationPart({ part }: { part: Part }) {
 export function MessagePartRenderer({
 	part,
 	projectPath,
+	onNavigateToSession,
 }: {
 	part: Part;
 	projectPath?: string;
+	onNavigateToSession?: (sessionId: string) => void;
 }) {
 	if ("ignored" in part && part.ignored) {
 		return <SystemNotificationPart part={part} />;
@@ -627,6 +680,13 @@ export function MessagePartRenderer({
 			return <ReasoningPart part={part} />;
 		case "agent":
 			return <AgentPart part={part} />;
+		case "subtask":
+			return (
+				<SubtaskPartView
+					part={part}
+					onNavigateToSession={onNavigateToSession}
+				/>
+			);
 		default:
 			return null;
 	}

@@ -52,7 +52,26 @@ export function RunDetailsView({
 		percent: number | null;
 		modelID: string | null;
 	}>({ tokens: 0, percent: null, modelID: null });
+	const [sessionStack, setSessionStack] = useState<string[]>([]);
+	const isViewingSubAgent = sessionStack.length > 0;
+	const activeSessionId =
+		sessionStack.length > 0 ? sessionStack[0] : run?.sessionId || "";
 	const sessionId = run?.sessionId;
+
+	const handleNavigateToSubAgent = (childSessionId: string) => {
+		setSessionStack((prev) => [
+			childSessionId,
+			...(prev.length > 0 ? prev : [run?.sessionId || ""]),
+		]);
+	};
+
+	const handleNavigateBack = () => {
+		setSessionStack((prev) => prev.slice(1));
+	};
+
+	useEffect(() => {
+		setSessionStack([]);
+	}, [runId]);
 	const runVcs = run?.metadata?.vcs;
 	const canMerge =
 		Boolean(onMerge) &&
@@ -231,6 +250,16 @@ export function RunDetailsView({
 				</div>
 
 				<div className="flex items-center gap-4">
+					{isViewingSubAgent && (
+						<button
+							type="button"
+							onClick={handleNavigateBack}
+							className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-cyan-300 uppercase tracking-wider bg-cyan-500/10 border border-cyan-500/20 hover:bg-cyan-500/20 transition-all"
+						>
+							<ArrowLeft className="w-3.5 h-3.5" />
+							<span className="hidden sm:inline">Back to parent</span>
+						</button>
+					)}
 					{shouldShowContextIndicator && (
 						<div
 							className={cn(
@@ -341,16 +370,17 @@ export function RunDetailsView({
 				{view === "log" ? (
 					<ExecutionLog
 						runId={runId}
-						sessionId={run?.sessionId || ""}
+						sessionId={activeSessionId}
 						onContextStats={setMessageContextStats}
 						showReasoning={showReasoning}
+						onNavigateToSubAgent={handleNavigateToSubAgent}
 					/>
 				) : view === "artifacts" ? (
 					<ArtifactsPanel runId={runId} />
 				) : view === "diff" ? (
 					<RunDiffPanel runId={runId} />
 				) : (
-					<RunTodosPanel sessionId={run?.sessionId || ""} />
+					<RunTodosPanel sessionId={activeSessionId} />
 				)}
 			</div>
 		</div>

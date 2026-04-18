@@ -1250,6 +1250,12 @@ export class OpencodeSessionManager {
 					? (raw.state as Record<string, unknown>)
 					: null;
 
+			const metadataRaw = stateObj?.metadata ?? raw.metadata;
+			const metadata =
+				typeof metadataRaw === "object" && metadataRaw !== null
+					? (metadataRaw as Record<string, unknown>)
+					: undefined;
+
 			return {
 				id,
 				messageID,
@@ -1260,6 +1266,7 @@ export class OpencodeSessionManager {
 				input: stateObj?.input ?? raw.input,
 				output: stateObj?.output ?? raw.output,
 				error: asString(stateObj?.error ?? raw.error) ?? undefined,
+				metadata,
 			};
 		}
 
@@ -1276,12 +1283,48 @@ export class OpencodeSessionManager {
 		}
 
 		if (type === "agent") {
+			const sourceRecord = asRecord(raw.source);
 			return {
 				id,
 				messageID,
 				ignored,
 				type: "agent",
 				name: asString(raw.name) ?? "",
+				source:
+					sourceRecord &&
+					typeof sourceRecord.value === "string" &&
+					typeof sourceRecord.start === "number" &&
+					typeof sourceRecord.end === "number"
+						? {
+								value: sourceRecord.value,
+								start: sourceRecord.start,
+								end: sourceRecord.end,
+							}
+						: undefined,
+			};
+		}
+
+		if (type === "subtask") {
+			const modelRecord = asRecord(raw.model);
+			return {
+				id,
+				messageID,
+				ignored,
+				type: "subtask",
+				sessionID: asString(raw.sessionID) ?? "",
+				prompt: asString(raw.prompt) ?? "",
+				description: asString(raw.description) ?? "",
+				agent: asString(raw.agent) ?? "",
+				model:
+					modelRecord &&
+					asString(modelRecord.providerID) &&
+					asString(modelRecord.modelID)
+						? {
+								providerID: asString(modelRecord.providerID)!,
+								modelID: asString(modelRecord.modelID)!,
+							}
+						: undefined,
+				command: asString(raw.command) ?? undefined,
 			};
 		}
 
@@ -1572,6 +1615,9 @@ export class OpencodeSessionManager {
 				if (typeof part.output === "string" && part.output.trim().length > 0) {
 					chunks.push(part.output.trim());
 				}
+			}
+			if (part.type === "subtask") {
+				chunks.push(`[Sub-agent: ${part.agent}] ${part.description}`);
 			}
 		}
 		return chunks.join("\n\n");

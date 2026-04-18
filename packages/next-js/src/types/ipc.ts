@@ -6,6 +6,7 @@ export type PartType =
 	| "tool"
 	| "reasoning"
 	| "agent"
+	| "subtask"
 	| "step-start"
 	| "snapshot"
 	| "other";
@@ -36,6 +37,7 @@ export interface ToolPart extends PartBase {
 	input?: unknown;
 	output?: unknown;
 	error?: string;
+	metadata?: Record<string, unknown>;
 }
 
 export interface ReasoningPart extends PartBase {
@@ -46,6 +48,24 @@ export interface ReasoningPart extends PartBase {
 export interface AgentPart extends PartBase {
 	type: "agent";
 	name: string;
+	source?: {
+		value: string;
+		start: number;
+		end: number;
+	};
+}
+
+export interface SubtaskPart extends PartBase {
+	type: "subtask";
+	sessionID: string;
+	prompt: string;
+	description: string;
+	agent: string;
+	model?: {
+		providerID: string;
+		modelID: string;
+	};
+	command?: string;
 }
 
 export interface StepStartPart extends PartBase {
@@ -96,6 +116,7 @@ export type Part =
 	| ToolPart
 	| ReasoningPart
 	| AgentPart
+	| SubtaskPart
 	| StepStartPart
 	| SnapshotPart
 	| OtherPart;
