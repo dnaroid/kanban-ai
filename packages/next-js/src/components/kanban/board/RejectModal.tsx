@@ -7,10 +7,53 @@ import {
 	useState,
 	type ClipboardEvent,
 } from "react";
-import { FileText, Loader2, Paperclip, X, XCircle } from "lucide-react";
+import {
+	FileText,
+	Loader2,
+	Mic,
+	MicOff,
+	Paperclip,
+	X,
+	XCircle,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/common/Modal";
 import { FileSystemPicker } from "@/components/common/FileSystemPicker";
+import { useSTTLanguage } from "@/components/voice/useSTTLanguage";
+
+type SpeechRecognitionResultLike = {
+	isFinal: boolean;
+	0: {
+		transcript: string;
+	};
+};
+
+type SpeechRecognitionResultListLike = {
+	length: number;
+	[index: number]: SpeechRecognitionResultLike;
+};
+
+type SpeechRecognitionEventLike = Event & {
+	resultIndex: number;
+	results: SpeechRecognitionResultListLike;
+};
+
+type SpeechRecognitionErrorEventLike = Event & {
+	error?: string;
+};
+
+type BrowserSpeechRecognition = {
+	lang: string;
+	continuous: boolean;
+	interimResults: boolean;
+	onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+	onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+	onend: (() => void) | null;
+	start: () => void;
+	stop: () => void;
+};
+
+type BrowserSpeechRecognitionCtor = new () => BrowserSpeechRecognition;
 
 export interface RejectAttachment {
 	name: string;
@@ -34,6 +77,8 @@ export function RejectModal({
 	taskTitle,
 }: RejectModalProps) {
 	const [reason, setReason] = useState("");
+	const [liveTranscript, setLiveTranscript] = useState("");
+	const [isListening, setIsListening] = useState(false);
 	const [selectedAttachments, setSelectedAttachments] = useState<
 		RejectAttachment[]
 	>([]);
@@ -41,21 +86,131 @@ export function RejectModal({
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+	const { language, toggleLanguage } = useSTTLanguage();
+
+	const stopDictation = useCallback(() => {
+		recognitionRef.current?.stop();
+		recognitionRef.current = null;
+		setIsListening(false);
+		setLiveTranscript("");
+	}, []);
 
 	useEffect(() => {
 		if (!isOpen) {
+			stopDictation();
 			setReason("");
+			setLiveTranscript("");
 			setSelectedAttachments([]);
 			setIsFilePickerOpen(false);
 			setError(null);
 		}
-	}, [isOpen]);
+	}, [isOpen, stopDictation]);
+
+	useEffect(() => {
+		return () => {
+			stopDictation();
+		};
+	}, [stopDictation]);
 
 	useEffect(() => {
 		if (isOpen && textareaRef.current) {
 			textareaRef.current.focus();
 		}
 	}, [isOpen]);
+
+	const handleToggleDictation = () => {
+		setError(null);
+
+		if (isListening) {
+			stopDictation();
+			return;
+		}
+
+		if (typeof window === "undefined") {
+			setError("Speech input is not available.");
+			return;
+		}
+
+		const speechWindow = window as Window & {
+			SpeechRecognition?: BrowserSpeechRecognitionCtor;
+			webkitSpeechRecognition?: BrowserSpeechRecognitionCtor;
+		};
+
+		const RecognitionCtor =
+			speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+
+		if (!RecognitionCtor) {
+			setError("STT is not supported in this browser.");
+			return;
+		}
+
+		const recognition = new RecognitionCtor();
+		recognition.lang = language;
+		recognition.continuous = true;
+		recognition.interimResults = true;
+
+		recognition.onresult = (event) => {
+			let interimText = "";
+			const finalized: string[] = [];
+
+			for (
+				let index = event.resultIndex;
+				index < event.results.length;
+				index += 1
+			) {
+				const result = event.results[index];
+				const transcript = result?.[0]?.transcript?.trim() ?? "";
+
+				if (!transcript) {
+					continue;
+				}
+
+				if (result.isFinal) {
+					finalized.push(transcript);
+				} else {
+					interimText += `${transcript} `;
+				}
+			}
+
+			if (finalized.length > 0) {
+				setReason((prev) => {
+					const nextChunk = finalized.join(" ");
+					if (!prev.trim()) {
+						return nextChunk;
+					}
+					return `${prev.trim()} ${nextChunk}`;
+				});
+			}
+
+			setLiveTranscript(interimText.trim());
+		};
+
+		recognition.onerror = (event) => {
+			setError(
+				event.error
+					? `Speech recognition error: ${event.error}`
+					: "Speech recognition failed.",
+			);
+			setIsListening(false);
+			setLiveTranscript("");
+		};
+
+		recognition.onend = () => {
+			setIsListening(false);
+			setLiveTranscript("");
+		};
+
+		try {
+			recognition.start();
+			recognitionRef.current = recognition;
+			setIsListening(true);
+		} catch {
+			setError("Unable to start microphone.");
+			setIsListening(false);
+			setLiveTranscript("");
+		}
+	};
 
 	const extractClipboardFiles = (clipboardData: DataTransfer): File[] => {
 		const directFiles = Array.from(clipboardData.files ?? []);
@@ -221,6 +376,14 @@ export function RejectModal({
 								className="w-full resize-none bg-transparent border-none text-slate-200 placeholder:text-slate-500 outline-none focus:ring-0 text-base leading-relaxed p-0"
 							/>
 
+							{liveTranscript && (
+								<div className="mt-4 p-3 rounded-lg bg-red-500/5 border border-red-500/10">
+									<p className="text-sm text-red-300/90 italic">
+										{liveTranscript}
+									</p>
+								</div>
+							)}
+
 							<div className="flex items-center justify-end gap-2 mt-2">
 								<button
 									type="button"
@@ -239,9 +402,46 @@ export function RejectModal({
 
 								<button
 									type="button"
+									onClick={toggleLanguage}
+									disabled={isSubmitting}
+									className="w-9 h-9 rounded-lg border border-slate-700/80 bg-slate-800/60 hover:bg-slate-700/60 text-slate-400 flex items-center justify-center transition-all hover:text-slate-200"
+									title={
+										language === "ru-RU"
+											? "Switch to English"
+											: "Switch to Russian"
+									}
+								>
+									<span className="text-[10px] font-bold">
+										{language === "ru-RU" ? "RU" : "EN"}
+									</span>
+								</button>
+
+								<button
+									type="button"
+									onClick={handleToggleDictation}
+									disabled={isSubmitting}
+									className={cn(
+										"w-9 h-9 rounded-lg border transition-all flex items-center justify-center",
+										isListening
+											? "text-red-300 border-red-500/40 bg-red-500/10 hover:bg-red-500/20 shadow-lg shadow-red-500/10"
+											: "text-slate-400 border-slate-700/80 bg-slate-800/60 hover:bg-slate-700/60 hover:text-slate-200",
+									)}
+									title={isListening ? "Stop dictation" : "Start dictation"}
+								>
+									{isListening ? (
+										<MicOff className="w-4 h-4" />
+									) : (
+										<Mic className="w-4 h-4" />
+									)}
+								</button>
+
+								<button
+									type="button"
 									onClick={() => {
 										setReason("");
+										setLiveTranscript("");
 										setError(null);
+										if (isListening) stopDictation();
 									}}
 									disabled={isSubmitting}
 									className="w-9 h-9 rounded-lg border border-slate-700/80 bg-slate-800/60 hover:bg-slate-700/60 text-slate-400 flex items-center justify-center transition-all hover:text-slate-200"
