@@ -50,6 +50,7 @@ interface ModelPickerProps {
 	allowAuto?: boolean;
 	difficulty?: string;
 	showVariantSelector?: boolean;
+	disabled?: boolean;
 }
 
 const getModelDisplayName = (name: string) => name.split("/").pop() || name;
@@ -63,6 +64,7 @@ export function ModelPicker({
 	allowAuto = false,
 	difficulty,
 	showVariantSelector = true,
+	disabled = false,
 }: ModelPickerProps) {
 	const [isPickerOpen, setIsPickerOpen] = useState(false);
 	const [hoveredModel, setHoveredModel] = useState<string | null>(null);
@@ -91,22 +93,25 @@ export function ModelPicker({
 			<div className="relative" onMouseLeave={() => setIsPickerOpen(false)}>
 				<button
 					type="button"
-					onClick={() => setIsPickerOpen(!isPickerOpen)}
+					disabled={disabled}
+					onClick={() => !disabled && setIsPickerOpen(!isPickerOpen)}
 					className={cn(
 						"w-max flex items-center justify-between px-3 h-8 rounded-lg text-[11px] transition-all border whitespace-nowrap",
-						isPickerOpen
-							? cn(
-									modelStyles.bg,
-									modelStyles.text,
-									modelStyles.border,
-									modelStyles.glow,
-								)
-							: cn(
-									"bg-slate-800/50 border-slate-700",
-									modelStyles.text,
-									modelStyles.border,
-									modelStyles.hover,
-								),
+						disabled && "opacity-50 cursor-not-allowed pointer-events-none",
+						!disabled &&
+							(isPickerOpen
+								? cn(
+										modelStyles.bg,
+										modelStyles.text,
+										modelStyles.border,
+										modelStyles.glow,
+									)
+								: cn(
+										"bg-slate-800/50 border-slate-700",
+										modelStyles.text,
+										modelStyles.border,
+										modelStyles.hover,
+									)),
 					)}
 				>
 					<div className="flex items-center gap-1.5">
@@ -198,6 +203,7 @@ export function ModelPicker({
 			{showVariantSelector && currentModel && currentModel.variants && (
 				<div className="relative group/variant">
 					<select
+						disabled={disabled}
 						value={variant || currentModel.variants.split(",")[0].trim()}
 						onChange={(e) =>
 							handleSelectModel(currentModel.name, e.target.value)
@@ -205,6 +211,7 @@ export function ModelPicker({
 						className={cn(
 							"appearance-none bg-slate-800/40 border border-slate-700/50 rounded-lg pl-2 pr-6 h-8 text-[10px] font-bold uppercase tracking-wider text-blue-400 cursor-pointer outline-none hover:bg-slate-800/60 hover:border-blue-500/30 transition-all",
 							"group-hover/variant:border-blue-500/30",
+							disabled && "opacity-50 cursor-not-allowed pointer-events-none",
 						)}
 					>
 						{currentModel.variants.split(",").map((v) => {
