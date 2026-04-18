@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -15,11 +16,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const STALE_UPLOAD_TTL_HOURS = 24;
 
 function getUploadDir(): string {
-	const dbPath =
-		process.env.DB_PATH || path.join(process.cwd(), "..", "..", "kanban-ai.db");
-	const repoRoot = path.dirname(dbPath);
-
-	return path.join(repoRoot, "data", "uploads");
+	return path.join(os.tmpdir(), "kanban-ai", "uploads");
 }
 
 export function ensureUploadDir(): string {
