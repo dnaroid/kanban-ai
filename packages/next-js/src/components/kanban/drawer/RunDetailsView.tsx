@@ -53,7 +53,7 @@ export function RunDetailsView({
 		modelID: string | null;
 	}>({ tokens: 0, percent: null, modelID: null });
 	const [sessionStack, setSessionStack] = useState<string[]>([]);
-	const isViewingSubAgent = sessionStack.length > 0;
+	const isViewingSubAgent = sessionStack.length > 1;
 	const activeSessionId =
 		sessionStack.length > 0 ? sessionStack[0] : run?.sessionId || "";
 	const sessionId = run?.sessionId;
