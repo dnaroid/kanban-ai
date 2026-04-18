@@ -763,7 +763,21 @@ export function useBoardModel({
 		}
 	};
 
-	const handleDeleteTask = (taskId: string) => {
+	const handleDeleteTask = async (taskId: string) => {
+		const task = tasks.find((t) => t.id === taskId);
+		const column = board?.columns?.find((c) => c.id === task?.columnId);
+		if (column?.systemKey === "closed") {
+			try {
+				await api.deleteTask(taskId);
+				setTasks((prev) => prev.filter((t) => t.id !== taskId));
+				setActiveTask((prev) => (prev && prev.id === taskId ? null : prev));
+				addToast("Task deleted successfully", "success");
+			} catch (deleteError) {
+				console.error("Failed to delete task:", deleteError);
+				addToast("Failed to delete task", "error");
+			}
+			return;
+		}
 		setDeleteTaskConfirm({ isOpen: true, taskId });
 	};
 
@@ -783,8 +797,28 @@ export function useBoardModel({
 		}
 	};
 
-	const handleBulkDelete = (columnId: string, taskCount: number) => {
+	const handleBulkDelete = async (columnId: string, taskCount: number) => {
 		if (taskCount === 0) return;
+		const column = board?.columns?.find((c) => c.id === columnId);
+		if (column?.systemKey === "closed") {
+			const columnTasks = tasks.filter((task) => task.columnId === columnId);
+			const columnTaskIds = new Set(columnTasks.map((task) => task.id));
+			try {
+				await Promise.all(columnTasks.map((task) => api.deleteTask(task.id)));
+				setTasks((prev) => prev.filter((task) => task.columnId !== columnId));
+				setActiveTask((prev) =>
+					prev && columnTaskIds.has(prev.id) ? null : prev,
+				);
+				addToast(
+					`Deleted ${columnTasks.length} task${columnTasks.length === 1 ? "" : "s"} successfully`,
+					"success",
+				);
+			} catch (deleteError) {
+				console.error("Failed to bulk delete tasks:", deleteError);
+				addToast("Failed to delete tasks", "error");
+			}
+			return;
+		}
 		setBulkDeleteConfirm({ isOpen: true, columnId, taskCount });
 	};
 
