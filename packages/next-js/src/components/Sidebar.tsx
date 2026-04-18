@@ -9,7 +9,7 @@ import {
 	Settings,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
+import { cn, getContrastColor } from "@/lib/utils";
 import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 import { api } from "@/lib/api-client";
 import type { Project } from "@/server/types";
@@ -166,8 +166,11 @@ export function Sidebar({
 								>
 									{isSidebarCollapsed ? (
 										<div
-											className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-white font-semibold text-sm"
-											style={{ backgroundColor: project.color || "#64748b" }}
+											className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center font-semibold text-sm"
+											style={{
+												backgroundColor: project.color || "#64748b",
+												color: getContrastColor(project.color || "#64748b"),
+											}}
 										>
 											{project.name.slice(0, 2).toUpperCase()}
 										</div>
