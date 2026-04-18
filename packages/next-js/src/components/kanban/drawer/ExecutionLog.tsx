@@ -3,6 +3,7 @@ import {
 	Bot,
 	CheckCircle2,
 	ChevronsDown,
+	ChevronsUp,
 	Circle,
 	ArrowLeft,
 	HelpCircle,
@@ -216,6 +217,7 @@ export function ExecutionLog({
 	const [events, setEvents] = useState<RunEvent[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [autoScroll, setAutoScroll] = useState(true);
+	const [scrolledFromTop, setScrolledFromTop] = useState(false);
 	const [streamingMessageIds, setStreamingMessageIds] = useState<Set<string>>(
 		new Set(),
 	);
@@ -315,12 +317,19 @@ export function ExecutionLog({
 			const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
 
 			setAutoScroll(isAtBottom);
+			setScrolledFromTop(scrollTop > 200);
 		}
 	};
 
 	const handleJumpToEnd = () => {
 		if (scrollRef.current) {
 			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+		}
+	};
+
+	const handleJumpToTop = () => {
+		if (scrollRef.current) {
+			scrollRef.current.scrollTop = 0;
 		}
 	};
 
@@ -1412,14 +1421,23 @@ export function ExecutionLog({
 					)}
 				</div>
 
+				{scrolledFromTop && (
+					<button
+						type="button"
+						onClick={handleJumpToTop}
+						className="absolute top-6 right-6 p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-xl shadow-blue-500/20 animate-in fade-in slide-in-from-top-2 duration-300 z-10 transition-colors"
+					>
+						<ChevronsUp className="w-4 h-4" />
+					</button>
+				)}
+
 				{!autoScroll && (
 					<button
 						type="button"
 						onClick={handleJumpToEnd}
-						className="absolute bottom-6 right-6 flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-full text-[10px] font-bold uppercase tracking-wider shadow-xl shadow-blue-500/20 animate-in fade-in slide-in-from-bottom-2 duration-300 z-10 transition-colors"
+						className="absolute bottom-6 right-6 p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-xl shadow-blue-500/20 animate-in fade-in slide-in-from-bottom-2 duration-300 z-10 transition-colors"
 					>
-						<ChevronsDown className="w-3.5 h-3.5" />
-						Jump to End
+						<ChevronsDown className="w-4 h-4" />
 					</button>
 				)}
 			</div>
