@@ -235,20 +235,24 @@ export function BoardScreen({
 
 	return (
 		<div className="flex flex-col h-full overflow-hidden">
-			<div className="relative z-10 flex items-center justify-between px-8 py-2 border-b border-slate-800/50 bg-slate-900/20 backdrop-blur-md shrink-0">
-				<div className="flex items-center gap-4">
-					<ProjectSelect
-						projectId={projectId}
-						projectName={projectName}
-						projectColor={projectColor}
-					/>
+			<div className="relative z-10 flex items-center gap-3 px-8 py-2 border-b border-slate-800/50 bg-slate-900/20 backdrop-blur-md shrink-0">
+				<div className="flex items-center gap-2 shrink-0">
+					{projectColor && (
+						<div
+							className="w-3 h-3 rounded-full shrink-0"
+							style={{ backgroundColor: projectColor }}
+						/>
+					)}
+					<h2 className="text-lg font-bold text-slate-200">{projectName}</h2>
 				</div>
+
+				<div className="flex-1" />
 
 				<div className="flex items-center gap-2">
 					<button
 						type="button"
 						onClick={() => setIsQuickCreateModalOpen(true)}
-						className="flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20"
+						className="flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20 cursor-pointer"
 						title="Quick Create Task"
 					>
 						<Plus className="w-4 h-4" />
@@ -261,7 +265,7 @@ export function BoardScreen({
 						}}
 						disabled={startReadyDisabled}
 						className={cn(
-							"flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all",
+							"flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all cursor-pointer",
 							startReadyDisabled
 								? "bg-slate-800 text-slate-500 cursor-not-allowed"
 								: "bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-900/20",
@@ -300,7 +304,7 @@ export function BoardScreen({
 						}}
 						disabled={pushDisabled}
 						className={cn(
-							"flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all",
+							"flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all cursor-pointer",
 							pushDisabled
 								? "bg-slate-800 text-slate-500 cursor-not-allowed"
 								: "bg-slate-700 text-slate-200 hover:bg-slate-600",
