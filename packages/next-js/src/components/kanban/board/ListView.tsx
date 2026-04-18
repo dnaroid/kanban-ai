@@ -3,6 +3,7 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import {
+	BrushCleaning,
 	ChevronDown,
 	ChevronRight,
 	Loader2,
@@ -191,11 +192,11 @@ function ListColumn({
 								"p-2 rounded-xl transition-all",
 								columnTasks.length === 0
 									? "text-slate-600 cursor-not-allowed"
-									: "text-slate-400 hover:text-red-400 hover:bg-red-500/10",
+									: "text-slate-400 hover:text-amber-400 hover:bg-amber-500/10",
 							)}
-							title="Delete all tasks in column"
+							title="Clear completed tasks"
 						>
-							<Trash2 className="w-5 h-5" />
+							<BrushCleaning className="w-5 h-5" />
 						</button>
 					)}
 					<button

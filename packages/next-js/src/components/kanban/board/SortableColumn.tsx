@@ -8,7 +8,7 @@ import {
 } from "@dnd-kit/sortable";
 import { useDndContext } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { AlertCircle, Trash2 } from "lucide-react";
+import { AlertCircle, BrushCleaning } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { KanbanTask, Tag } from "@/types/kanban";
 import { cn } from "@/lib/utils";
@@ -157,10 +157,10 @@ export function SortableColumn({
 										onBulkDelete?.(id, tasks.length);
 									}}
 									disabled={tasks.length === 0}
-									className="ml-auto p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors disabled:opacity-50 disabled:pointer-events-none shrink-0"
-									title="Empty trash"
+									className="ml-auto p-1.5 text-slate-500 hover:text-amber-500 hover:bg-amber-500/10 rounded-md transition-colors disabled:opacity-50 disabled:pointer-events-none shrink-0"
+									title="Clear completed tasks"
 								>
-									<Trash2 className="w-4 h-4" />
+									<BrushCleaning className="w-4 h-4" />
 								</button>
 							)}
 						</div>
