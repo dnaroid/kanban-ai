@@ -94,7 +94,7 @@ interface TodoWriteToolPart {
 }
 
 export function TodoWriteToolView({ part }: { part: TodoWriteToolPart }) {
-	const [isExpanded, setIsExpanded] = useState(true);
+	const [isExpanded, setIsExpanded] = useState(false);
 
 	const todos = extractTodos(part.input);
 	const completedCount = todos.filter((t) => t.status === "completed").length;
