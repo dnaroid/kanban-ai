@@ -155,22 +155,22 @@ export function Sidebar({
 									}}
 									title={isSidebarCollapsed ? project.name : undefined}
 									className={cn(
-										"flex items-center transition-all duration-200 w-full group",
+										"flex items-center transition-all duration-200 w-full group cursor-pointer",
 										isSidebarCollapsed
 											? "justify-center w-12 h-10 mx-auto rounded-lg"
 											: "gap-2.5 px-3 py-2 rounded-xl",
 										isActive
 											? isSidebarCollapsed
-												? "bg-blue-500/15 ring-2 ring-blue-400/50 shadow-md shadow-blue-500/20"
+												? "bg-blue-500/15 ring-2 ring-blue-400/50 shadow-md shadow-blue-500/20 cursor-default"
 												: "bg-blue-600/10 text-blue-400 ring-1 ring-inset ring-blue-500/20"
 											: isSidebarCollapsed
-												? "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 rounded-lg"
+												? "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 rounded-lg hover:ring-1 hover:ring-slate-700"
 												: "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200",
 									)}
 								>
 									{isSidebarCollapsed ? (
 										<div
-											className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center font-semibold text-sm"
+											className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center font-semibold text-sm transition-transform duration-200 group-hover:scale-110"
 											style={{
 												backgroundColor: project.color || "#64748b",
 												color: getContrastColor(project.color || "#64748b"),

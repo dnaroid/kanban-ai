@@ -126,7 +126,7 @@ export function ProjectSelect({
 			<button
 				type="button"
 				onClick={() => setIsOpen(!isOpen)}
-				className="flex items-center gap-2 px-2 py-1 -ml-2 rounded-lg hover:bg-slate-800/50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+				className="flex items-center gap-2 px-2 py-1 -ml-2 rounded-lg hover:bg-slate-800/50 hover:text-white transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
 				aria-haspopup="listbox"
 				aria-expanded={isOpen}
 			>

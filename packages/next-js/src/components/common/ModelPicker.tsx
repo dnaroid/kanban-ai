@@ -96,7 +96,7 @@ export function ModelPicker({
 					disabled={disabled}
 					onClick={() => !disabled && setIsPickerOpen(!isPickerOpen)}
 					className={cn(
-						"w-max flex items-center justify-between px-3 h-8 rounded-lg text-[11px] transition-all border whitespace-nowrap",
+						"w-max flex items-center justify-between px-3 h-8 rounded-lg text-[11px] transition-all border whitespace-nowrap cursor-pointer",
 						disabled && "opacity-50 cursor-not-allowed pointer-events-none",
 						!disabled &&
 							(isPickerOpen
@@ -182,7 +182,7 @@ export function ModelPicker({
 											onMouseEnter={() => setHoveredModel(model.name)}
 											onMouseLeave={() => setHoveredModel(null)}
 											className={cn(
-												"w-full flex items-center px-3 py-2 rounded-lg text-xs transition-all text-left",
+												"w-full flex items-center px-3 py-2 rounded-lg text-xs transition-all text-left cursor-pointer",
 												isSelected || isHovered
 													? cn(styles.bg, styles.text)
 													: cn(styles.text, "opacity-70"),
