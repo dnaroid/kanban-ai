@@ -75,7 +75,7 @@ export function buildTaskPrompt(
 		"",
 		"Requirements:",
 		"1. Complete the task in the project directory.",
-		`2. At the end of your response, output exactly one status line: ${buildOpencodeStatusLine("done")} or ${buildOpencodeStatusLine("fail")} or ${buildOpencodeStatusLine("question")} or ${buildOpencodeStatusLine("test_ok")} or ${buildOpencodeStatusLine("test_fail")}`,
+		`2. At the end of your response, output exactly one status line: ${buildOpencodeStatusLine("done")} or ${buildOpencodeStatusLine("fail")} or ${buildOpencodeStatusLine("question")}`,
 		"3. If the task failed, state the reason before the fail status line.",
 		"4. If you need user input, ask a specific question before the question status line.",
 	].join("\n");

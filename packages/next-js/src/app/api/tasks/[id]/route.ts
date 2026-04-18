@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { boardRepo, taskRepo } from "@/server/repositories";
+import { boardRepo, taskRepo, uploadRepo } from "@/server/repositories";
 import { projectRepo } from "@/server/repositories/project";
 import { getOpencodeService } from "@/server/opencode/opencode-service";
 import { runService } from "@/server/run/run-service";
 import type { UpdateTaskInput } from "@/server/types";
 import { publishSseEvent } from "@/server/events/sse-broker";
+import { deleteUploadFile } from "@/server/upload/upload-storage";
 import {
 	canTransitionColumn,
 	canTransitionStatus,
@@ -320,6 +321,11 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 				{ success: false, error: "Task not found" },
 				{ status: 404 },
 			);
+		}
+
+		const uploadPaths = uploadRepo.deleteByTask(id);
+		for (const filePath of uploadPaths) {
+			deleteUploadFile(filePath);
 		}
 
 		const deleted = taskRepo.delete(id);

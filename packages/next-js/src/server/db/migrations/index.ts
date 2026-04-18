@@ -15,6 +15,7 @@ import {
 	v030TaskIsGeneratedSql,
 	v031DropDeadTablesSql,
 	v032TaskBlockedReasonTextSql,
+	v033UploadsSql,
 } from "./sql";
 export {
 	v017SystemKeySql,
@@ -33,6 +34,7 @@ export {
 	v030TaskIsGeneratedSql,
 	v031DropDeadTablesSql,
 	v032TaskBlockedReasonTextSql,
+	v033UploadsSql,
 };
 
 export const INIT_DB_SQL = `
@@ -463,6 +465,10 @@ export const migrations = [
 	{
 		version: 32,
 		sql: v032TaskBlockedReasonTextSql,
+	},
+	{
+		version: 33,
+		sql: v033UploadsSql,
 	},
 ] as const;
 

@@ -63,23 +63,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 				// Clear active project when on projects list
 				setActiveProject(null);
 			} else {
-				// Try to load last project from settings
-				try {
-					const lastProjectId = await api.getLastProjectId();
-					if (lastProjectId) {
-						const project = await api.getProject(lastProjectId);
-						if (project) {
-							setActiveProject({
-								id: project.id,
-								name: project.name,
-								color: project.color,
-							});
-							localStorage.setItem(LAST_PROJECT_ID_KEY, project.id);
-						}
-					}
-				} catch (error) {
-					console.error("Failed to load last project:", error);
-				}
+				setActiveProject(null);
 			}
 		};
 

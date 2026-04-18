@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { LightMarkdown } from "@/components/LightMarkdown";
 import { VoiceInputButton } from "@/components/voice/VoiceInputButton";
 import { FileSystemPicker } from "@/components/common/FileSystemPicker";
-import { api } from "@/lib/api-client";
+import { api, uploadClipboardFiles } from "@/lib/api-client";
 
 interface RichMarkdownEditorProps {
 	value: string | null;
@@ -234,20 +234,46 @@ export function RichMarkdownEditor({
 		}
 	};
 
-	const handlePaste = (event: ClipboardEvent<HTMLElement>) => {
+	const handlePaste = async (event: ClipboardEvent<HTMLElement>) => {
 		const files = extractClipboardFiles(event.clipboardData);
 		if (files.length === 0) return;
 
 		event.preventDefault();
 
-		const items: AttachmentItem[] = files.map((file) => ({
-			name: file.name,
-			url: buildFileUrl(file) ?? undefined,
-			type: file.type,
-			size: file.size,
-		}));
+		const filesWithPath: Array<{ file: File; path: string }> = [];
+		const filesWithoutPath: File[] = [];
 
-		onFilesSelected?.(files);
+		for (const file of files) {
+			const filePath = (file as File & { path?: string }).path;
+			if (filePath) {
+				filesWithPath.push({ file, path: filePath });
+			} else {
+				filesWithoutPath.push(file);
+			}
+		}
+
+		const uploadedFiles =
+			filesWithoutPath.length > 0
+				? await uploadClipboardFiles(filesWithoutPath)
+				: [];
+
+		const items: AttachmentItem[] = [
+			...filesWithPath.map(({ file, path }) => ({
+				name: file.name,
+				url: buildFileUrlFromPath(path),
+				type: file.type,
+				size: file.size,
+			})),
+			...uploadedFiles.map((u) => ({
+				name: u.name,
+				url: buildFileUrlFromPath(u.path),
+			})),
+		];
+
+		const filesForCallback = filesWithPath.map((f) => f.file);
+		if (filesForCallback.length > 0) {
+			onFilesSelected?.(filesForCallback);
+		}
 		appendAttachmentItemsToDescription(items);
 	};
 

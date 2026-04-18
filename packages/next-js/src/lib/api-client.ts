@@ -1504,6 +1504,32 @@ class ApiClient {
 		return taskToKanban(task);
 	}
 
+	async uploadFiles(
+		files: File[],
+	): Promise<Array<{ uploadId: string; name: string; path: string }>> {
+		const formData = new FormData();
+		for (const file of files) {
+			formData.append("files", file);
+		}
+		const response = await fetch(`${this.baseUrl}/api/uploads`, {
+			method: "POST",
+			body: formData,
+		});
+		if (!response.ok) {
+			const body = await response.json().catch(() => ({}));
+			throw new Error(
+				(body as { error?: string }).error || "Failed to upload files",
+			);
+		}
+		const payload = await response.json();
+		return (
+			payload as {
+				success: boolean;
+				data: Array<{ uploadId: string; name: string; path: string }>;
+			}
+		).data;
+	}
+
 	async updateTask(
 		id: string,
 		updates: UpdateTaskInput,
@@ -1693,6 +1719,24 @@ class ApiClient {
 }
 
 export const api = new ApiClient();
+
+export async function uploadClipboardFiles(
+	files: File[],
+): Promise<Array<{ name: string; path: string; uploadId: string }>> {
+	if (files.length === 0) return [];
+
+	try {
+		const uploaded = await api.uploadFiles(files);
+		return uploaded.map((item) => ({
+			name: item.name,
+			path: item.path,
+			uploadId: item.uploadId,
+		}));
+	} catch (err) {
+		console.error("[ClipboardUpload] Failed to upload clipboard files:", err);
+		return [];
+	}
+}
 
 if (typeof window !== "undefined") {
 	(window as Window & { api?: ApiClient }).api = api;

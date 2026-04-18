@@ -7,6 +7,7 @@ export { runRepo, RunRepository } from "./run";
 export { runEventRepo, RunEventRepository } from "./run-event";
 export { artifactRepo, ArtifactRepository } from "./artifact";
 export { roleRepo, RoleRepository } from "./role";
+export { uploadRepo, UploadRepository } from "./upload";
 export {
 	contextSnapshotRepo,
 	ContextSnapshotRepository,

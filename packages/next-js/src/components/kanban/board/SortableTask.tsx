@@ -77,19 +77,19 @@ export function SortableTask({
 		const computedStyle = getComputedStyle(el);
 		const marginBottom = parseFloat(computedStyle.marginBottom);
 
+		el.style.overflow = "hidden";
+
 		el.animate(
 			[
 				{
 					height: `${height}px`,
 					opacity: 1,
 					marginBottom: `${marginBottom}px`,
-					overflow: "hidden",
 				},
 				{
 					height: "0px",
 					opacity: 0,
 					marginBottom: "0px",
-					overflow: "hidden",
 				},
 			],
 			{
@@ -105,11 +105,13 @@ export function SortableTask({
 		: null;
 	const statusBadge = statusVisual ? toneBadgeStyle(statusVisual.tone) : null;
 
-	const style = {
-		transform: CSS.Transform.toString(transform),
-		transition,
-		borderColor: statusBadge?.borderColor,
-	};
+	const style: React.CSSProperties = isDeleting
+		? { overflow: "hidden" }
+		: {
+				transform: CSS.Transform.toString(transform),
+				transition,
+				borderColor: statusBadge?.borderColor,
+			};
 
 	const tConfig =
 		typeConfig[task.type as keyof typeof typeConfig] || typeConfig.chore;
@@ -153,10 +155,10 @@ export function SortableTask({
 			style={style}
 			{...(isDeleting ? {} : { ...attributes, ...listeners })}
 			className={cn(
-				"bg-slate-900/40 backdrop-blur-md border rounded-xl mb-3 group hover:shadow-lg hover:shadow-black/20 transition-all cursor-grab active:cursor-grabbing overflow-visible relative z-10 hover:z-20",
-				"border-slate-700 hover:border-slate-600",
+				"bg-slate-900/40 backdrop-blur-md border rounded-xl mb-3 group hover:shadow-lg hover:shadow-black/20 cursor-grab active:cursor-grabbing relative z-10 hover:z-20 border-slate-700 hover:border-slate-600",
+				!isDeleting && "transition-all overflow-visible",
 				isDragging && "opacity-50 shadow-2xl scale-105",
-				isDeleting && "pointer-events-none overflow-hidden",
+				isDeleting && "pointer-events-none",
 				task.status === "running" && !isDeleting && "animate-card-pulse-blue",
 				task.status === "generating" &&
 					!isDeleting &&

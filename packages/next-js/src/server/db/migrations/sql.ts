@@ -96,3 +96,18 @@ DROP TABLE IF EXISTS resource_locks;
 export const v032TaskBlockedReasonTextSql = `
 ALTER TABLE tasks ADD COLUMN blocked_reason_text TEXT;
 `;
+
+export const v033UploadsSql = `
+CREATE TABLE IF NOT EXISTS uploads (
+  id TEXT PRIMARY KEY,
+  task_id TEXT,
+  stored_name TEXT NOT NULL,
+  original_name TEXT NOT NULL,
+  absolute_path TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_uploads_task_id ON uploads(task_id);
+`;
