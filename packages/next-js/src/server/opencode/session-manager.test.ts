@@ -159,4 +159,43 @@ describe("OpencodeSessionManager storage fallback", () => {
 			}),
 		);
 	});
+
+	it("ignores stale completion marker after a newer user resume message", async () => {
+		const manager = new OpencodeSessionManager();
+		const privateManager = manager as unknown as PrivateSessionManager;
+		const storageMessages: OpenCodeMessage[] = [
+			buildGeneratedMessage(),
+			{
+				id: "msg-user-resume",
+				role: "user",
+				content: "Please continue and fix QA issues",
+				parts: [],
+				timestamp: Date.now() + 1,
+			},
+		];
+
+		vi.spyOn(privateManager, "fetchSessionActivityStatus").mockResolvedValue(
+			"idle",
+		);
+		vi.spyOn(privateManager, "fetchSessionInfo").mockResolvedValue({
+			id: "session-1",
+			directory: "/tmp/project",
+		});
+		vi.spyOn(privateManager, "getSessionClient").mockResolvedValue({
+			session: {
+				messages: vi.fn(async () => []),
+			},
+		});
+		vi.spyOn(manager, "getTodos").mockResolvedValue([]);
+		vi.spyOn(manager, "listPendingPermissions").mockResolvedValue([]);
+		vi.spyOn(manager, "listPendingQuestions").mockResolvedValue([]);
+		vi.spyOn(
+			privateManager.storageReader,
+			"getMessagesFromFilesystem",
+		).mockResolvedValue(storageMessages);
+
+		const inspection = await manager.inspectSession("session-1");
+
+		expect(inspection.completionMarker).toBeNull();
+	});
 });

@@ -764,9 +764,11 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 
 	const confirmDeleteTask = async () => {
 		if (!deleteTaskConfirm.taskId) return;
+		const taskId = deleteTaskConfirm.taskId;
 		try {
-			await api.deleteTask(deleteTaskConfirm.taskId);
-			await loadBoard();
+			await api.deleteTask(taskId);
+			setTasks((prev) => prev.filter((task) => task.id !== taskId));
+			setActiveTask((prev) => (prev && prev.id === taskId ? null : prev));
 			addToast("Task deleted successfully", "success");
 		} catch (deleteError) {
 			console.error("Failed to delete task:", deleteError);
@@ -783,12 +785,15 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 
 	const confirmBulkDelete = async () => {
 		if (!bulkDeleteConfirm.columnId) return;
-		const columnTasks = tasks.filter(
-			(task) => task.columnId === bulkDeleteConfirm.columnId,
-		);
+		const columnId = bulkDeleteConfirm.columnId;
+		const columnTasks = tasks.filter((task) => task.columnId === columnId);
+		const columnTaskIds = new Set(columnTasks.map((task) => task.id));
 		try {
 			await Promise.all(columnTasks.map((task) => api.deleteTask(task.id)));
-			await loadBoard();
+			setTasks((prev) => prev.filter((task) => task.columnId !== columnId));
+			setActiveTask((prev) =>
+				prev && columnTaskIds.has(prev.id) ? null : prev,
+			);
 			addToast(
 				`Deleted ${columnTasks.length} task${columnTasks.length === 1 ? "" : "s"} successfully`,
 				"success",
