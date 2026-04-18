@@ -72,6 +72,25 @@ export function BoardScreen({
 		return "board";
 	});
 
+	const [isQuickCreateModalOpen, setIsQuickCreateModalOpen] = useState(false);
+	const [isPushing, setIsPushing] = useState(false);
+	const [hasUnpushedCommits, setHasUnpushedCommits] = useState(true);
+
+	const refreshGitStatus = useCallback(() => {
+		api.git
+			.status({ projectId })
+			.then(({ aheadCount }) => {
+				setHasUnpushedCommits(aheadCount > 0);
+			})
+			.catch(() => {
+				setHasUnpushedCommits(true);
+			});
+	}, [projectId]);
+
+	useEffect(() => {
+		refreshGitStatus();
+	}, [refreshGitStatus]);
+
 	const {
 		board,
 		tasks,
@@ -110,7 +129,7 @@ export function BoardScreen({
 		handleBulkDelete,
 		confirmBulkDelete,
 		handleRejectTask,
-	} = useBoardModel({ projectId });
+	} = useBoardModel({ projectId, onTasksRefreshed: refreshGitStatus });
 
 	const [expandedColumns, setExpandedColumns] = useState<
 		Record<string, boolean>
@@ -118,9 +137,6 @@ export function BoardScreen({
 	const manualTogglesRef = useRef<Record<string, boolean>>({});
 	const prevTaskCountsRef = useRef<Record<string, number>>({});
 
-	const [isQuickCreateModalOpen, setIsQuickCreateModalOpen] = useState(false);
-	const [isPushing, setIsPushing] = useState(false);
-	const [hasUnpushedCommits, setHasUnpushedCommits] = useState(true);
 	const [activeExecutionSessionConfirm, setActiveExecutionSessionConfirm] =
 		useState<ActiveExecutionSessionConfirmationState | null>(null);
 
@@ -131,21 +147,6 @@ export function BoardScreen({
 	useEffect(() => {
 		localStorage.setItem("boardViewMode", viewMode);
 	}, [viewMode]);
-
-	const refreshGitStatus = useCallback(() => {
-		api.git
-			.status({ projectId })
-			.then(({ aheadCount }) => {
-				setHasUnpushedCommits(aheadCount > 0);
-			})
-			.catch(() => {
-				setHasUnpushedCommits(true);
-			});
-	}, [projectId]);
-
-	useEffect(() => {
-		refreshGitStatus();
-	}, [refreshGitStatus]);
 
 	useEffect(() => {
 		if (viewMode !== "list") return;

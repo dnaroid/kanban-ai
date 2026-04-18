@@ -834,6 +834,22 @@ export class RunService {
 					try {
 						await sendSessionMessage(completedRun.sessionId, qaMessage);
 
+						const resumedAt = new Date().toISOString();
+						runRepo.update(completedRun.id, {
+							status: "running",
+							startedAt: resumedAt,
+							finishedAt: null,
+							errorText: "",
+							metadata: {
+								...(completedRun.metadata ?? {}),
+								lastExecutionStatus: {
+									kind: "running",
+									sessionId: completedRun.sessionId,
+									updatedAt: resumedAt,
+								},
+							},
+						});
+
 						const inProgressColumn = board.columns.find(
 							(col) => col.systemKey === "in_progress",
 						);

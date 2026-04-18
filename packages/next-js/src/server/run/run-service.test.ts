@@ -836,6 +836,20 @@ describe("RunService.startReadyTasks", () => {
 			"session-completed",
 			expect.stringContaining("This task did not pass QA review. Reasons:"),
 		);
+		expect(mockRunRepo.update).toHaveBeenCalledWith(
+			"run-completed",
+			expect.objectContaining({
+				status: "running",
+				finishedAt: null,
+				errorText: "",
+				metadata: expect.objectContaining({
+					lastExecutionStatus: expect.objectContaining({
+						kind: "running",
+						sessionId: "session-completed",
+					}),
+				}),
+			}),
+		);
 		expect(startSpy).not.toHaveBeenCalled();
 		expect(result).toEqual({
 			startedCount: 1,
@@ -899,6 +913,18 @@ describe("RunService.startReadyTasks", () => {
 		expect(mockSendSessionMessage).toHaveBeenCalledWith(
 			"session-exec",
 			expect.stringContaining("Fix the failing checks"),
+		);
+		expect(mockRunRepo.update).toHaveBeenCalledWith(
+			"run-exec",
+			expect.objectContaining({
+				status: "running",
+				metadata: expect.objectContaining({
+					lastExecutionStatus: expect.objectContaining({
+						kind: "running",
+						sessionId: "session-exec",
+					}),
+				}),
+			}),
 		);
 		expect(startSpy).not.toHaveBeenCalled();
 		expect(result.runIds).toEqual(["run-exec"]);

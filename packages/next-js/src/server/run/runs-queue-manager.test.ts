@@ -1833,6 +1833,38 @@ describe("RunsQueueManager permission handling", () => {
 		);
 	});
 
+	it("does not mark a resumed session completed when idle after a newer user message", async () => {
+		const { manager } = await setupRunningRun("run-resume-1", "task-resume-1");
+		mockSessionManager.inspectSession.mockResolvedValueOnce(
+			buildInspection({
+				sessionStatus: "idle",
+				messages: [
+					{
+						id: "msg-assistant-done",
+						role: "assistant",
+						content: buildOpencodeStatusLine("done"),
+						parts: [],
+						timestamp: Date.now(),
+					},
+					{
+						id: "msg-user-resume",
+						role: "user",
+						content: "Please continue and fix QA issues",
+						parts: [],
+						timestamp: Date.now() + 1,
+					},
+				],
+			}),
+		);
+
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
+
+		expect(runMap.get("run-resume-1")?.status).toBe("running");
+		expect(mockStateMachine.transition).not.toHaveBeenCalledWith(
+			expect.objectContaining({ trigger: "run:done" }),
+		);
+	});
+
 	it("publishes SSE permission event when permission is detected during project polling", async () => {
 		const { publishSseEvent } = await import("@/server/events/sse-broker");
 		const { manager, sessionId } = await setupRunningRun(

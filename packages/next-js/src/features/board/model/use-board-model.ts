@@ -15,6 +15,7 @@ import { useToast } from "@/components/common/toast/ToastContext";
 
 interface UseBoardModelArgs {
 	projectId: string;
+	onTasksRefreshed?: () => void;
 }
 
 type PromptAttachment = {
@@ -58,7 +59,10 @@ export function normalizeQuickRunRawStoryInput(
 	};
 }
 
-export function useBoardModel({ projectId }: UseBoardModelArgs) {
+export function useBoardModel({
+	projectId,
+	onTasksRefreshed,
+}: UseBoardModelArgs) {
 	const router = useRouter();
 	const pathname = usePathname();
 	const { addToast } = useToast();
@@ -208,10 +212,11 @@ export function useBoardModel({ projectId }: UseBoardModelArgs) {
 				}
 				return nextTasks.find((task) => task.id === prev.id) ?? null;
 			});
+			onTasksRefreshed?.();
 		} catch (refreshError) {
 			console.error("Failed to refresh board tasks from server:", refreshError);
 		}
-	}, [board]);
+	}, [board, onTasksRefreshed]);
 	const refreshSingleTaskFromServer = refreshTaskFromServer;
 
 	const scheduleDebouncedBoardTasksRefresh = useCallback(

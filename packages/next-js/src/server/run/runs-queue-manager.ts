@@ -156,6 +156,11 @@ function deriveMetaStatus(
 	}
 
 	if (inspection.sessionStatus === "idle") {
+		const latestMessage = inspection.messages[inspection.messages.length - 1];
+		if (latestMessage?.role === "user") {
+			return { kind: "running" };
+		}
+
 		const content = findStoryContent(inspection);
 		return { kind: "completed", marker: "done", content };
 	}
