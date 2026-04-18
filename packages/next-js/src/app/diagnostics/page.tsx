@@ -11,13 +11,11 @@ import {
 	ListFilter,
 	Zap,
 	AlertCircle,
-	RotateCcw,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import type { QueueStatsResponse } from "@/types/ipc";
-import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 
 const getUtilizationColor = (percent: number) => {
 	if (percent >= 90) return "bg-red-500";
@@ -45,11 +43,6 @@ export default function DiagnosticsPage() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [isPolling, setIsPolling] = useState(false);
-	const [isRestarting, setIsRestarting] = useState(false);
-	const [isRestartWarningOpen, setIsRestartWarningOpen] = useState(false);
-	const [restartBusySessionCount, setRestartBusySessionCount] = useState(0);
-	const [restartRunningCount, setRestartRunningCount] = useState(0);
-	const [restartQueuedCount, setRestartQueuedCount] = useState(0);
 
 	const loadStats = useCallback(
 		async (silent = false) => {
@@ -83,54 +76,6 @@ export default function DiagnosticsPage() {
 		return () => clearInterval(interval);
 	}, [loadStats]);
 
-	const checkActiveBeforeRestart = async (): Promise<boolean> => {
-		const [queueCheck, sessionCheck] = await Promise.all([
-			api.run.queueStats().catch(() => null),
-			api.opencode.activeSessionStats().catch(() => null),
-		]);
-
-		const hasQueuedRuns = (queueCheck?.totalQueued ?? 0) > 0;
-		const hasRunningRuns = (queueCheck?.totalRunning ?? 0) > 0;
-		const hasBusySessions = (sessionCheck?.busySessions ?? 0) > 0;
-
-		if (hasQueuedRuns || hasRunningRuns || hasBusySessions) {
-			setRestartQueuedCount(queueCheck?.totalQueued ?? 0);
-			setRestartRunningCount(queueCheck?.totalRunning ?? 0);
-			setRestartBusySessionCount(sessionCheck?.busySessions ?? 0);
-			setIsRestartWarningOpen(true);
-			return true;
-		}
-		return false;
-	};
-
-	const handleRestart = async () => {
-		if (await checkActiveBeforeRestart()) return;
-		await performRestart(false);
-	};
-
-	const performRestart = async (force: boolean) => {
-		setIsRestarting(true);
-		setError(null);
-		try {
-			await api.opencode.restartServe({ force });
-			await loadStats();
-		} catch (err) {
-			if (!force) {
-				const blocked = await checkActiveBeforeRestart();
-				if (blocked) {
-					setIsRestarting(false);
-					return;
-				}
-			}
-			console.error("Failed to restart opencode serve:", err);
-			setError(
-				err instanceof Error ? err.message : "Failed to restart opencode serve",
-			);
-		} finally {
-			setIsRestarting(false);
-		}
-	};
-
 	return (
 		<div className="flex flex-col min-h-screen animate-in fade-in duration-500 pb-12">
 			{/* Header */}
@@ -154,17 +99,6 @@ export default function DiagnosticsPage() {
 					</div>
 				</div>
 				<div className="flex items-center gap-2">
-					<button
-						type="button"
-						onClick={handleRestart}
-						disabled={isRestarting}
-						className="h-10 px-4 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-amber-600/20 active:scale-95 disabled:opacity-50 text-[10px] uppercase tracking-wider"
-					>
-						<RotateCcw
-							className={cn("w-4 h-4", isRestarting && "animate-spin")}
-						/>
-						<span>Restart OpenCode</span>
-					</button>
 					<button
 						type="button"
 						onClick={() => loadStats()}
@@ -403,62 +337,6 @@ export default function DiagnosticsPage() {
 					</div>
 				</div>
 			</div>
-
-			<ConfirmationModal
-				isOpen={isRestartWarningOpen}
-				onClose={() => {
-					setIsRestartWarningOpen(false);
-					setRestartBusySessionCount(0);
-					setRestartRunningCount(0);
-					setRestartQueuedCount(0);
-				}}
-				onConfirm={async () => {
-					setIsRestartWarningOpen(false);
-					await performRestart(true);
-				}}
-				title="Active work in progress"
-				description="There are active tasks or OpenCode sessions running. Restarting will interrupt them."
-				confirmLabel="Restart anyway"
-				variant="danger"
-				isLoading={isRestarting}
-			>
-				{(restartBusySessionCount > 0 ||
-					restartRunningCount > 0 ||
-					restartQueuedCount > 0) && (
-					<div className="mt-3 flex gap-3">
-						{restartBusySessionCount > 0 && (
-							<div className="flex-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-center">
-								<div className="text-lg font-bold text-amber-400 font-mono">
-									{restartBusySessionCount}
-								</div>
-								<div className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold">
-									Active sessions
-								</div>
-							</div>
-						)}
-						{restartRunningCount > 0 && (
-							<div className="flex-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-center">
-								<div className="text-lg font-bold text-emerald-400 font-mono">
-									{restartRunningCount}
-								</div>
-								<div className="text-[10px] text-emerald-400/70 uppercase tracking-wider font-semibold">
-									Running
-								</div>
-							</div>
-						)}
-						{restartQueuedCount > 0 && (
-							<div className="flex-1 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-center">
-								<div className="text-lg font-bold text-blue-400 font-mono">
-									{restartQueuedCount}
-								</div>
-								<div className="text-[10px] text-blue-400/70 uppercase tracking-wider font-semibold">
-									Queued
-								</div>
-							</div>
-						)}
-					</div>
-				)}
-			</ConfirmationModal>
 		</div>
 	);
 }

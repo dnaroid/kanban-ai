@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Database, AlertCircle } from "lucide-react";
+import { Database, AlertCircle, RotateCcw } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 
@@ -30,6 +31,11 @@ export function DangerZoneSettings({
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 	const [isDbDeleting, setIsDbDeleting] = useState(false);
 	const [showDbDeleteConfirm, setShowDbDeleteConfirm] = useState(false);
+	const [isRestarting, setIsRestarting] = useState(false);
+	const [isRestartWarningOpen, setIsRestartWarningOpen] = useState(false);
+	const [restartBusySessionCount, setRestartBusySessionCount] = useState(0);
+	const [restartRunningCount, setRestartRunningCount] = useState(0);
+	const [restartQueuedCount, setRestartQueuedCount] = useState(0);
 
 	const activeProjectName =
 		projects.find((p) => p.id === selectedProjectId)?.name ||
@@ -77,6 +83,59 @@ export function DangerZoneSettings({
 		}
 	};
 
+	const checkActiveBeforeRestart = async (): Promise<boolean> => {
+		const [queueCheck, sessionCheck] = await Promise.all([
+			api.run.queueStats().catch(() => null),
+			api.opencode.activeSessionStats().catch(() => null),
+		]);
+
+		const hasQueuedRuns = (queueCheck?.totalQueued ?? 0) > 0;
+		const hasRunningRuns = (queueCheck?.totalRunning ?? 0) > 0;
+		const hasBusySessions = (sessionCheck?.busySessions ?? 0) > 0;
+
+		if (hasQueuedRuns || hasRunningRuns || hasBusySessions) {
+			setRestartQueuedCount(queueCheck?.totalQueued ?? 0);
+			setRestartRunningCount(queueCheck?.totalRunning ?? 0);
+			setRestartBusySessionCount(sessionCheck?.busySessions ?? 0);
+			setIsRestartWarningOpen(true);
+			return true;
+		}
+		return false;
+	};
+
+	const handleRestart = async () => {
+		if (await checkActiveBeforeRestart()) return;
+		await performRestart(false);
+	};
+
+	const performRestart = async (force: boolean) => {
+		setIsRestarting(true);
+		onStatusChange(null);
+		try {
+			await api.opencode.restartServe({ force });
+			onStatusChange({
+				message: "OpenCode restarted successfully",
+				type: "success",
+			});
+		} catch (err) {
+			if (!force) {
+				const blocked = await checkActiveBeforeRestart();
+				if (blocked) {
+					setIsRestarting(false);
+					return;
+				}
+			}
+			console.error("Failed to restart opencode serve:", err);
+			onStatusChange({
+				message:
+					err instanceof Error ? err.message : "Failed to restart OpenCode",
+				type: "error",
+			});
+		} finally {
+			setIsRestarting(false);
+		}
+	};
+
 	return (
 		<div className="flex flex-col">
 			<div className="flex-none bg-[#0B0E14] border-b border-slate-800/60 pb-6 mb-6 shrink-0 flex items-center justify-between">
@@ -91,7 +150,8 @@ export function DangerZoneSettings({
 							</span>
 						</div>
 						<p className="text-xl font-black text-white tracking-tight leading-none mt-1">
-							{projects.length} <span className="text-slate-600">Managed Projects</span>
+							{projects.length}{" "}
+							<span className="text-slate-600">Managed Projects</span>
 						</p>
 					</div>
 				</div>
@@ -99,99 +159,190 @@ export function DangerZoneSettings({
 
 			<div className="space-y-4">
 				<div className="p-5 bg-[#11151C] border border-red-900/20 rounded-2xl group transition-all hover:border-red-900/40 shadow-xl shadow-red-900/5">
-				<div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-					<div className="space-y-3 flex-1">
-						<div className="flex items-center gap-3">
-							<div className="p-2 bg-red-500/10 rounded-lg">
-								<AlertCircle className="w-4 h-4 text-red-400" />
+					<div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+						<div className="space-y-3 flex-1">
+							<div className="flex items-center gap-3">
+								<div className="p-2 bg-red-500/10 rounded-lg">
+									<AlertCircle className="w-4 h-4 text-red-400" />
+								</div>
+								<h5 className="text-xs font-bold text-red-200 uppercase tracking-widest">
+									Delete Project
+								</h5>
 							</div>
-							<h5 className="text-xs font-bold text-red-200 uppercase tracking-widest">
+							<p className="text-xs text-slate-500 leading-relaxed max-w-sm">
+								Remove all data for{" "}
+								<span className="text-red-400 font-bold">
+									{activeProjectName || "this project"}
+								</span>
+								. This action cannot be undone.
+							</p>
+							<select
+								value={selectedProjectId}
+								onChange={(event) => setSelectedProjectId(event.target.value)}
+								className="w-full max-w-xs bg-[#0B0E14]/80 border border-red-900/30 text-sm text-red-200/80 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500/20 transition-all appearance-none"
+							>
+								<option value="">Select project to destroy</option>
+								{projects.map((project) => (
+									<option key={project.id} value={project.id}>
+										{project.name}
+									</option>
+								))}
+							</select>
+						</div>
+
+						<div className="shrink-0">
+							<button
+								type="button"
+								onClick={() => setShowDeleteConfirm(true)}
+								disabled={!selectedProjectId}
+								className="w-full md:w-auto px-6 py-2 text-xs font-semibold rounded-lg border border-red-900/40 text-red-500 hover:bg-red-500 hover:text-white transition-all duration-300 disabled:opacity-20"
+							>
 								Delete Project
-							</h5>
+							</button>
 						</div>
-						<p className="text-xs text-slate-500 leading-relaxed max-w-sm">
-							Remove all data for{" "}
-							<span className="text-red-400 font-bold">
-								{activeProjectName || "this project"}
-							</span>
-							. This action cannot be undone.
-						</p>
-						<select
-							value={selectedProjectId}
-							onChange={(event) => setSelectedProjectId(event.target.value)}
-							className="w-full max-w-xs bg-[#0B0E14]/80 border border-red-900/30 text-sm text-red-200/80 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500/20 transition-all appearance-none"
-						>
-							<option value="">Select project to destroy</option>
-							{projects.map((project) => (
-								<option key={project.id} value={project.id}>
-									{project.name}
-								</option>
-							))}
-						</select>
-					</div>
-
-					<div className="shrink-0">
-						<button
-							type="button"
-							onClick={() => setShowDeleteConfirm(true)}
-							disabled={!selectedProjectId}
-							className="w-full md:w-auto px-6 py-2 text-xs font-semibold rounded-lg border border-red-900/40 text-red-500 hover:bg-red-500 hover:text-white transition-all duration-300 disabled:opacity-20"
-						>
-							Delete Project
-						</button>
 					</div>
 				</div>
-			</div>
 
-			<div className="p-5 bg-[#11151C] border border-red-900/20 rounded-2xl group transition-all hover:border-red-900/40 shadow-xl shadow-red-900/5">
-				<div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-					<div className="space-y-3 flex-1">
-						<div className="flex items-center gap-3">
-							<div className="p-2 bg-red-500/10 rounded-lg">
-								<Database className="w-4 h-4 text-red-400" />
+				<div className="p-5 bg-[#11151C] border border-red-900/20 rounded-2xl group transition-all hover:border-red-900/40 shadow-xl shadow-red-900/5">
+					<div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+						<div className="space-y-3 flex-1">
+							<div className="flex items-center gap-3">
+								<div className="p-2 bg-red-500/10 rounded-lg">
+									<Database className="w-4 h-4 text-red-400" />
+								</div>
+								<h5 className="text-xs font-bold text-red-200 uppercase tracking-widest">
+									Wipe System
+								</h5>
 							</div>
-							<h5 className="text-xs font-bold text-red-200 uppercase tracking-widest">
-								Wipe System
-							</h5>
+							<p className="text-xs text-slate-500 leading-relaxed max-w-sm">
+								Factory reset the database. All projects, tags, and settings
+								will be purged.
+							</p>
 						</div>
-						<p className="text-xs text-slate-500 leading-relaxed max-w-sm">
-							Factory reset the database. All projects, tags, and settings will
-							be purged.
-						</p>
-					</div>
 
-					<div className="shrink-0">
-						<button
-							type="button"
-							onClick={() => setShowDbDeleteConfirm(true)}
-							className="w-full md:w-auto px-6 py-2 text-xs font-semibold rounded-lg border border-red-900/40 text-red-500 hover:bg-red-500 hover:text-white transition-all duration-300"
-						>
-							Wipe Database
-						</button>
+						<div className="shrink-0">
+							<button
+								type="button"
+								onClick={() => setShowDbDeleteConfirm(true)}
+								className="w-full md:w-auto px-6 py-2 text-xs font-semibold rounded-lg border border-red-900/40 text-red-500 hover:bg-red-500 hover:text-white transition-all duration-300"
+							>
+								Wipe Database
+							</button>
+						</div>
+					</div>
+				</div>
+
+				<div className="p-5 bg-[#11151C] border border-red-900/20 rounded-2xl group transition-all hover:border-red-900/40 shadow-xl shadow-red-900/5">
+					<div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+						<div className="space-y-3 flex-1">
+							<div className="flex items-center gap-3">
+								<div className="p-2 bg-red-500/10 rounded-lg">
+									<RotateCcw
+										className={cn(
+											"w-4 h-4 text-red-400",
+											isRestarting && "animate-spin",
+										)}
+									/>
+								</div>
+								<h5 className="text-xs font-bold text-red-200 uppercase tracking-widest">
+									Restart OpenCode
+								</h5>
+							</div>
+							<p className="text-xs text-slate-500 leading-relaxed max-w-sm">
+								Restart the OpenCode server process. Active sessions and running
+								tasks may be interrupted.
+							</p>
+						</div>
+
+						<div className="shrink-0">
+							<button
+								type="button"
+								onClick={handleRestart}
+								disabled={isRestarting}
+								className="w-full md:w-auto px-6 py-2 text-xs font-semibold rounded-lg border border-red-900/40 text-red-500 hover:bg-red-500 hover:text-white transition-all duration-300 disabled:opacity-50"
+							>
+								Restart OpenCode
+							</button>
+						</div>
 					</div>
 				</div>
 			</div>
-		</div>
 
-		<ConfirmationModal
-			isOpen={showDeleteConfirm}
-			onClose={() => setShowDeleteConfirm(false)}
-			onConfirm={handleDeleteProject}
-			isLoading={isDeleting}
-			title="Delete Project"
-			description={`Are you sure you want to delete "${activeProjectName}"? This action is irreversible and all project data will be lost forever.`}
-			confirmLabel="Delete Project"
-		/>
+			<ConfirmationModal
+				isOpen={showDeleteConfirm}
+				onClose={() => setShowDeleteConfirm(false)}
+				onConfirm={handleDeleteProject}
+				isLoading={isDeleting}
+				title="Delete Project"
+				description={`Are you sure you want to delete "${activeProjectName}"? This action is irreversible and all project data will be lost forever.`}
+				confirmLabel="Delete Project"
+			/>
 
-		<ConfirmationModal
-			isOpen={showDbDeleteConfirm}
-			onClose={() => setShowDbDeleteConfirm(false)}
-			onConfirm={handleDeleteDatabase}
-			isLoading={isDbDeleting}
-			title="Wipe System Database"
-			description="This will factory reset the entire application database. All projects, configurations, and history will be permanently deleted."
-			confirmLabel="Wipe Everything"
-		/>
+			<ConfirmationModal
+				isOpen={showDbDeleteConfirm}
+				onClose={() => setShowDbDeleteConfirm(false)}
+				onConfirm={handleDeleteDatabase}
+				isLoading={isDbDeleting}
+				title="Wipe System Database"
+				description="This will factory reset the entire application database. All projects, configurations, and history will be permanently deleted."
+				confirmLabel="Wipe Everything"
+			/>
+
+			<ConfirmationModal
+				isOpen={isRestartWarningOpen}
+				onClose={() => {
+					setIsRestartWarningOpen(false);
+					setRestartBusySessionCount(0);
+					setRestartRunningCount(0);
+					setRestartQueuedCount(0);
+				}}
+				onConfirm={async () => {
+					setIsRestartWarningOpen(false);
+					await performRestart(true);
+				}}
+				title="Active work in progress"
+				description="There are active tasks or OpenCode sessions running. Restarting will interrupt them."
+				confirmLabel="Restart anyway"
+				variant="danger"
+				isLoading={isRestarting}
+			>
+				{(restartBusySessionCount > 0 ||
+					restartRunningCount > 0 ||
+					restartQueuedCount > 0) && (
+					<div className="mt-3 flex gap-3">
+						{restartBusySessionCount > 0 && (
+							<div className="flex-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-center">
+								<div className="text-lg font-bold text-amber-400 font-mono">
+									{restartBusySessionCount}
+								</div>
+								<div className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold">
+									Active sessions
+								</div>
+							</div>
+						)}
+						{restartRunningCount > 0 && (
+							<div className="flex-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-center">
+								<div className="text-lg font-bold text-emerald-400 font-mono">
+									{restartRunningCount}
+								</div>
+								<div className="text-[10px] text-emerald-400/70 uppercase tracking-wider font-semibold">
+									Running
+								</div>
+							</div>
+						)}
+						{restartQueuedCount > 0 && (
+							<div className="flex-1 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-center">
+								<div className="text-lg font-bold text-blue-400 font-mono">
+									{restartQueuedCount}
+								</div>
+								<div className="text-[10px] text-blue-400/70 uppercase tracking-wider font-semibold">
+									Queued
+								</div>
+							</div>
+						)}
+					</div>
+				)}
+			</ConfirmationModal>
 		</div>
 	);
 }
