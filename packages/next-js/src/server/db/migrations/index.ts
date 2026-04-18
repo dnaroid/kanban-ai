@@ -13,6 +13,7 @@ import {
 	v028TaskQaReportSql,
 	v029ModelContextLimitSql,
 	v030TaskIsGeneratedSql,
+	v031DropDeadTablesSql,
 } from "./sql";
 export {
 	v017SystemKeySql,
@@ -29,6 +30,7 @@ export {
 	v028TaskQaReportSql,
 	v029ModelContextLimitSql,
 	v030TaskIsGeneratedSql,
+	v031DropDeadTablesSql,
 };
 
 export const INIT_DB_SQL = `
@@ -232,36 +234,7 @@ CREATE INDEX IF NOT EXISTS idx_run_events_message ON run_events(message_id);
 CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id, created_at);
 
 -- ---------------------------------------------------------------------------
--- releases (PM feature) — keep, but NO PR linkage
--- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS releases (
-  id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL,
-  name TEXT NOT NULL,
-  status TEXT NOT NULL,
-  target_date TEXT,
-  notes_md TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS release_items (
-  id TEXT PRIMARY KEY,
-  release_id TEXT NOT NULL,
-  task_id TEXT NOT NULL,
-  state TEXT NOT NULL DEFAULT 'planned',
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  FOREIGN KEY (release_id) REFERENCES releases(id) ON DELETE CASCADE,
-  FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_releases_project ON releases(project_id, updated_at);
-CREATE INDEX IF NOT EXISTS idx_release_items_release ON release_items(release_id, state);
-
--- ---------------------------------------------------------------------------
--- task_links, task_schedule, task_events
+-- task_links
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS task_links (
   id TEXT PRIMARY KEY,
@@ -276,65 +249,9 @@ CREATE TABLE IF NOT EXISTS task_links (
   FOREIGN KEY (to_task_id) REFERENCES tasks(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS task_schedule (
-  task_id TEXT PRIMARY KEY,
-  start_date TEXT NULL,
-  due_date TEXT NULL,
-  estimate_points REAL NOT NULL DEFAULT 0,
-  estimate_hours REAL NOT NULL DEFAULT 0,
-  assignee TEXT NOT NULL DEFAULT '',
-  updated_at TEXT NOT NULL,
-  FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS task_events (
-  id TEXT PRIMARY KEY,
-  task_id TEXT NOT NULL,
-  ts TEXT NOT NULL,
-  event_type TEXT NOT NULL,
-  payload_json TEXT NOT NULL DEFAULT '{}',
-  FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
-);
-
 CREATE INDEX IF NOT EXISTS idx_links_from ON task_links(from_task_id);
 CREATE INDEX IF NOT EXISTS idx_links_to ON task_links(to_task_id);
 CREATE INDEX IF NOT EXISTS idx_links_project ON task_links(project_id);
-CREATE INDEX IF NOT EXISTS idx_schedule_task ON task_schedule(task_id);
-CREATE INDEX IF NOT EXISTS idx_task_events_task ON task_events(task_id, ts);
-
--- ---------------------------------------------------------------------------
--- TaskQueueManager (NEW)
--- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS task_queue (
-  task_id TEXT PRIMARY KEY,
-  state TEXT NOT NULL,      -- queued|running|waiting_user|paused|done|failed
-  stage TEXT NOT NULL,      -- ba|tl|fe|be|qa|sre|sec|data (or custom role keys)
-  priority INTEGER NOT NULL,
-  enqueued_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  last_error TEXT NOT NULL DEFAULT '',
-  locked_by TEXT NOT NULL DEFAULT '',
-  locked_until TEXT NULL,
-  FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_task_queue_state_prio ON task_queue(state, priority, updated_at);
-CREATE INDEX IF NOT EXISTS idx_task_queue_stage_state ON task_queue(stage, state, priority);
-
-CREATE TABLE IF NOT EXISTS role_slots (
-  role_key TEXT PRIMARY KEY,       -- ba|tl|fe|be|qa|sre|sec|data
-  max_concurrency INTEGER NOT NULL,
-  updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS resource_locks (
-  lock_key TEXT PRIMARY KEY,       -- e.g. project:<id>:workspace
-  owner TEXT NOT NULL,
-  acquired_at TEXT NOT NULL,
-  expires_at TEXT NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_resource_locks_expires ON resource_locks(expires_at);
 
 -- ---------------------------------------------------------------------------
 -- FTS
@@ -455,19 +372,8 @@ BEGIN
 END;
 
 -- ---------------------------------------------------------------------------
--- plugins + app_settings
+-- opencode_models + app_settings
 -- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS plugins (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  version TEXT NOT NULL,
-  enabled INTEGER NOT NULL DEFAULT 0,
-  type TEXT NOT NULL,
-  manifest_json TEXT NOT NULL,
-  installed_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS opencode_models (
   name TEXT PRIMARY KEY,
   enabled INTEGER NOT NULL DEFAULT 0,
@@ -482,16 +388,6 @@ CREATE TABLE IF NOT EXISTS app_settings (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_app_settings_key ON app_settings(key);
-
-CREATE TABLE IF NOT EXISTS app_metrics (
-  id TEXT PRIMARY KEY,
-  metric_name TEXT NOT NULL,
-  metric_value REAL NOT NULL,
-  tags_json TEXT NOT NULL DEFAULT '{}',
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_app_metrics_name_created
-  ON app_metrics(metric_name, created_at DESC);
 
 ;
 `;
@@ -556,6 +452,10 @@ export const migrations = [
 	{
 		version: 30,
 		sql: v030TaskIsGeneratedSql,
+	},
+	{
+		version: 31,
+		sql: v031DropDeadTablesSql,
 	},
 ] as const;
 
