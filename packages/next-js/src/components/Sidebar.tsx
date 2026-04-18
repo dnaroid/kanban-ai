@@ -164,13 +164,19 @@ export function Sidebar({
 											: "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200",
 									)}
 								>
-									<div
-										className={cn(
-											"rounded-full shrink-0",
-											isSidebarCollapsed ? "w-4 h-4" : "w-3 h-3",
-										)}
-										style={{ backgroundColor: project.color || "#64748b" }}
-									/>
+									{isSidebarCollapsed ? (
+										<div
+											className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-white font-semibold text-sm"
+											style={{ backgroundColor: project.color || "#64748b" }}
+										>
+											{project.name.charAt(0).toUpperCase()}
+										</div>
+									) : (
+										<div
+											className="rounded-full shrink-0 w-3 h-3"
+											style={{ backgroundColor: project.color || "#64748b" }}
+										/>
+									)}
 									{!isSidebarCollapsed && (
 										<span className="text-sm font-medium truncate text-left">
 											{project.name}
