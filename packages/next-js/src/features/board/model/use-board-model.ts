@@ -1235,6 +1235,8 @@ export function useBoardModel({
 		handleDeleteColumn,
 		handleTaskUpdate,
 		refreshTaskFromServer: refreshSingleTaskFromServer,
+		refreshBoardTasksFromServer,
+		loadBoard,
 		handleContextAction,
 		closeColumnModal,
 		openEditColumnModal,

@@ -5,7 +5,7 @@ import {
 	horizontalListSortingStrategy,
 	SortableContext,
 } from "@dnd-kit/sortable";
-import { AlertCircle, Clock, Plus, Play, Upload } from "lucide-react";
+import { AlertCircle, Clock, Plus, Play, Upload, Zap } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { SortableColumn } from "./kanban/board/SortableColumn";
 import { SortableTask } from "./kanban/board/SortableTask";
@@ -83,6 +83,7 @@ export function BoardScreen({
 		handleDragStart,
 		handleDragEnd,
 		handleTaskClick,
+		handleAddTask,
 		handleQuickGenerateStory,
 		handleQuickRunRawStory,
 		handleDeleteTask,
@@ -108,6 +109,8 @@ export function BoardScreen({
 		confirmBulkDelete,
 		handleRejectTask,
 		deletingTaskId,
+		refreshBoardTasksFromServer,
+		loadBoard,
 	} = useBoardModel({ projectId, onTasksRefreshed: refreshGitStatus });
 
 	const [activeExecutionSessionConfirm, setActiveExecutionSessionConfirm] =
@@ -250,12 +253,23 @@ export function BoardScreen({
 				<div className="flex items-center gap-2">
 					<button
 						type="button"
+						onClick={() => {
+							if (firstColumnId) void handleAddTask(firstColumnId);
+						}}
+						className="flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all bg-violet-600 text-white hover:bg-violet-500 shadow-lg shadow-violet-900/20 cursor-pointer"
+						title="Create a new task"
+					>
+						<Plus className="w-4 h-4" />
+						New Task
+					</button>
+					<button
+						type="button"
 						onClick={() => setIsQuickCreateModalOpen(true)}
 						className="flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold transition-all bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20 cursor-pointer"
 						title="Quick Create Task"
 					>
-						<Plus className="w-4 h-4" />
-						Add Task
+						<Zap className="w-4 h-4" />
+						Instant Task
 					</button>
 					<button
 						type="button"
