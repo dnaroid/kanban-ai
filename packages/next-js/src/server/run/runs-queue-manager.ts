@@ -703,6 +703,9 @@ export class RunsQueueManager {
 			isGeneration,
 		});
 		queue.push(runId);
+		if (currentRun && !isGeneration) {
+			this.applyTaskTransition(currentRun, "run:start", "");
+		}
 		log.info("Run enqueued", {
 			runId,
 			projectScope,

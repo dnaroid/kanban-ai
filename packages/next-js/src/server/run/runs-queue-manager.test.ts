@@ -534,6 +534,33 @@ describe("RunsQueueManager scheduling", () => {
 		);
 	});
 
+	it("marks an execution task as started immediately when enqueued", () => {
+		taskMap.set(
+			"task-immediate",
+			buildTask("task-immediate", "normal", "pending"),
+		);
+		runMap.set(
+			"run-immediate",
+			buildRun(
+				"run-immediate",
+				"task-immediate",
+				"execution",
+				"2026-01-01T00:00:10.000Z",
+			),
+		);
+
+		const manager = new RunsQueueManager();
+		manager.enqueue("run-immediate", {
+			projectPath: "/tmp/project",
+			sessionTitle: "task-immediate",
+			prompt: "prompt",
+		});
+
+		expectTransitionCall("run:start", {
+			task: expect.objectContaining({ id: "task-immediate" }),
+		});
+	});
+
 	it("forwards session preferences to first prompt, not session.create", async () => {
 		taskMap.set("task-1", buildTask("task-1", "normal"));
 		runMap.set(
