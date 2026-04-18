@@ -89,9 +89,11 @@ export function Sidebar({
 						: "justify-between px-6 py-5",
 				)}
 			>
-				<div
+				<button
+					type="button"
+					onClick={() => router.push("/projects")}
 					className={cn(
-						"flex items-center",
+						"flex items-center cursor-pointer",
 						isSidebarCollapsed ? "justify-center w-full" : "gap-3",
 					)}
 				>
@@ -108,7 +110,7 @@ export function Sidebar({
 							</span>
 						</div>
 					)}
-				</div>
+				</button>
 
 				<button
 					type="button"
