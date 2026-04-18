@@ -26,6 +26,7 @@ import {
 	Timer,
 	Type,
 	User,
+	AlertTriangle,
 } from "lucide-react";
 import { PillSelect } from "@/components/common/PillSelect";
 import type { KanbanTask, TaskLink } from "@/types/kanban";
@@ -181,6 +182,7 @@ export function TaskDrawerProperties({
 							</div>
 							{hasLongDescription && (
 								<button
+									type="button"
 									onClick={() =>
 										setExpanded((p) => ({ ...p, description: !p.description }))
 									}
@@ -416,6 +418,7 @@ export function TaskDrawerProperties({
 							</div>
 							{hasLongQaReport && (
 								<button
+									type="button"
 									onClick={() =>
 										setExpanded((p) => ({ ...p, qaReport: !p.qaReport }))
 									}
@@ -634,11 +637,29 @@ export function TaskDrawerProperties({
 							<p className="text-[10px] text-slate-500 leading-relaxed">
 								Manual value is kept until status or column changes.
 							</p>
+							{task.blockedReason === "failed" && task.blockedReasonText && (
+								<div className="mt-2 flex items-start gap-2 text-xs bg-red-500/5 px-3 py-2 rounded-lg border border-red-500/20">
+									<AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+									<span className="text-red-300/80 leading-relaxed">
+										{task.blockedReasonText}
+									</span>
+								</div>
+							)}
 						</>
 					) : (
-						<span className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
-							{task.blockedReason ?? "—"}
-						</span>
+						<>
+							<span className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
+								{task.blockedReason ?? "—"}
+							</span>
+							{task.blockedReasonText && task.blockedReason === "failed" && (
+								<div className="mt-2 flex items-start gap-2 text-xs bg-red-500/5 px-3 py-2 rounded-lg border border-red-500/20">
+									<AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+									<span className="text-red-300/80 leading-relaxed">
+										{task.blockedReasonText}
+									</span>
+								</div>
+							)}
+						</>
 					)}
 				</div>
 				<div className="space-y-2">

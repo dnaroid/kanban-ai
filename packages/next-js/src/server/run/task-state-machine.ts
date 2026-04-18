@@ -551,6 +551,7 @@ export interface TaskTransitionInput {
 		boardId: string;
 		status: TaskStatus;
 		columnId: string;
+		tags?: string;
 	};
 	board: Board;
 	trigger: TaskTransitionTrigger;
@@ -566,6 +567,7 @@ export interface TaskTransitionResult {
 		status?: TaskStatus;
 		columnId?: string;
 		blockedReason?: BlockedReason | null;
+		blockedReasonText?: string | null;
 		closedReason?: ClosedReason | null;
 		description?: string;
 		descriptionMd?: string;
@@ -573,6 +575,7 @@ export interface TaskTransitionResult {
 		tags?: string;
 		type?: string;
 		difficulty?: string;
+		modelName?: string | null;
 		commitMessage?: string | null;
 		isGenerated?: boolean;
 	};
@@ -756,6 +759,8 @@ function compactPatch(patch: TaskPatch): TaskPatch {
 	if (patch.columnId !== undefined) compacted.columnId = patch.columnId;
 	if (patch.blockedReason !== undefined)
 		compacted.blockedReason = patch.blockedReason;
+	if (patch.blockedReasonText !== undefined)
+		compacted.blockedReasonText = patch.blockedReasonText;
 	if (patch.closedReason !== undefined)
 		compacted.closedReason = patch.closedReason;
 	if (patch.description !== undefined)
@@ -991,8 +996,7 @@ export class TaskStateMachine {
 		const nextColumnId = this.resolveColumnIdForStatus(input, nextStatus);
 		const nextColumnKey = getWorkflowColumnSystemKey(input.board, nextColumnId);
 		const reasons = resolveTaskStatusReasons(nextStatus, nextColumnKey);
-
-		return {
+		const patch: TaskPatch = {
 			status: nextStatus,
 			columnId: nextColumnId,
 			blockedReason:
@@ -1000,6 +1004,14 @@ export class TaskStateMachine {
 			closedReason:
 				reasons.closedReason ?? getClosedReasonForStatus(nextStatus),
 		};
+
+		if (nextStatus === "failed") {
+			patch.blockedReasonText = input.outcomeContent || null;
+		} else if (input.task.status === "failed" && nextStatus !== "failed") {
+			patch.blockedReasonText = null;
+		}
+
+		return patch;
 	}
 
 	private buildStoryPatch(input: TaskTransitionInput): TaskPatch {

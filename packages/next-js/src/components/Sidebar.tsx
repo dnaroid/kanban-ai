@@ -93,7 +93,7 @@ export function Sidebar({
 					type="button"
 					onClick={() => router.push("/projects")}
 					className={cn(
-						"flex items-center cursor-pointer",
+						"flex items-center cursor-pointer transition-all duration-200 hover:bg-slate-800/50 hover:text-slate-300 rounded-lg",
 						isSidebarCollapsed ? "justify-center w-full" : "gap-3",
 					)}
 				>

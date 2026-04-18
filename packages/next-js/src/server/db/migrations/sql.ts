@@ -92,3 +92,7 @@ DROP TABLE IF EXISTS task_queue;
 DROP TABLE IF EXISTS role_slots;
 DROP TABLE IF EXISTS resource_locks;
 `;
+
+export const v032TaskBlockedReasonTextSql = `
+ALTER TABLE tasks ADD COLUMN blocked_reason_text TEXT;
+`;

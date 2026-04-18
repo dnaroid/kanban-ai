@@ -258,7 +258,7 @@ function DynamicArrayField({
 							<button
 								type="button"
 								onClick={() => handleRemove(index)}
-								className="text-slate-500 hover:text-red-400 px-2 transition-colors"
+								className="text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg px-2 transition-colors"
 							>
 								×
 							</button>
@@ -571,7 +571,7 @@ function ObjectTreeNode({
 										value={newKeyName}
 										onChange={(e) => setNewKeyName(e.target.value)}
 										placeholder="Enter key name..."
-										className="flex-1 bg-[#161B26] border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50"
+										className="flex-1 bg-[#161B26] border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
 										ref={(input) => {
 											if (input && showAddModal) {
 												input.focus();

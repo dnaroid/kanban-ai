@@ -159,7 +159,7 @@ export function TaskDrawerContent({
 					) : (
 						<button
 							type="button"
-							className="flex-1 min-w-0 group cursor-pointer text-left"
+							className="flex-1 min-w-0 group cursor-pointer text-left hover:bg-slate-800/30 rounded-lg transition-colors"
 							onClick={() => {
 								setEditedTitle(task.title || "");
 								setIsEditingTitle(true);

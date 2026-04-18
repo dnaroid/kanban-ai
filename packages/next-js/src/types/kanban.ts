@@ -23,6 +23,7 @@ export interface KanbanTask {
 	descriptionMd: string | null;
 	status: TaskStatus;
 	blockedReason: BlockedReason | null;
+	blockedReasonText: string | null;
 	closedReason: ClosedReason | null;
 	priority: TaskPriority;
 	difficulty: TaskDifficulty;
@@ -64,6 +65,7 @@ export interface KanbanTaskPatch {
 	descriptionMd?: string | null;
 	status?: TaskStatus;
 	blockedReason?: BlockedReason | null;
+	blockedReasonText?: string | null;
 	closedReason?: ClosedReason | null;
 	priority?: TaskPriority;
 	difficulty?: TaskDifficulty;

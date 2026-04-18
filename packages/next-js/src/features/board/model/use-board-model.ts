@@ -1026,6 +1026,8 @@ export function useBoardModel({
 		if (patch.status !== undefined) updateData.status = patch.status;
 		if (patch.blockedReason !== undefined)
 			updateData.blockedReason = patch.blockedReason;
+		if (patch.blockedReasonText !== undefined)
+			updateData.blockedReasonText = patch.blockedReasonText;
 		if (patch.closedReason !== undefined)
 			updateData.closedReason = patch.closedReason;
 		if (patch.priority !== undefined) updateData.priority = patch.priority;

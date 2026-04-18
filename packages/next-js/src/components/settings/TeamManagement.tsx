@@ -611,7 +611,7 @@ export function TeamManagement() {
 							value={searchQuery}
 							onChange={(event) => setSearchQuery(event.target.value)}
 							placeholder="Search roles..."
-							className="w-full bg-slate-900/40 border border-slate-800/60 text-sm text-slate-200 rounded-xl pl-10 pr-10 py-2.5 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all placeholder:text-slate-600 font-medium shadow-sm"
+							className="w-full bg-slate-900/40 border border-slate-800/60 text-sm text-slate-200 rounded-xl pl-10 pr-10 py-2.5 hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all placeholder:text-slate-600 font-medium shadow-sm"
 						/>
 					</div>
 					<button
@@ -809,7 +809,7 @@ export function TeamManagement() {
 										onChange={(event) => setFormId(event.target.value)}
 										disabled={!isNew}
 										placeholder="e.g. executor"
-										className="w-full bg-slate-900/60 border border-slate-800/80 text-base text-slate-100 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+										className="w-full bg-slate-900/60 border border-slate-800/80 text-base text-slate-100 rounded-2xl px-5 py-4 hover:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
 									/>
 								</div>
 								<div className="space-y-2">
@@ -824,7 +824,7 @@ export function TeamManagement() {
 										value={formName}
 										onChange={(event) => setFormName(event.target.value)}
 										placeholder="e.g. Executor"
-										className="w-full bg-slate-900/60 border border-slate-800/80 text-base text-slate-100 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+										className="w-full bg-slate-900/60 border border-slate-800/80 text-base text-slate-100 rounded-2xl px-5 py-4 hover:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
 									/>
 								</div>
 							</div>
@@ -841,7 +841,7 @@ export function TeamManagement() {
 									value={formDescription}
 									onChange={(event) => setFormDescription(event.target.value)}
 									placeholder="What this agent does"
-									className="w-full bg-slate-900/60 border border-slate-800/80 text-base text-slate-100 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+									className="w-full bg-slate-900/60 border border-slate-800/80 text-base text-slate-100 rounded-2xl px-5 py-4 hover:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
 								/>
 							</div>
 
@@ -992,7 +992,7 @@ export function TeamManagement() {
 												onChange={(event) => setSkillQuery(event.target.value)}
 												onKeyDown={handleSkillInputKeyDown}
 												placeholder="Search or type new skill..."
-												className="w-full bg-slate-900/60 border border-slate-800/80 text-sm text-slate-200 rounded-2xl pl-11 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition-all"
+												className="w-full bg-slate-900/60 border border-slate-800/80 text-sm text-slate-200 rounded-2xl pl-11 pr-4 py-3 hover:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition-all"
 											/>
 										</div>
 										<button

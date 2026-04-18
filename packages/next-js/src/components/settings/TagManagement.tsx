@@ -139,7 +139,7 @@ export function TagManagement() {
 						value={searchQuery}
 						onChange={(e) => setSearchQuery(e.target.value)}
 						placeholder="Filter by label name..."
-						className="w-full bg-slate-900/40 border border-slate-800/60 text-sm text-slate-200 rounded-xl pl-10 pr-10 py-2.5 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/50 transition-all placeholder:text-slate-600 font-medium shadow-sm"
+						className="w-full bg-slate-900/40 border border-slate-800/60 text-sm text-slate-200 rounded-xl pl-10 pr-10 py-2.5 hover:border-slate-600 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/50 transition-all placeholder:text-slate-600 font-medium shadow-sm"
 					/>
 					{searchQuery && (
 						<button
@@ -171,7 +171,7 @@ export function TagManagement() {
 										value={newTagName}
 										onChange={(e) => setNewTagName(e.target.value)}
 										placeholder="e.g. priority-high"
-										className="w-full bg-slate-900/60 border border-slate-800/60 text-base text-slate-100 rounded-2xl pl-11 pr-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/40 transition-all placeholder:text-slate-700 font-bold tracking-tight"
+										className="w-full bg-slate-900/60 border border-slate-800/60 text-base text-slate-100 rounded-2xl pl-11 pr-4 py-3.5 hover:border-indigo-500/60 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/40 transition-all placeholder:text-slate-700 font-bold tracking-tight"
 										onKeyDown={(e) =>
 											e.key === "Enter" && void handleCreateTag()
 										}
@@ -265,7 +265,7 @@ export function TagManagement() {
 											<input
 												value={editName}
 												onChange={(e) => setEditName(e.target.value)}
-												className="w-full bg-slate-900 border border-slate-700/50 text-base text-slate-100 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 font-black tracking-tight"
+												className="w-full bg-slate-900 border border-slate-700/50 text-base text-slate-100 rounded-xl px-4 py-2 hover:border-indigo-500/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 font-black tracking-tight"
 												onKeyDown={(e) => {
 													if (e.key === "Enter") void handleUpdateTag(tag.id);
 													if (e.key === "Escape") cancelEditing();

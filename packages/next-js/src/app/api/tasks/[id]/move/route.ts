@@ -122,6 +122,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 			);
 			if (movedTask.blockedReason !== reasons.blockedReason) {
 				patch.blockedReason = reasons.blockedReason;
+				patch.blockedReasonText =
+					reasons.blockedReason === null ? null : movedTask.blockedReasonText;
 			}
 			if (movedTask.closedReason !== reasons.closedReason) {
 				patch.closedReason = reasons.closedReason;
@@ -148,7 +150,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 			updatedAt: task.updatedAt,
 		});
 
-		return NextResponse.json({ success: true, data: task });
+		return NextResponse.json({
+			success: true,
+			data: {
+				...task,
+				blockedReason: task.blockedReason,
+				blockedReasonText: task.blockedReasonText,
+			},
+		});
 	} catch (error) {
 		console.error("[API] Error moving task:", error);
 		return NextResponse.json(

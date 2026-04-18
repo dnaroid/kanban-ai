@@ -39,6 +39,7 @@ function taskToKanban(
 		descriptionMd: task.descriptionMd,
 		status: task.status as KanbanTask["status"],
 		blockedReason: task.blockedReason,
+		blockedReasonText: task.blockedReasonText,
 		closedReason: task.closedReason,
 		priority: task.priority as KanbanTask["priority"],
 		difficulty: task.difficulty as KanbanTask["difficulty"],

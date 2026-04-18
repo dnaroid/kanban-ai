@@ -66,6 +66,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 			success: true,
 			data: {
 				...task,
+				blockedReason: task.blockedReason,
+				blockedReasonText: task.blockedReasonText,
 				latestSessionId: getLatestSessionId(task.id),
 				opencodeWebUrl: getOpencodeWebUrl(task.projectId),
 			},
@@ -102,6 +104,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
 		const requestedStatus = body.status;
 		const requestedBlockedReason = body.blockedReason;
+		const requestedBlockedReasonText = body.blockedReasonText;
 		const requestedClosedReason = body.closedReason;
 
 		if (
@@ -221,6 +224,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 		const patch: UpdateTaskInput = { ...body };
 		delete patch.blockedReason;
 		delete patch.closedReason;
+		if (requestedBlockedReasonText !== undefined) {
+			patch.blockedReasonText = requestedBlockedReasonText;
+		}
 		if (targetColumnId !== existingTask.columnId) {
 			patch.columnId = targetColumnId;
 		}
@@ -239,6 +245,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 			);
 			if (existingTask.blockedReason !== reasons.blockedReason) {
 				patch.blockedReason = reasons.blockedReason;
+				patch.blockedReasonText =
+					reasons.blockedReason === null
+						? null
+						: existingTask.blockedReasonText;
 			}
 			if (existingTask.closedReason !== reasons.closedReason) {
 				patch.closedReason = reasons.closedReason;
@@ -256,10 +266,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 			}
 			if (existingTask.blockedReason !== null) {
 				patch.blockedReason = null;
+				patch.blockedReasonText = null;
 			}
 		} else {
 			if (existingTask.blockedReason !== null) {
 				patch.blockedReason = null;
+				patch.blockedReasonText = null;
 			}
 			if (existingTask.closedReason !== null) {
 				patch.closedReason = null;

@@ -163,7 +163,14 @@ export async function POST(request: NextRequest) {
 			updatedAt: task.updatedAt,
 		});
 
-		return NextResponse.json({ success: true, data: task });
+		return NextResponse.json({
+			success: true,
+			data: {
+				...task,
+				blockedReason: task.blockedReason,
+				blockedReasonText: null,
+			},
+		});
 	} catch (error) {
 		console.error("[API] Error creating task:", error);
 		return NextResponse.json(

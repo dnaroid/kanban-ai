@@ -1355,7 +1355,7 @@ export function ExecutionLog({
 					<button
 						type="button"
 						onClick={handleJumpToEnd}
-						className="absolute bottom-6 right-6 flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-full text-[10px] font-bold uppercase tracking-wider shadow-xl shadow-blue-500/20 animate-in fade-in slide-in-from-bottom-2 duration-300 z-10"
+						className="absolute bottom-6 right-6 flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-full text-[10px] font-bold uppercase tracking-wider shadow-xl shadow-blue-500/20 animate-in fade-in slide-in-from-bottom-2 duration-300 z-10 transition-colors"
 					>
 						<ChevronsDown className="w-3.5 h-3.5" />
 						Jump to End

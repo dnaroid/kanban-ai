@@ -14,6 +14,7 @@ import {
 	v029ModelContextLimitSql,
 	v030TaskIsGeneratedSql,
 	v031DropDeadTablesSql,
+	v032TaskBlockedReasonTextSql,
 } from "./sql";
 export {
 	v017SystemKeySql,
@@ -31,6 +32,7 @@ export {
 	v029ModelContextLimitSql,
 	v030TaskIsGeneratedSql,
 	v031DropDeadTablesSql,
+	v032TaskBlockedReasonTextSql,
 };
 
 export const INIT_DB_SQL = `
@@ -91,6 +93,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   description TEXT,
   status TEXT NOT NULL,           -- 'queued' | 'running' | 'done' | 'archived' (migration 2)
   blocked_reason TEXT,
+  blocked_reason_text TEXT,
   closed_reason TEXT,
   priority TEXT NOT NULL,         -- 'low' | 'normal' | 'urgent' (migration 4)
   difficulty TEXT NOT NULL DEFAULT 'medium',  -- migration 1
@@ -456,6 +459,10 @@ export const migrations = [
 	{
 		version: 31,
 		sql: v031DropDeadTablesSql,
+	},
+	{
+		version: 32,
+		sql: v032TaskBlockedReasonTextSql,
 	},
 ] as const;
 

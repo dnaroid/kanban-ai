@@ -384,7 +384,7 @@ export function OhMyOpenagentSettings({
 								<select
 									value={selectedPreset}
 									onChange={(e) => setSelectedPreset(e.target.value)}
-									className="bg-transparent text-[11px] font-bold text-slate-200 pr-6 py-1 focus:outline-none appearance-none cursor-pointer min-w-[120px] max-w-[180px] truncate"
+									className="bg-transparent text-[11px] font-bold text-slate-200 pr-6 py-1 focus:outline-none appearance-none cursor-pointer min-w-[120px] max-w-[180px] truncate hover:bg-slate-800/50 hover:text-slate-100 transition-colors"
 								>
 									<option value="" className="bg-[#161B26]">
 										Select Preset...
@@ -449,7 +449,7 @@ export function OhMyOpenagentSettings({
 						<button
 							type="button"
 							onClick={handleSelectFile}
-							className="h-8 px-3 hover:bg-slate-800 text-slate-300 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-2"
+							className="h-8 px-3 hover:bg-slate-800 hover:text-white text-slate-300 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-2"
 						>
 							<FolderOpen className="w-3.5 h-3.5 text-slate-400" />
 							Config
