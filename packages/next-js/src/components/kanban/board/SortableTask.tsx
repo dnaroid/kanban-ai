@@ -18,6 +18,7 @@ import {
 	getContextActionConfig,
 	INACTIVE_CONTEXT_ACTION_STATUSES,
 } from "./contextActions";
+import { TaskDetailsModel } from "../drawer/sections/TaskDetailsModel";
 
 export interface SortableTaskProps {
 	task: KanbanTask;
@@ -196,6 +197,12 @@ export function SortableTask({
 					)}
 				</button>
 			</div>
+
+			{onUpdate && (
+				<div className="px-4 pb-0" onPointerDown={(e) => e.stopPropagation()}>
+					<TaskDetailsModel task={task} onUpdate={onUpdate} />
+				</div>
+			)}
 
 			<div className="px-4 pb-4 flex flex-wrap items-center gap-2 border-t border-slate-700/60 pt-3">
 				{task.latestSessionId && task.opencodeWebUrl && (
