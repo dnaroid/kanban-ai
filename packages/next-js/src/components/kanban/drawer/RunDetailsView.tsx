@@ -110,7 +110,12 @@ export function RunDetailsView({
 		const checkTodos = async () => {
 			try {
 				const response = await api.opencode.getSessionTodos({ sessionId });
-				setHasTodos(response.todos.length > 0);
+				setHasTodos(
+					response.todos.some(
+						(t: { status: string }) =>
+							t.status !== "completed" && t.status !== "cancelled",
+					),
+				);
 			} catch (error) {
 				console.error("Failed to check todos:", error);
 				setHasTodos(false);
