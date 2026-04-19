@@ -1,6 +1,28 @@
 # Kanban AI
 
-A web application for project and task management with integration with [Headless OpenCode](https://github.com/nicepkg/opencode) and [oh-my-openagent](https://github.com/nicepkg/oh-my-openagent).
+Kanban AI is a kanban-style task manager with built-in AI task execution.
+
+It allows tasks to be turned into runs, tracks their progress, supports follow-up questions during execution, and keeps the result tied to the task workflow.
+
+## Features
+
+- Kanban board for managing project tasks
+- AI runs started directly from tasks
+- Run status tracking and execution history
+- Follow-up questions and pause/resume flow during execution
+- Task state updates based on run results
+- Role-based agent presets
+- Context snapshots and linked task data
+- SQLite-based local storage
+
+## How it works
+
+1. Create or open a project board.
+2. Add tasks and organize them in the workflow.
+3. Start an AI run for a task.
+4. The system tracks the run and updates its status.
+5. If the agent needs clarification, the run can pause and wait for user input.
+6. When execution finishes, the result stays connected to the task and workflow.
 
 ## Tech Stack
 
@@ -87,30 +109,11 @@ Additional tooling configured: [Prettier](https://prettier.io/) (`.prettierrc`),
 
 ## Git Worktrees
 
-The project supports Git Worktrees for parallel development of multiple tasks. Each task can run in an isolated worktree directory with its own branch.
+Git Worktree support is planned but currently disabled.
 
-**Currently disabled.** Tasks run on the main branch. To enable, set the environment variable:
+At the moment, tasks run on the main project directory and branch. The `RUNS_WORKTREE_ENABLED` flag exists for development, but this feature is not considered ready yet.
 
-```
-RUNS_WORKTREE_ENABLED=true
-```
-
-**Structure (when enabled):**
-```
-kanban-ai/                    # Main directory (master)
-kanban-ai.worktrees/          # Worktrees for active tasks
-├── {task-id}-git-worktrees-{sha}/
-└── ...
-```
-
-**Commands:**
-```bash
-git worktree list                                          # List worktrees
-git worktree add -b task/ID ../kanban-ai.worktrees/ID-xxx  # Create
-git worktree remove ../kanban-ai.worktrees/ID-xxx          # Remove
-```
-
-See [docs/GIT_WORKTREES.md](docs/GIT_WORKTREES.md) for details.
+See [docs/GIT_WORKTREES.md](docs/GIT_WORKTREES.md) for design notes and planned behavior.
 
 ## Additional Documentation
 
