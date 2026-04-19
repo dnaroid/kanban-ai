@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import {
 	Folder,
 	File,
@@ -122,18 +122,13 @@ export function FileSystemPicker({
 	const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
 	const [filterText, setFilterText] = useState("");
 	const [showHiddenFiles, setShowHiddenFiles] = useState(false);
-	const showHiddenFilesRef = useRef(showHiddenFiles);
-	showHiddenFilesRef.current = showHiddenFiles;
 
 	const loadDirectory = useCallback(async (dirPath?: string) => {
 		setLoading(true);
 		setError(null);
 		setFilterText("");
 		try {
-			const result = await api.browseDirectory(
-				dirPath,
-				showHiddenFilesRef.current,
-			);
+			const result = await api.browseDirectory(dirPath);
 			setCurrentPath(result.currentPath);
 			setParentPath(result.parentPath);
 			setHomePath(result.homePath);
@@ -146,33 +141,12 @@ export function FileSystemPicker({
 		}
 	}, []);
 
-	const currentPathRef = useRef<string>("");
-	const isOpenRef = useRef(false);
-	const prevShowHiddenRef = useRef(showHiddenFiles);
-
-	useEffect(() => {
-		isOpenRef.current = isOpen;
-	}, [isOpen]);
-
-	useEffect(() => {
-		currentPathRef.current = currentPath;
-	}, [currentPath]);
-
 	useEffect(() => {
 		if (isOpen) {
 			setSelectedPaths(new Set());
 			loadDirectory(initialPath);
 		}
 	}, [isOpen, initialPath, loadDirectory]);
-
-	useEffect(() => {
-		if (prevShowHiddenRef.current !== showHiddenFiles) {
-			prevShowHiddenRef.current = showHiddenFiles;
-			if (isOpenRef.current && currentPathRef.current) {
-				loadDirectory(currentPathRef.current);
-			}
-		}
-	}, [showHiddenFiles, loadDirectory]);
 
 	const filteredEntries = useMemo(() => {
 		let result = [...entries];
@@ -189,15 +163,15 @@ export function FileSystemPicker({
 		}
 
 		return result.sort((a, b) => {
+			if (a.isDirectory !== b.isDirectory) {
+				return a.isDirectory ? -1 : 1;
+			}
+
 			const aHidden = a.name.startsWith(".");
 			const bHidden = b.name.startsWith(".");
 
 			if (aHidden !== bHidden) {
-				return aHidden ? 1 : -1;
-			}
-
-			if (a.isDirectory !== b.isDirectory) {
-				return a.isDirectory ? -1 : 1;
+				return aHidden ? -1 : 1;
 			}
 
 			return a.name.localeCompare(b.name, undefined, {

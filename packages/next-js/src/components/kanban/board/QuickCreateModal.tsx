@@ -361,7 +361,7 @@ export function QuickCreateModal({
 
 		const uniqueFiles = new Map<string, File>();
 		for (const file of [...directFiles, ...itemFiles]) {
-			const key = `${file.name}:${file.size}:${file.type}:${file.lastModified}`;
+			const key = `${file.name}:${file.size}:${file.type}`;
 			uniqueFiles.set(key, file);
 		}
 

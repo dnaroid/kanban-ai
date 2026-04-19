@@ -77,10 +77,8 @@ class ApiClient {
 		}),
 		browseDirectory: async ({
 			path,
-			showHidden,
 		}: {
 			path?: string;
-			showHidden?: boolean;
 		}): Promise<{
 			currentPath: string;
 			parentPath: string | null;
@@ -91,7 +89,7 @@ class ApiClient {
 				isDirectory: boolean;
 				isFile: boolean;
 			}[];
-		}> => this.browseDirectory(path, showHidden),
+		}> => this.browseDirectory(path),
 	};
 
 	readonly task = {
@@ -1734,10 +1732,7 @@ class ApiClient {
 		return this.setAppSetting("lastProjectId", projectId);
 	}
 
-	async browseDirectory(
-		dirPath?: string,
-		showHidden?: boolean,
-	): Promise<{
+	async browseDirectory(dirPath?: string): Promise<{
 		currentPath: string;
 		parentPath: string | null;
 		homePath: string;
@@ -1748,13 +1743,8 @@ class ApiClient {
 			isFile: boolean;
 		}[];
 	}> {
-		const params = new URLSearchParams();
-		if (dirPath) params.set("path", dirPath);
-		if (showHidden) params.set("hidden", "true");
-		const query = params.toString();
-		const response = await fetch(
-			`${this.baseUrl}/api/browse${query ? `?${query}` : ""}`,
-		);
+		const pathParam = dirPath ? `?path=${encodeURIComponent(dirPath)}` : "";
+		const response = await fetch(`${this.baseUrl}/api/browse${pathParam}`);
 		if (!response.ok) this.fail("Failed to browse directory");
 		return response.json();
 	}
