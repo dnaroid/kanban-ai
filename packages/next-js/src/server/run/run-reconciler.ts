@@ -1,16 +1,12 @@
+import type { TaskStatusProjectionService } from "@/server/run/task-status-projection-service";
 import type { Run } from "@/types/ipc";
-import type { PollableBoardContext } from "@/server/types";
 
 interface RunReconcilerConfig {
-	getPollableBoardContext: (projectId: string) => PollableBoardContext | null;
-	listActiveRunsForReconciliation: () => Run[];
-	listRecoverableRunsForProject: (taskIds: Set<string>) => Run[];
-	reconcileTaskStatuses: (
-		projectId: string,
-		board: PollableBoardContext["board"],
-		tasks: PollableBoardContext["tasks"],
-	) => Promise<void>;
-	reconcileRun: (runId: string) => Promise<void>;
+	taskStatusProjectionService: TaskStatusProjectionService;
+	runReconciliationService: {
+		listActiveRunsForReconciliation: () => Run[];
+		reconcileRun: (runId: string) => Promise<void>;
+	};
 }
 
 export class RunReconciler {
@@ -29,21 +25,25 @@ export class RunReconciler {
 
 		this.reconcilingProjects.add(projectId);
 		try {
-			const scopedBoard = this.config.getPollableBoardContext(projectId);
+			const scopedBoard =
+				this.config.taskStatusProjectionService.getPollableBoardContext(
+					projectId,
+				);
 			if (!scopedBoard) {
 				return;
 			}
 
-			const activeRuns = this.config
+			const activeRuns = this.config.runReconciliationService
 				.listActiveRunsForReconciliation()
 				.filter((run) => scopedBoard.taskIds.has(run.taskId));
-			const recoverableRuns = this.config.listRecoverableRunsForProject(
-				scopedBoard.allTaskIds,
-			);
+			const recoverableRuns =
+				this.config.taskStatusProjectionService.listRecoverableRunsForProject(
+					scopedBoard.allTaskIds,
+				);
 
 			await this.reconcileRuns(activeRuns);
 			await this.reconcileRuns(recoverableRuns);
-			await this.config.reconcileTaskStatuses(
+			await this.config.taskStatusProjectionService.reconcileTaskStatuses(
 				projectId,
 				scopedBoard.board,
 				scopedBoard.tasks,
@@ -61,7 +61,7 @@ export class RunReconciler {
 
 			this.reconciling.add(run.id);
 			try {
-				await this.config.reconcileRun(run.id);
+				await this.config.runReconciliationService.reconcileRun(run.id);
 			} finally {
 				this.reconciling.delete(run.id);
 			}
