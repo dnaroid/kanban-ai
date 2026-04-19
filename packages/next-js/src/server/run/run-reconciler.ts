@@ -1,11 +1,5 @@
 import type { Run } from "@/types/ipc";
-
-interface PollableBoardContext {
-	board: NonNullable<unknown>;
-	allTaskIds: Set<string>;
-	tasks: unknown[];
-	taskIds: Set<string>;
-}
+import type { PollableBoardContext } from "@/server/types";
 
 interface RunReconcilerConfig {
 	getPollableBoardContext: (projectId: string) => PollableBoardContext | null;
@@ -13,8 +7,8 @@ interface RunReconcilerConfig {
 	listRecoverableRunsForProject: (taskIds: Set<string>) => Run[];
 	reconcileTaskStatuses: (
 		projectId: string,
-		board: NonNullable<unknown>,
-		tasks: unknown[],
+		board: PollableBoardContext["board"],
+		tasks: PollableBoardContext["tasks"],
 	) => Promise<void>;
 	reconcileRun: (runId: string) => Promise<void>;
 }

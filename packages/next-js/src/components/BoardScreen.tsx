@@ -110,8 +110,6 @@ export function BoardScreen({
 		confirmBulkDelete,
 		handleRejectTask,
 		deletingTaskId,
-		refreshBoardTasksFromServer,
-		loadBoard,
 	} = useBoardModel({ projectId, onTasksRefreshed: refreshGitStatus });
 
 	const [activeExecutionSessionConfirm, setActiveExecutionSessionConfirm] =

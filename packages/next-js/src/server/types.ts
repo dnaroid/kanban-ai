@@ -45,6 +45,13 @@ export interface Board {
 	updatedAt: string;
 }
 
+export interface PollableBoardContext {
+	board: Board;
+	allTaskIds: Set<string>;
+	tasks: Task[];
+	taskIds: Set<string>;
+}
+
 export interface CreateBoardInput {
 	projectId: string;
 	name: string;

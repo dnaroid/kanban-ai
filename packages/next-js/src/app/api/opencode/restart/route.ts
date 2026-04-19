@@ -17,7 +17,9 @@ export async function POST(request: Request): Promise<Response> {
 				if (typeof body?.force === "boolean") {
 					force = body.force;
 				}
-			} catch {}
+			} catch {
+				// body is optional — ignore parse failures
+			}
 		}
 
 		if (!force) {

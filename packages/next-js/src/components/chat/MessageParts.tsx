@@ -268,7 +268,6 @@ export function ToolPart({
 		if (isActiveQuestion) {
 			setIsExpanded(true);
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [isActiveQuestion]);
 
 	const statusConfig = {

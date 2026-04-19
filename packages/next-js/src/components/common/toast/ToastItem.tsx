@@ -52,7 +52,6 @@ export function ToastItem({ toast }: ToastItemProps) {
 	};
 
 	return (
-		// eslint-disable-next-line jsx-a11y/no-static-element-interactions -- interactive toast container with proper role/tabIndex/onKeyDown
 		<div
 			role={toast.onClick ? "button" : undefined}
 			tabIndex={toast.onClick ? 0 : undefined}

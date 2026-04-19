@@ -5,7 +5,6 @@ import {
 	ChevronsDown,
 	ChevronsUp,
 	Circle,
-	ArrowLeft,
 	HelpCircle,
 	RefreshCw,
 	Send,
@@ -457,7 +456,6 @@ export function ExecutionLog({
 			clearTimeout(timeout);
 		}
 		streamingTimeoutsRef.current.clear();
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [effectiveSessionId]);
 
 	useEffect(() => {

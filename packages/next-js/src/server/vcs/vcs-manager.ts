@@ -7,7 +7,6 @@ import { taskRepo } from "@/server/repositories/task";
 import type {
 	DiffFile,
 	DiffHunk,
-	DiffLine,
 	Run,
 	RunMergeMode,
 	RunVcsMetadata,

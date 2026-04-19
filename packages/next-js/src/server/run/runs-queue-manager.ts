@@ -1,8 +1,5 @@
 import { createLogger } from "@/lib/logger";
-import {
-	buildOpencodeStatusLine,
-	extractOpencodeStatus,
-} from "@/lib/opencode-status";
+import { buildOpencodeStatusLine } from "@/lib/opencode-status";
 import { buildTaskPrompt } from "@/server/run/prompts/task";
 import type {
 	PermissionData,
@@ -26,7 +23,6 @@ import {
 	getWorkflowColumnIdBySystemKey,
 	getWorkflowColumnSystemKey,
 	getTaskStateMachine,
-	resolveTransitionTrigger,
 	type TaskTransitionInput,
 	type TaskTransitionTrigger,
 } from "@/server/run/task-state-machine";
@@ -40,36 +36,30 @@ import { PollingService } from "@/server/run/polling-service";
 import { RetryManager } from "@/server/run/retry-manager";
 import type { QueuedRunInput, QueueStats } from "@/server/run/runs-queue-types";
 import type { TaskPriority } from "@/types/kanban";
-import type {
-	Run,
-	RunLastExecutionStatus,
-	RunStatus,
-	RunVcsMetadata,
-} from "@/types/ipc";
-import type { Task } from "@/server/types";
+import type { Run, RunStatus, RunVcsMetadata } from "@/types/ipc";
+import type { PollableBoardContext, Task } from "@/server/types";
+import {
+	deriveMetaStatus,
+	findStoryContent,
+	hydrateGenerationOutcomeContent,
+	isNetworkError,
+	toRunLastExecutionStatus,
+	type RunOutcomeMarker,
+} from "@/server/run/run-session-interpreter";
+import {
+	RunFinalizer,
+	canRecoverLateCompletion,
+	resolveTriggerFromOutcome,
+	staleRunFallbackMarker,
+	type RunOutcome,
+} from "@/server/run/run-finalizer";
+import { RunInteractionCoordinator } from "@/server/run/run-interaction-coordinator";
+import { PostRunWorkflowService } from "@/server/run/post-run-workflow-service";
 
 const generationRunKind = "task-description-improve";
 export type { QueueStats } from "@/server/run/runs-queue-types";
 const agentRoleTagPrefix = "agent:";
 const dependencyReadyStatus = "done";
-const lateCompletionRecoveryWindowMs = 15 * 60 * 1000;
-
-type RunOutcomeMarker =
-	| "done"
-	| "generated"
-	| "fail"
-	| "test_ok"
-	| "test_fail"
-	| "dead"
-	| "question"
-	| "resumed"
-	| "cancelled"
-	| "timeout";
-
-type RunOutcome = {
-	marker: RunOutcomeMarker;
-	content: string;
-};
 
 const runPriorityScore: Record<TaskPriority, number> = {
 	postpone: 1,
@@ -79,185 +69,7 @@ const runPriorityScore: Record<TaskPriority, number> = {
 };
 
 const log = createLogger("runs-queue");
-
-type SessionMetaStatus =
-	| {
-			kind: "completed";
-			marker: "done" | "generated" | "test_ok";
-			content: string;
-	  }
-	| { kind: "failed"; marker: "fail" | "test_fail"; content: string }
-	| { kind: "question"; questions: QuestionData[] }
-	| { kind: "permission"; permission: PermissionData }
-	| { kind: "running" }
-	| { kind: "dead" };
-
-function deriveMetaStatus(
-	inspection: SessionInspectionResult,
-): SessionMetaStatus {
-	if (inspection.completionMarker) {
-		const marker = inspection.completionMarker.signalKey as RunOutcomeMarker;
-		const content = findStoryContent(inspection);
-		if (marker === "done" || marker === "generated" || marker === "test_ok") {
-			return { kind: "completed", marker, content };
-		}
-		if (marker === "fail" || marker === "test_fail") {
-			return { kind: "failed", marker, content };
-		}
-		if (marker === "question") {
-			if (inspection.pendingQuestions.length > 0) {
-				return { kind: "question", questions: inspection.pendingQuestions };
-			}
-			return { kind: "running" };
-		}
-	}
-
-	if (
-		inspection.probeStatus === "not_found" ||
-		inspection.probeStatus === "transient_error"
-	) {
-		return { kind: "running" };
-	}
-
-	const permission = inspection.pendingPermissions[0];
-	if (permission) {
-		return { kind: "permission", permission };
-	}
-
-	const question = inspection.pendingQuestions[0];
-	if (question) {
-		return { kind: "question", questions: inspection.pendingQuestions };
-	}
-
-	if (inspection.sessionStatus === "idle") {
-		const latestMessage = inspection.messages[inspection.messages.length - 1];
-		if (latestMessage?.role === "user") {
-			return { kind: "running" };
-		}
-
-		const content = findStoryContent(inspection);
-		return { kind: "completed", marker: "done", content };
-	}
-
-	return { kind: "running" };
-}
-
-function toRunLastExecutionStatus(
-	meta: SessionMetaStatus,
-	sessionId: string,
-): RunLastExecutionStatus {
-	const updatedAt = new Date().toISOString();
-
-	switch (meta.kind) {
-		case "completed":
-		case "failed":
-			return {
-				kind: meta.kind,
-				marker: meta.marker,
-				content: meta.content,
-				sessionId,
-				updatedAt,
-			};
-		case "permission":
-			return {
-				kind: "permission",
-				sessionId,
-				permissionId: meta.permission.id,
-				updatedAt,
-			};
-		case "question":
-			return {
-				kind: "question",
-				sessionId,
-				questionId: meta.questions[0]?.id,
-				updatedAt,
-			};
-		case "running":
-			return {
-				kind: "running",
-				sessionId,
-				updatedAt,
-			};
-		case "dead":
-			return {
-				kind: "dead",
-				sessionId,
-				updatedAt,
-			};
-	}
-}
-
-async function hydrateGenerationOutcomeContent(
-	run: Run,
-	content: string,
-	sessionManager: ReturnType<typeof getOpencodeSessionManager>,
-): Promise<string> {
-	if (content.trim().length > 0 || run.metadata?.kind !== generationRunKind) {
-		return content;
-	}
-
-	const sessionId = run.sessionId.trim();
-	if (sessionId.length === 0) {
-		return content;
-	}
-
-	try {
-		const inspection = await sessionManager.inspectSession(sessionId);
-		const hydrated = findStoryContent(inspection);
-		return hydrated.trim().length > 0 ? hydrated : content;
-	} catch {
-		return content;
-	}
-}
-
-function findCompletionContent(inspection: SessionInspectionResult): string {
-	for (let i = inspection.messages.length - 1; i >= 0; i--) {
-		const msg = inspection.messages[i];
-		if (msg.role === "assistant") {
-			return msg.content;
-		}
-	}
-	return "";
-}
-
-function stripOpencodeStatusLine(content: string): string {
-	const status = extractOpencodeStatus(content);
-	if (!status) {
-		return content.trim();
-	}
-
-	return content
-		.split(/\r?\n/)
-		.filter((_, index) => index !== status.statusLineIndex)
-		.join("\n")
-		.trim();
-}
-
-function findStoryContent(inspection: SessionInspectionResult): string {
-	const markerContent = inspection.completionMarker?.messageContent;
-	if (typeof markerContent === "string" && markerContent.trim().length > 0) {
-		return stripOpencodeStatusLine(markerContent);
-	}
-
-	for (let i = inspection.messages.length - 1; i >= 0; i--) {
-		const msg = inspection.messages[i];
-		if (msg.role !== "assistant") {
-			continue;
-		}
-		const status = extractOpencodeStatus(msg.content);
-		if (status) {
-			const cleaned = stripOpencodeStatusLine(msg.content);
-			if (cleaned.length > 0) {
-				return cleaned;
-			}
-			continue;
-		}
-		if (msg.content.trim().length > 0) {
-			return msg.content.trim();
-		}
-	}
-	return stripOpencodeStatusLine(findCompletionContent(inspection));
-}
+export { isNetworkError };
 
 function getRunErrorText(run: Run): string {
 	const errorText = run.metadata?.errorText;
@@ -266,27 +78,6 @@ function getRunErrorText(run: Run): string {
 	}
 
 	return errorText.trim();
-}
-
-export function isNetworkError(error: unknown): boolean {
-	const message =
-		error instanceof Error
-			? error.message
-			: typeof error === "string"
-				? error
-				: "";
-	const normalizedMessage = message.trim().toLowerCase();
-	if (!normalizedMessage) {
-		return false;
-	}
-
-	return (
-		normalizedMessage === "fetch failed" ||
-		normalizedMessage.includes("econnrefused") ||
-		normalizedMessage.includes("econnreset") ||
-		normalizedMessage.includes("etimedout") ||
-		normalizedMessage.includes("network")
-	);
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -430,6 +221,9 @@ export class RunsQueueManager {
 	private readonly pollingService: PollingService;
 	private readonly runReconciler: RunReconciler;
 	private readonly runExecutor: RunExecutor;
+	private readonly runFinalizer: RunFinalizer;
+	private readonly runInteractionCoordinator: RunInteractionCoordinator;
+	private readonly postRunWorkflowService: PostRunWorkflowService;
 	private readonly defaultConcurrency = parsePositiveInt(
 		process.env.RUNS_DEFAULT_CONCURRENCY,
 		1,
@@ -462,6 +256,92 @@ export class RunsQueueManager {
 	private readonly manualStatusGraceMs = 15_000;
 
 	public constructor() {
+		this.runFinalizer = new RunFinalizer({
+			getRunById: (runId) => runRepo.getById(runId),
+			updateRun: (runId, patch) => runRepo.update(runId, patch),
+			createStatusEvent: (runId, status, message) => {
+				runEventRepo.create({
+					runId,
+					eventType: "status",
+					payload: { status, message },
+				});
+			},
+			publishRunUpdate: (run) => {
+				publishRunUpdate(run);
+			},
+			syncRunWorkspaceState: async (run) => this.syncRunWorkspaceState(run),
+			applyTaskTransition: (run, trigger, outcomeContent) => {
+				this.applyTaskTransition(run, trigger, outcomeContent);
+			},
+			shouldAutoExecuteAfterGeneration: () =>
+				this.shouldAutoExecuteAfterGeneration(),
+			tryAutomaticMerge: async (run) => this.tryAutomaticMerge(run),
+			startNextReadyTaskAfterMerge: async (taskId) =>
+				this.startNextReadyTaskAfterMerge(taskId),
+			onGeneratedExecutionReady: (sourceRunId, taskId) => {
+				this.pendingGeneratedExecutionTaskIds.set(sourceRunId, taskId);
+			},
+			isGenerationRun: (run) => this.isGenerationRun(run),
+			hydrateGenerationOutcomeContent: async (run, content) =>
+				hydrateGenerationOutcomeContent(
+					run,
+					content,
+					this.sessionManager,
+					generationRunKind,
+				),
+			getDurationSec: (startedAt, finishedAt) =>
+				this.durationSec(startedAt, finishedAt),
+			clearSessionTracking: (runId) => {
+				this.activeRunSessions.delete(runId);
+			},
+			clearRunInput: (runId) => {
+				this.runInputs.delete(runId);
+			},
+			getRunErrorText,
+		});
+
+		this.runInteractionCoordinator = new RunInteractionCoordinator({
+			getRunById: (runId) => runRepo.getById(runId),
+			updateRun: (runId, patch) => runRepo.update(runId, patch),
+			createRunEvent: (runId, eventType, payload) => {
+				runEventRepo.create({ runId, eventType, payload });
+			},
+			listRunEvents: (runId, limit) => runEventRepo.listByRun(runId, limit),
+			applyTaskTransition: (run, trigger, outcomeContent) => {
+				this.applyTaskTransition(run, trigger, outcomeContent);
+			},
+			listPendingPermissions: async (sessionId) =>
+				this.sessionManager.listPendingPermissions(sessionId),
+			listPendingQuestions: async (sessionId) =>
+				this.sessionManager.listPendingQuestions(sessionId),
+			setActiveRunSession: (runId, sessionId) => {
+				this.activeRunSessions.set(runId, sessionId);
+			},
+		});
+
+		this.postRunWorkflowService = new PostRunWorkflowService({
+			mergeRunWorkspace: async (run, mode) =>
+				this.vcsManager.mergeRunWorkspace(run, mode),
+			cleanupRunWorkspace: async (vcsMetadata) =>
+				this.vcsManager.cleanupRunWorkspace(vcsMetadata),
+			syncVcsMetadata: async (vcsMetadata) =>
+				this.vcsManager.syncVcsMetadata(vcsMetadata),
+			syncRunWorkspace: async (run) => this.vcsManager.syncRunWorkspace(run),
+			updateRun: (runId, patch) => runRepo.update(runId, patch),
+			createRunStatusEvent: (runId, payload) => {
+				runEventRepo.create({ runId, eventType: "status", payload });
+			},
+			getTaskById: (taskId) => taskRepo.getById(taskId),
+			getBoardById: (boardId) => boardRepo.getById(boardId),
+			listTasksByBoard: (boardId) => taskRepo.listByBoard(boardId),
+			listRunsByTask: (taskId) => runRepo.listByTask(taskId),
+			isGenerationRun: (run) => this.isGenerationRun(run),
+			areDependenciesResolved: (taskId) => this.areDependenciesResolved(taskId),
+			resumeRejectedTaskRun: async (task) => this.resumeRejectedTaskRun(task),
+			enqueueExecutionForNextTask: async (taskId) =>
+				this.enqueueExecutionForNextTask(taskId),
+		});
+
 		this.pollingService = new PollingService({
 			pollingIntervalMs: this.projectPollingIntervalMs,
 			watcherTtlMs: this.projectBoardWatcherTtlMs,
@@ -476,13 +356,8 @@ export class RunsQueueManager {
 				this.listActiveRunsForReconciliation(),
 			listRecoverableRunsForProject: (taskIds) =>
 				this.listRecoverableRunsForProject(taskIds),
-			reconcileTaskStatuses: async (projectId, board, tasks) => {
-				await this.reconcileTaskStatuses(
-					projectId,
-					board as NonNullable<ReturnType<typeof boardRepo.getByProjectId>>,
-					tasks as Task[],
-				);
-			},
+			reconcileTaskStatuses: async (projectId, board, tasks) =>
+				this.reconcileTaskStatuses(projectId, board, tasks),
 			reconcileRun: async (runId) => {
 				await this.reconcileRun(runId);
 			},
@@ -569,44 +444,8 @@ export class RunsQueueManager {
 		runStatus: RunStatus,
 		outcome: RunOutcome,
 	): TaskTransitionTrigger | null {
-		if (outcome.marker === "cancelled") {
-			return "run:cancelled";
-		}
-
-		if (outcome.marker === "resumed") {
-			return "run:answer";
-		}
-
-		if (outcome.marker === "question") {
-			return "run:question";
-		}
-
-		if (outcome.marker === "dead") {
-			return "run:dead";
-		}
-
-		if (outcome.marker === "timeout") {
-			return this.isGenerationRun(run) ? "generate:fail" : "run:fail";
-		}
-
-		const sessionMetaKind =
-			outcome.marker === "done" ||
-			outcome.marker === "generated" ||
-			outcome.marker === "test_ok"
-				? "completed"
-				: outcome.marker === "fail" || outcome.marker === "test_fail"
-					? "failed"
-					: null;
-
-		if (!sessionMetaKind) {
-			return null;
-		}
-
-		return resolveTransitionTrigger({
-			runStatus,
-			sessionMetaKind,
-			completionMarker: outcome.marker,
-			runKind: run.metadata?.kind ?? null,
+		return resolveTriggerFromOutcome(run, runStatus, outcome, {
+			isGenerationRun: (input) => this.isGenerationRun(input),
 		});
 	}
 
@@ -921,36 +760,9 @@ export class RunsQueueManager {
 		runId: string,
 		permissionId: string,
 	): Promise<void> {
-		log.info("Permission approved, resuming run", {
+		await this.runInteractionCoordinator.resumeRunAfterPermissionApproval(
 			runId,
 			permissionId,
-		});
-
-		const run = runRepo.getById(runId);
-		if (!run || run.status !== "paused") {
-			log.debug("Run not found or not paused, skipping permission resume", {
-				runId,
-				currentStatus: run?.status,
-			});
-			return;
-		}
-
-		const resumedRun = runRepo.update(runId, { status: "running" });
-		runEventRepo.create({
-			runId,
-			eventType: "permission",
-			payload: {
-				status: "approved",
-				permissionId,
-				response: "approved",
-				message: `Permission approved: ${permissionId}`,
-			},
-		});
-		publishRunUpdate(resumedRun);
-		this.applyTaskTransition(
-			resumedRun,
-			"run:answer",
-			`Permission approved: ${permissionId}`,
 		);
 	}
 
@@ -958,114 +770,22 @@ export class RunsQueueManager {
 		runId: string,
 		questionId: string,
 	): Promise<void> {
-		log.info("Question answered, resuming run", {
+		await this.runInteractionCoordinator.resumeRunAfterQuestionAnswered(
 			runId,
 			questionId,
-		});
-
-		const run = runRepo.getById(runId);
-		if (!run || run.status !== "paused") {
-			log.debug("Run not found or not paused, skipping question resume", {
-				runId,
-				currentStatus: run?.status,
-			});
-			return;
-		}
-
-		const resumedRun = runRepo.update(runId, { status: "running" });
-		runEventRepo.create({
-			runId,
-			eventType: "question",
-			payload: {
-				status: "answered",
-				questionId,
-				response: "answered",
-				message: "Question answered",
-			},
-		});
-		publishRunUpdate(resumedRun);
-		this.applyTaskTransition(resumedRun, "run:answer", "Question answered");
-	}
-
-	private async resumeOrphanedPausedRun(runId: string): Promise<void> {
-		log.info("Resuming orphaned paused run — no pending interaction", {
-			runId,
-		});
-
-		const run = runRepo.getById(runId);
-		if (!run || run.status !== "paused") {
-			return;
-		}
-
-		const resumedRun = runRepo.update(runId, { status: "running" });
-		runEventRepo.create({
-			runId,
-			eventType: "status",
-			payload: {
-				status: "running",
-				message: "Auto-resumed: no pending user interaction",
-			},
-		});
-		publishRunUpdate(resumedRun);
-		this.applyTaskTransition(
-			resumedRun,
-			"run:answer",
-			"Resumed orphaned paused run",
 		);
 	}
 
+	private async resumeOrphanedPausedRun(runId: string): Promise<void> {
+		await this.runInteractionCoordinator.resumeOrphanedPausedRun(runId);
+	}
+
 	private getAwaitingPermissionId(runId: string): string | null {
-		const events = runEventRepo.listByRun(runId, 50);
-		for (let index = events.length - 1; index >= 0; index -= 1) {
-			const event = events[index];
-			if (event.eventType !== "permission") {
-				continue;
-			}
-
-			const payload = asObject(event.payload);
-			if (!payload) {
-				continue;
-			}
-
-			if (payload.status === "paused") {
-				return typeof payload.permissionId === "string"
-					? payload.permissionId
-					: null;
-			}
-
-			if (payload.status === "approved" || payload.status === "denied") {
-				return null;
-			}
-		}
-
-		return null;
+		return this.runInteractionCoordinator.getAwaitingPermissionId(runId);
 	}
 
 	private getAwaitingQuestionId(runId: string): string | null {
-		const events = runEventRepo.listByRun(runId, 50);
-		for (let index = events.length - 1; index >= 0; index -= 1) {
-			const event = events[index];
-			if (event.eventType !== "question") {
-				continue;
-			}
-
-			const payload = asObject(event.payload);
-			if (!payload) {
-				continue;
-			}
-
-			if (payload.status === "paused") {
-				return typeof payload.questionId === "string"
-					? payload.questionId
-					: null;
-			}
-
-			if (payload.status === "answered" || payload.status === "rejected") {
-				return null;
-			}
-		}
-
-		return null;
+		return this.runInteractionCoordinator.getAwaitingQuestionId(runId);
 	}
 
 	private async finalizeRunFromSession(
@@ -1073,124 +793,7 @@ export class RunsQueueManager {
 		status: RunStatus,
 		outcome: RunOutcome,
 	): Promise<void> {
-		log.info("Finalizing run", { runId, status });
-		const run = runRepo.getById(runId);
-		if (!run || run.status === status) {
-			log.debug("Run already in target status or not found", {
-				runId,
-				currentStatus: run?.status,
-				targetStatus: status,
-			});
-			return;
-		}
-
-		const canRecoverLateCompletion = this.canRecoverLateCompletion(run, status);
-		if (
-			run.status !== "running" &&
-			run.status !== "queued" &&
-			!canRecoverLateCompletion
-		) {
-			log.warn("Run not in running/queued state, cannot finalize", {
-				runId,
-				currentStatus: run.status,
-			});
-			return;
-		}
-
-		if (canRecoverLateCompletion) {
-			log.info("Recovering failed run from late completion marker", {
-				runId,
-				errorText: getRunErrorText(run),
-			});
-		}
-
-		const hydratedOutcome = {
-			...outcome,
-			content: await hydrateGenerationOutcomeContent(
-				run,
-				outcome.content,
-				this.sessionManager,
-			),
-		};
-
-		const finishedAt = new Date().toISOString();
-		const nextExecutionStatus: RunLastExecutionStatus = {
-			kind: status === "completed" ? "completed" : "failed",
-			sessionId: run.sessionId.trim() || undefined,
-			updatedAt: finishedAt,
-		};
-		if (
-			hydratedOutcome.marker === "done" ||
-			hydratedOutcome.marker === "generated" ||
-			hydratedOutcome.marker === "test_ok" ||
-			hydratedOutcome.marker === "fail" ||
-			hydratedOutcome.marker === "test_fail"
-		) {
-			nextExecutionStatus.marker = hydratedOutcome.marker;
-		}
-		if (hydratedOutcome.content.trim().length > 0) {
-			nextExecutionStatus.content = hydratedOutcome.content;
-		}
-		let nextRun = runRepo.update(runId, {
-			status,
-			finishedAt,
-			errorText: status === "failed" ? "Run failed" : "",
-			durationSec: this.durationSec(run.startedAt ?? finishedAt, finishedAt),
-			metadata: {
-				...(run.metadata ?? {}),
-				lastExecutionStatus: nextExecutionStatus,
-			},
-		});
-		nextRun = await this.syncRunWorkspaceState(nextRun);
-
-		log.info("Run finalized", {
-			runId,
-			status,
-			durationSec: this.durationSec(run.startedAt ?? finishedAt, finishedAt),
-			taskId: run.taskId,
-		});
-		runEventRepo.create({
-			runId,
-			eventType: "status",
-			payload: { status, message: `Run ${status}` },
-		});
-
-		try {
-			const trigger = this.resolveTriggerFromOutcome(
-				nextRun,
-				status,
-				hydratedOutcome,
-			);
-			if (trigger) {
-				this.applyTaskTransition(nextRun, trigger, hydratedOutcome.content);
-			}
-			if (
-				status === "completed" &&
-				this.isGenerationRun(nextRun) &&
-				this.shouldAutoExecuteAfterGeneration()
-			) {
-				this.pendingGeneratedExecutionTaskIds.set(runId, nextRun.taskId);
-			}
-
-			if (status === "completed" && !this.isGenerationRun(nextRun)) {
-				const mergedRun = await this.tryAutomaticMerge(nextRun);
-				const mergeStatus = mergedRun.metadata?.vcs?.mergeStatus;
-				if (mergeStatus === "merged") {
-					await this.startNextReadyTaskAfterMerge(nextRun.taskId);
-				}
-			}
-		} catch (error) {
-			log.error("Failed to project run outcome", {
-				runId,
-				status,
-				error: error instanceof Error ? error.message : String(error),
-			});
-		}
-
-		const latestRun = runRepo.getById(runId) ?? nextRun;
-		publishRunUpdate(latestRun);
-		this.activeRunSessions.delete(runId);
-		this.runInputs.delete(runId);
+		await this.runFinalizer.finalizeRunFromSession(runId, status, outcome);
 	}
 
 	public async pollProjectRuns(projectId: string): Promise<void> {
@@ -1208,14 +811,9 @@ export class RunsQueueManager {
 			);
 	}
 
-	private getPollableBoardContext(projectId: string): {
-		board: ReturnType<typeof boardRepo.getByProjectId> extends infer T
-			? Exclude<T, null>
-			: never;
-		allTaskIds: Set<string>;
-		tasks: Task[];
-		taskIds: Set<string>;
-	} | null {
+	private getPollableBoardContext(
+		projectId: string,
+	): PollableBoardContext | null {
 		const board = boardRepo.getByProjectId(projectId);
 		if (!board) {
 			log.warn("Skipping task status reconciliation; board not found", {
@@ -1240,8 +838,8 @@ export class RunsQueueManager {
 
 	private async reconcileTaskStatuses(
 		projectId: string,
-		board: NonNullable<ReturnType<typeof boardRepo.getByProjectId>>,
-		tasks: Task[],
+		board: PollableBoardContext["board"],
+		tasks: PollableBoardContext["tasks"],
 	): Promise<void> {
 		for (const task of tasks) {
 			const timeSinceUpdate = Date.now() - Date.parse(task.updatedAt);
@@ -1335,6 +933,7 @@ export class RunsQueueManager {
 								latestSettledRun,
 								meta.content,
 								this.sessionManager,
+								generationRunKind,
 							);
 							source = "session";
 						} else {
@@ -1586,14 +1185,7 @@ export class RunsQueueManager {
 	}
 
 	private staleRunFallbackMarker(run: Run): RunOutcomeMarker {
-		const kind = run.metadata?.kind;
-		if (kind === generationRunKind) {
-			return "generated";
-		}
-		if (kind === "task-qa-testing") {
-			return "test_ok";
-		}
-		return "done";
+		return staleRunFallbackMarker(run, generationRunKind);
 	}
 
 	private listActiveRunsForReconciliation(): Run[] {
@@ -1803,119 +1395,28 @@ export class RunsQueueManager {
 		runId: string,
 		sessionId: string,
 	): Promise<void> {
-		const awaitingPermissionId = this.getAwaitingPermissionId(runId);
-		if (awaitingPermissionId) {
-			const pendingPermissions =
-				await this.sessionManager.listPendingPermissions(sessionId);
-			const stillPending = pendingPermissions.some(
-				(permission) => permission.id === awaitingPermissionId,
-			);
-			if (!stillPending) {
-				await this.resumeRunAfterPermissionApproval(
-					runId,
-					awaitingPermissionId,
-				);
-			}
-			return;
-		}
-
-		const awaitingQuestionId = this.getAwaitingQuestionId(runId);
-		if (awaitingQuestionId) {
-			const pendingQuestions =
-				await this.sessionManager.listPendingQuestions(sessionId);
-			const stillPending = pendingQuestions.some(
-				(question) => question.id === awaitingQuestionId,
-			);
-			if (!stillPending) {
-				await this.resumeRunAfterQuestionAnswered(runId, awaitingQuestionId);
-			}
-			return;
-		}
-
-		const [orphanPermissions, orphanQuestions] = await Promise.all([
-			this.sessionManager.listPendingPermissions(sessionId),
-			this.sessionManager.listPendingQuestions(sessionId),
-		]);
-		if (orphanPermissions.length === 0 && orphanQuestions.length === 0) {
-			await this.resumeOrphanedPausedRun(runId);
-		}
+		await this.runInteractionCoordinator.reconcilePausedRun(runId, sessionId);
 	}
 
 	private ensureRunPausedForPermission(
 		run: Run,
 		permission: PermissionData,
 	): Run {
-		if (run.status === "paused") {
-			return run;
-		}
-
-		const pausedRun = runRepo.update(run.id, { status: "paused" });
-		runEventRepo.create({
-			runId: run.id,
-			eventType: "permission",
-			payload: {
-				status: "paused",
-				permissionId: permission.id,
-				permissionType: permission.permissionType,
-				pattern: permission.pattern,
-				title: permission.title,
-				sessionId: permission.sessionId,
-				messageId: permission.messageId,
-				message: `Permission requested: ${permission.title}`,
-			},
-		});
-		publishSseEvent("run:permission", {
-			runId: run.id,
-			taskId: pausedRun.taskId,
-			permissionId: permission.id,
-			permissionType: permission.permissionType,
-			pattern: permission.pattern,
-			title: permission.title,
-			sessionId: permission.sessionId,
-			messageId: permission.messageId,
-			createdAt: permission.createdAt,
-		});
-		publishRunUpdate(pausedRun);
-		this.applyTaskTransition(
-			pausedRun,
-			"run:question",
-			`Permission requested: ${permission.title}`,
+		return this.runInteractionCoordinator.ensureRunPausedForPermission(
+			run,
+			permission,
 		);
-		return pausedRun;
 	}
 
 	private ensureRunPausedForQuestion(run: Run, question: QuestionData): Run {
-		if (run.status === "paused") {
-			return run;
-		}
-
-		const pausedRun = runRepo.update(run.id, { status: "paused" });
-		runEventRepo.create({
-			runId: run.id,
-			eventType: "question",
-			payload: {
-				status: "paused",
-				questionId: question.id,
-				questions: question.questions.map((item) => item.question),
-				sessionId: question.sessionId,
-				message: "Question asked",
-			},
-		});
-		publishSseEvent("run:question", {
-			runId: run.id,
-			taskId: pausedRun.taskId,
-			questionId: question.id,
-			questions: question.questions,
-			sessionId: question.sessionId,
-			createdAt: question.createdAt,
-		});
-		publishRunUpdate(pausedRun);
-		this.applyTaskTransition(pausedRun, "run:question", "Question asked");
-		return pausedRun;
+		return this.runInteractionCoordinator.ensureRunPausedForQuestion(
+			run,
+			question,
+		);
 	}
 
 	private attachReconciledSession(runId: string, sessionId: string): void {
-		this.activeRunSessions.set(runId, sessionId);
+		this.runInteractionCoordinator.attachReconciledSession(runId, sessionId);
 	}
 
 	private async failRunDuringReconciliation(
@@ -1975,88 +1476,13 @@ export class RunsQueueManager {
 	}
 
 	private async tryAutomaticMerge(run: Run): Promise<Run> {
-		const currentVcs = run.metadata?.vcs;
-		if (!currentVcs || currentVcs.mergeStatus === "merged") {
-			return run;
-		}
-
-		try {
-			const mergedVcs = await this.vcsManager.mergeRunWorkspace(
-				run,
-				"automatic",
-			);
-			const vcsMetadata = await this.cleanupMergedWorkspace(mergedVcs);
-			const updatedRun = runRepo.update(run.id, {
-				metadata: {
-					...(run.metadata ?? {}),
-					vcs: vcsMetadata,
-				},
-			});
-			const cleanupMessage =
-				vcsMetadata.cleanupStatus === "cleaned"
-					? " and cleaned the worktree"
-					: vcsMetadata.lastCleanupError
-						? `, but cleanup is pending: ${vcsMetadata.lastCleanupError}`
-						: "";
-			runEventRepo.create({
-				runId: run.id,
-				eventType: "status",
-				payload: {
-					status: updatedRun.status,
-					message: `Automatically merged ${vcsMetadata.branchName} into ${vcsMetadata.baseBranch}${cleanupMessage}`,
-					autoMerged: true,
-					mergedCommit: vcsMetadata.mergedCommit,
-					cleanupStatus: vcsMetadata.cleanupStatus,
-				},
-			});
-			return updatedRun;
-		} catch (error) {
-			const message =
-				error instanceof Error
-					? error.message
-					: "Automatic merge could not be completed";
-			const refreshedVcs = await this.vcsManager.syncRunWorkspace(run);
-			const updatedRun = runRepo.update(run.id, {
-				metadata: {
-					...(run.metadata ?? {}),
-					vcs: {
-						...(refreshedVcs ?? currentVcs),
-						lastMergeError: message,
-					},
-				},
-			});
-			runEventRepo.create({
-				runId: run.id,
-				eventType: "status",
-				payload: {
-					status: updatedRun.status,
-					message: `Automatic merge deferred: ${message}`,
-					autoMerged: false,
-				},
-			});
-			return updatedRun;
-		}
+		return this.postRunWorkflowService.tryAutomaticMerge(run);
 	}
 
 	private async cleanupMergedWorkspace(
 		vcsMetadata: RunVcsMetadata,
 	): Promise<RunVcsMetadata> {
-		try {
-			return await this.vcsManager.cleanupRunWorkspace(vcsMetadata);
-		} catch (error) {
-			const syncedVcs = await this.vcsManager
-				.syncVcsMetadata(vcsMetadata)
-				.catch(() => vcsMetadata);
-			const message =
-				error instanceof Error
-					? error.message
-					: "Merged successfully, but worktree cleanup failed";
-			return {
-				...syncedVcs,
-				cleanupStatus: "failed",
-				lastCleanupError: message,
-			};
-		}
+		return this.postRunWorkflowService.cleanupMergedWorkspace(vcsMetadata);
 	}
 
 	private selectNextRunnableRun(queue: string[]): string | null {
@@ -2155,124 +1581,15 @@ export class RunsQueueManager {
 	}
 
 	public pickNextReadyTask(boardId: string): Task | null {
-		const board = boardRepo.getById(boardId);
-		if (!board) {
-			log.warn("pickNextReadyTask: board not found", { boardId });
-			return null;
-		}
-
-		const readyColumnId = getWorkflowColumnIdBySystemKey(board, "ready");
-		if (!readyColumnId) {
-			log.warn("pickNextReadyTask: ready column not found on board", {
-				boardId,
-			});
-			return null;
-		}
-
-		const allTasks = taskRepo.listByBoard(boardId);
-		const readyTasks = allTasks.filter(
-			(task) =>
-				task.columnId === readyColumnId &&
-				task.priority !== "postpone" &&
-				(task.status === "pending" || task.status === "rejected"),
-		);
-
-		if (readyTasks.length === 0) {
-			log.info("pickNextReadyTask: no ready tasks found", { boardId });
-			return null;
-		}
-
-		readyTasks.sort((a, b) => {
-			const scoreA =
-				runPriorityScore[a.priority as TaskPriority] ?? runPriorityScore.normal;
-			const scoreB =
-				runPriorityScore[b.priority as TaskPriority] ?? runPriorityScore.normal;
-			if (scoreA !== scoreB) return scoreB - scoreA;
-			return a.orderInColumn - b.orderInColumn;
-		});
-
-		for (const task of readyTasks) {
-			if (this.areDependenciesResolved(task.id)) {
-				return task;
-			}
-			log.info(
-				"pickNextReadyTask: skipping task with unresolved dependencies",
-				{
-					taskId: task.id,
-					taskTitle: task.title,
-				},
-			);
-		}
-
-		log.info(
-			"pickNextReadyTask: all ready tasks have unresolved dependencies",
-			{
-				boardId,
-			},
-		);
-		return null;
+		return this.postRunWorkflowService.pickNextReadyTask(boardId);
 	}
 
 	public async startNextReadyTaskAfterMerge(
 		mergedTaskId: string,
 	): Promise<void> {
-		try {
-			const mergedTask = taskRepo.getById(mergedTaskId);
-			if (!mergedTask) {
-				log.warn("startNextReadyTaskAfterMerge: merged task not found", {
-					mergedTaskId,
-				});
-				return;
-			}
-
-			const nextTask = this.pickNextReadyTask(mergedTask.boardId);
-			if (!nextTask) {
-				log.info(
-					"startNextReadyTaskAfterMerge: no suitable next task in Ready",
-					{ boardId: mergedTask.boardId, mergedTaskId },
-				);
-				return;
-			}
-
-			const activeRun = runRepo
-				.listByTask(nextTask.id)
-				.find(
-					(run) =>
-						!this.isGenerationRun(run) &&
-						(run.status === "queued" ||
-							run.status === "running" ||
-							run.status === "paused"),
-				);
-			if (activeRun) {
-				log.info(
-					"startNextReadyTaskAfterMerge: next task already has active run",
-					{
-						taskId: nextTask.id,
-						runId: activeRun.id,
-						status: activeRun.status,
-					},
-				);
-				return;
-			}
-
-			log.info("startNextReadyTaskAfterMerge: starting next task from Ready", {
-				mergedTaskId,
-				nextTaskId: nextTask.id,
-				nextTaskTitle: nextTask.title,
-				boardId: mergedTask.boardId,
-			});
-
-			if (await this.resumeRejectedTaskRun(nextTask)) {
-				return;
-			}
-
-			await this.enqueueExecutionForNextTask(nextTask.id);
-		} catch (error) {
-			log.error("startNextReadyTaskAfterMerge: failed", {
-				mergedTaskId,
-				error: error instanceof Error ? error.message : String(error),
-			});
-		}
+		await this.postRunWorkflowService.startNextReadyTaskAfterMerge(
+			mergedTaskId,
+		);
 	}
 
 	private isGenerationRun(run: Run): boolean {
@@ -3011,26 +2328,7 @@ export class RunsQueueManager {
 	}
 
 	private canRecoverLateCompletion(run: Run, targetStatus: RunStatus): boolean {
-		if (run.status !== "failed" || targetStatus !== "completed") {
-			return false;
-		}
-
-		if (getRunErrorText(run).toLowerCase() !== "fetch failed") {
-			return false;
-		}
-
-		const endedAt = run.endedAt;
-		if (!endedAt) {
-			return false;
-		}
-
-		const finishedMs = Date.parse(endedAt);
-		if (!Number.isFinite(finishedMs)) {
-			return false;
-		}
-
-		const ageMs = Date.now() - finishedMs;
-		return ageMs >= 0 && ageMs <= lateCompletionRecoveryWindowMs;
+		return canRecoverLateCompletion(run, targetStatus, getRunErrorText);
 	}
 
 	private tryFillTaskModelFromSession(
