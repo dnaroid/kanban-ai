@@ -24,6 +24,8 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - run: git config --global user.name "CI" && git config --global user.email "ci@test.com"
+
       - run: pnpm test:run
 
   lint:
