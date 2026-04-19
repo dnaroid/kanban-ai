@@ -1,8 +1,8 @@
 import { createLogger } from "@/lib/logger";
 import { buildTaskPrompt } from "@/server/run/prompts/task";
 import { sendSessionMessage } from "@/server/opencode/session-store";
-import { buildOpencodeStatusLine } from "@/lib/opencode-status";
 import { buildQaTestingPrompt } from "@/server/run/prompts/qa-testing";
+import { buildStoryChatPrompt } from "@/server/run/prompts/story-chat";
 import { buildUserStoryPrompt } from "@/server/run/prompts/user-story";
 import { publishSseEvent } from "@/server/events/sse-broker";
 import type { SessionStartPreferences } from "@/server/opencode/session-manager";
@@ -43,6 +43,7 @@ const allowedDifficulties = ["easy", "medium", "hard", "epic"] as const;
 const agentRoleTagPrefix = "agent:";
 const generationRunKind = "task-description-improve";
 const qaTestingRunKind = "task-qa-testing";
+const storyChatRunKind = "task-story-chat";
 const defaultRunKind = "task-run";
 const activeSpecializedRunStatuses = new Set(["queued", "running", "paused"]);
 const activeExecutionRunStatuses = new Set(["queued", "running", "paused"]);
@@ -649,6 +650,227 @@ export class RunService {
 		return { runId: run.id };
 	}
 
+	public async startStoryChat(
+		taskId: string,
+		userPrompt: string,
+	): Promise<{ runId: string }> {
+		log.info("Starting story chat run", { taskId });
+
+		const task = taskRepo.getById(taskId);
+		if (!task) {
+			log.error("Task not found", { taskId });
+			throw new Error(`Task not found: ${taskId}`);
+		}
+
+		const normalizedPrompt = userPrompt.trim();
+		if (!normalizedPrompt) {
+			throw new Error("Prompt cannot be empty");
+		}
+
+		const activeRun = this.getActiveTaskRun(task.id);
+		if (activeRun) {
+			if (this.isStoryChatRun(activeRun)) {
+				log.info("Task already has active story-chat run", {
+					taskId: task.id,
+					runId: activeRun.id,
+					status: activeRun.status,
+				});
+				return { runId: activeRun.id };
+			}
+
+			throw new Error(
+				`Task already has an active run (${activeRun.metadata?.kind ?? defaultRunKind})`,
+			);
+		}
+
+		const roleId = this.resolveSpecializedRoleId(
+			task,
+			"preferredForStoryGeneration",
+		);
+		if (!roleId) {
+			log.error("No agent roles configured");
+			throw new Error("No agent roles configured");
+		}
+
+		const project = projectRepo.getById(task.projectId);
+		if (!project) {
+			log.error("Project not found for task", {
+				taskId,
+				projectId: task.projectId,
+			});
+			throw new Error(`Project not found for task: ${task.id}`);
+		}
+
+		const selectedRole = roleRepo
+			.listWithPresets()
+			.find((candidate) => candidate.id === roleId);
+		const selectedRolePreset = this.parseRolePreset(
+			roleRepo.getPresetJson(roleId),
+		);
+
+		const snapshotId = contextSnapshotRepo.create({
+			taskId: task.id,
+			kind: "run-start",
+			summary: `Story chat started for ${task.title}`,
+			payload: {
+				taskId: task.id,
+				title: task.title,
+				description: task.description,
+				prompt: normalizedPrompt,
+				roleId,
+			},
+		});
+
+		const run = this.prepareTaskRun({
+			taskId: task.id,
+			roleId,
+			mode: "execute",
+			kind: storyChatRunKind,
+			contextSnapshotId: snapshotId,
+		});
+
+		runEventRepo.create({
+			runId: run.id,
+			eventType: "status",
+			payload: { status: run.status, message: "Story chat queued" },
+		});
+		publishRunUpdate(run);
+
+		this.queueManager.enqueue(run.id, {
+			projectPath: project.path,
+			projectId: project.id,
+			sessionTitle: `Story Chat: ${task.title}`.slice(0, 120),
+			sessionPreferences: this.toSessionPreferences(
+				selectedRole ?? null,
+				selectedRole?.preset_json,
+			),
+			prompt: buildStoryChatPrompt(
+				{
+					title: task.title,
+					description: task.description,
+				},
+				{
+					id: project.id,
+					name: project.name,
+					path: project.path,
+				},
+				normalizedPrompt,
+				{
+					role: {
+						id: roleId,
+						name: selectedRole?.name ?? roleId,
+						systemPrompt: selectedRolePreset?.systemPrompt,
+						skills: selectedRolePreset?.skills,
+					},
+				},
+			),
+		});
+
+		log.info("Story chat run enqueued", { runId: run.id });
+		return { runId: run.id };
+	}
+
+	public async triggerStoryGeneration(runId: string): Promise<void> {
+		const run = runRepo.getById(runId);
+		if (!run) {
+			throw new Error(`Run not found: ${runId}`);
+		}
+
+		if (!this.isStoryChatRun(run)) {
+			throw new Error(
+				"Story generation can only be triggered from story-chat runs",
+			);
+		}
+
+		const sessionId = run.sessionId?.trim();
+		if (!sessionId) {
+			throw new Error("Run has no session ID");
+		}
+
+		const inspection = await this.sessionManager.inspectSession(sessionId);
+		if (inspection.probeStatus !== "alive") {
+			throw new Error("Story chat session is not alive");
+		}
+
+		const task = taskRepo.getById(run.taskId);
+		if (!task) {
+			throw new Error(`Task not found: ${run.taskId}`);
+		}
+
+		const project = projectRepo.getById(task.projectId);
+		if (!project) {
+			throw new Error(`Project not found for task: ${task.id}`);
+		}
+
+		const taskTags = this.parseTaskTags(task.tags);
+		const runRoleId = run.roleId?.trim();
+		if (!runRoleId) {
+			throw new Error(`Run has no role ID: ${run.id}`);
+		}
+		const availableRoles = roleRepo.listWithPresets();
+		const selectedRole =
+			availableRoles.find((candidate) => candidate.id === runRoleId) ?? null;
+		const selectedRolePreset = this.parseRolePreset(
+			roleRepo.getPresetJson(runRoleId),
+		);
+		const availableTags = tagRepo.listNames();
+		const storyLanguage = RunService.resolveStoryLanguage();
+
+		const generationPrompt = buildUserStoryPrompt(
+			{
+				title: task.title,
+				description: task.description,
+				tags: taskTags,
+				type: task.type,
+				difficulty: task.difficulty,
+			},
+			{
+				id: project.id,
+				name: project.name,
+				path: project.path,
+			},
+			{
+				availableTags,
+				availableTypes: [...allowedTaskTypes],
+				availableDifficulties: [...allowedDifficulties],
+				availableRoles,
+				language: storyLanguage,
+				role: {
+					id: runRoleId,
+					name: selectedRole?.name ?? runRoleId,
+					systemPrompt: selectedRolePreset?.systemPrompt,
+					skills: selectedRolePreset?.skills,
+				},
+			},
+		);
+
+		const switchedRun = runRepo.update(run.id, {
+			kind: generationRunKind,
+		});
+
+		await sendSessionMessage(sessionId, generationPrompt);
+
+		const updatedTask = taskRepo.update(task.id, { status: "generating" });
+		if (updatedTask) {
+			publishSseEvent("task:event", {
+				taskId: updatedTask.id,
+				boardId: updatedTask.boardId,
+				projectId: updatedTask.projectId,
+				updatedAt: updatedTask.updatedAt,
+			});
+		}
+
+		runEventRepo.create({
+			runId: switchedRun.id,
+			eventType: "status",
+			payload: {
+				status: switchedRun.status,
+				message: "User story generation triggered from story chat",
+			},
+		});
+		publishRunUpdate(switchedRun);
+	}
+
 	public async startQaTesting(taskId: string): Promise<{ runId: string }> {
 		log.info("Starting QA testing run", { taskId });
 
@@ -946,6 +1168,10 @@ export class RunService {
 
 	private isExecutionRun(run: Run): boolean {
 		return (run.metadata?.kind ?? defaultRunKind) === defaultRunKind;
+	}
+
+	private isStoryChatRun(run: Run): boolean {
+		return run.metadata?.kind === storyChatRunKind;
 	}
 
 	public listByTask(taskId: string): Run[] {

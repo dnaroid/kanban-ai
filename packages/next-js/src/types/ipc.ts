@@ -288,6 +288,14 @@ export interface OpenCodeStartQaTestingResponse {
 	runId: string;
 }
 
+export interface OpenCodeStartStoryChatResponse {
+	runId: string;
+}
+
+export interface OpenCodeTriggerStoryChatGenerateResponse {
+	success: boolean;
+}
+
 export interface OpenCodeSessionMessagesResponse {
 	sessionId: string;
 	messages: OpenCodeMessage[];

@@ -11,10 +11,7 @@ import { SortableColumn } from "./kanban/board/SortableColumn";
 import { SortableTask } from "./kanban/board/SortableTask";
 import { QuickCreateModal } from "./kanban/board/QuickCreateModal";
 import { RejectModal, type RejectAttachment } from "./kanban/board/RejectModal";
-import {
-	useBoardModel,
-	type DirtyGitConfirmState,
-} from "@/features/board/model/use-board-model";
+import { useBoardModel } from "@/features/board/model/use-board-model";
 import { cn } from "@/lib/utils";
 import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 import { useToast } from "@/components/common/toast/ToastContext";
@@ -88,6 +85,7 @@ export function BoardScreen({
 		handleTaskClick,
 		handleAddTask,
 		handleQuickGenerateStory,
+		handleStartStoryChat,
 		handleQuickSaveDraft,
 		handleQuickRunRawStory,
 		handleDeleteTask,
@@ -479,6 +477,16 @@ export function BoardScreen({
 								selectedAttachments,
 							);
 						}
+					}}
+					onStartStoryChat={async (prompt, selectedAttachments) => {
+						if (!firstColumnId) {
+							throw new Error("Backlog column is not available");
+						}
+						return handleStartStoryChat(
+							firstColumnId,
+							prompt,
+							selectedAttachments,
+						);
 					}}
 					onRunRawStory={async (prompt, modelName, selectedAttachments) => {
 						if (firstColumnId) {

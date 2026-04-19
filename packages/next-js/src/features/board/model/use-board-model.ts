@@ -657,6 +657,64 @@ export function useBoardModel({
 		}
 	};
 
+	const handleStartStoryChat = async (
+		columnId: string,
+		prompt: string,
+		selectedAttachments?: PromptAttachment[],
+	): Promise<{ taskId: string; runId: string }> => {
+		if (!board) {
+			throw new Error("Board not found");
+		}
+
+		const cleanPrompt = normalizeQuickRunPrompt(prompt);
+		if (!cleanPrompt) {
+			throw new Error("Prompt cannot be empty");
+		}
+
+		const backlogColumnId = getBacklogColumnId(columnId);
+		const firstLine = cleanPrompt.split(/\r?\n/)[0]?.trim() ?? "";
+		const title = (firstLine.length > 0 ? firstLine : cleanPrompt).slice(
+			0,
+			120,
+		);
+		const promptWithFiles = appendFileReferencesToPrompt(
+			cleanPrompt,
+			selectedAttachments,
+		);
+
+		try {
+			const createdTask = await api.createTask({
+				boardId: board.id,
+				columnId: backlogColumnId,
+				title,
+				description: promptWithFiles,
+				priority: "normal",
+				difficulty: "medium",
+				type: "feature",
+				projectId,
+				tags: [],
+			});
+
+			const { runId } = await api.opencode.startStoryChat({
+				taskId: createdTask.id,
+				prompt: promptWithFiles,
+			});
+
+			await loadBoard();
+			router.push(`/board/${projectId}/task/${createdTask.id}?tab=runs`);
+			addToast("Story chat started", "info");
+
+			return { taskId: createdTask.id, runId };
+		} catch (storyChatError) {
+			console.error("Failed to start story chat:", storyChatError);
+			throw new Error(
+				storyChatError instanceof Error
+					? storyChatError.message
+					: "Failed to start story chat",
+			);
+		}
+	};
+
 	const handleQuickSaveDraft = async (
 		columnId: string,
 		prompt: string,
@@ -1294,6 +1352,7 @@ export function useBoardModel({
 		handleTaskClick,
 		handleAddTask,
 		handleQuickGenerateStory,
+		handleStartStoryChat,
 		handleQuickSaveDraft,
 		handleQuickRunRawStory,
 		handleDeleteTask,

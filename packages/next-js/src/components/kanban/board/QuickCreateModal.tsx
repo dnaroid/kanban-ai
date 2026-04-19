@@ -12,6 +12,7 @@ import {
 	Loader2,
 	Mic,
 	MicOff,
+	MessageSquare,
 	Paperclip,
 	Pencil,
 	Play,
@@ -68,6 +69,10 @@ interface QuickCreateModalProps {
 		prompt: string,
 		selectedAttachments: QuickCreateAttachment[],
 	) => Promise<void>;
+	onStartStoryChat: (
+		prompt: string,
+		selectedAttachments: QuickCreateAttachment[],
+	) => Promise<{ taskId: string; runId: string }>;
 	onRunRawStory: (
 		prompt: string,
 		modelName: string | null,
@@ -89,6 +94,7 @@ export function QuickCreateModal({
 	isOpen,
 	onClose,
 	onGenerateStory,
+	onStartStoryChat,
 	onRunRawStory,
 	onSaveDraft,
 }: QuickCreateModalProps) {
@@ -96,7 +102,7 @@ export function QuickCreateModal({
 	const [liveTranscript, setLiveTranscript] = useState("");
 	const [isListening, setIsListening] = useState(false);
 	const [submittingAction, setSubmittingAction] = useState<
-		"generate" | "runRaw" | "draft" | null
+		"generate" | "chatGenerate" | "runRaw" | "draft" | null
 	>(null);
 	const [models, setModels] = useState<OpencodeModel[]>([]);
 	const [selectedModel, setSelectedModel] = useState<string | null>(null);
@@ -332,6 +338,28 @@ export function QuickCreateModal({
 		}
 	};
 
+	const handleStartStoryChat = async () => {
+		const fullPrompt = `${prompt.trim()} ${liveTranscript.trim()}`.trim();
+		if (!fullPrompt) {
+			setError("Enter or dictate task details first.");
+			return;
+		}
+
+		setError(null);
+		setSubmittingAction("chatGenerate");
+
+		try {
+			await onStartStoryChat(fullPrompt, selectedAttachments);
+			onClose();
+		} catch (err) {
+			setError(
+				err instanceof Error ? err.message : "Failed to start story chat.",
+			);
+		} finally {
+			setSubmittingAction(null);
+		}
+	};
+
 	const handleSaveDraft = async () => {
 		const fullPrompt = `${prompt.trim()} ${liveTranscript.trim()}`.trim();
 		if (!fullPrompt) {
@@ -499,6 +527,29 @@ export function QuickCreateModal({
 								<Pencil className="w-4 h-4" />
 							)}
 							Save as Draft
+						</button>
+						<button
+							type="button"
+							onClick={handleStartStoryChat}
+							disabled={isSubmitting}
+							className={cn(
+								"inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all border",
+								isSubmitting
+									? "cursor-not-allowed opacity-50 bg-cyan-500/10 text-cyan-300/80 border-cyan-500/30"
+									: "bg-cyan-600/15 text-cyan-200 border-cyan-500/40 hover:bg-cyan-500/25 hover:text-cyan-100",
+							)}
+						>
+							{submittingAction === "chatGenerate" ? (
+								<>
+									<Loader2 className="w-4 h-4 animate-spin" />
+									Starting chat...
+								</>
+							) : (
+								<>
+									<MessageSquare className="w-4 h-4" />
+									Chat &amp; Generate
+								</>
+							)}
 						</button>
 						<button
 							type="button"

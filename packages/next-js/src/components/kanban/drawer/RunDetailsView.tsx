@@ -7,6 +7,7 @@ import {
 	GitMerge,
 	ListTodo,
 	RotateCcw,
+	Sparkles,
 	Square,
 	Terminal,
 	Trash2,
@@ -49,6 +50,8 @@ export function RunDetailsView({
 		modelID: string | null;
 	}>({ tokens: 0, percent: null, modelID: null });
 	const [sessionStack, setSessionStack] = useState<string[]>([]);
+	const [isTriggeringStoryGenerate, setIsTriggeringStoryGenerate] =
+		useState(false);
 	const isViewingSubAgent = sessionStack.length > 1;
 	const activeSessionId =
 		sessionStack.length > 0 ? sessionStack[0] : run?.sessionId || "";
@@ -66,6 +69,9 @@ export function RunDetailsView({
 	};
 
 	useEffect(() => {
+		if (!runId) {
+			return;
+		}
 		setSessionStack([]);
 	}, [runId]);
 	const runVcs = run?.metadata?.vcs;
@@ -92,6 +98,9 @@ export function RunDetailsView({
 			: null;
 	const shouldShowContextIndicator =
 		view === "log" && messageContextStats.tokens > 0 && contextPercent !== null;
+	const canTriggerStoryGenerate =
+		run?.metadata?.kind === "task-story-chat" &&
+		["queued", "running", "paused"].includes(run.status);
 	const contextIndicatorClassName =
 		contextPercent === null
 			? "bg-slate-900/50 text-slate-500 border-slate-800"
@@ -155,6 +164,21 @@ export function RunDetailsView({
 			isActive = false;
 		};
 	}, [messageContextStats.modelID, run?.model]);
+
+	const handleTriggerStoryGenerate = async () => {
+		if (!run?.id || isTriggeringStoryGenerate) {
+			return;
+		}
+
+		try {
+			setIsTriggeringStoryGenerate(true);
+			await api.opencode.triggerStoryChatGenerate({ runId: run.id });
+		} catch (error) {
+			console.error("Failed to trigger story generation:", error);
+		} finally {
+			setIsTriggeringStoryGenerate(false);
+		}
+	};
 
 	return (
 		<div className="flex flex-col h-full bg-[#0B0E14] overflow-hidden animate-in fade-in duration-300">
@@ -251,6 +275,31 @@ export function RunDetailsView({
 				</div>
 
 				<div className="flex items-center gap-4">
+					{canTriggerStoryGenerate && (
+						<button
+							type="button"
+							onClick={handleTriggerStoryGenerate}
+							disabled={!run?.sessionId || isTriggeringStoryGenerate}
+							className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-cyan-200 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+							title={
+								run?.sessionId
+									? "Generate final user story in the same session"
+									: "Run has no active session"
+							}
+						>
+							{isTriggeringStoryGenerate ? (
+								<>
+									<Sparkles className="w-3.5 h-3.5 animate-pulse" />
+									Generating...
+								</>
+							) : (
+								<>
+									<Sparkles className="w-3.5 h-3.5" />
+									Generate User Story
+								</>
+							)}
+						</button>
+					)}
 					{isViewingSubAgent && (
 						<button
 							type="button"

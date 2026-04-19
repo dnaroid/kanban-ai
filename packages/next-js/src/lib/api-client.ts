@@ -570,6 +570,55 @@ class ApiClient {
 	};
 
 	readonly opencode = {
+		startStoryChat: async ({
+			taskId,
+			prompt,
+		}: {
+			taskId: string;
+			prompt?: string;
+		}): Promise<{ runId: string }> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/story-chat/start`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ taskId, prompt }),
+				},
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to start story chat",
+				);
+				this.fail(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ runId: string }>(payload);
+		},
+		triggerStoryChatGenerate: async ({
+			runId,
+		}: {
+			runId: string;
+		}): Promise<{ success: boolean }> => {
+			const response = await fetch(
+				`${this.baseUrl}/api/opencode/story-chat/generate`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ runId }),
+				},
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to trigger story generation",
+				);
+				this.fail(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{ success?: boolean }>(payload);
+			return { success: data.success ?? true };
+		},
 		generateUserStory: async ({
 			taskId,
 		}: {

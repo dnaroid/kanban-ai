@@ -41,6 +41,7 @@ import { ExecutionBootstrapService } from "@/server/run/execution-bootstrap-serv
 import { TaskStatusProjectionService } from "@/server/run/task-status-projection-service";
 
 const generationRunKind = "task-description-improve";
+const storyChatRunKind = "task-story-chat";
 export type { QueueStats } from "@/server/run/runs-queue-types";
 const dependencyReadyStatus = "done";
 
@@ -392,19 +393,22 @@ export class RunsQueueManager {
 		const projectScope = input.projectId ?? input.projectPath;
 		const currentRun = runRepo.getById(runId);
 		const isGeneration = currentRun ? this.isGenerationRun(currentRun) : false;
+		const isInteractiveBucket = currentRun
+			? this.isInteractiveRunBucket(currentRun)
+			: false;
 		const queueKey = this.queueManager.buildQueueKey(
 			projectScope,
 			providerKey,
-			isGeneration,
+			isInteractiveBucket,
 		);
 
 		this.runInputs.set(runId, input);
 		this.queueManager.enqueue(runId, queueKey, {
 			projectScope,
 			providerKey,
-			isGeneration,
+			isGeneration: isInteractiveBucket,
 		});
-		if (currentRun && !isGeneration) {
+		if (currentRun && !isGeneration && !this.isStoryChatRun(currentRun)) {
 			this.applyTaskTransition(currentRun, "run:start", "");
 		}
 		log.info("Run enqueued", {
@@ -413,6 +417,7 @@ export class RunsQueueManager {
 			providerKey,
 			projectPath: input.projectPath,
 			isGeneration,
+			isInteractiveBucket,
 		});
 		this.scheduleDrain();
 	}
@@ -682,7 +687,7 @@ export class RunsQueueManager {
 	}
 
 	private canRunNow(run: Run): boolean {
-		if (this.isGenerationRun(run)) {
+		if (this.isGenerationRun(run) || this.isStoryChatRun(run)) {
 			return true;
 		}
 
@@ -718,7 +723,7 @@ export class RunsQueueManager {
 	}
 
 	private resolveRunPriorityScore(run: Run): number {
-		if (this.isGenerationRun(run)) {
+		if (this.isGenerationRun(run) || this.isStoryChatRun(run)) {
 			return Number.MAX_SAFE_INTEGER;
 		}
 
@@ -761,6 +766,14 @@ export class RunsQueueManager {
 
 	private isGenerationRun(run: Run): boolean {
 		return run.metadata?.kind === generationRunKind;
+	}
+
+	private isStoryChatRun(run: Run): boolean {
+		return run.metadata?.kind === storyChatRunKind;
+	}
+
+	private isInteractiveRunBucket(run: Run): boolean {
+		return this.isGenerationRun(run) || this.isStoryChatRun(run);
 	}
 
 	private shouldAutoExecuteAfterGeneration(): boolean {
