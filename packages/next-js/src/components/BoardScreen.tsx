@@ -11,7 +11,10 @@ import { SortableColumn } from "./kanban/board/SortableColumn";
 import { SortableTask } from "./kanban/board/SortableTask";
 import { QuickCreateModal } from "./kanban/board/QuickCreateModal";
 import { RejectModal, type RejectAttachment } from "./kanban/board/RejectModal";
-import { useBoardModel } from "@/features/board/model/use-board-model";
+import {
+	useBoardModel,
+	type DirtyGitConfirmState,
+} from "@/features/board/model/use-board-model";
 import { cn } from "@/lib/utils";
 import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 import { useToast } from "@/components/common/toast/ToastContext";
@@ -109,6 +112,7 @@ export function BoardScreen({
 		handleBulkDelete,
 		confirmBulkDelete,
 		handleRejectTask,
+		refreshBoardTasksFromServer,
 		deletingTaskId,
 	} = useBoardModel({ projectId, onTasksRefreshed: refreshGitStatus });
 
@@ -157,6 +161,40 @@ export function BoardScreen({
 		setRejectTaskId(null);
 	};
 
+	const handleRejectAndRerun = async (
+		qaReport: string,
+		attachments: RejectAttachment[],
+	) => {
+		if (!rejectTaskId) return;
+
+		let fullReport = qaReport;
+		if (attachments.length > 0) {
+			fullReport +=
+				"\n\nAttached files:\n" +
+				attachments
+					.map((a) => `- ${a.name}${a.path ? ` (${a.path})` : ""}`)
+					.join("\n");
+		}
+
+		try {
+			await api.task.reject({ taskId: rejectTaskId, qaReport: fullReport });
+		} catch (rejectError) {
+			console.error("Reject failed:", rejectError);
+			return;
+		}
+
+		try {
+			await api.run.start({ taskId: rejectTaskId });
+			addToast("Task rejected and re-run started", "success");
+		} catch (runError) {
+			console.error("Run start failed after reject:", runError);
+		}
+
+		await refreshBoardTasksFromServer();
+		setIsRejectModalOpen(false);
+		setRejectTaskId(null);
+	};
+
 	const handleReadyStartRequest = async () => {
 		try {
 			await handleStartReadyTasks();
@@ -165,7 +203,7 @@ export function BoardScreen({
 				startError instanceof Error &&
 				(startError as Error & { isDirtyGit?: boolean }).isDirtyGit
 			) {
-				setDirtyGitConfirm(true);
+				setDirtyGitConfirm({ type: "startReady" });
 				return;
 			}
 
@@ -191,7 +229,19 @@ export function BoardScreen({
 	};
 
 	const handleDirtyGitConfirmStart = async () => {
+		const confirmState = dirtyGitConfirm;
+		setDirtyGitConfirm(false);
+
+		if (!confirmState) return;
+
 		try {
+			if (confirmState.type === "individualRun") {
+				await api.run.start({
+					taskId: confirmState.taskId,
+					forceDirtyGit: true,
+				});
+				return;
+			}
 			await handleStartReadyTasks({ forceDirtyGit: true });
 		} catch (forceError) {
 			if (
@@ -212,6 +262,24 @@ export function BoardScreen({
 					: "Failed to start the next Ready task";
 			setSignalErrorConfirm({ isOpen: true, message });
 			// Error toast handled by ApiClient.onError.
+		}
+	};
+
+	const handleContextActionWithDirtyGitCheck = async (
+		taskId: string,
+		systemKey: string,
+	) => {
+		try {
+			await handleContextAction(taskId, systemKey);
+		} catch (actionError) {
+			if (
+				actionError instanceof Error &&
+				(actionError as Error & { isDirtyGit?: boolean }).isDirtyGit
+			) {
+				setDirtyGitConfirm({ type: "individualRun", taskId });
+				return;
+			}
+			console.error("Context action failed:", actionError);
 		}
 	};
 
@@ -358,7 +426,7 @@ export function BoardScreen({
 										onTaskClick={handleTaskClick}
 										onDeleteTask={handleDeleteTask}
 										onBulkDelete={handleBulkDelete}
-										onContextAction={handleContextAction}
+										onContextAction={handleContextActionWithDirtyGitCheck}
 										onUpdateTask={handleTaskUpdate}
 										onRejectAction={handleOpenRejectModal}
 										deletingTaskId={deletingTaskId}
@@ -474,7 +542,7 @@ export function BoardScreen({
 				/>
 
 				<ConfirmationModal
-					isOpen={dirtyGitConfirm}
+					isOpen={dirtyGitConfirm !== false}
 					onClose={() => setDirtyGitConfirm(false)}
 					onConfirm={handleDirtyGitConfirmStart}
 					title="Uncommitted Changes Detected"
@@ -521,6 +589,7 @@ export function BoardScreen({
 						setRejectTaskId(null);
 					}}
 					onSubmit={handleRejectSubmit}
+					onRejectAndRerun={handleRejectAndRerun}
 					taskTitle={rejectTaskTitle}
 				/>
 			</main>

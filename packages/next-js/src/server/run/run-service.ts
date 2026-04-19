@@ -35,6 +35,7 @@ export interface StartRunInput {
 	roleId?: string;
 	mode?: string;
 	modelName?: string | null;
+	forceDirtyGit?: boolean;
 }
 
 const allowedTaskTypes = ["feature", "bug", "chore", "improvement"] as const;
@@ -214,6 +215,22 @@ export class RunService {
 				projectId: task.projectId,
 			});
 			throw new Error(`Project not found for task: ${task.id}`);
+		}
+
+		const effectiveMode = input.mode ?? "execute";
+		const skipDirtyGitCheck =
+			input.forceDirtyGit === true ||
+			(process.env.RUNS_WORKTREE_ENABLED === "true" &&
+				effectiveMode === "execute");
+		if (project.path && !skipDirtyGitCheck) {
+			const hasChanges = await this.vcsManager.hasUncommittedChanges(
+				project.path,
+			);
+			if (hasChanges) {
+				throw new Error(
+					"DIRTY_GIT: working tree has uncommitted changes. Commit or stash them first.",
+				);
+			}
 		}
 
 		log.debug("Creating context snapshot", { taskId: task.id });

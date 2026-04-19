@@ -9,10 +9,12 @@ import {
 } from "react";
 import {
 	FileText,
+	CheckCircle,
 	Loader2,
 	Mic,
 	MicOff,
 	Paperclip,
+	RotateCcw,
 	X,
 	XCircle,
 } from "lucide-react";
@@ -68,6 +70,10 @@ interface RejectModalProps {
 		qaReport: string,
 		attachments: RejectAttachment[],
 	) => Promise<void>;
+	onRejectAndRerun?: (
+		qaReport: string,
+		attachments: RejectAttachment[],
+	) => Promise<void>;
 	taskTitle: string;
 }
 
@@ -75,6 +81,7 @@ export function RejectModal({
 	isOpen,
 	onClose,
 	onSubmit,
+	onRejectAndRerun,
 	taskTitle,
 }: RejectModalProps) {
 	const [reason, setReason] = useState("");
@@ -85,6 +92,7 @@ export function RejectModal({
 	>([]);
 	const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [submitMode, setSubmitMode] = useState<"reject" | "rerun" | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
@@ -312,7 +320,7 @@ export function RejectModal({
 		);
 	};
 
-	const handleSubmit = async () => {
+	const handleSubmit = async (mode: "reject" | "rerun") => {
 		const trimmedReason = reason.trim();
 		if (!trimmedReason) {
 			setError("Please describe why the task didn't pass review.");
@@ -321,9 +329,14 @@ export function RejectModal({
 
 		setError(null);
 		setIsSubmitting(true);
+		setSubmitMode(mode);
 
 		try {
-			await onSubmit(trimmedReason, selectedAttachments);
+			if (mode === "rerun" && onRejectAndRerun) {
+				await onRejectAndRerun(trimmedReason, selectedAttachments);
+			} else {
+				await onSubmit(trimmedReason, selectedAttachments);
+			}
 		} catch (submitError) {
 			setError(
 				submitError instanceof Error
@@ -332,6 +345,7 @@ export function RejectModal({
 			);
 		} finally {
 			setIsSubmitting(false);
+			setSubmitMode(null);
 		}
 	};
 
@@ -364,26 +378,53 @@ export function RejectModal({
 						>
 							Cancel
 						</button>
+						{onRejectAndRerun && (
+							<button
+								type="button"
+								onClick={() => handleSubmit("rerun")}
+								disabled={isSubmitting || !reason.trim()}
+								className={cn(
+									"inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-xs font-bold transition-all border shadow-lg",
+									isSubmitting && submitMode === "rerun"
+										? "cursor-not-allowed bg-amber-500/10 text-amber-300/80 border-amber-500/30"
+										: "bg-amber-600 text-white border-amber-500 hover:bg-amber-500 hover:scale-[1.02] active:scale-[0.98] shadow-amber-500/20",
+								)}
+							>
+								{isSubmitting && submitMode === "rerun" ? (
+									<>
+										<Loader2 className="w-4 h-4 animate-spin" />
+										Rejecting &amp; Re-running...
+									</>
+								) : (
+									<>
+										<RotateCcw className="w-4 h-4" />
+										Reject &amp; Re-run
+									</>
+								)}
+							</button>
+						)}
 						<button
 							type="button"
-							onClick={handleSubmit}
+							onClick={() => handleSubmit("reject")}
 							disabled={isSubmitting || !reason.trim()}
 							className={cn(
 								"inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-xs font-bold transition-all border shadow-lg",
-								isSubmitting
+								isSubmitting && submitMode === "reject"
 									? "cursor-not-allowed bg-red-500/10 text-red-300/80 border-red-500/30"
-									: "bg-red-600 text-white border-red-500 hover:bg-red-500 hover:scale-[1.02] active:scale-[0.98] shadow-red-500/20",
+									: isSubmitting
+										? "cursor-not-allowed bg-red-500/10 text-red-300/40 border-red-500/20"
+										: "bg-red-600 text-white border-red-500 hover:bg-red-500 hover:scale-[1.02] active:scale-[0.98] shadow-red-500/20",
 							)}
 						>
-							{isSubmitting ? (
+							{isSubmitting && submitMode === "reject" ? (
 								<>
 									<Loader2 className="w-4 h-4 animate-spin" />
 									Rejecting...
 								</>
 							) : (
 								<>
-									<XCircle className="w-4 h-4" />
-									Reject Task
+									<CheckCircle className="w-4 h-4" />
+									Reject
 								</>
 							)}
 						</button>

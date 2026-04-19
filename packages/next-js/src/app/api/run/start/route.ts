@@ -6,6 +6,7 @@ interface StartRunBody {
 	roleId?: unknown;
 	mode?: unknown;
 	modelName?: unknown;
+	forceDirtyGit?: unknown;
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -34,8 +35,16 @@ export async function POST(request: Request): Promise<Response> {
 				: body.modelName === null
 					? null
 					: undefined;
+		const forceDirtyGit =
+			typeof body.forceDirtyGit === "boolean" ? body.forceDirtyGit : undefined;
 
-		const data = await runService.start({ taskId, roleId, mode, modelName });
+		const data = await runService.start({
+			taskId,
+			roleId,
+			mode,
+			modelName,
+			forceDirtyGit,
+		});
 		return NextResponse.json({ success: true, data });
 	} catch (error) {
 		const message =

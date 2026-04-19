@@ -13,6 +13,11 @@ import type { KanbanTask, Tag, BoardColumnInput } from "@/types/kanban";
 import { api } from "@/lib/api-client";
 import { useToast } from "@/components/common/toast/ToastContext";
 
+export type DirtyGitConfirmState =
+	| false
+	| { type: "startReady" }
+	| { type: "individualRun"; taskId: string };
+
 interface UseBoardModelArgs {
 	projectId: string;
 	onTasksRefreshed?: () => void;
@@ -106,7 +111,8 @@ export function useBoardModel({
 		message: null,
 	});
 
-	const [dirtyGitConfirm, setDirtyGitConfirm] = useState(false);
+	const [dirtyGitConfirm, setDirtyGitConfirm] =
+		useState<DirtyGitConfirmState>(false);
 
 	const pendingStoryGenerations = useRef<Map<string, string>>(new Map());
 	const pendingSseTaskRefreshIdsRef = useRef<Set<string>>(new Set());
@@ -1232,6 +1238,16 @@ export function useBoardModel({
 					break;
 			}
 		} catch (actionError) {
+			if (
+				systemKey === "ready" &&
+				actionError instanceof Error &&
+				actionError.message.startsWith("DIRTY_GIT:")
+			) {
+				throw Object.assign(
+					new Error(actionError.message.replace("DIRTY_GIT: ", "")),
+					{ isDirtyGit: true, taskId },
+				);
+			}
 			console.error("Context action failed:", actionError);
 			// Error toast handled by ApiClient.onError.
 		}

@@ -150,16 +150,24 @@ class ApiClient {
 			roleId,
 			mode,
 			modelName,
+			forceDirtyGit,
 		}: {
 			taskId: string;
 			roleId?: string;
 			mode?: string;
 			modelName?: string | null;
+			forceDirtyGit?: boolean;
 		}): Promise<{ runId: string }> => {
 			const response = await fetch(`${this.baseUrl}/api/run/start`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ taskId, roleId, mode, modelName }),
+				body: JSON.stringify({
+					taskId,
+					roleId,
+					mode,
+					modelName,
+					forceDirtyGit,
+				}),
 			});
 			if (!response.ok) {
 				const message = await this.getErrorMessage(
