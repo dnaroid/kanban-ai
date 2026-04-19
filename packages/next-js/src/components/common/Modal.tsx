@@ -18,6 +18,7 @@ interface ModalProps {
 	className?: string;
 	contentClassName?: string;
 	size?: "sm" | "md" | "lg" | "xl" | "full" | "720px" | "none";
+	onPointerDownOutside?: (event: Event) => void;
 }
 
 const sizeClasses = {
@@ -41,6 +42,7 @@ export const Modal = ({
 	className,
 	contentClassName,
 	size = "720px",
+	onPointerDownOutside,
 }: ModalProps) => {
 	return (
 		<Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -48,6 +50,7 @@ export const Modal = ({
 			<Dialog.Portal>
 				<Dialog.Overlay className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200" />
 				<Dialog.Content
+					onPointerDownOutside={onPointerDownOutside}
 					className={cn(
 						"fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[51]",
 						size !== "none" && sizeClasses[size],

@@ -16,7 +16,17 @@ import { useToast } from "@/components/common/toast/ToastContext";
 export type DirtyGitConfirmState =
 	| false
 	| { type: "startReady" }
-	| { type: "individualRun"; taskId: string };
+	| { type: "individualRun"; taskId: string }
+	| {
+			type: "quickRunRaw";
+			columnId: string;
+			prompt: string;
+			options?: {
+				modelName?: string | null;
+				roleId?: string | null;
+				selectedAttachments?: PromptAttachment[];
+			};
+	  };
 
 interface UseBoardModelArgs {
 	projectId: string;
@@ -771,6 +781,7 @@ export function useBoardModel({
 			modelName?: string | null;
 			roleId?: string | null;
 			selectedAttachments?: PromptAttachment[];
+			forceDirtyGit?: boolean;
 		},
 	) => {
 		if (!board) {
@@ -863,17 +874,26 @@ export function useBoardModel({
 				roleId: executionRoleId,
 				mode: "execute",
 				modelName: options?.modelName ?? null,
+				forceDirtyGit: options?.forceDirtyGit ?? false,
 			});
 			await loadBoard();
 			addToast("Raw story queued for execution", "success");
 		} catch (createError) {
-			console.error("Failed to quick-run raw story:", createError);
-			// Error toast handled by ApiClient.onError.
-			throw new Error(
+			const errorMessage =
 				createError instanceof Error
 					? createError.message
-					: "Failed to run raw story",
-			);
+					: "Failed to run raw story";
+
+			if (errorMessage.startsWith("DIRTY_GIT:")) {
+				throw Object.assign(
+					new Error(errorMessage.replace("DIRTY_GIT: ", "")),
+					{ isDirtyGit: true },
+				);
+			}
+
+			console.error("Failed to quick-run raw story:", createError);
+			// Error toast handled by ApiClient.onError.
+			throw new Error(errorMessage);
 		}
 	};
 

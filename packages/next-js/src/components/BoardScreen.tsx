@@ -243,6 +243,17 @@ export function BoardScreen({
 				});
 				return;
 			}
+			if (confirmState.type === "quickRunRaw") {
+				await handleQuickRunRawStory(
+					confirmState.columnId,
+					confirmState.prompt,
+					{
+						...confirmState.options,
+						forceDirtyGit: true,
+					},
+				);
+				return;
+			}
 			await handleStartReadyTasks({ forceDirtyGit: true });
 		} catch (forceError) {
 			if (
@@ -489,11 +500,31 @@ export function BoardScreen({
 						);
 					}}
 					onRunRawStory={async (prompt, modelName, selectedAttachments) => {
-						if (firstColumnId) {
+						if (!firstColumnId) {
+							return;
+						}
+						try {
 							await handleQuickRunRawStory(firstColumnId, prompt, {
 								modelName,
 								selectedAttachments,
 							});
+						} catch (runError) {
+							if (
+								runError instanceof Error &&
+								(runError as Error & { isDirtyGit?: boolean }).isDirtyGit
+							) {
+								setDirtyGitConfirm({
+									type: "quickRunRaw",
+									columnId: firstColumnId,
+									prompt,
+									options: {
+										modelName,
+										selectedAttachments,
+									},
+								});
+								return;
+							}
+							throw runError;
 						}
 					}}
 					onSaveDraft={async (prompt, selectedAttachments) => {
