@@ -175,6 +175,23 @@ export function SortableTask({
 					style={toneOverlayStyle(statusVisual.tone)}
 				/>
 			)}
+			{statusVisual && (
+				<div
+					className="absolute left-0 right-0 flex justify-center pointer-events-none"
+					style={{ top: 0, transform: "translateY(-50%)" }}
+				>
+					<span
+						className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider pointer-events-auto"
+						style={{
+							color: statusVisual.tone,
+							backgroundColor: `${statusVisual.tone}20`,
+							border: `1px solid ${statusVisual.tone}50`,
+						}}
+					>
+						{task.status}
+					</span>
+				</div>
+			)}
 			<div className="block w-full min-w-0 p-4 text-left">
 				<div className="mb-2 flex flex-wrap items-center gap-2">
 					{onUpdate ? (
