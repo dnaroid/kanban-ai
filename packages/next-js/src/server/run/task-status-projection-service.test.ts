@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TaskStatusProjectionServiceDeps } from "@/server/run/task-status-projection-service";
-import type { SessionInspectionResult } from "@/server/opencode/session-manager";
 import type { Task, Board, BoardColumn } from "@/server/types";
-import type { Run, RunStatus } from "@/types/ipc";
+import type { Run } from "@/types/ipc";
 
 // ---------------------------------------------------------------------------
 // Builder helpers
