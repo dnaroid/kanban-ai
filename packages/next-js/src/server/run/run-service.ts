@@ -653,6 +653,7 @@ export class RunService {
 	public async startStoryChat(
 		taskId: string,
 		userPrompt: string,
+		modelName?: string,
 	): Promise<{ runId: string }> {
 		log.info("Starting story chat run", { taskId });
 
@@ -743,6 +744,8 @@ export class RunService {
 			sessionPreferences: this.toSessionPreferences(
 				selectedRole ?? null,
 				selectedRole?.preset_json,
+				undefined,
+				modelName,
 			),
 			prompt: buildStoryChatPrompt(
 				{

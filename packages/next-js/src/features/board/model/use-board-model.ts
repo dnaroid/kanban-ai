@@ -522,10 +522,7 @@ export function useBoardModel({
 	};
 
 	const handleTaskClick = (task: KanbanTask) => {
-		const tab = ["question", "running", "in_progress"].includes(task.status)
-			? "?tab=runs"
-			: "";
-		router.push(`/board/${projectId}/task/${task.id}${tab}`);
+		router.push(`/board/${projectId}/task/${task.id}`);
 	};
 
 	const handleAddTask = async (columnId: string) => {
@@ -671,6 +668,7 @@ export function useBoardModel({
 		columnId: string,
 		prompt: string,
 		selectedAttachments?: PromptAttachment[],
+		modelName?: string | null,
 	): Promise<{ taskId: string; runId: string }> => {
 		if (!board) {
 			throw new Error("Board not found");
@@ -708,6 +706,7 @@ export function useBoardModel({
 			const { runId } = await api.opencode.startStoryChat({
 				taskId: createdTask.id,
 				prompt: promptWithFiles,
+				modelName: modelName ?? null,
 			});
 
 			await loadBoard();

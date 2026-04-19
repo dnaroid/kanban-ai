@@ -573,16 +573,18 @@ class ApiClient {
 		startStoryChat: async ({
 			taskId,
 			prompt,
+			modelName,
 		}: {
 			taskId: string;
 			prompt?: string;
+			modelName?: string | null;
 		}): Promise<{ runId: string }> => {
 			const response = await fetch(
 				`${this.baseUrl}/api/opencode/story-chat/start`,
 				{
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ taskId, prompt }),
+					body: JSON.stringify({ taskId, prompt, modelName }),
 				},
 			);
 			if (!response.ok) {

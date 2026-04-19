@@ -7,6 +7,7 @@ export async function POST(request: Request) {
 		const body = (await request.json()) as {
 			taskId?: unknown;
 			prompt?: unknown;
+			modelName?: unknown;
 		};
 
 		if (typeof body.taskId !== "string" || body.taskId.trim().length === 0) {
@@ -23,9 +24,14 @@ export async function POST(request: Request) {
 			);
 		}
 
+		const modelName =
+			typeof body.modelName === "string" && body.modelName.trim()
+				? body.modelName.trim()
+				: undefined;
 		const { runId } = await runService.startStoryChat(
 			body.taskId.trim(),
 			body.prompt.trim(),
+			modelName,
 		);
 		const data: OpenCodeStartStoryChatResponse = { runId };
 		return NextResponse.json({ success: true, data });

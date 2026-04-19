@@ -203,6 +203,7 @@ export function ExecutionLog({
 	showReasoning,
 	onNavigateToSubAgent,
 	isSubAgent = false,
+	hideFirstUserMessage = true,
 }: {
 	runId: string;
 	sessionId: string;
@@ -214,6 +215,7 @@ export function ExecutionLog({
 	showReasoning?: boolean;
 	onNavigateToSubAgent?: (sessionId: string) => void;
 	isSubAgent?: boolean;
+	hideFirstUserMessage?: boolean;
 }) {
 	const [events, setEvents] = useState<RunEvent[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
@@ -928,7 +930,11 @@ export function ExecutionLog({
 						}
 					}
 
-					if (!isSubAgent && !hiddenUserMessageIdRef.current) {
+					if (
+						!isSubAgent &&
+						hideFirstUserMessage &&
+						!hiddenUserMessageIdRef.current
+					) {
 						let firstUserMessage: OpenCodeMessage | null = null;
 						for (const message of messagesResponse.messages) {
 							if (message.role !== "user") continue;
@@ -1022,6 +1028,7 @@ export function ExecutionLog({
 		extractStatusLineFromMessage,
 		upsertStatusEvent,
 		isSubAgent,
+		hideFirstUserMessage,
 	]);
 
 	useEffect(() => {

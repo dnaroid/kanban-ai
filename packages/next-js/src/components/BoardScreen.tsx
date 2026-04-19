@@ -489,7 +489,7 @@ export function BoardScreen({
 							);
 						}
 					}}
-					onStartStoryChat={async (prompt, selectedAttachments) => {
+					onStartStoryChat={async (prompt, modelName, selectedAttachments) => {
 						if (!firstColumnId) {
 							throw new Error("Backlog column is not available");
 						}
@@ -497,6 +497,7 @@ export function BoardScreen({
 							firstColumnId,
 							prompt,
 							selectedAttachments,
+							modelName,
 						);
 					}}
 					onRunRawStory={async (prompt, modelName, selectedAttachments) => {

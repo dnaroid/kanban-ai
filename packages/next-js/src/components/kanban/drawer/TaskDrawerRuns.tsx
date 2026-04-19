@@ -329,6 +329,7 @@ export function TaskDrawerRuns({
 						onMerge={(e) => handleMergeRun(selectedRun.id, e)}
 						isMerging={mergingRunId === selectedRun.id}
 						showBack={runs.length > 1}
+						taskStatus={task.status}
 					/>
 				) : (
 					<div className="p-4 space-y-3">

@@ -29,6 +29,7 @@ export function RunDetailsView({
 	onMerge,
 	isMerging = false,
 	showBack = true,
+	taskStatus,
 }: {
 	runId: string;
 	run: Run | null;
@@ -39,6 +40,7 @@ export function RunDetailsView({
 	onMerge?: (e: React.MouseEvent) => void;
 	isMerging?: boolean;
 	showBack?: boolean;
+	taskStatus?: string;
 }) {
 	const [view, setView] = useState<"log" | "todo" | "diff">("log");
 	const [showReasoning, setShowReasoning] = useState(false);
@@ -98,9 +100,7 @@ export function RunDetailsView({
 			: null;
 	const shouldShowContextIndicator =
 		view === "log" && messageContextStats.tokens > 0 && contextPercent !== null;
-	const canTriggerStoryGenerate =
-		run?.metadata?.kind === "task-story-chat" &&
-		["queued", "running", "paused"].includes(run.status);
+	const canTriggerStoryGenerate = taskStatus === "chat";
 	const contextIndicatorClassName =
 		contextPercent === null
 			? "bg-slate-900/50 text-slate-500 border-slate-800"
@@ -412,6 +412,7 @@ export function RunDetailsView({
 						showReasoning={showReasoning}
 						onNavigateToSubAgent={handleNavigateToSubAgent}
 						isSubAgent={isViewingSubAgent}
+						hideFirstUserMessage={taskStatus !== "chat"}
 					/>
 				) : view === "diff" ? (
 					<RunDiffPanel runId={runId} />
