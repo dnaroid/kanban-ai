@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { Cpu, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DIFFICULTY_STYLES } from "@/components/common/ModelPicker";
 import type { OpencodeModel } from "@/types/kanban";
 import type { OhMyOpenagentConfig } from "./OhMyOpenagentTypes";
 
@@ -34,26 +35,9 @@ function extractUniqueModels(config: OhMyOpenagentConfig): string[] {
 	return [...names].sort();
 }
 
-function resolveModelColors(config: OhMyOpenagentConfig): Map<string, string> {
-	const colorMap = new Map<string, string>();
-
-	if (config.agents) {
-		for (const agent of Object.values(config.agents)) {
-			if (agent.model && agent.color) {
-				const base = agent.model.split("#")[0];
-				if (!colorMap.has(base)) {
-					colorMap.set(base, agent.color);
-				}
-			}
-		}
-	}
-
-	return colorMap;
-}
-
 export function EngagedModelsSummary({
 	config,
-	models: _models,
+	models,
 	isLoading,
 }: EngagedModelsSummaryProps) {
 	const modelNames = useMemo(
@@ -61,10 +45,15 @@ export function EngagedModelsSummary({
 		[config],
 	);
 
-	const modelColors = useMemo(
-		() => (config ? resolveModelColors(config) : new Map<string, string>()),
-		[config],
-	);
+	const difficultyLookup = useMemo(() => {
+		const map = new Map<string, string>();
+		for (const m of models) {
+			if (!map.has(m.name)) {
+				map.set(m.name, m.difficulty);
+			}
+		}
+		return map;
+	}, [models]);
 
 	if (isLoading) {
 		return (
@@ -101,20 +90,34 @@ export function EngagedModelsSummary({
 			</span>
 			<div className="flex items-center gap-1.5 flex-wrap">
 				{modelNames.map((name) => {
-					const color = modelColors.get(name);
+					const difficulty = difficultyLookup.get(
+						name,
+					) as keyof typeof DIFFICULTY_STYLES;
+					const styles = difficulty ? DIFFICULTY_STYLES[difficulty] : null;
 
 					return (
 						<span
 							key={name}
 							className={cn(
-								"inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold font-mono ring-1 uppercase",
-								color
-									? "ring-current/20"
-									: "bg-slate-800/40 text-slate-300 ring-slate-700/50",
+								"inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md ring-1 max-w-[200px] truncate",
+								styles ? styles.bg : "bg-slate-800/40",
+								styles ? "ring-current/20" : "ring-slate-700/50",
 							)}
-							style={color ? { color } : undefined}
 						>
-							{name}
+							<Cpu
+								className={cn(
+									"w-3 h-3 shrink-0",
+									styles?.text ?? "text-slate-400",
+								)}
+							/>
+							<span
+								className={cn(
+									"text-[10px] font-bold uppercase tracking-tight truncate",
+									styles?.text ?? "text-slate-300",
+								)}
+							>
+								{name.split("/").pop()}
+							</span>
 						</span>
 					);
 				})}
