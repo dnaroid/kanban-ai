@@ -166,6 +166,7 @@ export function BoardScreen({
 		attachments: RejectAttachment[],
 	) => {
 		if (!rejectTaskId) return;
+		const taskId = rejectTaskId;
 
 		let fullReport = qaReport;
 		if (attachments.length > 0) {
@@ -177,22 +178,24 @@ export function BoardScreen({
 		}
 
 		try {
-			await api.task.reject({ taskId: rejectTaskId, qaReport: fullReport });
+			await api.task.reject({ taskId, qaReport: fullReport });
 		} catch (rejectError) {
 			console.error("Reject failed:", rejectError);
 			return;
 		}
 
+		await refreshBoardTasksFromServer();
+
+		setIsRejectModalOpen(false);
+		setRejectTaskId(null);
+
 		try {
-			await api.run.start({ taskId: rejectTaskId });
+			await api.run.start({ taskId });
 			addToast("Task rejected and re-run started", "success");
 		} catch (runError) {
 			console.error("Run start failed after reject:", runError);
+			await refreshBoardTasksFromServer();
 		}
-
-		await refreshBoardTasksFromServer();
-		setIsRejectModalOpen(false);
-		setRejectTaskId(null);
 	};
 
 	const handleReadyStartRequest = async () => {

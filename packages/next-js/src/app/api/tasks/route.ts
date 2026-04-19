@@ -25,6 +25,20 @@ function getLatestSessionId(taskId: string): string | null {
 	return sorted[0]?.sessionId || null;
 }
 
+function getLatestExecutionStatus(
+	taskId: string,
+): import("@/types/ipc").RunLastExecutionStatus | null {
+	const runs = runService.listByTask(taskId);
+	if (runs.length === 0) {
+		return null;
+	}
+
+	const sorted = [...runs].sort(
+		(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+	);
+	return sorted[0]?.metadata?.lastExecutionStatus ?? null;
+}
+
 export async function GET(request: NextRequest) {
 	try {
 		const { searchParams } = new URL(request.url);
@@ -57,6 +71,7 @@ export async function GET(request: NextRequest) {
 		const enrichedTasks = tasks.map((task) => ({
 			...task,
 			latestSessionId: getLatestSessionId(task.id),
+			lastExecutionStatus: getLatestExecutionStatus(task.id),
 			opencodeWebUrl,
 		}));
 

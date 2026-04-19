@@ -690,6 +690,44 @@ describe("RunService.start", () => {
 			}),
 		);
 	});
+
+	it("blocks start when git has uncommitted changes", async () => {
+		process.env.RUNS_WORKTREE_ENABLED = "";
+		mockVcsManager.hasUncommittedChanges.mockResolvedValue(true);
+
+		const service = new RunService();
+		await expect(service.start({ taskId: "task-1" })).rejects.toThrow(
+			"DIRTY_GIT: working tree has uncommitted changes",
+		);
+
+		expect(mockRunRepo.create).not.toHaveBeenCalled();
+		expect(mockQueueManager.enqueue).not.toHaveBeenCalled();
+	});
+
+	it("allows start with uncommitted changes when forceDirtyGit is true", async () => {
+		process.env.RUNS_WORKTREE_ENABLED = "";
+		mockVcsManager.hasUncommittedChanges.mockResolvedValue(true);
+
+		const service = new RunService();
+		const result = await service.start({
+			taskId: "task-1",
+			forceDirtyGit: true,
+		});
+
+		expect(result).toEqual({ runId: "run-start" });
+		expect(mockQueueManager.enqueue).toHaveBeenCalled();
+	});
+
+	it("skips dirty git check when worktree is enabled", async () => {
+		process.env.RUNS_WORKTREE_ENABLED = "true";
+		mockVcsManager.hasUncommittedChanges.mockResolvedValue(true);
+
+		const service = new RunService();
+		const result = await service.start({ taskId: "task-1" });
+
+		expect(result).toEqual({ runId: "run-start" });
+		expect(mockVcsManager.hasUncommittedChanges).not.toHaveBeenCalled();
+	});
 });
 
 describe("RunService.startReadyTasks", () => {

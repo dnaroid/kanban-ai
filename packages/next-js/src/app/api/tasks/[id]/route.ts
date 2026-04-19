@@ -35,6 +35,20 @@ function getLatestSessionId(taskId: string): string | null {
 	return sorted[0]?.sessionId || null;
 }
 
+function getLatestExecutionStatus(
+	taskId: string,
+): import("@/types/ipc").RunLastExecutionStatus | null {
+	const runs = runService.listByTask(taskId);
+	if (runs.length === 0) {
+		return null;
+	}
+
+	const sorted = [...runs].sort(
+		(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+	);
+	return sorted[0]?.metadata?.lastExecutionStatus ?? null;
+}
+
 function getOpencodeWebUrl(projectId: string): string | null {
 	const project = projectRepo.getById(projectId);
 	if (!project) {
@@ -70,6 +84,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 				blockedReason: task.blockedReason,
 				blockedReasonText: task.blockedReasonText,
 				latestSessionId: getLatestSessionId(task.id),
+				lastExecutionStatus: getLatestExecutionStatus(task.id),
 				opencodeWebUrl: getOpencodeWebUrl(task.projectId),
 			},
 		});

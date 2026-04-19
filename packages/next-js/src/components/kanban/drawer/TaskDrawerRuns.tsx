@@ -98,6 +98,7 @@ export function TaskDrawerRuns({
 	const [selectedRoleId, setSelectedRoleId] = useState<string>("");
 	const [runToDelete, setRunToDelete] = useState<string | null>(null);
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+	const [showDirtyGitConfirm, setShowDirtyGitConfirm] = useState(false);
 
 	const quickSelectRoles = roles.filter((role) => role.quickSelect);
 	const assignedRoleId = resolveAssignedRoleId(task.tags);
@@ -169,7 +170,7 @@ export function TaskDrawerRuns({
 		};
 	}, [isActive]);
 
-	const handleStartRun = async () => {
+	const handleStartRun = async (forceDirtyGit = false) => {
 		if (isStartingRun) return;
 		setIsStartingRun(true);
 		try {
@@ -177,17 +178,31 @@ export function TaskDrawerRuns({
 				taskId: task.id,
 				roleId: selectedRoleId,
 				modelName: task.modelName ?? null,
+				forceDirtyGit,
 			});
 			await onRefreshTask?.();
 			await fetchRuns();
 			setSelectedRunId(response.runId);
 		} catch (error) {
+			if (
+				!forceDirtyGit &&
+				error instanceof Error &&
+				error.message.startsWith("DIRTY_GIT:")
+			) {
+				setShowDirtyGitConfirm(true);
+				return;
+			}
 			console.error("Failed to start run:", error);
 			await onRefreshTask?.();
 			await fetchRuns();
 		} finally {
 			setIsStartingRun(false);
 		}
+	};
+
+	const handleDirtyGitConfirmStart = () => {
+		setShowDirtyGitConfirm(false);
+		void handleStartRun(true);
 	};
 
 	const handleCancelRun = async (runId: string, e: React.MouseEvent) => {
@@ -332,7 +347,7 @@ export function TaskDrawerRuns({
 								</div>
 								<button
 									type="button"
-									onClick={handleStartRun}
+									onClick={() => void handleStartRun()}
 									className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition-colors border border-slate-700"
 								>
 									<Plus className="w-3.5 h-3.5" />
@@ -453,6 +468,17 @@ export function TaskDrawerRuns({
 				title="Delete Execution Run"
 				description={`Are you sure you want to delete run ${runToDelete?.slice(0, 8)}? All execution logs and results for this run will be permanently removed.`}
 				confirmLabel="Delete Run"
+			/>
+
+			<ConfirmationModal
+				isOpen={showDirtyGitConfirm}
+				onClose={() => setShowDirtyGitConfirm(false)}
+				onConfirm={handleDirtyGitConfirmStart}
+				title="Uncommitted Changes Detected"
+				description="The working tree has uncommitted changes. Running tasks with a dirty git state may cause conflicts or data loss. Proceed at your own risk."
+				confirmLabel="Run Anyway"
+				cancelLabel="Cancel"
+				variant="warning"
 			/>
 		</div>
 	);

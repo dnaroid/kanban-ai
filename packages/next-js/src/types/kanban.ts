@@ -1,5 +1,7 @@
 // Kanban-specific types for the board UI
 
+import type { RunLastExecutionStatus } from "./ipc";
+
 export type TaskStatus = string;
 
 export type BlockedReason = "question" | "paused" | "failed";
@@ -37,6 +39,7 @@ export interface KanbanTask {
 	assignee: string | null;
 	modelName: string | null;
 	latestSessionId: string | null;
+	lastExecutionStatus: RunLastExecutionStatus | null;
 	opencodeWebUrl: string | null;
 	qaReport: string | null;
 	isGenerated: boolean;

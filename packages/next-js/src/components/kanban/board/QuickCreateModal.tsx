@@ -402,38 +402,19 @@ export function QuickCreateModal({
 		event.preventDefault();
 		setError(null);
 
-		const filesWithPath: Array<{ file: File; path: string }> = [];
-		const filesWithoutPath: File[] = [];
+		const uploadedFiles = await uploadClipboardFiles(files);
 
-		for (const file of files) {
-			const filePath = (file as File & { path?: string }).path;
-			if (filePath) {
-				filesWithPath.push({ file, path: filePath });
-			} else {
-				filesWithoutPath.push(file);
-			}
-		}
-
-		const uploadedFiles =
-			filesWithoutPath.length > 0
-				? await uploadClipboardFiles(filesWithoutPath)
-				: [];
-
-		if (filesWithoutPath.length > 0 && uploadedFiles.length === 0) {
-			setError("Failed to upload clipboard image");
+		if (uploadedFiles.length === 0) {
+			setError("Failed to upload clipboard file");
 			return;
 		}
 
-		const pastedAttachments: QuickCreateAttachment[] = [
-			...filesWithPath.map(({ file, path }) => ({
-				name: file.name || "file",
-				path,
-			})),
-			...uploadedFiles.map((u) => ({
+		const pastedAttachments: QuickCreateAttachment[] = uploadedFiles.map(
+			(u) => ({
 				name: u.name,
 				path: u.path,
-			})),
-		];
+			}),
+		);
 
 		setSelectedAttachments((prev) => mergeAttachments(prev, pastedAttachments));
 	};

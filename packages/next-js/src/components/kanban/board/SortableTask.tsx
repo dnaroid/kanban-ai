@@ -9,7 +9,14 @@ import {
 	ExternalLink,
 	XCircle,
 	RotateCcw,
+	CheckCircle2,
+	AlertTriangle,
+	HelpCircle,
+	ShieldCheck,
+	Zap,
+	Skull,
 } from "lucide-react";
+import type { RunLastExecutionStatus } from "@/types/ipc";
 import type { KanbanTask, Tag } from "@/types/kanban";
 import { cn } from "@/lib/utils";
 import { PillSelect } from "@/components/common/PillSelect";
@@ -206,6 +213,7 @@ export function SortableTask({
 					<RotateCcw className="h-4 w-4 text-amber-400/80" />
 				</div>
 			)}
+			<ExecutionStatusIcon status={task.lastExecutionStatus} />
 			<div className="block w-full min-w-0 p-4 text-left">
 				<div className="mb-2 flex flex-wrap items-center gap-2">
 					{onUpdate ? (
@@ -351,6 +359,60 @@ export function SortableTask({
 					<span>Delete</span>
 				</button>
 			</div>
+			<ExecutionStatusIcon status={task.lastExecutionStatus} />
+		</div>
+	);
+}
+
+const EXECUTION_STATUS_VISUALS: Record<
+	RunLastExecutionStatus["kind"],
+	{ icon: typeof CheckCircle2; color: string; label: string }
+> = {
+	completed: {
+		icon: CheckCircle2,
+		color: "text-emerald-400",
+		label: "Completed",
+	},
+	failed: { icon: AlertTriangle, color: "text-red-400", label: "Failed" },
+	question: {
+		icon: HelpCircle,
+		color: "text-amber-400",
+		label: "Awaiting input",
+	},
+	permission: {
+		icon: ShieldCheck,
+		color: "text-amber-400",
+		label: "Awaiting permission",
+	},
+	running: { icon: Zap, color: "text-blue-400", label: "Running" },
+	dead: { icon: Skull, color: "text-slate-500", label: "Session lost" },
+};
+
+function ExecutionStatusIcon({
+	status,
+}: {
+	status: RunLastExecutionStatus | null;
+}) {
+	if (!status) {
+		return null;
+	}
+
+	const visual = EXECUTION_STATUS_VISUALS[status.kind];
+	if (!visual) {
+		return null;
+	}
+
+	const Icon = visual.icon;
+
+	return (
+		<div
+			className={cn(
+				"absolute bottom-2.5 right-2.5 z-10 pointer-events-none opacity-70",
+				visual.color,
+			)}
+			title={`Session: ${visual.label}`}
+		>
+			<Icon className="h-4 w-4" />
 		</div>
 	);
 }

@@ -16,6 +16,7 @@ import type {
 	OpencodeModel,
 	PermissionData,
 	Run,
+	RunLastExecutionStatus,
 	QueueStatsResponse,
 } from "@/types/ipc";
 
@@ -26,6 +27,7 @@ import type {
 function taskToKanban(
 	task: Task & {
 		latestSessionId?: string | null;
+		lastExecutionStatus?: RunLastExecutionStatus | null;
 		opencodeWebUrl?: string | null;
 	},
 ): KanbanTask {
@@ -53,6 +55,7 @@ function taskToKanban(
 		assignee: task.assignee,
 		modelName: task.modelName,
 		latestSessionId: task.latestSessionId ?? null,
+		lastExecutionStatus: task.lastExecutionStatus ?? null,
 		opencodeWebUrl: task.opencodeWebUrl ?? null,
 		qaReport: task.qaReport ?? null,
 		isGenerated: !!task.isGenerated,
