@@ -350,7 +350,7 @@ export function TaskDrawerContent({
 				>
 					<TaskArtifactsPanel
 						taskId={task.id}
-						descriptionMd={task.descriptionMd}
+						descriptionMd={task.description}
 						isActive={activeTab === "artifacts"}
 					/>
 				</div>
