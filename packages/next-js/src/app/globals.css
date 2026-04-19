@@ -16,6 +16,21 @@
     cursor: pointer;
   }
 
+  /* Accessible keyboard focus indicator for buttons and button-like elements.
+     Uses :focus-visible so the ring only appears during keyboard navigation,
+     not on mouse clicks. Blue accent matches the app's design language.
+     2px ring + 2px offset ensures WCAG 2.1 AA focus appearance compliance. */
+  button:focus-visible,
+  [role='button']:focus-visible {
+    outline: 2px solid theme('colors.blue.500');
+    outline-offset: 2px;
+  }
+
+  button:focus:not(:focus-visible),
+  [role='button']:focus:not(:focus-visible) {
+    outline: none;
+  }
+
   /* Глобальный темный скроллбар */
   ::-webkit-scrollbar {
     width: 16px; /* Увеличиваем область захвата */

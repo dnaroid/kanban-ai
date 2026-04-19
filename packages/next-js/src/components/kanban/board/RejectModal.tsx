@@ -269,8 +269,24 @@ export function RejectModal({
 		}
 
 		event.preventDefault();
-		setError(null);
 
+		const textPath = event.clipboardData.getData("text/plain")?.trim();
+
+		if (textPath) {
+			const pastedAttachments: RejectAttachment[] = files.map((f) => {
+				const normalized = textPath.replace(/\\/g, "/");
+				return {
+					name: f.name || normalized.split("/").pop() || textPath,
+					path: textPath,
+				};
+			});
+			setSelectedAttachments((prev) =>
+				mergeAttachments(prev, pastedAttachments),
+			);
+			return;
+		}
+
+		setError(null);
 		const uploadedFiles = await uploadClipboardFiles(files);
 
 		if (uploadedFiles.length === 0) {

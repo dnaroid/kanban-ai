@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
 	try {
 		const searchParams = request.nextUrl.searchParams;
 		const targetPath = searchParams.get("path") || os.homedir();
+		const showHidden = searchParams.get("hidden") === "true";
 		const normalizedPath = path.resolve(targetPath);
 		const homePath = os.homedir();
 
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
 		const dirents = fs.readdirSync(normalizedPath, { withFileTypes: true });
 
 		for (const dirent of dirents) {
-			if (dirent.name.startsWith(".")) continue;
+			if (!showHidden && dirent.name.startsWith(".")) continue;
 			entries.push({
 				name: dirent.name,
 				path: path.join(normalizedPath, dirent.name),

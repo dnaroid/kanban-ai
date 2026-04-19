@@ -240,6 +240,20 @@ export function RichMarkdownEditor({
 
 		event.preventDefault();
 
+		const textPath = event.clipboardData.getData("text/plain")?.trim();
+
+		if (textPath) {
+			const items: AttachmentItem[] = files.map((f) => {
+				const normalized = textPath.replace(/\\/g, "/");
+				return {
+					name: f.name || normalized.split("/").pop() || textPath,
+					url: buildFileUrlFromPath(textPath),
+				};
+			});
+			appendAttachmentItemsToDescription(items);
+			return;
+		}
+
 		const uploadedFiles = await uploadClipboardFiles(files);
 		if (uploadedFiles.length === 0) return;
 

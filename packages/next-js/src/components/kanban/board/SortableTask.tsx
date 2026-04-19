@@ -10,11 +10,10 @@ import {
 	XCircle,
 	RotateCcw,
 	CheckCircle2,
+	FileText,
+	TestTube2,
 	AlertTriangle,
-	HelpCircle,
-	ShieldCheck,
-	Zap,
-	Skull,
+	Wand2,
 } from "lucide-react";
 import type { RunLastExecutionStatus } from "@/types/ipc";
 import type { KanbanTask, Tag } from "@/types/kanban";
@@ -213,7 +212,10 @@ export function SortableTask({
 					<RotateCcw className="h-4 w-4 text-amber-400/80" />
 				</div>
 			)}
-			<ExecutionStatusIcon status={task.lastExecutionStatus} />
+			<ExecutionStatusIcon
+				status={task.lastExecutionStatus}
+				taskStatus={task.status}
+			/>
 			<div className="block w-full min-w-0 p-4 text-left">
 				<div className="mb-2 flex flex-wrap items-center gap-2">
 					{onUpdate ? (
@@ -359,45 +361,52 @@ export function SortableTask({
 					<span>Delete</span>
 				</button>
 			</div>
-			<ExecutionStatusIcon status={task.lastExecutionStatus} />
+			<ExecutionStatusIcon
+				status={task.lastExecutionStatus}
+				taskStatus={task.status}
+			/>
 		</div>
 	);
 }
 
-const EXECUTION_STATUS_VISUALS: Record<
-	RunLastExecutionStatus["kind"],
-	{ icon: typeof CheckCircle2; color: string; label: string }
+const COMPLETED_MARKER_VISUALS: Record<
+	string,
+	{ icon: typeof CheckCircle2; color: string; label: string } | undefined
 > = {
-	completed: {
-		icon: CheckCircle2,
+	done: { icon: CheckCircle2, color: "text-emerald-400", label: "Done" },
+	generated: { icon: FileText, color: "text-emerald-400", label: "Generated" },
+	test_ok: {
+		icon: TestTube2,
 		color: "text-emerald-400",
-		label: "Completed",
+		label: "Tests passed",
 	},
-	failed: { icon: AlertTriangle, color: "text-red-400", label: "Failed" },
-	question: {
-		icon: HelpCircle,
-		color: "text-amber-400",
-		label: "Awaiting input",
-	},
-	permission: {
-		icon: ShieldCheck,
-		color: "text-amber-400",
-		label: "Awaiting permission",
-	},
-	running: { icon: Zap, color: "text-blue-400", label: "Running" },
-	dead: { icon: Skull, color: "text-slate-500", label: "Session lost" },
+	test_fail: { icon: TestTube2, color: "text-red-400", label: "Tests failed" },
+	fail: { icon: AlertTriangle, color: "text-red-400", label: "Failed" },
 };
 
 function ExecutionStatusIcon({
 	status,
+	taskStatus,
 }: {
 	status: RunLastExecutionStatus | null;
+	taskStatus: string;
 }) {
-	if (!status) {
+	if (taskStatus === "generating") {
+		return (
+			<div
+				className="absolute bottom-2.5 right-2.5 z-10 pointer-events-none opacity-30 text-purple-400"
+				title="Session: Generating story"
+			>
+				<Wand2 className="h-4 w-4" />
+			</div>
+		);
+	}
+
+	if (!status?.marker) {
 		return null;
 	}
 
-	const visual = EXECUTION_STATUS_VISUALS[status.kind];
+	const visual = COMPLETED_MARKER_VISUALS[status.marker];
 	if (!visual) {
 		return null;
 	}
@@ -407,7 +416,7 @@ function ExecutionStatusIcon({
 	return (
 		<div
 			className={cn(
-				"absolute bottom-2.5 right-2.5 z-10 pointer-events-none opacity-70",
+				"absolute bottom-2.5 right-2.5 z-10 pointer-events-none opacity-30",
 				visual.color,
 			)}
 			title={`Session: ${visual.label}`}

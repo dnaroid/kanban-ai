@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import {
 	Folder,
 	File,
@@ -21,6 +21,8 @@ import {
 	Code,
 	FileSpreadsheet,
 	Search,
+	Eye,
+	EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -119,13 +121,19 @@ export function FileSystemPicker({
 	const [entries, setEntries] = useState<BrowseDirectoryEntry[]>([]);
 	const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
 	const [filterText, setFilterText] = useState("");
+	const [showHiddenFiles, setShowHiddenFiles] = useState(false);
+	const showHiddenFilesRef = useRef(showHiddenFiles);
+	showHiddenFilesRef.current = showHiddenFiles;
 
-	const loadDirectory = useCallback(async (path?: string) => {
+	const loadDirectory = useCallback(async (dirPath?: string) => {
 		setLoading(true);
 		setError(null);
 		setFilterText("");
 		try {
-			const result = await api.browseDirectory(path);
+			const result = await api.browseDirectory(
+				dirPath,
+				showHiddenFilesRef.current,
+			);
 			setCurrentPath(result.currentPath);
 			setParentPath(result.parentPath);
 			setHomePath(result.homePath);
@@ -138,6 +146,18 @@ export function FileSystemPicker({
 		}
 	}, []);
 
+	const currentPathRef = useRef<string>("");
+	const isOpenRef = useRef(false);
+	const prevShowHiddenRef = useRef(showHiddenFiles);
+
+	useEffect(() => {
+		isOpenRef.current = isOpen;
+	}, [isOpen]);
+
+	useEffect(() => {
+		currentPathRef.current = currentPath;
+	}, [currentPath]);
+
 	useEffect(() => {
 		if (isOpen) {
 			setSelectedPaths(new Set());
@@ -145,8 +165,22 @@ export function FileSystemPicker({
 		}
 	}, [isOpen, initialPath, loadDirectory]);
 
+	useEffect(() => {
+		if (prevShowHiddenRef.current !== showHiddenFiles) {
+			prevShowHiddenRef.current = showHiddenFiles;
+			if (isOpenRef.current && currentPathRef.current) {
+				loadDirectory(currentPathRef.current);
+			}
+		}
+	}, [showHiddenFiles, loadDirectory]);
+
 	const filteredEntries = useMemo(() => {
 		let result = [...entries];
+
+		if (!showHiddenFiles) {
+			result = result.filter((entry) => !entry.name.startsWith("."));
+		}
+
 		if (filterText) {
 			const search = filterText.toLowerCase();
 			result = result.filter((entry) =>
@@ -171,7 +205,7 @@ export function FileSystemPicker({
 				sensitivity: "base",
 			});
 		});
-	}, [entries, filterText]);
+	}, [entries, filterText, showHiddenFiles]);
 
 	const handleNavigateUp = () => {
 		if (parentPath) loadDirectory(parentPath);
@@ -332,6 +366,25 @@ export function FileSystemPicker({
 						<Home className="w-4 h-4" />
 						<span className="hidden sm:inline">Home</span>
 					</button>
+					<button
+						type="button"
+						onClick={() => setShowHiddenFiles((prev) => !prev)}
+						className={cn(
+							"flex items-center gap-2 px-3 py-2 rounded-lg border transition-all text-xs font-medium uppercase tracking-wider",
+							showHiddenFiles
+								? "bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20"
+								: "bg-[#161B26] border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700",
+						)}
+						title={showHiddenFiles ? "Hide hidden files" : "Show hidden files"}
+						aria-pressed={showHiddenFiles}
+					>
+						{showHiddenFiles ? (
+							<Eye className="w-4 h-4" />
+						) : (
+							<EyeOff className="w-4 h-4" />
+						)}
+						<span className="hidden sm:inline">Hidden</span>
+					</button>
 				</div>
 
 				<div className="flex-1 relative group">
@@ -427,10 +480,7 @@ export function FileSystemPicker({
 										>
 											<div className="flex items-center gap-3 min-w-0">
 												<IconComponent
-													className={cn(
-														"w-5 h-5 transition-colors",
-														iconColor,
-													)}
+													className={cn("w-5 h-5 transition-colors", iconColor)}
 												/>
 												<span
 													className={cn(
