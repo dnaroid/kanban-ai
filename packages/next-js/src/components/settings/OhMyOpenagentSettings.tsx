@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import type { OpencodeModel } from "@/types/kanban";
 import type { OhMyOpenagentConfig } from "./OhMyOpenagentTypes";
 import { DynamicFormFields, validateSchema } from "./DynamicFormFields";
+import { EngagedModelsSummary } from "./EngagedModelsSummary";
 import type { JSONSchema } from "@/lib/json-schema-types";
 
 type OhMyOpenagentSettingsProps = {
@@ -33,6 +34,7 @@ export function OhMyOpenagentSettings({
 	const [configPath, setConfigPath] = useState<string | null>(null);
 	const [config, setConfig] = useState<OhMyOpenagentConfig | null>(null);
 	const [models, setModels] = useState<OpencodeModel[]>([]);
+	const [modelsLoading, setModelsLoading] = useState(true);
 	const [isLoading, setIsLoading] = useState(false);
 	const [hasBackup, setHasBackup] = useState(false);
 	const [unsavedChanges, setUnsavedChanges] = useState(false);
@@ -131,6 +133,7 @@ export function OhMyOpenagentSettings({
 
 	const loadModels = useCallback(async () => {
 		try {
+			setModelsLoading(true);
 			const response = await api.opencode.listModels();
 			const difficultyOrder: Record<string, number> = {
 				easy: 0,
@@ -147,6 +150,8 @@ export function OhMyOpenagentSettings({
 			setModels(sortedModels);
 		} catch (error) {
 			console.error("Failed to load models:", error);
+		} finally {
+			setModelsLoading(false);
 		}
 	}, []);
 
@@ -510,6 +515,12 @@ export function OhMyOpenagentSettings({
 			<div className="flex-1 relative">
 				<div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/10 to-transparent" />
 				<div className="absolute top-0 right-0 w-[300px] h-[300px] bg-blue-500/5 rounded-full blur-[80px] pointer-events-none" />
+
+				<EngagedModelsSummary
+					config={config}
+					models={models}
+					isLoading={modelsLoading}
+				/>
 
 				{config ? (
 					<div className="space-y-8 pb-20">
