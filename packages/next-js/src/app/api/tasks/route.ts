@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { boardRepo, taskRepo } from "@/server/repositories";
 import { projectRepo } from "@/server/repositories/project";
 import { getOpencodeService } from "@/server/opencode/opencode-service";
+import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
 import { runService } from "@/server/run/run-service";
 import type { CreateTaskInput } from "@/server/types";
 import { publishSseEvent } from "@/server/events/sse-broker";
@@ -75,7 +76,22 @@ export async function GET(request: NextRequest) {
 			opencodeWebUrl,
 		}));
 
-		return NextResponse.json({ success: true, data: enrichedTasks });
+		let busySessionIds: Set<string> = new Set();
+		try {
+			const stats = await getOpencodeSessionManager().getActiveSessionCount();
+			busySessionIds = new Set(stats.busySessionIds);
+		} catch {
+			// OpenCode not running — no busy sessions
+		}
+
+		const tasksWithBusyStatus = enrichedTasks.map((task) => ({
+			...task,
+			isSessionBusy:
+				task.latestSessionId !== null &&
+				busySessionIds.has(task.latestSessionId),
+		}));
+
+		return NextResponse.json({ success: true, data: tasksWithBusyStatus });
 	} catch (error) {
 		console.error("[API] Error fetching tasks:", error);
 		return NextResponse.json(

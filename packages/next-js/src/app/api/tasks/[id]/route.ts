@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { boardRepo, taskRepo, uploadRepo } from "@/server/repositories";
 import { projectRepo } from "@/server/repositories/project";
 import { getOpencodeService } from "@/server/opencode/opencode-service";
+import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
 import { runService } from "@/server/run/run-service";
 import type { UpdateTaskInput } from "@/server/types";
 import { publishSseEvent } from "@/server/events/sse-broker";
@@ -77,15 +78,28 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 			);
 		}
 
+		const latestSessionId = getLatestSessionId(task.id);
+
+		let isSessionBusy = false;
+		if (latestSessionId) {
+			try {
+				const stats = await getOpencodeSessionManager().getActiveSessionCount();
+				isSessionBusy = stats.busySessionIds.includes(latestSessionId);
+			} catch {
+				// OpenCode not running — not busy
+			}
+		}
+
 		return NextResponse.json({
 			success: true,
 			data: {
 				...task,
 				blockedReason: task.blockedReason,
 				blockedReasonText: task.blockedReasonText,
-				latestSessionId: getLatestSessionId(task.id),
+				latestSessionId,
 				lastExecutionStatus: getLatestExecutionStatus(task.id),
 				opencodeWebUrl: getOpencodeWebUrl(task.projectId),
+				isSessionBusy,
 			},
 		});
 	} catch (error) {

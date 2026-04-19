@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
 	Eye,
 	FileCode,
 	FileJson,
 	Files,
 	FileText,
+	Paperclip,
 	RefreshCw,
-	Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Artifact } from "@/types/ipc";
@@ -23,18 +23,38 @@ interface UploadItem {
 	createdAt: string;
 }
 
+interface FileRefItem {
+	name: string;
+	path: string;
+}
+
 type UnifiedItem =
 	| { type: "artifact"; data: Artifact }
-	| { type: "upload"; data: UploadItem };
+	| { type: "upload"; data: UploadItem }
+	| { type: "fileRef"; data: FileRefItem };
+
+function parseFileRefs(markdown: string | null): FileRefItem[] {
+	if (!markdown) return [];
+	const regex = /\[([^\]]+)\]\(file:\/\/([^)]+)\)/g;
+	const results: FileRefItem[] = [];
+	let match: RegExpExecArray | null;
+	while ((match = regex.exec(markdown)) !== null) {
+		results.push({ name: match[1], path: decodeURIComponent(match[2]) });
+	}
+	return results;
+}
+
+function formatJson(content: string): string {
+	try {
+		return JSON.stringify(JSON.parse(content), null, 2);
+	} catch {
+		return content;
+	}
+}
 
 function ArtifactViewer({ artifact }: { artifact: Artifact }) {
 	if (artifact.kind === "json") {
-		let formatted = artifact.content;
-		try {
-			formatted = JSON.stringify(JSON.parse(artifact.content), null, 2);
-		} catch {
-			// ignore
-		}
+		const formatted = formatJson(artifact.content);
 
 		return (
 			<pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap p-4 bg-slate-900/50 rounded-lg border border-slate-800/50 overflow-auto max-h-full custom-scrollbar selection:bg-blue-500/30">
@@ -84,6 +104,20 @@ function ArtifactViewer({ artifact }: { artifact: Artifact }) {
 	);
 }
 
+function FileRefViewer({ fileRef }: { fileRef: FileRefItem }) {
+	return (
+		<div className="flex flex-col items-center justify-center gap-4 p-6 text-center">
+			<Paperclip className="w-10 h-10 text-slate-600" />
+			<div>
+				<p className="text-sm font-medium text-slate-300">{fileRef.name}</p>
+				<p className="text-xs text-slate-500 mt-1 font-mono break-all">
+					{fileRef.path}
+				</p>
+			</div>
+		</div>
+	);
+}
+
 function formatFileSize(bytes: number): string {
 	if (bytes < 1024) return `${bytes} B`;
 	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -92,9 +126,6 @@ function formatFileSize(bytes: number): string {
 
 function UploadViewer({ upload }: { upload: UploadItem }) {
 	const isImage = upload.mimeType.startsWith("image/");
-	const isText =
-		upload.mimeType.startsWith("text/") ||
-		upload.mimeType === "application/json";
 
 	if (isImage) {
 		return (
@@ -119,41 +150,37 @@ function UploadViewer({ upload }: { upload: UploadItem }) {
 					{upload.mimeType} &middot; {formatFileSize(upload.size)}
 				</p>
 			</div>
-			{isText ? (
-				<p className="text-xs text-slate-500 italic">
-					File preview not available in this view
-				</p>
-			) : null}
 		</div>
 	);
 }
 
 function getItemId(item: UnifiedItem): string {
-	return item.type === "artifact" ? `a-${item.data.id}` : `u-${item.data.id}`;
+	if (item.type === "artifact") return `a-${item.data.id}`;
+	if (item.type === "upload") return `u-${item.data.id}`;
+	return `f-${item.data.path}`;
 }
 
 function getItemTitle(item: UnifiedItem): string {
-	return item.type === "artifact" ? item.data.title : item.data.originalName;
+	if (item.type === "artifact") return item.data.title;
+	if (item.type === "upload") return item.data.originalName;
+	return item.data.name;
 }
 
 function getItemDate(item: UnifiedItem): string {
-	return item.data.createdAt;
-}
-
-function getRunShortId(item: UnifiedItem): string | null {
-	if (item.type === "artifact") {
-		return item.data.runId.slice(0, 8);
-	}
-	return null;
+	if (item.type === "artifact") return item.data.createdAt;
+	if (item.type === "upload") return item.data.createdAt;
+	return "";
 }
 
 interface TaskArtifactsPanelProps {
 	taskId: string;
+	descriptionMd: string | null;
 	isActive: boolean;
 }
 
 export function TaskArtifactsPanel({
 	taskId,
+	descriptionMd,
 	isActive,
 }: TaskArtifactsPanelProps) {
 	const [artifacts, setArtifacts] = useState<Artifact[]>([]);
@@ -195,11 +222,11 @@ export function TaskArtifactsPanel({
 			return;
 		}
 		const artifactId = selectedId.slice(2);
-		let isActive = true;
+		let effectActive = true;
 		const fetchContent = async () => {
 			try {
 				const response = await api.artifact.get({ artifactId });
-				if (!isActive) return;
+				if (!effectActive) return;
 				setSelectedArtifact(response.artifact);
 			} catch (error) {
 				console.error("Failed to fetch artifact content:", error);
@@ -207,25 +234,37 @@ export function TaskArtifactsPanel({
 		};
 		void fetchContent();
 		return () => {
-			isActive = false;
+			effectActive = false;
 		};
 	}, [selectedId]);
+
+	const fileRefs = useMemo(() => parseFileRefs(descriptionMd), [descriptionMd]);
 
 	const items: UnifiedItem[] = [
 		...artifacts.map((a) => ({ type: "artifact" as const, data: a })),
 		...uploads.map((u) => ({ type: "upload" as const, data: u })),
+		...fileRefs.map((f) => ({ type: "fileRef" as const, data: f })),
 	];
 
-	items.sort(
-		(a, b) =>
-			new Date(getItemDate(b)).getTime() - new Date(getItemDate(a)).getTime(),
-	);
+	items.sort((a, b) => {
+		const dateA = getItemDate(a);
+		const dateB = getItemDate(b);
+		if (!dateA && !dateB) return 0;
+		if (!dateA) return 1;
+		if (!dateB) return -1;
+		return new Date(dateB).getTime() - new Date(dateA).getTime();
+	});
 
 	const selectedItem = selectedId
 		? (items.find((item) => getItemId(item) === selectedId) ?? null)
 		: null;
 
-	if (isLoading && artifacts.length === 0 && uploads.length === 0) {
+	if (
+		isLoading &&
+		artifacts.length === 0 &&
+		uploads.length === 0 &&
+		fileRefs.length === 0
+	) {
 		return (
 			<div className="flex flex-col items-center justify-center h-full space-y-3 opacity-50">
 				<RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
@@ -269,7 +308,6 @@ export function TaskArtifactsPanel({
 						const id = getItemId(item);
 						const title = getItemTitle(item);
 						const isSelected = selectedId === id;
-						const isArtifact = item.type === "artifact";
 
 						return (
 							<button
@@ -284,34 +322,44 @@ export function TaskArtifactsPanel({
 								)}
 							>
 								<div className="flex items-center gap-2 relative z-10">
-									{isArtifact && item.data.kind === "json" && (
+									{item.type === "artifact" && item.data.kind === "json" && (
 										<FileJson className="w-3 h-3 shrink-0 opacity-70" />
 									)}
-									{isArtifact && item.data.kind === "patch" && (
+									{item.type === "artifact" && item.data.kind === "patch" && (
 										<FileCode className="w-3 h-3 shrink-0 opacity-70" />
 									)}
-									{isArtifact && item.data.kind === "markdown" && (
-										<FileText className="w-3 h-3 shrink-0 opacity-70" />
-									)}
-									{isArtifact &&
+									{item.type === "artifact" &&
+										item.data.kind === "markdown" && (
+											<FileText className="w-3 h-3 shrink-0 opacity-70" />
+										)}
+									{item.type === "artifact" &&
 										item.data.kind !== "json" &&
 										item.data.kind !== "patch" &&
 										item.data.kind !== "markdown" && (
 											<Files className="w-3 h-3 shrink-0 opacity-70" />
 										)}
-									{!isArtifact && (
-										<Upload className="w-3 h-3 shrink-0 opacity-70" />
+									{item.type === "upload" && (
+										<FileText className="w-3 h-3 shrink-0 opacity-70" />
+									)}
+									{item.type === "fileRef" && (
+										<Paperclip className="w-3 h-3 shrink-0 opacity-70" />
 									)}
 									<span className="font-medium truncate">{title}</span>
 								</div>
 								<div className="mt-1 flex items-center gap-1.5">
-									{isArtifact ? (
+									{item.type === "artifact" && (
 										<span className="text-[9px] font-mono text-slate-600">
-											Run {getRunShortId(item)}
+											Run {item.data.runId.slice(0, 8)}
 										</span>
-									) : (
+									)}
+									{item.type === "upload" && (
 										<span className="text-[9px] font-mono text-slate-600">
 											Upload
+										</span>
+									)}
+									{item.type === "fileRef" && (
+										<span className="text-[9px] font-mono text-slate-600">
+											File attachment
 										</span>
 									)}
 								</div>
@@ -329,7 +377,7 @@ export function TaskArtifactsPanel({
 								<span className="text-xs font-semibold text-slate-300">
 									{getItemTitle(selectedItem)}
 								</span>
-								{selectedItem.type === "artifact" ? (
+								{selectedItem.type === "artifact" && (
 									<>
 										<span className="text-[9px] font-mono text-slate-500 uppercase px-1.5 py-0.5 bg-slate-800/50 rounded border border-slate-700/50 tracking-tighter">
 											{selectedItem.data.kind}
@@ -338,18 +386,26 @@ export function TaskArtifactsPanel({
 											Run {selectedItem.data.runId.slice(0, 8)}
 										</span>
 									</>
-								) : (
+								)}
+								{selectedItem.type === "upload" && (
 									<span className="text-[9px] font-mono text-amber-500/60 uppercase px-1.5 py-0.5 bg-amber-500/5 rounded border border-amber-500/20 tracking-tighter">
 										Upload
 									</span>
 								)}
+								{selectedItem.type === "fileRef" && (
+									<span className="text-[9px] font-mono text-emerald-500/60 uppercase px-1.5 py-0.5 bg-emerald-500/5 rounded border border-emerald-500/20 tracking-tighter">
+										Attachment
+									</span>
+								)}
 							</div>
-							<span className="text-[9px] text-slate-600 font-mono">
-								{new Date(getItemDate(selectedItem)).toLocaleTimeString([], {
-									hour: "2-digit",
-									minute: "2-digit",
-								})}
-							</span>
+							{getItemDate(selectedItem) && (
+								<span className="text-[9px] text-slate-600 font-mono">
+									{new Date(getItemDate(selectedItem)).toLocaleTimeString([], {
+										hour: "2-digit",
+										minute: "2-digit",
+									})}
+								</span>
+							)}
 						</div>
 						<div className="flex-1 overflow-hidden p-4">
 							{selectedItem.type === "artifact" && selectedArtifact ? (
@@ -361,6 +417,8 @@ export function TaskArtifactsPanel({
 								</div>
 							) : selectedItem.type === "upload" ? (
 								<UploadViewer upload={selectedItem.data} />
+							) : selectedItem.type === "fileRef" ? (
+								<FileRefViewer fileRef={selectedItem.data} />
 							) : null}
 						</div>
 					</div>
