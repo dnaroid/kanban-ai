@@ -155,7 +155,7 @@ export function SortableTask({
 			style={style}
 			{...(isDeleting ? {} : { ...attributes, ...listeners })}
 			className={cn(
-				"bg-slate-900/40 backdrop-blur-md border rounded-xl mb-3 group hover:shadow-lg hover:shadow-black/20 cursor-grab active:cursor-grabbing relative z-10 hover:z-20 border-slate-700 hover:border-slate-600",
+				"bg-slate-900/40 backdrop-blur-md border rounded-xl mb-[17px] group hover:shadow-lg hover:shadow-black/20 cursor-grab active:cursor-grabbing relative z-10 hover:z-20 border-slate-700 hover:border-slate-600",
 				!task.isGenerated && "border-dashed",
 				!isDeleting && "transition-all overflow-visible",
 				isDragging && "opacity-50 shadow-2xl scale-105",
@@ -184,7 +184,7 @@ export function SortableTask({
 						className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider pointer-events-auto"
 						style={{
 							color: statusVisual.tone,
-							backgroundColor: `${statusVisual.tone}20`,
+							backgroundColor: `color-mix(in srgb, ${statusVisual.tone} 20%, rgb(15, 23, 42))`,
 							border: `1px solid ${statusVisual.tone}50`,
 						}}
 					>
