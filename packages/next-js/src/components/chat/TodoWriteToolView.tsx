@@ -123,18 +123,9 @@ export function TodoWriteToolView({ part }: { part: TodoWriteToolPart }) {
 					<span className="text-xs font-mono font-medium text-slate-200">
 						todowrite
 					</span>
-					<div
-						className={cn(
-							"flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
-							toolStatus.color,
-							"bg-slate-950/50",
-						)}
-					>
-						<toolStatus.icon
-							className={cn("w-2.5 h-2.5", toolStatus.animate)}
-						/>
-						{toolStatus.label}
-					</div>
+					<toolStatus.icon
+						className={cn("w-4 h-4", toolStatus.color, toolStatus.animate)}
+					/>
 					{totalCount > 0 && (
 						<span className="text-[10px] text-amber-500/90 font-mono font-semibold">
 							{completedCount}/{totalCount}

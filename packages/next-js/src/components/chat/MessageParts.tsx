@@ -11,7 +11,7 @@ import {
 	HelpCircle,
 	ImageIcon,
 	Loader2,
-	Terminal,
+	Wrench,
 	XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -338,9 +338,7 @@ export function ToolPart({
 				onClick={() => setIsExpanded(!isExpanded)}
 			>
 				<div className="flex items-center gap-2">
-					<div className={cn("p-1.5 rounded-lg bg-slate-900/50", config.color)}>
-						<Terminal className="w-3.5 h-3.5" />
-					</div>
+					<Wrench className={cn("w-3.5 h-3.5", config.color)} />
 					<span className="text-xs font-mono font-medium text-slate-200">
 						{part.tool}
 					</span>
@@ -349,16 +347,9 @@ export function ToolPart({
 							{toolFilePath}
 						</span>
 					)}
-					<div
-						className={cn(
-							"flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
-							config.color,
-							"bg-slate-950/50",
-						)}
-					>
-						<config.icon className={cn("w-2.5 h-2.5", config.animate)} />
-						{config.label}
-					</div>
+					<config.icon
+						className={cn("w-4 h-4", config.color, config.animate)}
+					/>
 				</div>
 				{isExpanded ? (
 					<ChevronDown className="w-3.5 h-3.5 text-slate-500" />
