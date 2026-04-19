@@ -221,6 +221,7 @@ function createMockCtx(): RqmContext {
 		tryFillTaskModelFromSession: vi.fn(),
 		durationSec: vi.fn(),
 		isGenerationRun: vi.fn(),
+		isStoryChatRun: vi.fn(),
 		shouldAutoExecuteAfterGeneration: vi.fn(),
 		scheduleDrain: vi.fn(),
 		startNextReadyTaskAfterMerge: vi.fn(),

@@ -273,6 +273,7 @@ function buildDeps(
 		},
 		applyTaskTransition: vi.fn(),
 		isGenerationRun: vi.fn(() => false),
+		isStoryChatRun: vi.fn(() => false),
 		staleRunThresholdMs: 30 * 60 * 1000,
 		manualStatusGraceMs: 60 * 1000,
 		isNetworkError: vi.fn(() => false),

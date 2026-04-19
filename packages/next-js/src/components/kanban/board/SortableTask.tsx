@@ -182,7 +182,7 @@ export function SortableTask({
 				!isDeleting && "transition-all overflow-visible",
 				isDragging && "opacity-50 shadow-2xl scale-105",
 				isDeleting && "pointer-events-none",
-				task.status === "question" &&
+				(task.status === "question" || task.status === "chat") &&
 					!isDeleting &&
 					"animate-card-pulse-yellow",
 			)}

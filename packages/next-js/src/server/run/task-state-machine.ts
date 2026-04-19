@@ -84,6 +84,7 @@ const TASK_STATUS_VALUES: readonly WorkflowTaskStatus[] = [
 	"done",
 	"failed",
 	"generating",
+	"chat",
 ];
 
 const BLOCKED_REASON_VALUES: readonly BlockedReason[] = [
@@ -116,6 +117,7 @@ const BLOCKED_REASON_BY_STATUS_FALLBACK: Record<
 	done: null,
 	failed: "failed",
 	generating: null,
+	chat: null,
 };
 
 const CLOSED_REASON_BY_STATUS_FALLBACK: Record<
@@ -130,6 +132,7 @@ const CLOSED_REASON_BY_STATUS_FALLBACK: Record<
 	done: "done",
 	failed: "failed",
 	generating: null,
+	chat: null,
 };
 
 const STATUS_VISUALS_FALLBACK: Record<
@@ -144,6 +147,7 @@ const STATUS_VISUALS_FALLBACK: Record<
 	done: { color: "#10b981", icon: "check-circle" },
 	failed: { color: "#ef4444", icon: "x-circle" },
 	generating: { color: "#8b5cf6", icon: "sparkles" },
+	chat: { color: "#06b6d4", icon: "message-circle" },
 };
 
 const STATUS_TO_WORKFLOW_COLUMN_FALLBACK: Record<
@@ -158,6 +162,7 @@ const STATUS_TO_WORKFLOW_COLUMN_FALLBACK: Record<
 	done: "review",
 	failed: "blocked",
 	generating: "backlog",
+	chat: "backlog",
 };
 
 const COLUMN_DEFAULT_STATUS_FALLBACK: Record<
@@ -177,7 +182,7 @@ const COLUMN_ALLOWED_STATUSES_FALLBACK: Record<
 	WorkflowColumnSystemKey,
 	readonly WorkflowTaskStatus[]
 > = {
-	backlog: ["pending", "generating"],
+	backlog: ["pending", "generating", "chat"],
 	ready: ["pending", "rejected"],
 	deferred: ["pending"],
 	in_progress: ["running"],
@@ -193,6 +198,7 @@ const STATUS_TRANSITIONS_FALLBACK: Record<
 	pending: [
 		"running",
 		"generating",
+		"chat",
 		"done",
 		"failed",
 		"paused",
@@ -206,6 +212,7 @@ const STATUS_TRANSITIONS_FALLBACK: Record<
 	done: ["pending", "running", "failed"],
 	failed: ["pending", "running", "paused"],
 	generating: ["pending", "paused", "question", "failed", "done"],
+	chat: ["pending", "paused", "question", "failed", "generating"],
 };
 
 const COLUMN_TRANSITIONS_FALLBACK: Record<
@@ -543,7 +550,8 @@ export type TaskTransitionTrigger =
 	| "review:approve"
 	| "review:reject"
 	| "recover:retry"
-	| "recover:reopen";
+	| "recover:reopen"
+	| "chat:start";
 
 export interface TaskTransitionInput {
 	task: {
@@ -938,6 +946,11 @@ export class TaskStateMachine {
 				)
 					? "pending"
 					: null;
+			case "chat:start":
+				return this.isBacklogPending(input.task.status, currentColumnKey) ||
+					this.isBacklogChatState(input.task.status, currentColumnKey)
+					? "chat"
+					: null;
 			case "run:start":
 				return this.isReadyPending(input.task.status, currentColumnKey)
 					? "running"
@@ -1134,6 +1147,13 @@ export class TaskStateMachine {
 			columnKey === "backlog" &&
 			(status === "generating" || status === "pending")
 		);
+	}
+
+	private isBacklogChatState(
+		status: TaskStatus,
+		columnKey: string | null,
+	): boolean {
+		return status === "chat" && columnKey === "backlog";
 	}
 
 	private isReadyPending(

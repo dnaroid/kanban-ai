@@ -43,6 +43,7 @@ interface TaskStatusProjectionServiceDeps {
 		outcomeContent: string,
 	) => void;
 	isGenerationRun: (run: Run) => boolean;
+	isStoryChatRun: (run: Run) => boolean;
 	staleRunThresholdMs: number;
 	manualStatusGraceMs: number;
 	isNetworkError: (text: string) => boolean;
@@ -156,7 +157,8 @@ export class TaskStatusProjectionService {
 					task.status !== "running" &&
 					task.status !== "generating" &&
 					task.status !== "paused" &&
-					task.status !== "question"
+					task.status !== "question" &&
+					task.status !== "chat"
 				) {
 					continue;
 				}
@@ -315,17 +317,20 @@ export class TaskStatusProjectionService {
 	public reconcileTaskWithActiveRuns(task: Task, activeRuns: Run[]): void {
 		const runningRun = activeRuns.find((run) => run.status === "running");
 		if (runningRun) {
-			const nextStatus = this.deps.isGenerationRun(runningRun)
-				? "generating"
-				: "running";
+			let nextStatus: "generating" | "running" | "chat";
+			let trigger: "generate:start" | "run:start" | "chat:start";
+			if (this.deps.isGenerationRun(runningRun)) {
+				nextStatus = "generating";
+				trigger = "generate:start";
+			} else if (this.deps.isStoryChatRun(runningRun)) {
+				nextStatus = "chat";
+				trigger = "chat:start";
+			} else {
+				nextStatus = "running";
+				trigger = "run:start";
+			}
 			if (task.status !== nextStatus) {
-				this.deps.applyTaskTransition(
-					runningRun,
-					this.deps.isGenerationRun(runningRun)
-						? "generate:start"
-						: "run:start",
-					"",
-				);
+				this.deps.applyTaskTransition(runningRun, trigger, "");
 			}
 			return;
 		}

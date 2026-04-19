@@ -60,7 +60,9 @@ export default function StandaloneTaskPage() {
 
 	const isInBacklog = columnSystemKey === "backlog";
 	const defaultTab =
-		task.opencodeWebUrl && !isInBacklog ? "runs" : (tabParam ?? "details");
+		task.status === "chat" || (task.opencodeWebUrl && !isInBacklog)
+			? "runs"
+			: (tabParam ?? "details");
 
 	return (
 		<div className="flex h-full bg-[#0B0E14] text-slate-200 overflow-hidden">

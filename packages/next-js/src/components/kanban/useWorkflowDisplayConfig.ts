@@ -19,6 +19,7 @@ const TASK_STATUSES: readonly WorkflowTaskStatus[] = [
 	"done",
 	"failed",
 	"generating",
+	"chat",
 ];
 
 const BLOCKED_REASON_BY_STATUS: Record<
@@ -33,6 +34,7 @@ const BLOCKED_REASON_BY_STATUS: Record<
 	done: null,
 	failed: "failed",
 	generating: null,
+	chat: null,
 };
 
 const CLOSED_REASON_BY_STATUS: Record<WorkflowTaskStatus, ClosedReason | null> =
@@ -45,6 +47,7 @@ const CLOSED_REASON_BY_STATUS: Record<WorkflowTaskStatus, ClosedReason | null> =
 		done: "done",
 		failed: "failed",
 		generating: null,
+		chat: null,
 	};
 
 const STATUS_VISUALS: Record<
@@ -59,6 +62,7 @@ const STATUS_VISUALS: Record<
 	done: { color: "#10b981", icon: "check-circle" },
 	failed: { color: "#ef4444", icon: "x-circle" },
 	generating: { color: "#8b5cf6", icon: "sparkles" },
+	chat: { color: "#06b6d4", icon: "message-circle" },
 };
 
 const STATUS_TO_COLUMN: Record<WorkflowTaskStatus, WorkflowColumnSystemKey> = {
@@ -70,6 +74,7 @@ const STATUS_TO_COLUMN: Record<WorkflowTaskStatus, WorkflowColumnSystemKey> = {
 	done: "review",
 	failed: "blocked",
 	generating: "backlog",
+	chat: "backlog",
 };
 
 const COLUMN_TEMPLATES: Record<
@@ -102,7 +107,7 @@ const COLUMN_ALLOWED_STATUSES: Record<
 	WorkflowColumnSystemKey,
 	readonly WorkflowTaskStatus[]
 > = {
-	backlog: ["pending", "generating"],
+	backlog: ["pending", "generating", "chat"],
 	ready: ["pending", "rejected"],
 	deferred: ["pending"],
 	in_progress: ["running"],
@@ -118,6 +123,7 @@ const STATUS_TRANSITIONS: Record<
 	pending: [
 		"running",
 		"generating",
+		"chat",
 		"done",
 		"failed",
 		"paused",
@@ -131,6 +137,7 @@ const STATUS_TRANSITIONS: Record<
 	done: ["pending", "running", "failed"],
 	failed: ["pending", "running", "paused"],
 	generating: ["pending", "paused", "question", "failed", "done"],
+	chat: ["pending", "paused", "question", "failed", "generating"],
 };
 
 const COLUMN_TRANSITIONS: Record<

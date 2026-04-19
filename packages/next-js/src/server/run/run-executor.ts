@@ -33,9 +33,15 @@ interface RunExecutorDeps {
 	runInputs: Map<string, QueuedRunInput>;
 	activeRunSessions: Map<string, string>;
 	isGenerationRun: (run: Run) => boolean;
+	isStoryChatRun: (run: Run) => boolean;
 	applyTaskTransition: (
 		run: Run,
-		trigger: "generate:start" | "run:start" | "generate:fail" | "run:fail",
+		trigger:
+			| "generate:start"
+			| "run:start"
+			| "chat:start"
+			| "generate:fail"
+			| "run:fail",
 		outcomeContent: string,
 	) => void;
 	tryFinalizeFromSessionSnapshot: (
@@ -98,7 +104,11 @@ export class RunExecutor {
 		publishRunUpdate(runningRun);
 		this.deps.applyTaskTransition(
 			runningRun,
-			this.deps.isGenerationRun(runningRun) ? "generate:start" : "run:start",
+			this.deps.isStoryChatRun(runningRun)
+				? "chat:start"
+				: this.deps.isGenerationRun(runningRun)
+					? "generate:start"
+					: "run:start",
 			"",
 		);
 

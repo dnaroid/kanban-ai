@@ -243,6 +243,7 @@ export function createServices(ctx: RqmContext): ServiceRegistry {
 		applyTaskTransition: (run, trigger, outcomeContent) =>
 			ctx.applyTaskTransition(run, trigger, outcomeContent),
 		isGenerationRun: (run) => ctx.isGenerationRun(run),
+		isStoryChatRun: (run) => ctx.isStoryChatRun(run),
 		staleRunThresholdMs: ctx.staleRunThresholdMs,
 		manualStatusGraceMs: ctx.manualStatusGraceMs,
 		isNetworkError,
@@ -274,6 +275,7 @@ export function createServices(ctx: RqmContext): ServiceRegistry {
 		runInputs: ctx.runInputs,
 		activeRunSessions: ctx.activeRunSessions,
 		isGenerationRun: (run) => ctx.isGenerationRun(run),
+		isStoryChatRun: (run) => ctx.isStoryChatRun(run),
 		applyTaskTransition: (run, trigger, outcomeContent) => {
 			ctx.applyTaskTransition(run, trigger, outcomeContent);
 		},
