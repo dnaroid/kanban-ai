@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { ToastProvider } from "@/components/common/toast/ToastContext";
 import { ToastContainer } from "@/components/common/toast/ToastContainer";
+import { useRunSoundNotifications } from "@/lib/use-run-sound-notifications";
 
 const SIDEBAR_COLLAPSED_KEY = "sidebar-collapsed";
 export const LAST_PROJECT_ID_KEY = "last-project-id";
@@ -15,6 +16,8 @@ export const LAST_PROJECT_ID_KEY = "last-project-id";
 export function ClientLayout({ children }: { children: React.ReactNode }) {
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
 	const [isHydrated, setIsHydrated] = useState(false);
+
+	useRunSoundNotifications();
 
 	// Load from localStorage after hydration to avoid SSR mismatch
 	useEffect(() => {

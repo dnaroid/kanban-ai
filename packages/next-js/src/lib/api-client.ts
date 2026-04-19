@@ -29,6 +29,7 @@ function taskToKanban(
 		latestSessionId?: string | null;
 		lastExecutionStatus?: RunLastExecutionStatus | null;
 		opencodeWebUrl?: string | null;
+		isSessionBusy?: boolean;
 	},
 ): KanbanTask {
 	return {
@@ -57,6 +58,7 @@ function taskToKanban(
 		latestSessionId: task.latestSessionId ?? null,
 		lastExecutionStatus: task.lastExecutionStatus ?? null,
 		opencodeWebUrl: task.opencodeWebUrl ?? null,
+		isSessionBusy: task.isSessionBusy ?? false,
 		qaReport: task.qaReport ?? null,
 		isGenerated: !!task.isGenerated,
 		wasQaRejected: !!task.wasQaRejected,
@@ -1324,6 +1326,26 @@ class ApiClient {
 			const data = this.unwrapApiData<{ artifacts?: Artifact[] }>(payload);
 			return { artifacts: data.artifacts ?? [] };
 		},
+		listByTask: async ({
+			taskId,
+		}: {
+			taskId: string;
+		}): Promise<{ artifacts: Artifact[] }> => {
+			const query = new URLSearchParams({ taskId });
+			const response = await fetch(
+				`${this.baseUrl}/api/artifact/list-by-task?${query.toString()}`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to list artifacts by task",
+				);
+				this.fail(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{ artifacts?: Artifact[] }>(payload);
+			return { artifacts: data.artifacts ?? [] };
+		},
 		get: async ({
 			artifactId,
 		}: {
@@ -1343,6 +1365,51 @@ class ApiClient {
 			const payload = await response.json();
 			const data = this.unwrapApiData<{ artifact?: Artifact | null }>(payload);
 			return { artifact: data.artifact ?? null };
+		},
+	};
+
+	readonly upload = {
+		listByTask: async ({
+			taskId,
+		}: {
+			taskId: string;
+		}): Promise<{
+			uploads: Array<{
+				id: string;
+				taskId: string | null;
+				storedName: string;
+				originalName: string;
+				absolutePath: string;
+				mimeType: string;
+				size: number;
+				createdAt: string;
+			}>;
+		}> => {
+			const query = new URLSearchParams({ taskId });
+			const response = await fetch(
+				`${this.baseUrl}/api/uploads/list-by-task?${query.toString()}`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to list uploads by task",
+				);
+				this.fail(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{
+				uploads?: Array<{
+					id: string;
+					taskId: string | null;
+					storedName: string;
+					originalName: string;
+					absolutePath: string;
+					mimeType: string;
+					size: number;
+					createdAt: string;
+				}>;
+			}>(payload);
+			return { uploads: data.uploads ?? [] };
 		},
 	};
 

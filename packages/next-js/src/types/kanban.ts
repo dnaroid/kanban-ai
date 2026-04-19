@@ -41,6 +41,7 @@ export interface KanbanTask {
 	latestSessionId: string | null;
 	lastExecutionStatus: RunLastExecutionStatus | null;
 	opencodeWebUrl: string | null;
+	isSessionBusy: boolean;
 	qaReport: string | null;
 	isGenerated: boolean;
 	wasQaRejected: boolean;

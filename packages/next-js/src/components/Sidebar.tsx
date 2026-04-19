@@ -15,12 +15,15 @@ import {
 	Layout,
 	LogOut,
 	Settings,
+	Volume2,
+	VolumeX,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { cn, getContrastColor } from "@/lib/utils";
 import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 import { api } from "@/lib/api-client";
 import type { Project } from "@/server/types";
+import { useSoundMute } from "@/lib/use-sound-mute";
 
 interface SidebarProps {
 	isSidebarCollapsed: boolean;
@@ -50,6 +53,7 @@ export function Sidebar({
 	);
 	const scrollContainerRef = useRef<HTMLDivElement>(null);
 	const projectItemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+	const { muted: soundMuted, toggleMute: toggleSoundMute } = useSoundMute();
 
 	const measureHintPositions = useCallback(() => {
 		const positions: Record<string, number> = {};
@@ -346,6 +350,36 @@ export function Sidebar({
 				className={`shrink-0 border-t border-slate-800/50 ${isSidebarCollapsed ? "p-2" : "p-4"}`}
 			>
 				<div className="flex flex-col gap-1">
+					<button
+						type="button"
+						onClick={toggleSoundMute}
+						className={cn(
+							"w-full flex items-center rounded-xl transition-all duration-200 group cursor-pointer",
+							isSidebarCollapsed
+								? "justify-center w-12 h-12"
+								: "gap-3 px-4 py-3 w-full",
+							soundMuted
+								? "text-slate-600 hover:bg-slate-800/50 hover:text-slate-400"
+								: "text-slate-500 hover:bg-slate-800/50 hover:text-slate-300",
+						)}
+						title={soundMuted ? "Unmute sounds" : "Mute sounds"}
+					>
+						{soundMuted ? (
+							<VolumeX
+								className={cn(isSidebarCollapsed ? "w-6 h-6" : "w-5 h-5")}
+							/>
+						) : (
+							<Volume2
+								className={cn(isSidebarCollapsed ? "w-6 h-6" : "w-5 h-5")}
+							/>
+						)}
+						{!isSidebarCollapsed && (
+							<span className="font-medium">
+								{soundMuted ? "Unmute" : "Mute"}
+							</span>
+						)}
+					</button>
+
 					<button
 						type="button"
 						onClick={() => {

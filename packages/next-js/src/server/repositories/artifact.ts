@@ -35,6 +35,16 @@ export class ArtifactRepository {
 		return rows.map(mapArtifact);
 	}
 
+	public listByTask(taskId: string): Artifact[] {
+		const rows = this.db
+			.prepare(
+				"SELECT a.id, a.run_id, a.kind, a.title, a.content, a.created_at FROM artifacts a JOIN runs r ON a.run_id = r.id WHERE r.task_id = ? ORDER BY a.created_at DESC",
+			)
+			.all(taskId) as ArtifactRow[];
+
+		return rows.map(mapArtifact);
+	}
+
 	public getById(artifactId: string): Artifact | null {
 		const row = this.db
 			.prepare(
