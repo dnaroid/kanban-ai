@@ -1,16 +1,10 @@
 import { createLogger } from "@/lib/logger";
-import { buildOpencodeStatusLine } from "@/lib/opencode-status";
-import { buildTaskPrompt } from "@/server/run/prompts/task";
 import type {
 	SessionInspectionResult,
 	SessionStartPreferences,
 } from "@/server/opencode/session-manager";
 import { getOpencodeService } from "@/server/opencode/opencode-service";
 import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
-import { artifactRepo } from "@/server/repositories/artifact";
-import { contextSnapshotRepo } from "@/server/repositories/context-snapshot";
-import { projectRepo } from "@/server/repositories/project";
-import type { AgentRolePreset } from "@/server/repositories/role";
 import { roleRepo } from "@/server/repositories/role";
 import { runEventRepo } from "@/server/repositories/run-event";
 import { runRepo } from "@/server/repositories/run";
@@ -18,7 +12,6 @@ import { taskLinkRepo } from "@/server/repositories/task-link";
 import { taskRepo } from "@/server/repositories/task";
 import { boardRepo } from "@/server/repositories/board";
 import {
-	getWorkflowColumnIdBySystemKey,
 	getWorkflowColumnSystemKey,
 	getTaskStateMachine,
 	type TaskTransitionInput,
@@ -38,19 +31,18 @@ import type { Run, RunStatus } from "@/types/ipc";
 import type { PollableBoardContext, Task } from "@/server/types";
 import {
 	deriveMetaStatus,
-	findStoryContent,
 	hydrateGenerationOutcomeContent,
 	isNetworkError,
-	toRunLastExecutionStatus,
 	type RunOutcomeMarker,
 } from "@/server/run/run-session-interpreter";
 import { RunFinalizer, type RunOutcome } from "@/server/run/run-finalizer";
 import { RunInteractionCoordinator } from "@/server/run/run-interaction-coordinator";
 import { PostRunWorkflowService } from "@/server/run/post-run-workflow-service";
+import { RunReconciliationService } from "@/server/run/run-reconciliation-service";
+import { ExecutionBootstrapService } from "@/server/run/execution-bootstrap-service";
 
 const generationRunKind = "task-description-improve";
 export type { QueueStats } from "@/server/run/runs-queue-types";
-const agentRoleTagPrefix = "agent:";
 const dependencyReadyStatus = "done";
 
 const runPriorityScore: Record<TaskPriority, number> = {
@@ -214,6 +206,8 @@ export class RunsQueueManager {
 	private readonly runExecutor: RunExecutor;
 	private readonly runFinalizer: RunFinalizer;
 	private readonly runInteractionCoordinator: RunInteractionCoordinator;
+	private readonly runReconciliationService: RunReconciliationService;
+	private readonly executionBootstrapService: ExecutionBootstrapService;
 	private readonly postRunWorkflowService: PostRunWorkflowService;
 	private readonly defaultConcurrency = parsePositiveInt(
 		process.env.RUNS_DEFAULT_CONCURRENCY,
@@ -320,6 +314,43 @@ export class RunsQueueManager {
 			},
 		});
 
+		this.runReconciliationService = new RunReconciliationService({
+			sessionManager: this.sessionManager,
+			runInteractionCoordinator: this.runInteractionCoordinator,
+			runInputs: this.runInputs,
+			isGenerationRun: (run) => this.isGenerationRun(run),
+			finalizeRunFromSession: async (runId, status, outcome) =>
+				this.finalizeRunFromSession(runId, status, outcome),
+			runFinalizer: {
+				staleRunFallbackMarker: (run) =>
+					this.runFinalizer.staleRunFallbackMarker(run),
+				syncRunWorkspaceState: async (run) =>
+					this.runFinalizer.syncRunWorkspaceState(run),
+			},
+			applyTaskTransition: (run, trigger, outcomeContent) =>
+				this.applyTaskTransition(run, trigger, outcomeContent),
+			enqueue: (runId, input) => this.enqueue(runId, input),
+			removeFromQueue: (runId) => this.removeFromQueue(runId),
+			clearActiveRunSession: (runId) => {
+				this.activeRunSessions.delete(runId);
+			},
+			tryFillTaskModelFromSession: (taskId, inspection) =>
+				this.tryFillTaskModelFromSession(taskId, inspection),
+			durationSec: (startedAt, finishedAt) =>
+				this.durationSec(startedAt, finishedAt),
+			staleRunThresholdMs: this.staleRunThresholdMs,
+			getRunErrorText,
+		});
+
+		this.executionBootstrapService = new ExecutionBootstrapService({
+			worktreeEnabled: this.worktreeEnabled,
+			enqueue: (runId, input) => this.enqueue(runId, input),
+			provisionRunWorkspace: async (input) =>
+				this.vcsManager.provisionRunWorkspace(input),
+			sendPrompt: async (sessionId, prompt) =>
+				this.sessionManager.sendPrompt(sessionId, prompt),
+		});
+
 		this.postRunWorkflowService = new PostRunWorkflowService({
 			mergeRunWorkspace: async (run, mode) =>
 				this.vcsManager.mergeRunWorkspace(run, mode),
@@ -338,9 +369,10 @@ export class RunsQueueManager {
 			listRunsByTask: (taskId) => runRepo.listByTask(taskId),
 			isGenerationRun: (run) => this.isGenerationRun(run),
 			areDependenciesResolved: (taskId) => this.areDependenciesResolved(taskId),
-			resumeRejectedTaskRun: async (task) => this.resumeRejectedTaskRun(task),
+			resumeRejectedTaskRun: async (task) =>
+				this.executionBootstrapService.resumeRejectedTaskRun(task),
 			enqueueExecutionForNextTask: async (taskId) =>
-				this.enqueueExecutionForNextTask(taskId),
+				this.executionBootstrapService.enqueueExecutionForNextTask(taskId),
 		});
 
 		this.pollingService = new PollingService({
@@ -354,13 +386,13 @@ export class RunsQueueManager {
 			getPollableBoardContext: (projectId) =>
 				this.getPollableBoardContext(projectId),
 			listActiveRunsForReconciliation: () =>
-				this.listActiveRunsForReconciliation(),
+				this.runReconciliationService.listActiveRunsForReconciliation(),
 			listRecoverableRunsForProject: (taskIds) =>
 				this.listRecoverableRunsForProject(taskIds),
 			reconcileTaskStatuses: async (projectId, board, tasks) =>
 				this.reconcileTaskStatuses(projectId, board, tasks),
 			reconcileRun: async (runId) => {
-				await this.reconcileRun(runId);
+				await this.runReconciliationService.reconcileRun(runId);
 			},
 		});
 		this.runExecutor = new RunExecutor({
@@ -373,7 +405,10 @@ export class RunsQueueManager {
 				this.applyTaskTransition(run, trigger, outcomeContent);
 			},
 			tryFinalizeFromSessionSnapshot: async (runId, sessionId) => {
-				await this.tryFinalizeFromSessionSnapshot(runId, sessionId);
+				await this.runReconciliationService.tryFinalizeFromSessionSnapshot(
+					runId,
+					sessionId,
+				);
 			},
 			scheduleRetryAfterNetworkError: (runId, errorMessage) =>
 				this.scheduleRetryAfterNetworkError(runId, errorMessage),
@@ -664,7 +699,9 @@ export class RunsQueueManager {
 			this.runFinalizer.consumePendingGeneratedExecutionTaskId(runId);
 		if (pendingGeneratedTaskId) {
 			queueMicrotask(() => {
-				void this.enqueueExecutionForGeneratedTask(pendingGeneratedTaskId);
+				void this.executionBootstrapService.enqueueExecutionForGeneratedTask(
+					pendingGeneratedTaskId,
+				);
 			});
 		}
 
@@ -1050,172 +1087,19 @@ export class RunsQueueManager {
 		projectId: string,
 		taskId: string,
 	): Promise<void> {
-		const sessionId = run.sessionId.trim();
-		if (sessionId.length === 0) {
-			log.warn("Cannot reconcile stale run; no session ID", {
-				projectId,
-				taskId,
-				runId: run.id,
-			});
-			return;
-		}
-
-		try {
-			const inspection = await this.sessionManager.inspectSession(sessionId);
-			if (inspection.probeStatus !== "alive") {
-				log.warn(
-					"Skipping stale run finalization; session probe is not confirmed alive",
-					{
-						projectId,
-						taskId,
-						runId: run.id,
-						probeStatus: inspection.probeStatus,
-					},
-				);
-				return;
-			}
-			const meta = deriveMetaStatus(inspection);
-
-			if (meta.kind === "completed" || meta.kind === "failed") {
-				const runStatus =
-					meta.kind === "completed"
-						? ("completed" as RunStatus)
-						: ("failed" as RunStatus);
-				await this.finalizeRunFromSession(run.id, runStatus, {
-					marker: meta.marker,
-					content: meta.content,
-				});
-				log.info("Finalized stale run during task reconciliation", {
-					projectId,
-					taskId,
-					runId: run.id,
-					runStatus,
-					marker: meta.marker,
-				});
-				return;
-			}
-
-			if (meta.kind === "dead") {
-				await this.failRunDuringReconciliation(
-					run,
-					"Session not found for stale run",
-					"Session expired",
-				);
-				log.info("Failed stale run (session dead) during task reconciliation", {
-					projectId,
-					taskId,
-					runId: run.id,
-				});
-				return;
-			}
-
-			log.info(
-				"Stale run session alive but no completion marker; force-finalizing",
-				{
-					projectId,
-					taskId,
-					runId: run.id,
-					inspectionKind: meta.kind,
-					runKind: run.metadata?.kind ?? null,
-				},
-			);
-
-			const fallbackMarker = this.runFinalizer.staleRunFallbackMarker(run);
-			const fallbackContent = findStoryContent(inspection);
-			await this.finalizeRunFromSession(run.id, "completed" as RunStatus, {
-				marker: fallbackMarker,
-				content: fallbackContent,
-			});
-			log.info("Force-finalized stale run with fallback marker", {
-				projectId,
-				taskId,
-				runId: run.id,
-				marker: fallbackMarker,
-			});
-		} catch (error) {
-			log.error("Failed to reconcile stale run", {
-				projectId,
-				taskId,
-				runId: run.id,
-				error: error instanceof Error ? error.message : String(error),
-			});
-		}
+		await this.runReconciliationService.reconcileStaleRun(
+			run,
+			projectId,
+			taskId,
+		);
 	}
 
 	private listActiveRunsForReconciliation(): Run[] {
-		const listByStatuses = (
-			runRepo as { listByStatuses?: (statuses: string[]) => Run[] }
-		).listByStatuses;
-		if (typeof listByStatuses === "function") {
-			return listByStatuses.call(runRepo, ["queued", "running", "paused"]);
-		}
-
-		return [
-			...runRepo.listByStatus("queued"),
-			...runRepo.listByStatus("running"),
-			...runRepo.listByStatus("paused"),
-		].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+		return this.runReconciliationService.listActiveRunsForReconciliation();
 	}
 
 	private async reconcileRun(runId: string): Promise<void> {
-		const run = runRepo.getById(runId);
-		if (!run) {
-			return;
-		}
-
-		const isRecoverableFailedRun =
-			run.status === "failed" &&
-			run.sessionId.trim().length > 0 &&
-			getRunErrorText(run).toLowerCase() === "fetch failed";
-
-		if (
-			run.status !== "queued" &&
-			run.status !== "running" &&
-			run.status !== "paused" &&
-			!isRecoverableFailedRun
-		) {
-			return;
-		}
-
-		const sessionId = run.sessionId.trim();
-		if (run.status === "queued" && sessionId.length === 0) {
-			const runInput = this.runInputs.get(run.id);
-			if (!runInput) {
-				log.warn("Failing queued run; input lost during reconciliation", {
-					runId: run.id,
-				});
-				await this.failRunDuringReconciliation(
-					run,
-					"Run input lost on restart",
-					"Run input lost on restart",
-				);
-				return;
-			}
-
-			log.info("Re-enqueueing queued run during reconciliation", {
-				runId: run.id,
-				projectId: runInput.projectId,
-				projectPath: runInput.projectPath,
-			});
-			this.enqueue(run.id, runInput);
-			return;
-		}
-
-		if (sessionId.length === 0) {
-			log.warn("Skipping reconciliation for active run without session", {
-				runId: run.id,
-				status: run.status,
-			});
-			return;
-		}
-
-		log.info("Inspecting run session during reconciliation", {
-			runId: run.id,
-			status: run.status,
-			sessionId,
-		});
-		const inspection = await this.sessionManager.inspectSession(sessionId);
-		await this.applyInspectionResult(run, sessionId, inspection);
+		await this.runReconciliationService.reconcileRun(runId);
 	}
 
 	private async applyInspectionResult(
@@ -1223,146 +1107,10 @@ export class RunsQueueManager {
 		sessionId: string,
 		inspection: SessionInspectionResult,
 	): Promise<void> {
-		const meta = deriveMetaStatus(inspection);
-		const observedRun = runRepo.update(run.id, {
-			metadata: {
-				...(run.metadata ?? {}),
-				lastExecutionStatus: toRunLastExecutionStatus(meta, sessionId),
-			},
-		});
-
-		if (!this.isGenerationRun(run)) {
-			this.tryFillTaskModelFromSession(run.taskId, inspection);
-		}
-
-		switch (meta.kind) {
-			case "completed":
-			case "failed": {
-				const runStatus =
-					meta.kind === "completed"
-						? ("completed" as RunStatus)
-						: ("failed" as RunStatus);
-				await this.finalizeRunFromSession(observedRun.id, runStatus, {
-					marker: meta.marker,
-					content: meta.content,
-				});
-				return;
-			}
-			case "dead":
-				await this.failRunDuringReconciliation(
-					observedRun,
-					"Session not found during reconciliation",
-					"Session not found",
-				);
-				return;
-			case "running":
-				break;
-			case "permission": {
-				const nextRun =
-					this.runInteractionCoordinator.ensureRunPausedForPermission(
-						observedRun,
-						meta.permission,
-					);
-				this.runInteractionCoordinator.attachReconciledSession(
-					nextRun.id,
-					sessionId,
-				);
-				return;
-			}
-			case "question": {
-				const nextRun =
-					this.runInteractionCoordinator.ensureRunPausedForQuestion(
-						observedRun,
-						meta.questions[0],
-					);
-				this.runInteractionCoordinator.attachReconciledSession(
-					nextRun.id,
-					sessionId,
-				);
-				return;
-			}
-		}
-
-		if (
-			observedRun.status === "running" &&
-			this.isRunStale(observedRun) &&
-			inspection.probeStatus === "alive"
-		) {
-			const fallbackMarker =
-				this.runFinalizer.staleRunFallbackMarker(observedRun);
-			await this.finalizeRunFromSession(observedRun.id, "completed", {
-				marker: fallbackMarker,
-				content: "",
-			});
-			log.info("Force-finalized stale running run during reconciliation", {
-				runId: observedRun.id,
-				sessionId,
-				marker: fallbackMarker,
-				runKind: observedRun.metadata?.kind ?? null,
-			});
-			return;
-		}
-
-		if (observedRun.status === "paused") {
-			await this.runInteractionCoordinator.reconcilePausedRun(
-				observedRun.id,
-				sessionId,
-			);
-			this.runInteractionCoordinator.attachReconciledSession(
-				observedRun.id,
-				sessionId,
-			);
-			return;
-		}
-
-		if (observedRun.status === "queued") {
-			const startedAt = run.startedAt ?? new Date().toISOString();
-			const resumedRun = runRepo.update(observedRun.id, {
-				status: "running",
-				startedAt,
-				errorText: "",
-				metadata: {
-					...(observedRun.metadata ?? {}),
-					lastExecutionStatus: {
-						kind: "running",
-						sessionId,
-						updatedAt: startedAt,
-					},
-				},
-			});
-			runEventRepo.create({
-				runId: observedRun.id,
-				eventType: "status",
-				payload: {
-					status: "running",
-					message: "Run resumed during reconciliation",
-				},
-			});
-			publishRunUpdate(resumedRun);
-			this.applyTaskTransition(
-				resumedRun,
-				"run:answer",
-				"Run resumed during reconciliation",
-			);
-			log.info("Reattached queued run as running during reconciliation", {
-				runId: observedRun.id,
-				sessionId,
-			});
-			this.runInteractionCoordinator.attachReconciledSession(
-				resumedRun.id,
-				sessionId,
-			);
-			return;
-		}
-
-		log.info("Reattached active run during reconciliation", {
-			runId: observedRun.id,
+		await this.runReconciliationService.applyInspectionResult(
+			run,
 			sessionId,
-			status: observedRun.status,
-		});
-		this.runInteractionCoordinator.attachReconciledSession(
-			observedRun.id,
-			sessionId,
+			inspection,
 		);
 	}
 
@@ -1371,41 +1119,11 @@ export class RunsQueueManager {
 		errorText: string,
 		assistantContent: string,
 	): Promise<void> {
-		const finishedAt = new Date().toISOString();
-		let failedRun = runRepo.update(run.id, {
-			status: "failed",
-			finishedAt,
+		await this.runReconciliationService.failRunDuringReconciliation(
+			run,
 			errorText,
-			durationSec: this.durationSec(run.startedAt ?? finishedAt, finishedAt),
-			metadata: {
-				...(run.metadata ?? {}),
-				lastExecutionStatus: {
-					kind: "failed",
-					content: assistantContent,
-					sessionId: run.sessionId.trim() || undefined,
-					updatedAt: finishedAt,
-				},
-			},
-		});
-		failedRun = await this.runFinalizer.syncRunWorkspaceState(failedRun);
-
-		runEventRepo.create({
-			runId: run.id,
-			eventType: "status",
-			payload: {
-				status: "failed",
-				message: errorText,
-			},
-		});
-		publishRunUpdate(failedRun);
-		this.applyTaskTransition(
-			failedRun,
-			this.isGenerationRun(failedRun) ? "generate:fail" : "run:fail",
 			assistantContent,
 		);
-
-		this.activeRunSessions.delete(run.id);
-		this.removeFromQueue(run.id);
 	}
 
 	private selectNextRunnableRun(queue: string[]): string | null {
@@ -1526,462 +1244,25 @@ export class RunsQueueManager {
 	private async enqueueExecutionForGeneratedTask(
 		taskId: string,
 	): Promise<void> {
-		const task = taskRepo.getById(taskId);
-		if (!task) {
-			log.warn("Skipping execution enqueue after generation; task not found", {
-				taskId,
-			});
-			return;
-		}
-
-		if (task.priority === "postpone") {
-			log.info("Skipping execution enqueue for postponed task", {
-				taskId,
-			});
-			return;
-		}
-
-		const activeExecutionRun = this.getActiveTaskRunForTask(task.id);
-		if (activeExecutionRun) {
-			log.info("Execution run already active for task", {
-				taskId: task.id,
-				runId: activeExecutionRun.id,
-				status: activeExecutionRun.status,
-			});
-			return;
-		}
-
-		const project = projectRepo.getById(task.projectId);
-		if (!project) {
-			log.warn("Skipping execution enqueue; project not found", {
-				taskId: task.id,
-				projectId: task.projectId,
-			});
-			return;
-		}
-
-		const availableRoles = roleRepo.listWithPresets();
-		const taskTags = this.parseTaskTags(task.tags);
-		const assignedRoleId = this.resolveAssignedRoleIdFromTags(taskTags);
-		const roleId = assignedRoleId ?? availableRoles[0]?.id;
-		if (!roleId) {
-			log.warn("Skipping execution enqueue; no roles configured", {
-				taskId: task.id,
-			});
-			return;
-		}
-
-		const selectedRole =
-			availableRoles.find((role) => role.id === roleId) ?? null;
-		const selectedRolePreset = this.parseRolePreset(
-			roleRepo.getPresetJson(roleId),
+		await this.executionBootstrapService.enqueueExecutionForGeneratedTask(
+			taskId,
 		);
-
-		const snapshotId = contextSnapshotRepo.create({
-			taskId: task.id,
-			kind: "run-start",
-			summary: `Execution queued after BA story generation for ${task.title}`,
-			payload: {
-				taskId: task.id,
-				title: task.title,
-				description: task.description,
-				mode: "execute",
-				roleId,
-				reason: "generated-story-ready",
-			},
-		});
-
-		const executionRun = this.prepareTaskRunForTask({
-			taskId: task.id,
-			roleId,
-			mode: "execute",
-			kind: "task-run",
-			contextSnapshotId: snapshotId,
-		});
-
-		runEventRepo.create({
-			runId: executionRun.id,
-			eventType: "status",
-			payload: {
-				status: executionRun.status,
-				message: "Execution run queued after BA story generation",
-			},
-		});
-		publishRunUpdate(executionRun);
-
-		let queuedExecutionRun = executionRun;
-		let executionProjectPath = project.path;
-		if (this.worktreeEnabled) {
-			try {
-				const vcsMetadata = await this.vcsManager.provisionRunWorkspace({
-					projectPath: project.path,
-					runId: executionRun.id,
-					taskId: task.id,
-					taskTitle: task.title,
-				});
-				queuedExecutionRun = runRepo.update(executionRun.id, {
-					metadata: {
-						...(executionRun.metadata ?? {}),
-						vcs: vcsMetadata,
-					},
-				});
-				runEventRepo.create({
-					runId: executionRun.id,
-					eventType: "status",
-					payload: {
-						status: queuedExecutionRun.status,
-						message: `Worktree ready: ${vcsMetadata.branchName}`,
-						worktreePath: vcsMetadata.worktreePath,
-					},
-				});
-				publishRunUpdate(queuedExecutionRun);
-				executionProjectPath = vcsMetadata.worktreePath;
-			} catch (error) {
-				const message =
-					error instanceof Error
-						? error.message
-						: "Failed to provision git worktree";
-				const failedRun = runRepo.update(executionRun.id, {
-					status: "failed",
-					finishedAt: new Date().toISOString(),
-					errorText: message,
-				});
-				runEventRepo.create({
-					runId: executionRun.id,
-					eventType: "status",
-					payload: {
-						status: "failed",
-						message,
-					},
-				});
-				publishRunUpdate(failedRun);
-				return;
-			}
-		}
-
-		this.enqueue(queuedExecutionRun.id, {
-			projectPath: executionProjectPath,
-			projectId: project.id,
-			sessionTitle: task.title.slice(0, 120),
-			sessionPreferences: this.toSessionPreferences(
-				selectedRole,
-				selectedRole?.preset_json,
-			),
-			prompt: buildTaskPrompt(
-				{ title: task.title, description: task.description },
-				{
-					id: project.id,
-					path: executionProjectPath,
-				},
-				{
-					id: roleId,
-					name: selectedRole?.name ?? roleId,
-					systemPrompt: selectedRolePreset?.systemPrompt,
-					skills: selectedRolePreset?.skills,
-				},
-			),
-		});
 	}
 
 	private transitionTaskToInProgress(task: Task): void {
-		const board =
-			boardRepo.getById(task.boardId) ??
-			boardRepo.getByProjectId(task.projectId);
-
-		if (board) {
-			const inProgressColumnId = getWorkflowColumnIdBySystemKey(
-				board,
-				"in_progress",
-			);
-			if (inProgressColumnId) {
-				const existingInColumn = taskRepo
-					.listByBoard(board.id)
-					.filter((item) => item.columnId === inProgressColumnId).length;
-				taskRepo.update(task.id, {
-					status: "running",
-					columnId: inProgressColumnId,
-					orderInColumn: existingInColumn,
-				});
-			} else {
-				taskRepo.update(task.id, { status: "running" });
-			}
-		} else {
-			taskRepo.update(task.id, { status: "running" });
-		}
-
-		publishSseEvent("task:event", {
-			taskId: task.id,
-			boardId: task.boardId,
-			projectId: task.projectId,
-			eventType: "task:updated",
-			updatedAt: new Date().toISOString(),
-		});
+		this.executionBootstrapService.transitionTaskToInProgress(task);
 	}
 
 	private listAllTaskRuns(taskId: string): Run[] {
-		const repository = runRepo as typeof runRepo & {
-			listAllByTask?: (taskId: string) => Run[];
-		};
-
-		if (typeof repository.listAllByTask === "function") {
-			return repository.listAllByTask(taskId);
-		}
-
-		return repository.listByTask(taskId);
-	}
-
-	private isExecutionRun(run: Run): boolean {
-		return (run.metadata?.kind ?? "task-run") === "task-run";
+		return this.executionBootstrapService.listAllTaskRuns(taskId);
 	}
 
 	private async resumeRejectedTaskRun(task: Task): Promise<boolean> {
-		if (task.status !== "rejected" || !task.qaReport) {
-			return false;
-		}
-
-		const completedRun = this.listAllTaskRuns(task.id).find(
-			(run) =>
-				this.isExecutionRun(run) &&
-				run.status === "completed" &&
-				typeof run.sessionId === "string" &&
-				run.sessionId.trim().length > 0,
-		);
-		if (!completedRun?.sessionId) {
-			return false;
-		}
-
-		const board =
-			boardRepo.getById(task.boardId) ??
-			boardRepo.getByProjectId(task.projectId);
-		if (!board) {
-			return false;
-		}
-
-		const qaMessage = [
-			"",
-			"This task did not pass QA review. Reasons:",
-			task.qaReport,
-			"",
-			"Fix ALL issues listed above. Do NOT skip any item.",
-			"",
-			`When done, output exactly one status line: ${buildOpencodeStatusLine("done")} or ${buildOpencodeStatusLine("fail")} or ${buildOpencodeStatusLine("question")}`,
-		].join("\n");
-
-		await this.sessionManager.sendPrompt(completedRun.sessionId, qaMessage);
-
-		const resumedAt = new Date().toISOString();
-		const resumedRun = runRepo.update(completedRun.id, {
-			status: "running",
-			startedAt: resumedAt,
-			finishedAt: null,
-			errorText: "",
-			metadata: {
-				...(completedRun.metadata ?? {}),
-				lastExecutionStatus: {
-					kind: "running",
-					sessionId: completedRun.sessionId,
-					updatedAt: resumedAt,
-				},
-			},
-		});
-
-		const inProgressColumnId = getWorkflowColumnIdBySystemKey(
-			board,
-			"in_progress",
-		);
-		if (inProgressColumnId) {
-			const existingInColumn = taskRepo
-				.listByBoard(board.id)
-				.filter((item) => item.columnId === inProgressColumnId).length;
-			taskRepo.update(task.id, {
-				status: "running",
-				columnId: inProgressColumnId,
-				orderInColumn: existingInColumn,
-				qaReport: null,
-			});
-		} else {
-			taskRepo.update(task.id, {
-				status: "running",
-				qaReport: null,
-			});
-		}
-
-		runEventRepo.create({
-			runId: resumedRun.id,
-			eventType: "status",
-			payload: {
-				status: "running",
-				message: "Execution run resumed after QA rejection",
-			},
-		});
-		publishRunUpdate(resumedRun);
-		publishSseEvent("task:event", {
-			taskId: task.id,
-			boardId: task.boardId,
-			projectId: task.projectId,
-			eventType: "task:updated",
-			updatedAt: resumedAt,
-		});
-
-		return true;
+		return this.executionBootstrapService.resumeRejectedTaskRun(task);
 	}
 
 	private async enqueueExecutionForNextTask(taskId: string): Promise<void> {
-		const task = taskRepo.getById(taskId);
-		if (!task) {
-			log.warn("enqueueExecutionForNextTask: task not found", { taskId });
-			return;
-		}
-
-		if (task.priority === "postpone") {
-			log.info("enqueueExecutionForNextTask: skipping postponed task", {
-				taskId,
-			});
-			return;
-		}
-
-		const activeExecutionRun = this.getActiveTaskRunForTask(task.id);
-		if (activeExecutionRun) {
-			log.info("enqueueExecutionForNextTask: execution run already active", {
-				taskId: task.id,
-				runId: activeExecutionRun.id,
-				status: activeExecutionRun.status,
-			});
-			return;
-		}
-
-		const project = projectRepo.getById(task.projectId);
-		if (!project) {
-			log.warn("enqueueExecutionForNextTask: project not found", {
-				taskId: task.id,
-				projectId: task.projectId,
-			});
-			return;
-		}
-
-		const availableRoles = roleRepo.listWithPresets();
-		const taskTags = this.parseTaskTags(task.tags);
-		const assignedRoleId = this.resolveAssignedRoleIdFromTags(taskTags);
-		const roleId = assignedRoleId ?? availableRoles[0]?.id;
-		if (!roleId) {
-			log.warn("enqueueExecutionForNextTask: no roles configured", {
-				taskId: task.id,
-			});
-			return;
-		}
-
-		const selectedRole =
-			availableRoles.find((role) => role.id === roleId) ?? null;
-		const selectedRolePreset = this.parseRolePreset(
-			roleRepo.getPresetJson(roleId),
-		);
-
-		const snapshotId = contextSnapshotRepo.create({
-			taskId: task.id,
-			kind: "run-start",
-			summary: `Auto-started after merge for ${task.title}`,
-			payload: {
-				taskId: task.id,
-				title: task.title,
-				description: task.description,
-				mode: "execute",
-				roleId,
-				reason: "auto-start-after-merge",
-			},
-		});
-
-		const executionRun = this.prepareTaskRunForTask({
-			taskId: task.id,
-			roleId,
-			mode: "execute",
-			kind: "task-run",
-			contextSnapshotId: snapshotId,
-		});
-
-		runEventRepo.create({
-			runId: executionRun.id,
-			eventType: "status",
-			payload: {
-				status: executionRun.status,
-				message: "Execution run auto-started after previous task merge",
-			},
-		});
-		publishRunUpdate(executionRun);
-
-		let queuedExecutionRun = executionRun;
-		let executionProjectPath = project.path;
-		if (this.worktreeEnabled) {
-			try {
-				const vcsMetadata = await this.vcsManager.provisionRunWorkspace({
-					projectPath: project.path,
-					runId: executionRun.id,
-					taskId: task.id,
-					taskTitle: task.title,
-				});
-				queuedExecutionRun = runRepo.update(executionRun.id, {
-					metadata: {
-						...(executionRun.metadata ?? {}),
-						vcs: vcsMetadata,
-					},
-				});
-				runEventRepo.create({
-					runId: executionRun.id,
-					eventType: "status",
-					payload: {
-						status: queuedExecutionRun.status,
-						message: `Worktree ready: ${vcsMetadata.branchName}`,
-						worktreePath: vcsMetadata.worktreePath,
-					},
-				});
-				publishRunUpdate(queuedExecutionRun);
-				executionProjectPath = vcsMetadata.worktreePath;
-			} catch (error) {
-				const message =
-					error instanceof Error
-						? error.message
-						: "Failed to provision git worktree";
-				const failedRun = runRepo.update(executionRun.id, {
-					status: "failed",
-					finishedAt: new Date().toISOString(),
-					errorText: message,
-				});
-				runEventRepo.create({
-					runId: executionRun.id,
-					eventType: "status",
-					payload: {
-						status: "failed",
-						message,
-					},
-				});
-				publishRunUpdate(failedRun);
-				return;
-			}
-		}
-
-		this.transitionTaskToInProgress(task);
-
-		this.enqueue(queuedExecutionRun.id, {
-			projectPath: executionProjectPath,
-			projectId: project.id,
-			sessionTitle: task.title.slice(0, 120),
-			sessionPreferences: this.toSessionPreferences(
-				selectedRole,
-				selectedRole?.preset_json,
-			),
-			prompt: buildTaskPrompt(
-				{ title: task.title, description: task.description },
-				{
-					id: project.id,
-					path: executionProjectPath,
-				},
-				{
-					id: roleId,
-					name: selectedRole?.name ?? roleId,
-					systemPrompt: selectedRolePreset?.systemPrompt,
-					skills: selectedRolePreset?.skills,
-				},
-			),
-		});
+		await this.executionBootstrapService.enqueueExecutionForNextTask(taskId);
 	}
 
 	private toSessionPreferences(
@@ -1994,39 +1275,15 @@ export class RunsQueueManager {
 			| null
 			| undefined,
 		presetJson?: string | null,
-	): SessionStartPreferences | undefined {
-		const fromPreset = this.extractSessionPreferencesFromPreset(presetJson);
-
-		const modelName =
-			role?.preferred_model_name?.trim() || fromPreset?.preferredModelName;
-		const modelVariant =
-			role?.preferred_model_variant?.trim() ||
-			fromPreset?.preferredModelVariant;
-		const llmAgent =
-			role?.preferred_llm_agent?.trim() || fromPreset?.preferredLlmAgent;
-
-		if (!modelName && !modelVariant && !llmAgent) {
-			return undefined;
-		}
-
-		return {
-			preferredModelName: modelName,
-			preferredModelVariant: modelVariant,
-			preferredLlmAgent: llmAgent,
-		};
+	): ReturnType<ExecutionBootstrapService["toSessionPreferences"]> {
+		return this.executionBootstrapService.toSessionPreferences(
+			role,
+			presetJson,
+		);
 	}
 
 	private getActiveTaskRunForTask(taskId: string): Run | null {
-		const run = this.getCurrentTaskRun(taskId);
-		if (!run) {
-			return null;
-		}
-
-		return run.status === "queued" ||
-			run.status === "running" ||
-			run.status === "paused"
-			? run
-			: null;
+		return this.executionBootstrapService.getActiveTaskRunForTask(taskId);
 	}
 
 	private prepareTaskRunForTask(input: {
@@ -2036,172 +1293,39 @@ export class RunsQueueManager {
 		kind: string;
 		contextSnapshotId: string;
 	}): Run {
-		const existingRuns = this.listAllTaskRuns(input.taskId);
-		const currentRun = existingRuns[0] ?? null;
-
-		if (!currentRun) {
-			return runRepo.create({
-				taskId: input.taskId,
-				roleId: input.roleId,
-				mode: input.mode,
-				kind: input.kind,
-				contextSnapshotId: input.contextSnapshotId,
-				metadata: {},
-			});
-		}
-
-		this.deleteRunHistory(currentRun.id);
-
-		const resetRun = runRepo.update(currentRun.id, {
-			status: "queued",
-			sessionId: "",
-			startedAt: null,
-			finishedAt: null,
-			errorText: "",
-			mode: input.mode,
-			roleId: input.roleId,
-			kind: input.kind,
-			budget: {},
-			tokensIn: 0,
-			tokensOut: 0,
-			costUsd: 0,
-			durationSec: 0,
-			metadata: {},
-		});
-
-		for (const run of existingRuns.slice(1)) {
-			this.deleteRunHistory(run.id);
-			runRepo.delete(run.id);
-		}
-
-		const repository = runRepo as {
-			deleteAllExceptTaskRun?: (taskId: string, keepRunId: string) => void;
-		};
-		repository.deleteAllExceptTaskRun?.(input.taskId, resetRun.id);
-		return resetRun;
+		return this.executionBootstrapService.prepareTaskRunForTask(input);
 	}
 
 	private getCurrentTaskRun(taskId: string): Run | null {
-		const repository = runRepo as {
-			getByTask?: (taskId: string) => Run | null;
-			listByTask: (taskId: string) => Run[];
-		};
-
-		if (typeof repository.getByTask === "function") {
-			return repository.getByTask(taskId);
-		}
-
-		return repository.listByTask(taskId)[0] ?? null;
+		return this.executionBootstrapService.getCurrentTaskRun(taskId);
 	}
 
 	private deleteRunHistory(runId: string): void {
-		const eventRepository = runEventRepo as {
-			deleteByRun?: (runId: string) => void;
-		};
-		const artifactsRepository = artifactRepo as {
-			deleteByRun?: (runId: string) => void;
-		};
-
-		eventRepository.deleteByRun?.(runId);
-		artifactsRepository.deleteByRun?.(runId);
+		this.executionBootstrapService.deleteRunHistory(runId);
 	}
 
 	private parseTaskTags(rawTags: unknown): string[] {
-		if (typeof rawTags !== "string" || rawTags.trim().length === 0) {
-			return [];
-		}
-
-		try {
-			const parsed = JSON.parse(rawTags) as unknown;
-			if (!Array.isArray(parsed)) {
-				return [];
-			}
-
-			return parsed
-				.filter((value): value is string => typeof value === "string")
-				.map((value) => value.trim())
-				.filter((value) => value.length > 0);
-		} catch {
-			return [];
-		}
+		return this.executionBootstrapService.parseTaskTags(rawTags);
 	}
 
 	private resolveAssignedRoleIdFromTags(tags: string[]): string | null {
-		const roleTag = tags.find((tag) =>
-			tag.toLowerCase().startsWith(agentRoleTagPrefix),
-		);
-		if (!roleTag) {
-			return null;
-		}
-
-		const roleId = roleTag.slice(agentRoleTagPrefix.length).trim();
-		if (roleId.length === 0) {
-			return null;
-		}
-
-		if (!roleRepo.list().some((role) => role.id === roleId)) {
-			return null;
-		}
-
-		return roleId;
+		return this.executionBootstrapService.resolveAssignedRoleIdFromTags(tags);
 	}
 
-	private parseRolePreset(rawPreset: string | null): AgentRolePreset | null {
-		if (!rawPreset) {
-			return null;
-		}
-
-		try {
-			const parsed = JSON.parse(rawPreset) as Partial<AgentRolePreset>;
-			return {
-				version: parsed.version ?? "1.0",
-				provider: parsed.provider ?? "",
-				modelName: parsed.modelName ?? "",
-				skills: Array.isArray(parsed.skills)
-					? parsed.skills.filter(
-							(skill): skill is string => typeof skill === "string",
-						)
-					: [],
-				systemPrompt:
-					typeof parsed.systemPrompt === "string" ? parsed.systemPrompt : "",
-				mustDo: Array.isArray(parsed.mustDo)
-					? parsed.mustDo.filter(
-							(item): item is string => typeof item === "string",
-						)
-					: [],
-				outputContract: Array.isArray(parsed.outputContract)
-					? parsed.outputContract.filter(
-							(item): item is string => typeof item === "string",
-						)
-					: [],
-			};
-		} catch {
-			return null;
-		}
+	private parseRolePreset(
+		rawPreset: string | null,
+	): ReturnType<ExecutionBootstrapService["parseRolePreset"]> {
+		return this.executionBootstrapService.parseRolePreset(rawPreset);
 	}
 
 	private async tryFinalizeFromSessionSnapshot(
 		runId: string,
 		sessionId: string,
 	): Promise<void> {
-		const run = runRepo.getById(runId);
-		if (!run || (run.status !== "running" && run.status !== "queued")) {
-			return;
-		}
-
-		const inspection = await this.sessionManager.inspectSession(sessionId);
-		const meta = deriveMetaStatus(inspection);
-
-		if (meta.kind === "completed" || meta.kind === "failed") {
-			const runStatus =
-				meta.kind === "completed"
-					? ("completed" as RunStatus)
-					: ("failed" as RunStatus);
-			await this.finalizeRunFromSession(runId, runStatus, {
-				marker: meta.marker,
-				content: meta.content,
-			});
-		}
+		await this.runReconciliationService.tryFinalizeFromSessionSnapshot(
+			runId,
+			sessionId,
+		);
 	}
 
 	private clearRetryTimer(runId: string): void {
