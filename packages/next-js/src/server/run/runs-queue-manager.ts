@@ -12,7 +12,6 @@ import type {
 } from "@/server/opencode/session-manager";
 import { getOpencodeService } from "@/server/opencode/opencode-service";
 import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
-import { ensureSessionLive } from "@/server/opencode/session-store";
 import { artifactRepo } from "@/server/repositories/artifact";
 import { contextSnapshotRepo } from "@/server/repositories/context-snapshot";
 import { projectRepo } from "@/server/repositories/project";
@@ -34,6 +33,12 @@ import {
 import { publishRunUpdate } from "@/server/run/run-publisher";
 import { publishSseEvent } from "@/server/events/sse-broker";
 import { getVcsManager } from "@/server/vcs/vcs-manager";
+import { QueueManager } from "@/server/run/queue-manager";
+import { RunExecutor } from "@/server/run/run-executor";
+import { RunReconciler } from "@/server/run/run-reconciler";
+import { PollingService } from "@/server/run/polling-service";
+import { RetryManager } from "@/server/run/retry-manager";
+import type { QueuedRunInput, QueueStats } from "@/server/run/runs-queue-types";
 import type { TaskPriority } from "@/types/kanban";
 import type {
 	Run,
@@ -44,6 +49,7 @@ import type {
 import type { Task } from "@/server/types";
 
 const generationRunKind = "task-description-improve";
+export type { QueueStats } from "@/server/run/runs-queue-types";
 const agentRoleTagPrefix = "agent:";
 const dependencyReadyStatus = "done";
 const lateCompletionRecoveryWindowMs = 15 * 60 * 1000;
@@ -74,20 +80,6 @@ const runPriorityScore: Record<TaskPriority, number> = {
 
 const log = createLogger("runs-queue");
 
-interface QueuedRunInput {
-	projectPath: string;
-	projectId?: string;
-	sessionTitle: string;
-	prompt: string;
-	sessionPreferences?: SessionStartPreferences;
-}
-
-interface QueueMeta {
-	projectScope: string;
-	providerKey: string;
-	isGeneration: boolean;
-}
-
 type SessionMetaStatus =
 	| {
 			kind: "completed";
@@ -99,27 +91,6 @@ type SessionMetaStatus =
 	| { kind: "permission"; permission: PermissionData }
 	| { kind: "running" }
 	| { kind: "dead" };
-
-export interface ProviderQueueStats {
-	providerKey: string;
-	queued: number;
-	running: number;
-	concurrency: number;
-}
-
-export interface ProjectQueueStats {
-	projectScope: string;
-	queued: number;
-	running: number;
-	providers: ProviderQueueStats[];
-}
-
-export interface QueueStats {
-	totalQueued: number;
-	totalRunning: number;
-	providers: ProviderQueueStats[];
-	byProject: ProjectQueueStats[];
-}
 
 function deriveMetaStatus(
 	inspection: SessionInspectionResult,
@@ -447,10 +418,7 @@ function parseProviderConcurrencyConfig(
 }
 
 export class RunsQueueManager {
-	private readonly queues = new Map<string, string[]>();
-	private readonly running = new Map<string, Set<string>>();
-	private readonly queueMetaByQueueKey = new Map<string, QueueMeta>();
-	private readonly queueKeyByRunId = new Map<string, string>();
+	private readonly queueManager = new QueueManager();
 	private readonly runInputs = new Map<string, QueuedRunInput>();
 	private readonly activeRunSessions = new Map<string, string>();
 	private readonly pendingGeneratedExecutionTaskIds = new Map<string, string>();
@@ -458,6 +426,10 @@ export class RunsQueueManager {
 	private readonly sessionManager = getOpencodeSessionManager();
 	private readonly stateMachine = getTaskStateMachine();
 	private readonly vcsManager = getVcsManager();
+	private readonly retryManager = new RetryManager();
+	private readonly pollingService: PollingService;
+	private readonly runReconciler: RunReconciler;
+	private readonly runExecutor: RunExecutor;
 	private readonly defaultConcurrency = parsePositiveInt(
 		process.env.RUNS_DEFAULT_CONCURRENCY,
 		1,
@@ -483,25 +455,59 @@ export class RunsQueueManager {
 	);
 	private readonly worktreeEnabled =
 		process.env.RUNS_WORKTREE_ENABLED === "true";
-	private blockedRetryTimer: ReturnType<typeof setTimeout> | null = null;
-	private projectPollingTimer: ReturnType<typeof setInterval> | null = null;
 	private draining = false;
-	private readonly reconciling = new Set<string>();
-	private readonly reconcilingProjects = new Set<string>();
-	private readonly activeProjectBoardWatchers = new Map<
-		string,
-		Map<string, number>
-	>();
 	private readonly projectPollingIntervalMs = 5_000;
 	private readonly projectBoardWatcherTtlMs = 15_000;
 	private readonly staleRunThresholdMs = 10 * 60 * 1000;
 	private readonly manualStatusGraceMs = 15_000;
-	private readonly retryTimers = new Map<
-		string,
-		ReturnType<typeof setTimeout>
-	>();
 
-	public constructor() {}
+	public constructor() {
+		this.pollingService = new PollingService({
+			pollingIntervalMs: this.projectPollingIntervalMs,
+			watcherTtlMs: this.projectBoardWatcherTtlMs,
+			onPollProjectRuns: async (projectId) => {
+				await this.pollProjectRuns(projectId);
+			},
+		});
+		this.runReconciler = new RunReconciler({
+			getPollableBoardContext: (projectId) =>
+				this.getPollableBoardContext(projectId),
+			listActiveRunsForReconciliation: () =>
+				this.listActiveRunsForReconciliation(),
+			listRecoverableRunsForProject: (taskIds) =>
+				this.listRecoverableRunsForProject(taskIds),
+			reconcileTaskStatuses: async (projectId, board, tasks) => {
+				await this.reconcileTaskStatuses(
+					projectId,
+					board as NonNullable<ReturnType<typeof boardRepo.getByProjectId>>,
+					tasks as Task[],
+				);
+			},
+			reconcileRun: async (runId) => {
+				await this.reconcileRun(runId);
+			},
+		});
+		this.runExecutor = new RunExecutor({
+			opencodeService: this.opencodeService,
+			sessionManager: this.sessionManager,
+			runInputs: this.runInputs,
+			activeRunSessions: this.activeRunSessions,
+			isGenerationRun: (run) => this.isGenerationRun(run),
+			applyTaskTransition: (run, trigger, outcomeContent) => {
+				this.applyTaskTransition(run, trigger, outcomeContent);
+			},
+			tryFinalizeFromSessionSnapshot: async (runId, sessionId) => {
+				await this.tryFinalizeFromSessionSnapshot(runId, sessionId);
+			},
+			scheduleRetryAfterNetworkError: (runId, errorMessage) =>
+				this.scheduleRetryAfterNetworkError(runId, errorMessage),
+			syncRunWorkspaceState: async (run) => this.syncRunWorkspaceState(run),
+			isNetworkError,
+			durationSec: (startedAt, finishedAt) =>
+				this.durationSec(startedAt, finishedAt),
+			onComplete: (runId) => this.onRunExecutionCompleted(runId),
+		});
+	}
 
 	private applyTaskTransition(
 		run: Run,
@@ -679,7 +685,7 @@ export class RunsQueueManager {
 	}
 
 	public enqueue(runId: string, input: QueuedRunInput): void {
-		if (this.queueKeyByRunId.has(runId)) {
+		if (this.queueManager.hasRun(runId)) {
 			log.warn("Run already queued", { runId });
 			return;
 		}
@@ -688,21 +694,18 @@ export class RunsQueueManager {
 		const projectScope = input.projectId ?? input.projectPath;
 		const currentRun = runRepo.getById(runId);
 		const isGeneration = currentRun ? this.isGenerationRun(currentRun) : false;
-		const queueKey = this.buildQueueKey(
+		const queueKey = this.queueManager.buildQueueKey(
 			projectScope,
 			providerKey,
 			isGeneration,
 		);
-		const queue = this.ensureQueue(queueKey);
 
 		this.runInputs.set(runId, input);
-		this.queueKeyByRunId.set(runId, queueKey);
-		this.queueMetaByQueueKey.set(queueKey, {
+		this.queueManager.enqueue(runId, queueKey, {
 			projectScope,
 			providerKey,
 			isGeneration,
 		});
-		queue.push(runId);
 		if (currentRun && !isGeneration) {
 			this.applyTaskTransition(currentRun, "run:start", "");
 		}
@@ -764,116 +767,9 @@ export class RunsQueueManager {
 	}
 
 	public getQueueStats(): QueueStats {
-		const queueKeys = new Set<string>([
-			...this.queues.keys(),
-			...this.running.keys(),
-		]);
-
-		const providerStatsByProviderKey = new Map<string, ProviderQueueStats>();
-		const projectStatsByProjectScope = new Map<
-			string,
-			{
-				queued: number;
-				running: number;
-				providers: Map<string, ProviderQueueStats>;
-			}
-		>();
-
-		for (const queueKey of queueKeys) {
-			const meta = this.queueMetaByQueueKey.get(queueKey);
-			if (!meta) {
-				continue;
-			}
-
-			const queue = this.queues.get(queueKey) ?? [];
-			const running = this.running.get(queueKey);
-			const queuedCount = queue.length;
-			const runningCount = running?.size ?? 0;
-			const concurrency = this.resolveProviderConcurrency(
-				meta.providerKey,
-				meta.isGeneration,
-			);
-
-			const providerStats = providerStatsByProviderKey.get(
-				meta.providerKey,
-			) ?? {
-				providerKey: meta.providerKey,
-				queued: 0,
-				running: 0,
-				concurrency,
-			};
-			providerStats.queued += queuedCount;
-			providerStats.running += runningCount;
-			providerStatsByProviderKey.set(meta.providerKey, providerStats);
-
-			const projectStats = projectStatsByProjectScope.get(
-				meta.projectScope,
-			) ?? {
-				queued: 0,
-				running: 0,
-				providers: new Map<string, ProviderQueueStats>(),
-			};
-			projectStats.queued += queuedCount;
-			projectStats.running += runningCount;
-
-			const projectProviderStats = projectStats.providers.get(
-				meta.providerKey,
-			) ?? {
-				providerKey: meta.providerKey,
-				queued: 0,
-				running: 0,
-				concurrency,
-			};
-			projectProviderStats.queued += queuedCount;
-			projectProviderStats.running += runningCount;
-			projectStats.providers.set(meta.providerKey, projectProviderStats);
-			projectStatsByProjectScope.set(meta.projectScope, projectStats);
-		}
-
-		const providers = [...providerStatsByProviderKey.values()].sort((a, b) => {
-			if (a.providerKey < b.providerKey) {
-				return -1;
-			}
-			if (a.providerKey > b.providerKey) {
-				return 1;
-			}
-			return 0;
-		});
-
-		const byProject = [...projectStatsByProjectScope.entries()]
-			.map(([projectScope, stats]) => ({
-				projectScope,
-				queued: stats.queued,
-				running: stats.running,
-				providers: [...stats.providers.values()].sort((a, b) => {
-					if (a.providerKey < b.providerKey) {
-						return -1;
-					}
-					if (a.providerKey > b.providerKey) {
-						return 1;
-					}
-					return 0;
-				}),
-			}))
-			.sort((a, b) => {
-				if (a.projectScope < b.projectScope) {
-					return -1;
-				}
-				if (a.projectScope > b.projectScope) {
-					return 1;
-				}
-				return 0;
-			});
-
-		const totalQueued = providers.reduce((sum, item) => sum + item.queued, 0);
-		const totalRunning = providers.reduce((sum, item) => sum + item.running, 0);
-
-		return {
-			totalQueued,
-			totalRunning,
-			providers,
-			byProject,
-		};
+		return this.queueManager.getQueueStats((providerKey, isGeneration) =>
+			this.resolveProviderConcurrency(providerKey, isGeneration),
+		);
 	}
 
 	private scheduleDrain(): void {
@@ -894,13 +790,13 @@ export class RunsQueueManager {
 		while (progressed) {
 			progressed = false;
 
-			for (const [queueKey, queue] of this.queues.entries()) {
-				const meta = this.queueMetaByQueueKey.get(queueKey);
+			this.queueManager.forEachQueue((queueKey, queue) => {
+				const meta = this.queueManager.getQueueMeta(queueKey);
 				if (!meta) {
-					continue;
+					return;
 				}
 
-				const running = this.ensureRunning(queueKey);
+				const running = this.queueManager.ensureRunning(queueKey);
 				const concurrency = this.resolveProviderConcurrency(
 					meta.providerKey,
 					meta.isGeneration,
@@ -909,221 +805,40 @@ export class RunsQueueManager {
 				while (running.size < concurrency) {
 					const runId = this.selectNextRunnableRun(queue);
 					if (!runId) {
-						this.cleanupQueueState(queueKey);
+						this.queueManager.cleanupQueueState(queueKey);
 						break;
 					}
 
 					running.add(runId);
 					progressed = true;
 
-					void this.executeRun(runId).finally(() => {
-						running.delete(runId);
-						this.queueKeyByRunId.delete(runId);
-						this.cleanupQueueState(queueKey);
-						const pendingGeneratedTaskId =
-							this.pendingGeneratedExecutionTaskIds.get(runId);
-						if (pendingGeneratedTaskId) {
-							this.pendingGeneratedExecutionTaskIds.delete(runId);
-							queueMicrotask(() => {
-								void this.enqueueExecutionForGeneratedTask(
-									pendingGeneratedTaskId,
-								);
-							});
-						}
-						this.scheduleDrain();
-					});
+					void this.executeRun(runId);
 				}
-			}
+			});
 		}
 
-		if (!progressed && this.hasQueuedRuns()) {
+		if (!progressed && this.queueManager.hasQueuedRuns()) {
 			this.scheduleBlockedRetry();
 		}
 	}
 
 	private async executeRun(runId: string): Promise<void> {
-		log.info("Executing run", { runId });
-		const current = runRepo.getById(runId);
-		if (!current || current.status !== "queued") {
-			log.warn("Run not in queued state, skipping", {
-				runId,
-				status: current?.status,
+		await this.runExecutor.executeRun(runId);
+	}
+
+	private onRunExecutionCompleted(runId: string): void {
+		this.queueManager.completeRun(runId);
+
+		const pendingGeneratedTaskId =
+			this.pendingGeneratedExecutionTaskIds.get(runId);
+		if (pendingGeneratedTaskId) {
+			this.pendingGeneratedExecutionTaskIds.delete(runId);
+			queueMicrotask(() => {
+				void this.enqueueExecutionForGeneratedTask(pendingGeneratedTaskId);
 			});
-			this.runInputs.delete(runId);
-			return;
 		}
 
-		const startedAt = new Date().toISOString();
-		let runningRun = runRepo.update(runId, {
-			status: "running",
-			startedAt,
-			errorText: "",
-			metadata: {
-				...(current.metadata ?? {}),
-				lastExecutionStatus: {
-					kind: "running",
-					updatedAt: startedAt,
-				},
-			},
-		});
-
-		log.info("Run started", {
-			runId,
-			taskId: current.taskId,
-			roleId: current.roleId,
-		});
-		runEventRepo.create({
-			runId,
-			eventType: "status",
-			payload: { status: "running", message: "Run started" },
-		});
-		publishRunUpdate(runningRun);
-		this.applyTaskTransition(
-			runningRun,
-			this.isGenerationRun(runningRun) ? "generate:start" : "run:start",
-			"",
-		);
-
-		try {
-			const runInput = this.runInputs.get(runId);
-			if (!runInput) {
-				throw new Error(`Run input not found for run: ${runId}`);
-			}
-
-			log.debug("Starting OpenCode service", { runId });
-			await this.opencodeService.start();
-
-			log.debug("Creating OpenCode session", {
-				runId,
-				projectPath: runInput.projectPath,
-			});
-			const sessionId = await this.sessionManager.createSession(
-				runInput.sessionTitle,
-				runInput.projectPath,
-			);
-			log.info("OpenCode session created", { runId, sessionId });
-
-			await ensureSessionLive(sessionId);
-
-			runningRun = runRepo.update(runId, { sessionId });
-			runEventRepo.create({
-				runId,
-				eventType: "status",
-				payload: {
-					status: "running",
-					message: "OpenCode session created",
-					sessionId,
-				},
-			});
-			publishRunUpdate(runningRun);
-
-			this.activeRunSessions.set(runId, sessionId);
-
-			log.debug("Sending prompt to OpenCode", { runId, sessionId });
-			await this.sessionManager.sendPrompt(
-				sessionId,
-				runInput.prompt,
-				runInput.sessionPreferences,
-			);
-			log.info("Prompt request completed", { runId, sessionId });
-
-			runEventRepo.create({
-				runId,
-				eventType: "status",
-				payload: {
-					status: "running",
-					message: "Prompt sent to OpenCode",
-				},
-			});
-
-			await this.tryFinalizeFromSessionSnapshot(runId, sessionId);
-		} catch (error) {
-			const message =
-				error instanceof Error ? error.message : "Run execution failed";
-			const latestRun = runRepo.getById(runId) ?? runningRun;
-
-			if (isNetworkError(error)) {
-				if (latestRun.sessionId.trim().length > 0) {
-					const recoveredAt = new Date().toISOString();
-					const resumedRun = runRepo.update(runId, {
-						status: "running",
-						errorText: message,
-						metadata: {
-							...(latestRun.metadata ?? {}),
-							errorText: message,
-							lastExecutionStatus: {
-								kind: "running",
-								sessionId: latestRun.sessionId.trim(),
-								updatedAt: recoveredAt,
-							},
-						},
-					});
-					runEventRepo.create({
-						runId,
-						eventType: "status",
-						payload: {
-							status: "running",
-							message: `Network error after session creation; waiting for polling recovery: ${message}`,
-						},
-					});
-					publishRunUpdate(resumedRun);
-					log.warn(
-						"Network error after session creation; keeping run active for polling recovery",
-						{
-							runId,
-							sessionId: latestRun.sessionId,
-							error: message,
-						},
-					);
-					return;
-				}
-				const retried = this.scheduleRetryAfterNetworkError(runId, message);
-				if (retried) {
-					return;
-				}
-				log.warn("Max retries exhausted for run after network errors", {
-					runId,
-					error: message,
-				});
-			} else {
-				log.error("Run execution failed", { runId, error: message });
-			}
-
-			const finishedAt = new Date().toISOString();
-			let failedRun = runRepo.update(runId, {
-				status: "failed",
-				finishedAt,
-				errorText: message,
-				durationSec: this.durationSec(startedAt, finishedAt),
-				metadata: {
-					...(current.metadata ?? {}),
-					lastExecutionStatus: {
-						kind: "failed",
-						content: message,
-						sessionId: current.sessionId.trim() || undefined,
-						updatedAt: finishedAt,
-					},
-				},
-			});
-			failedRun = await this.syncRunWorkspaceState(failedRun);
-
-			runEventRepo.create({
-				runId,
-				eventType: "status",
-				payload: {
-					status: "failed",
-					message,
-				},
-			});
-			publishRunUpdate(failedRun);
-			this.applyTaskTransition(
-				failedRun,
-				this.isGenerationRun(failedRun) ? "generate:fail" : "run:fail",
-				message,
-			);
-			this.activeRunSessions.delete(runId);
-			this.runInputs.delete(runId);
-		}
+		this.scheduleDrain();
 	}
 
 	private scheduleRetryAfterNetworkError(
@@ -1179,8 +894,7 @@ export class RunsQueueManager {
 
 		this.activeRunSessions.delete(runId);
 
-		const timer = setTimeout(() => {
-			this.retryTimers.delete(runId);
+		this.retryManager.setRunRetryTimer(runId, delayMs, () => {
 			// Re-read from DB to guard against cancellation during the delay
 			const current = runRepo.getById(runId);
 			if (!current || current.status !== "queued") {
@@ -1190,99 +904,17 @@ export class RunsQueueManager {
 			if (input) {
 				this.enqueue(runId, input);
 			}
-		}, delayMs);
-		this.retryTimers.set(runId, timer);
+		});
 
 		return true;
 	}
 
 	public startProjectBoardPolling(projectId: string, viewerId: string): void {
-		const normalizedProjectId = projectId.trim();
-		const normalizedViewerId = viewerId.trim();
-		if (normalizedProjectId.length === 0 || normalizedViewerId.length === 0) {
-			return;
-		}
-
-		let viewers = this.activeProjectBoardWatchers.get(normalizedProjectId);
-		if (!viewers) {
-			viewers = new Map<string, number>();
-			this.activeProjectBoardWatchers.set(normalizedProjectId, viewers);
-		}
-
-		viewers.set(normalizedViewerId, Date.now());
-		this.ensureProjectPollingActive();
-		void this.pollProjectRuns(normalizedProjectId);
+		this.pollingService.startProjectBoardPolling(projectId, viewerId);
 	}
 
 	public stopProjectBoardPolling(projectId: string, viewerId: string): void {
-		const viewers = this.activeProjectBoardWatchers.get(projectId.trim());
-		if (!viewers) {
-			return;
-		}
-
-		viewers.delete(viewerId.trim());
-		if (viewers.size === 0) {
-			this.activeProjectBoardWatchers.delete(projectId.trim());
-		}
-
-		if (this.activeProjectBoardWatchers.size === 0) {
-			this.stopProjectPolling();
-		}
-	}
-
-	private ensureProjectPollingActive(): void {
-		if (this.projectPollingTimer) {
-			return;
-		}
-
-		this.projectPollingTimer = setInterval(() => {
-			void this.pollViewedProjects();
-		}, this.projectPollingIntervalMs);
-		log.info("Started project board reconciliation polling", {
-			projects: this.activeProjectBoardWatchers.size,
-		});
-	}
-
-	private stopProjectPolling(): void {
-		if (!this.projectPollingTimer) {
-			return;
-		}
-
-		clearInterval(this.projectPollingTimer);
-		this.projectPollingTimer = null;
-		log.info("Stopped project board reconciliation polling");
-	}
-
-	private async pollViewedProjects(): Promise<void> {
-		this.pruneInactiveProjectBoardWatchers();
-		if (this.activeProjectBoardWatchers.size === 0) {
-			this.stopProjectPolling();
-			return;
-		}
-
-		for (const projectId of this.activeProjectBoardWatchers.keys()) {
-			await this.pollProjectRuns(projectId);
-		}
-	}
-
-	private pruneInactiveProjectBoardWatchers(): void {
-		const cutoff = Date.now() - this.projectBoardWatcherTtlMs;
-		for (const [
-			projectId,
-			viewers,
-		] of this.activeProjectBoardWatchers.entries()) {
-			for (const [viewerId, lastSeenAt] of viewers.entries()) {
-				if (lastSeenAt >= cutoff) {
-					continue;
-				}
-
-				viewers.delete(viewerId);
-			}
-
-			if (viewers.size === 0) {
-				this.activeProjectBoardWatchers.delete(projectId);
-			}
-		}
+		this.pollingService.stopProjectBoardPolling(projectId, viewerId);
 	}
 
 	private async resumeRunAfterPermissionApproval(
@@ -1562,58 +1194,7 @@ export class RunsQueueManager {
 	}
 
 	public async pollProjectRuns(projectId: string): Promise<void> {
-		if (this.reconcilingProjects.has(projectId)) {
-			return;
-		}
-
-		this.reconcilingProjects.add(projectId);
-		try {
-			const scopedBoard = this.getPollableBoardContext(projectId);
-			if (!scopedBoard) {
-				return;
-			}
-
-			const activeRuns = this.listActiveRunsForReconciliation().filter((run) =>
-				scopedBoard.taskIds.has(run.taskId),
-			);
-			const recoverableRuns = this.listRecoverableRunsForProject(
-				scopedBoard.allTaskIds,
-			);
-			await this.reconcileRuns(activeRuns);
-			await this.reconcileRuns(recoverableRuns);
-			await this.reconcileTaskStatuses(
-				projectId,
-				scopedBoard.board,
-				scopedBoard.tasks,
-			);
-		} finally {
-			this.reconcilingProjects.delete(projectId);
-		}
-	}
-
-	private async reconcileRuns(runs: Run[]): Promise<void> {
-		for (const run of runs) {
-			if (this.reconciling.has(run.id)) {
-				log.debug("Skipping reconciliation for already-locked run", {
-					runId: run.id,
-					status: run.status,
-				});
-				continue;
-			}
-
-			this.reconciling.add(run.id);
-			try {
-				await this.reconcileRun(run.id);
-			} catch (error) {
-				log.warn("Run reconciliation failed", {
-					runId: run.id,
-					status: run.status,
-					error: error instanceof Error ? error.message : String(error),
-				});
-			} finally {
-				this.reconciling.delete(run.id);
-			}
-		}
+		await this.runReconciler.pollProjectRuns(projectId);
 	}
 
 	private listRecoverableRunsForProject(taskIds: Set<string>): Run[] {
@@ -2479,47 +2060,32 @@ export class RunsQueueManager {
 	}
 
 	private selectNextRunnableRun(queue: string[]): string | null {
-		let bestIndex = -1;
-		let bestScore = Number.NEGATIVE_INFINITY;
-		let bestCreatedAt = Number.POSITIVE_INFINITY;
-
-		for (let index = 0; index < queue.length; index += 1) {
-			const runId = queue[index];
-			const run = runRepo.getById(runId);
-			if (!run) {
-				queue.splice(index, 1);
-				index -= 1;
-				this.queueKeyByRunId.delete(runId);
+		return this.queueManager.selectNextRunnableRun(
+			queue,
+			(runId) => {
+				const run = runRepo.getById(runId);
+				return run ? this.canRunNow(run) : false;
+			},
+			(runId) => {
+				const run = runRepo.getById(runId);
+				return run
+					? this.resolveRunPriorityScore(run)
+					: Number.NEGATIVE_INFINITY;
+			},
+			(runId) => {
+				const run = runRepo.getById(runId);
+				if (!run) {
+					return Number.POSITIVE_INFINITY;
+				}
+				const createdAtMs = Date.parse(run.createdAt);
+				return Number.isFinite(createdAtMs)
+					? createdAtMs
+					: Number.POSITIVE_INFINITY;
+			},
+			(runId) => {
 				this.runInputs.delete(runId);
-				continue;
-			}
-
-			if (!this.canRunNow(run)) {
-				continue;
-			}
-
-			const score = this.resolveRunPriorityScore(run);
-			const createdAtMs = Date.parse(run.createdAt);
-			const safeCreatedAt = Number.isFinite(createdAtMs)
-				? createdAtMs
-				: Number.POSITIVE_INFINITY;
-
-			if (
-				score > bestScore ||
-				(score === bestScore && safeCreatedAt < bestCreatedAt)
-			) {
-				bestIndex = index;
-				bestScore = score;
-				bestCreatedAt = safeCreatedAt;
-			}
-		}
-
-		if (bestIndex < 0) {
-			return null;
-		}
-
-		const [selected] = queue.splice(bestIndex, 1);
-		return selected ?? null;
+			},
+		);
 	}
 
 	private canRunNow(run: Run): boolean {
@@ -2582,25 +2148,10 @@ export class RunsQueueManager {
 		}
 	}
 
-	private hasQueuedRuns(): boolean {
-		for (const queue of this.queues.values()) {
-			if (queue.length > 0) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
 	private scheduleBlockedRetry(): void {
-		if (this.blockedRetryTimer) {
-			return;
-		}
-
-		this.blockedRetryTimer = setTimeout(() => {
-			this.blockedRetryTimer = null;
+		this.retryManager.scheduleBlockedRetry(this.blockedRetryDelayMs, () => {
 			this.scheduleDrain();
-		}, this.blockedRetryDelayMs);
+		});
 	}
 
 	public pickNextReadyTask(boardId: string): Task | null {
@@ -3414,48 +2965,13 @@ export class RunsQueueManager {
 	}
 
 	private clearRetryTimer(runId: string): void {
-		const timer = this.retryTimers.get(runId);
-		if (timer) {
-			clearTimeout(timer);
-			this.retryTimers.delete(runId);
-		}
+		this.retryManager.clearRunRetryTimer(runId);
 	}
 
 	private removeFromQueue(runId: string): void {
-		const queueKey = this.queueKeyByRunId.get(runId);
-
-		if (queueKey) {
-			const queue = this.queues.get(queueKey);
-			if (queue) {
-				const index = queue.indexOf(runId);
-				if (index >= 0) {
-					queue.splice(index, 1);
-				}
-			}
-			this.cleanupQueueState(queueKey);
-		} else {
-			for (const [currentQueueKey, queue] of this.queues.entries()) {
-				const index = queue.indexOf(runId);
-				if (index >= 0) {
-					queue.splice(index, 1);
-					this.cleanupQueueState(currentQueueKey);
-					break;
-				}
-			}
-		}
-
-		this.queueKeyByRunId.delete(runId);
+		this.queueManager.removeRun(runId);
 		this.runInputs.delete(runId);
 		this.clearRetryTimer(runId);
-	}
-
-	private buildQueueKey(
-		projectScope: string,
-		providerKey: string,
-		isGeneration: boolean,
-	): string {
-		const suffix = isGeneration ? ":gen" : "";
-		return `${projectScope}\0${providerKey}${suffix}`;
 	}
 
 	private resolveProviderKey(runId: string): string {
@@ -3467,44 +2983,6 @@ export class RunsQueueManager {
 		const roleId = run.roleId ?? "default";
 		const presetJson = roleRepo.getPresetJson(roleId);
 		return buildProviderKey(roleId, presetJson);
-	}
-
-	private ensureQueue(queueKey: string): string[] {
-		const existing = this.queues.get(queueKey);
-		if (existing) {
-			return existing;
-		}
-
-		const queue: string[] = [];
-		this.queues.set(queueKey, queue);
-		return queue;
-	}
-
-	private ensureRunning(queueKey: string): Set<string> {
-		const existing = this.running.get(queueKey);
-		if (existing) {
-			return existing;
-		}
-
-		const running = new Set<string>();
-		this.running.set(queueKey, running);
-		return running;
-	}
-
-	private cleanupQueueState(queueKey: string): void {
-		const queue = this.queues.get(queueKey);
-		if (queue && queue.length === 0) {
-			this.queues.delete(queueKey);
-		}
-
-		const running = this.running.get(queueKey);
-		if (running && running.size === 0) {
-			this.running.delete(queueKey);
-		}
-
-		if (!this.queues.has(queueKey) && !this.running.has(queueKey)) {
-			this.queueMetaByQueueKey.delete(queueKey);
-		}
 	}
 
 	private resolveProviderConcurrency(
