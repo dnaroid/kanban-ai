@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -24,6 +24,8 @@ import {
 	getWorkflowStatusVisual,
 	toneOverlayStyle,
 	toneBadgeStyle,
+	createStatusPillOptions,
+	createFallbackStatusPillOptions,
 } from "../workflow-display";
 import { useWorkflowDisplayConfig } from "../useWorkflowDisplayConfig";
 import {
@@ -31,6 +33,7 @@ import {
 	INACTIVE_CONTEXT_ACTION_STATUSES,
 } from "./contextActions";
 import { TaskDetailsModel } from "../drawer/sections/TaskDetailsModel";
+import { StatusPillSelect } from "./StatusPillSelect";
 
 export interface SortableTaskProps {
 	task: KanbanTask;
@@ -117,6 +120,13 @@ export function SortableTask({
 		: null;
 	const statusBadge = statusVisual ? toneBadgeStyle(statusVisual.tone) : null;
 
+	const statusPillOptions = useMemo(() => {
+		if (workflowConfig?.statuses?.length) {
+			return createStatusPillOptions(workflowConfig.statuses);
+		}
+		return createFallbackStatusPillOptions();
+	}, [workflowConfig]);
+
 	const style: React.CSSProperties = isDeleting
 		? { overflow: "hidden" }
 		: {
@@ -172,10 +182,6 @@ export function SortableTask({
 				!isDeleting && "transition-all overflow-visible",
 				isDragging && "opacity-50 shadow-2xl scale-105",
 				isDeleting && "pointer-events-none",
-				task.status === "running" && !isDeleting && "animate-card-pulse-blue",
-				task.status === "generating" &&
-					!isDeleting &&
-					"animate-card-pulse-purple",
 				task.status === "question" &&
 					!isDeleting &&
 					"animate-card-pulse-yellow",
@@ -190,18 +196,42 @@ export function SortableTask({
 			{statusVisual && (
 				<div
 					className="absolute left-0 right-0 flex justify-center pointer-events-none"
-					style={{ top: 0, transform: "translateY(-50%)" }}
+					style={{ top: 0, transform: "translateY(-60%)" }}
 				>
-					<span
-						className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider pointer-events-auto"
-						style={{
-							color: statusVisual.tone,
-							backgroundColor: `color-mix(in srgb, ${statusVisual.tone} 20%, rgb(15, 23, 42))`,
-							border: `1px solid ${statusVisual.tone}50`,
-						}}
-					>
-						{task.status}
-					</span>
+					{onUpdate ? (
+						<div
+							className={cn(
+								"pointer-events-auto",
+								task.isSessionBusy && "animate-text-blink",
+							)}
+							onPointerDown={(e) => e.stopPropagation()}
+						>
+							<StatusPillSelect
+								value={task.status}
+								options={statusPillOptions}
+								onChange={(status) =>
+									onUpdate(task.id, {
+										status: status as KanbanTask["status"],
+									})
+								}
+								tone={statusVisual.tone}
+							/>
+						</div>
+					) : (
+						<span
+							className={cn(
+								"inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider pointer-events-auto",
+								task.isSessionBusy && "animate-text-blink",
+							)}
+							style={{
+								color: statusVisual.tone,
+								backgroundColor: `color-mix(in srgb, ${statusVisual.tone} 20%, rgb(15, 23, 42))`,
+								border: `1px solid ${statusVisual.tone}50`,
+							}}
+						>
+							{task.status}
+						</span>
+					)}
 				</div>
 			)}
 			{task.wasQaRejected && (
