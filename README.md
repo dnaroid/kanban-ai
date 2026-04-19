@@ -14,6 +14,7 @@ It allows tasks to be turned into runs, tracks their progress, supports follow-u
 - Role-based agent presets
 - Context snapshots and linked task data
 - SQLite-based local storage
+- Optional Git worktree isolation for runs
 
 ## How it works
 
@@ -67,6 +68,7 @@ cp packages/next-js/.env.local.example packages/next-js/.env.local
 | `NEXT_PUBLIC_APP_URL` | `packages/next-js/.env.local` | App URL (default: `http://127.0.0.1:3100`) |
 | `RUNS_DEFAULT_CONCURRENCY` | `packages/next-js/.env.local` | Default run concurrency |
 | `RUNS_PROVIDER_CONCURRENCY` | `packages/next-js/.env.local` | Per-provider concurrency limits |
+| `RUNS_WORKTREE_ENABLED` | `packages/next-js/.env.local` | Enable Git worktree isolation for regular execution runs (experimental, default: `false`) |
 
 ## Scripts
 
@@ -109,11 +111,15 @@ Additional tooling configured: [Prettier](https://prettier.io/) (`.prettierrc`),
 
 ## Git Worktrees
 
-Git Worktree support is planned but currently disabled.
+Git worktree support is **opt-in** and disabled by default. Set `RUNS_WORKTREE_ENABLED=true` to enable it.
 
-At the moment, tasks run on the main project directory and branch. The `RUNS_WORKTREE_ENABLED` flag exists for development, but this feature is not considered ready yet.
+When enabled, regular execution runs (mode `"execute"`) are isolated in a dedicated worktree — a separate working directory on its own branch — so changes don't affect the main project directory until explicitly merged. User Story generation and QA testing runs always execute in the main project directory and do not use worktrees.
 
-See [docs/GIT_WORKTREES.md](docs/GIT_WORKTREES.md) for design notes and planned behavior.
+When disabled (the default), all runs work directly in the main project directory.
+
+After merging a completed run, the worktree and branch are cleaned up automatically. Cleanup is best-effort; if it fails (e.g., a process is still holding a file lock), manual cleanup may be needed.
+
+See [docs/GIT_WORKTREES.md](docs/GIT_WORKTREES.md) for full details and troubleshooting.
 
 ## Additional Documentation
 
