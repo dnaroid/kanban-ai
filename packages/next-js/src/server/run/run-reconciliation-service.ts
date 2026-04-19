@@ -16,6 +16,8 @@ import { publishRunUpdate } from "@/server/run/run-publisher";
 
 const log = createLogger("runs-queue");
 
+const storyChatRunKind = "task-story-chat";
+
 interface RunReconciliationServiceDeps {
 	sessionManager: {
 		inspectSession: (sessionId: string) => Promise<SessionInspectionResult>;
@@ -23,6 +25,7 @@ interface RunReconciliationServiceDeps {
 	runInteractionCoordinator: RunInteractionCoordinator;
 	runInputs: Map<string, QueuedRunInput>;
 	isGenerationRun: (run: Run) => boolean;
+	isStoryChatRun: (run: Run) => boolean;
 	finalizeRunFromSession: (
 		runId: string,
 		status: RunStatus,
@@ -149,9 +152,22 @@ export class RunReconciliationService {
 			this.deps.tryFillTaskModelFromSession(run.taskId, inspection);
 		}
 
+		const isStoryChat = this.deps.isStoryChatRun(run);
+
 		switch (meta.kind) {
 			case "completed":
 			case "failed": {
+				if (isStoryChat) {
+					log.info(
+						"Skipping finalization for story-chat run; waiting for explicit generate trigger",
+						{
+							runId: observedRun.id,
+							sessionId,
+							metaKind: meta.kind,
+						},
+					);
+					break;
+				}
 				const runStatus =
 					meta.kind === "completed"
 						? ("completed" as RunStatus)

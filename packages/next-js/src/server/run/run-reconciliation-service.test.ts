@@ -131,6 +131,7 @@ interface TestDeps {
 		}
 	>;
 	isGenerationRun: ReturnType<typeof vi.fn>;
+	isStoryChatRun: ReturnType<typeof vi.fn>;
 	finalizeRunFromSession: ReturnType<typeof vi.fn>;
 	runFinalizer: {
 		staleRunFallbackMarker: ReturnType<typeof vi.fn>;
@@ -159,6 +160,7 @@ function setupDeps(): TestDeps {
 		},
 		runInputs: new Map(),
 		isGenerationRun: vi.fn(() => false),
+		isStoryChatRun: vi.fn(() => false),
 		finalizeRunFromSession: vi.fn(async () => {}),
 		runFinalizer: {
 			staleRunFallbackMarker: vi.fn(() => "done" as RunOutcomeMarker),

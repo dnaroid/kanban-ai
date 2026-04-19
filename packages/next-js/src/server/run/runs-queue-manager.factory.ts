@@ -73,6 +73,7 @@ export interface RqmContext {
 	) => void;
 	durationSec: (startedAt: string, finishedAt: string) => number;
 	isGenerationRun: (run: Run) => boolean;
+	isStoryChatRun: (run: Run) => boolean;
 	shouldAutoExecuteAfterGeneration: () => boolean;
 	scheduleDrain: () => void;
 	startNextReadyTaskAfterMerge: (taskId: string) => Promise<void>;
@@ -203,6 +204,7 @@ export function createServices(ctx: RqmContext): ServiceRegistry {
 		runInteractionCoordinator,
 		runInputs: ctx.runInputs,
 		isGenerationRun: (run) => ctx.isGenerationRun(run),
+		isStoryChatRun: (run) => ctx.isStoryChatRun(run),
 		finalizeRunFromSession: async (runId, status, outcome) =>
 			ctx.finalizeRunFromSession(runId, status, outcome),
 		runFinalizer: {

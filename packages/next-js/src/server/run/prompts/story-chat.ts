@@ -1,5 +1,3 @@
-import { buildOpencodeStatusLine } from "@/lib/opencode-status";
-
 interface StoryChatPromptTask {
 	title: string;
 	description: string | null;
@@ -56,12 +54,11 @@ Objective:
 - Clarify requirements through a multi-turn dialog.
 - Ask concise, high-value questions when important details are missing.
 - Do NOT produce the final user story in this phase.
-- Do NOT output <META> or <STORY> blocks unless the user explicitly triggers Generate outside this chat stage.
+- Do NOT output <META> or <STORY> blocks.
 
 Response rules:
 1) Keep each answer focused and actionable.
-2) If you need user input, ask questions directly and end with: ${buildOpencodeStatusLine("question")}
-3) If no blocking question is needed, end with: ${buildOpencodeStatusLine("done")}
-4) If an unrecoverable issue occurs, end with: ${buildOpencodeStatusLine("fail")}
-5) The status line must be the last line of your response.`;
+2) If you need user input, ask questions directly.
+3) Do NOT output any status markers or special tokens (no __OPENCODE_STATUS__ lines).
+4) This is an interactive chat — the user will decide when to trigger final user story generation.`;
 }
