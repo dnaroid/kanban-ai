@@ -102,7 +102,7 @@ export class DatabaseManager {
 						}
 					}
 					this.db!.prepare(
-						"INSERT INTO schema_migrations (version) VALUES (?)",
+						"INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)",
 					).run(migration.version);
 				});
 				tx();
