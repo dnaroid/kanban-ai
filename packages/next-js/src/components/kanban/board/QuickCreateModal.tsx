@@ -486,20 +486,22 @@ export function QuickCreateModal({
 			onOpenChange={(open) => !open && onClose()}
 			size="lg"
 			title={
-				<div className="flex items-center gap-3">
-					<div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+				<div className="flex items-center gap-4">
+					<div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center shadow-inner shadow-emerald-500/5 ring-1 ring-emerald-500/20">
 						<Sparkles className="w-6 h-6 text-emerald-400" />
 					</div>
-					<div>
-						<h3 className="text-lg font-bold text-white">Quick Create Story</h3>
-						<p className="text-xs text-slate-500 font-medium">
+					<div className="space-y-0.5">
+						<h3 className="text-xl font-bold text-white tracking-tight">
+							Quick Create Story
+						</h3>
+						<p className="text-sm text-slate-400 font-medium opacity-80">
 							Describe your task and let the agent generate a story
 						</p>
 					</div>
 				</div>
 			}
 			footer={
-				<div className="flex items-center justify-between w-full">
+				<div className="flex items-center justify-between w-full pt-2">
 					<div className="flex items-center gap-2">
 						<ModelPicker
 							value={selectedModel}
@@ -509,16 +511,16 @@ export function QuickCreateModal({
 							showVariantSelector
 						/>
 					</div>
-					<div className="flex items-center gap-2">
+					<div className="flex items-center gap-2.5">
 						<button
 							type="button"
 							onClick={handleSaveDraft}
 							disabled={isSubmitting}
 							className={cn(
-								"inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all border",
+								"inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all border shadow-sm",
 								isSubmitting
 									? "cursor-not-allowed opacity-50 bg-slate-800/50 text-slate-500 border-slate-700/50"
-									: "bg-slate-800/50 text-slate-400 border-slate-700/50 hover:bg-slate-700/60 hover:text-slate-200",
+									: "bg-slate-900/40 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200 hover:border-slate-700",
 							)}
 						>
 							{submittingAction === "draft" ? (
@@ -528,15 +530,18 @@ export function QuickCreateModal({
 							)}
 							Save as Draft
 						</button>
+
+						<div className="h-6 w-px bg-slate-800/60 mx-1" />
+
 						<button
 							type="button"
 							onClick={handleStartStoryChat}
 							disabled={isSubmitting}
 							className={cn(
-								"inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all border",
+								"inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all border shadow-sm",
 								isSubmitting
 									? "cursor-not-allowed opacity-50 bg-cyan-500/10 text-cyan-300/80 border-cyan-500/30"
-									: "bg-cyan-600/15 text-cyan-200 border-cyan-500/40 hover:bg-cyan-500/25 hover:text-cyan-100",
+									: "bg-cyan-500/5 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/15 hover:text-cyan-300 hover:border-cyan-500/40",
 							)}
 						>
 							{submittingAction === "chatGenerate" ? (
@@ -551,15 +556,16 @@ export function QuickCreateModal({
 								</>
 							)}
 						</button>
+
 						<button
 							type="button"
 							onClick={handleRunRawStory}
 							disabled={isSubmitting}
 							className={cn(
-								"inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all border",
+								"inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all border shadow-sm",
 								isSubmitting
 									? "cursor-not-allowed opacity-50 bg-slate-800 text-slate-500 border-slate-700"
-									: "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white",
+									: "bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white hover:border-slate-600",
 							)}
 						>
 							{submittingAction === "runRaw" ? (
@@ -569,17 +575,21 @@ export function QuickCreateModal({
 							)}
 							Run Raw
 						</button>
+
 						<button
 							type="button"
 							onClick={handleGenerateStory}
 							disabled={isSubmitting}
 							className={cn(
-								"inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-xs font-bold transition-all border shadow-lg",
+								"inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-xs font-bold transition-all border shadow-lg relative group overflow-hidden",
 								isSubmitting
 									? "cursor-not-allowed bg-emerald-500/10 text-emerald-300/80 border-emerald-500/30"
-									: "bg-emerald-600 text-white border-emerald-500 hover:bg-emerald-500 hover:scale-[1.02] active:scale-[0.98] shadow-emerald-500/20",
+									: "bg-emerald-500 text-white border-emerald-400 hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98] shadow-emerald-500/20",
 							)}
 						>
+							{!isSubmitting && (
+								<div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer" />
+							)}
 							{submittingAction === "generate" ? (
 								<>
 									<Loader2 className="w-4 h-4 animate-spin" />
@@ -598,7 +608,7 @@ export function QuickCreateModal({
 		>
 			<div className="space-y-4">
 				<div className="relative group">
-					<div className="rounded-2xl border border-slate-700/70 bg-slate-900/60 p-4 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all">
+					<div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-5 focus-within:border-emerald-500/40 focus-within:ring-4 focus-within:ring-emerald-500/5 transition-all duration-300 shadow-inner">
 						<textarea
 							value={prompt}
 							onChange={(e) => setPrompt(e.target.value)}
@@ -606,27 +616,27 @@ export function QuickCreateModal({
 							placeholder="What needs to be done? Type or dictate story details..."
 							rows={6}
 							disabled={isSubmitting}
-							className="w-full resize-none bg-transparent border-none text-slate-200 placeholder:text-slate-500 outline-none focus:ring-0 text-base leading-relaxed p-0"
+							className="w-full resize-none bg-transparent border-none text-slate-100 placeholder:text-slate-600 outline-none focus:ring-0 text-base leading-relaxed p-0 selection:bg-emerald-500/30"
 						/>
 
 						{liveTranscript && (
-							<div className="mt-4 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
-								<p className="text-sm text-emerald-300/90 italic">
+							<div className="mt-4 p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/10 animate-in fade-in slide-in-from-bottom-2">
+								<p className="text-sm text-emerald-300/80 italic leading-relaxed">
 									{liveTranscript}
 								</p>
 							</div>
 						)}
 
-						<div className="flex items-center justify-end gap-2 mt-2">
+						<div className="flex items-center justify-end gap-2.5 mt-4">
 							<button
 								type="button"
 								onClick={() => setIsFilePickerOpen(true)}
 								disabled={isSubmitting}
 								className={cn(
-									"w-9 h-9 rounded-lg border transition-all flex items-center justify-center",
+									"w-10 h-10 rounded-xl border transition-all flex items-center justify-center shadow-sm",
 									selectedAttachments.length > 0
-										? "text-emerald-400 border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20"
-										: "text-slate-400 border-slate-700/80 bg-slate-800/60 hover:bg-slate-700/60 hover:text-slate-200",
+										? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20"
+										: "text-slate-500 border-slate-800 bg-slate-800/40 hover:bg-slate-800 hover:text-slate-300 hover:border-slate-700",
 								)}
 								title="Add context files"
 							>
@@ -637,14 +647,14 @@ export function QuickCreateModal({
 								type="button"
 								onClick={toggleLanguage}
 								disabled={isSubmitting}
-								className="w-9 h-9 rounded-lg border border-slate-700/80 bg-slate-800/60 hover:bg-slate-700/60 text-slate-400 flex items-center justify-center transition-all hover:text-slate-200"
+								className="w-10 h-10 rounded-xl border border-slate-800 bg-slate-800/40 hover:bg-slate-800 text-slate-500 flex items-center justify-center transition-all hover:text-slate-300 hover:border-slate-700 shadow-sm"
 								title={
 									language === "ru-RU"
 										? "Switch to English"
 										: "Switch to Russian"
 								}
 							>
-								<span className="text-[10px] font-bold">
+								<span className="text-[11px] font-black tracking-tighter">
 									{language === "ru-RU" ? "RU" : "EN"}
 								</span>
 							</button>
@@ -654,19 +664,24 @@ export function QuickCreateModal({
 								onClick={handleToggleDictation}
 								disabled={isSubmitting}
 								className={cn(
-									"w-9 h-9 rounded-lg border transition-all flex items-center justify-center",
+									"w-10 h-10 rounded-xl border transition-all flex items-center justify-center shadow-sm relative overflow-hidden",
 									isListening
-										? "text-red-300 border-red-500/40 bg-red-500/10 hover:bg-red-500/20 shadow-lg shadow-red-500/10"
-										: "text-slate-400 border-slate-700/80 bg-slate-800/60 hover:bg-slate-700/60 hover:text-slate-200",
+										? "text-white border-red-500 bg-red-500 hover:bg-red-400 shadow-lg shadow-red-500/20"
+										: "text-slate-500 border-slate-800 bg-slate-800/40 hover:bg-slate-800 hover:text-slate-300 hover:border-slate-700",
 								)}
 								title={isListening ? "Stop dictation" : "Start dictation"}
 							>
 								{isListening ? (
-									<MicOff className="w-4 h-4" />
+									<>
+										<div className="absolute inset-0 bg-white/20 animate-pulse" />
+										<MicOff className="w-4 h-4 relative z-10" />
+									</>
 								) : (
 									<Mic className="w-4 h-4" />
 								)}
 							</button>
+
+							<div className="w-px h-6 bg-slate-800 mx-0.5" />
 
 							<button
 								type="button"
@@ -677,7 +692,7 @@ export function QuickCreateModal({
 									if (isListening) stopDictation();
 								}}
 								disabled={isSubmitting}
-								className="w-9 h-9 rounded-lg border border-slate-700/80 bg-slate-800/60 hover:bg-slate-700/60 text-slate-400 flex items-center justify-center transition-all hover:text-slate-200"
+								className="w-10 h-10 rounded-xl border border-slate-800 bg-slate-800/40 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 text-slate-500 flex items-center justify-center transition-all shadow-sm"
 								title="Clear"
 							>
 								<X className="w-4 h-4" />
@@ -687,17 +702,22 @@ export function QuickCreateModal({
 				</div>
 
 				{selectedAttachments.length > 0 && (
-					<div className="rounded-xl border border-slate-800/50 bg-slate-900/30 p-2">
-						<ul className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto no-scrollbar">
+					<div className="rounded-2xl border border-slate-800/40 bg-slate-900/20 p-3 shadow-inner">
+						<div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 px-1">
+							Attached Context
+						</div>
+						<ul className="flex flex-wrap gap-2 max-h-32 overflow-y-auto no-scrollbar">
 							{selectedAttachments.map((attachment) => {
 								return (
 									<li
 										key={attachment.path ?? attachment.name}
-										className="group inline-flex items-center gap-1.5 rounded-md bg-slate-800/60 px-2 py-1 text-[10px] text-slate-300 border border-slate-700/50"
+										className="group inline-flex items-center gap-2 rounded-xl bg-slate-800/40 px-3 py-1.5 text-xs text-slate-300 border border-slate-800 hover:border-slate-700 transition-colors shadow-sm"
 									>
-										<FileText className="w-3 h-3 text-slate-500" />
+										<div className="p-1 rounded-md bg-slate-900/60">
+											<FileText className="w-3 h-3 text-emerald-500/70" />
+										</div>
 										<span
-											className="truncate max-w-[150px]"
+											className="truncate max-w-[180px] font-medium"
 											title={attachment.path ?? attachment.name}
 										>
 											{attachment.name}
@@ -714,10 +734,10 @@ export function QuickCreateModal({
 													}),
 												)
 											}
-											className="opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all ml-1"
+											className="opacity-40 group-hover:opacity-100 hover:text-red-400 transition-all ml-1 p-0.5 rounded-full hover:bg-red-500/10"
 											title="Remove"
 										>
-											<X className="w-2.5 h-2.5" />
+											<X className="w-3 h-3" />
 										</button>
 									</li>
 								);
