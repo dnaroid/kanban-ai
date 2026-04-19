@@ -4,7 +4,6 @@ import {
 	Brain,
 	Gauge,
 	FileDiff,
-	Files,
 	GitMerge,
 	ListTodo,
 	RotateCcw,
@@ -14,7 +13,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OpencodeModel, Run } from "@/types/ipc";
-import { ArtifactsPanel } from "./ArtifactsPanel";
 import { ExecutionLog } from "./ExecutionLog";
 import { RunDiffPanel } from "./RunDiffPanel";
 import { RunTodosPanel } from "./RunTodosPanel";
@@ -41,9 +39,7 @@ export function RunDetailsView({
 	isMerging?: boolean;
 	showBack?: boolean;
 }) {
-	const [view, setView] = useState<"log" | "artifacts" | "todo" | "diff">(
-		"log",
-	);
+	const [view, setView] = useState<"log" | "todo" | "diff">("log");
 	const [showReasoning, setShowReasoning] = useState(false);
 	const [hasTodos, setHasTodos] = useState(false);
 	const [contextLimit, setContextLimit] = useState<number | null>(null);
@@ -333,19 +329,6 @@ export function RunDetailsView({
 						</button>
 						<button
 							type="button"
-							onClick={() => setView("artifacts")}
-							className={cn(
-								"flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200",
-								view === "artifacts"
-									? "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
-									: "text-slate-500 hover:text-slate-300",
-							)}
-						>
-							<Files className="w-3 h-3" />
-							Artifacts
-						</button>
-						<button
-							type="button"
 							onClick={() => setView("diff")}
 							className={cn(
 								"flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200",
@@ -381,8 +364,6 @@ export function RunDetailsView({
 						onNavigateToSubAgent={handleNavigateToSubAgent}
 						isSubAgent={isViewingSubAgent}
 					/>
-				) : view === "artifacts" ? (
-					<ArtifactsPanel runId={runId} />
 				) : view === "diff" ? (
 					<RunDiffPanel runId={runId} />
 				) : (

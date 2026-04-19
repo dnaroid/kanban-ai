@@ -3,18 +3,34 @@
 import { useEffect, useRef } from "react";
 import type { SoundId } from "@/lib/sounds";
 import { playSoundDebounced } from "@/lib/sounds";
-import type { RunStatus } from "@/types/ipc";
+import type { RunStatus, RunLastExecutionStatus } from "@/types/ipc";
+
+type RunMetadata = {
+	lastExecutionStatus?: RunLastExecutionStatus;
+	[key: string]: unknown;
+};
 
 type SseRunEventPayload = {
 	runId?: string;
 	status?: RunStatus;
+	metadata?: RunMetadata;
 	[eventKey: string]: unknown;
 };
 
-const STATUS_TO_SOUND: Partial<Record<RunStatus, SoundId>> = {
-	completed: "done",
-	failed: "fail",
-};
+const DONE_MARKERS = new Set(["done", "test_ok"]);
+
+function resolveSound(
+	status: RunStatus,
+	metadata?: RunMetadata,
+): SoundId | null {
+	if (status === "completed") {
+		const marker = metadata?.lastExecutionStatus?.marker;
+		if (marker && DONE_MARKERS.has(marker)) return "done";
+		return null;
+	}
+	if (status === "failed") return "fail";
+	return null;
+}
 
 const ATTENTION_CHANNELS = new Set(["run:permission", "run:question"]);
 
@@ -33,7 +49,7 @@ export function useRunSoundNotifications(): void {
 
 		eventSource.addEventListener("run:event", (event) => {
 			const payload = JSON.parse(event.data) as SseRunEventPayload;
-			const { runId, status } = payload;
+			const { runId, status, metadata } = payload;
 			if (!runId || !status) return;
 
 			const prev = initialized.current
@@ -47,7 +63,7 @@ export function useRunSoundNotifications(): void {
 
 			if (prev === status) return;
 
-			const sound = STATUS_TO_SOUND[status];
+			const sound = resolveSound(status, metadata);
 			if (sound) {
 				void playSoundDebounced(sound);
 			}
