@@ -40,6 +40,19 @@ function getLatestExecutionStatus(
 	return sorted[0]?.metadata?.lastExecutionStatus ?? null;
 }
 
+function isLatestRunActive(taskId: string): boolean {
+	const runs = runService.listByTask(taskId);
+	if (runs.length === 0) {
+		return false;
+	}
+
+	const sorted = [...runs].sort(
+		(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+	);
+	const status = sorted[0]?.status;
+	return status === "running" || status === "queued";
+}
+
 export async function GET(request: NextRequest) {
 	try {
 		const { searchParams } = new URL(request.url);
@@ -87,8 +100,9 @@ export async function GET(request: NextRequest) {
 		const tasksWithBusyStatus = enrichedTasks.map((task) => ({
 			...task,
 			isSessionBusy:
-				task.latestSessionId !== null &&
-				busySessionIds.has(task.latestSessionId),
+				isLatestRunActive(task.id) ||
+				(task.latestSessionId !== null &&
+					busySessionIds.has(task.latestSessionId)),
 		}));
 
 		return NextResponse.json({ success: true, data: tasksWithBusyStatus });

@@ -45,6 +45,7 @@ export function TaskDetailsModel({ task, onUpdate }: TaskDetailsModelProps) {
 				allowAuto
 				difficulty={task.difficulty}
 				disabled={isDisabled}
+				borderless
 			/>
 		</div>
 	);

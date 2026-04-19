@@ -258,6 +258,7 @@ export function SortableTask({
 										priority: priority as KanbanTask["priority"],
 									})
 								}
+								borderless
 							/>
 						</div>
 					) : (

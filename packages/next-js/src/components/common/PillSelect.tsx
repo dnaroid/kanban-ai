@@ -26,6 +26,7 @@ interface PillSelectProps {
 	onChange: (value: string) => void;
 	className?: string;
 	displayValue?: string;
+	borderless?: boolean;
 }
 
 export function PillSelect({
@@ -35,6 +36,7 @@ export function PillSelect({
 	onChange,
 	className,
 	displayValue,
+	borderless,
 }: PillSelectProps) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [hoveredKey, setHoveredKey] = useState<string | null>(null);
@@ -96,8 +98,13 @@ export function PillSelect({
 	}
 
 	return (
-		<div className={cn("flex flex-col gap-1.5", className)}>
-			{label && (
+		<div
+			className={cn(
+				borderless ? "inline-flex" : "flex flex-col gap-1.5",
+				className,
+			)}
+		>
+			{label && !borderless && (
 				<span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
 					{label}
 				</span>
@@ -115,9 +122,12 @@ export function PillSelect({
 						setIsOpen(true);
 					}}
 					className={cn(
-						"flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border whitespace-nowrap transition-all cursor-pointer hover:brightness-110",
-						currentOption.bg,
-						currentOption.border,
+						"flex items-center gap-1.5 whitespace-nowrap transition-all cursor-pointer hover:brightness-110",
+						borderless
+							? "px-0.5 py-0.5 rounded-md"
+							: "px-2.5 py-1.5 rounded-lg border",
+						!borderless && currentOption.bg,
+						!borderless && currentOption.border,
 						isOpen &&
 							"ring-1 ring-offset-1 ring-offset-[#0B0E14] ring-slate-700",
 					)}

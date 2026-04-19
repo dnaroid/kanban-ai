@@ -50,6 +50,19 @@ function getLatestExecutionStatus(
 	return sorted[0]?.metadata?.lastExecutionStatus ?? null;
 }
 
+function isLatestRunActive(taskId: string): boolean {
+	const runs = runService.listByTask(taskId);
+	if (runs.length === 0) {
+		return false;
+	}
+
+	const sorted = [...runs].sort(
+		(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+	);
+	const status = sorted[0]?.status;
+	return status === "running" || status === "queued";
+}
+
 function getOpencodeWebUrl(projectId: string): string | null {
 	const project = projectRepo.getById(projectId);
 	if (!project) {
@@ -80,15 +93,15 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
 		const latestSessionId = getLatestSessionId(task.id);
 
-		let isSessionBusy = false;
+		let openCodeSessionBusy = false;
 		if (latestSessionId) {
 			try {
 				const stats = await getOpencodeSessionManager().getActiveSessionCount();
-				isSessionBusy = stats.busySessionIds.includes(latestSessionId);
-			} catch {
-				// OpenCode not running — not busy
-			}
+				openCodeSessionBusy = stats.busySessionIds.includes(latestSessionId);
+			} catch {}
 		}
+
+		const isSessionBusy = isLatestRunActive(task.id) || openCodeSessionBusy;
 
 		return NextResponse.json({
 			success: true,
