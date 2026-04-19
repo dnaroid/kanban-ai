@@ -41,7 +41,6 @@ export interface RunFinalizerDeps {
 	shouldAutoExecuteAfterGeneration: () => boolean;
 	tryAutomaticMerge: (run: Run) => Promise<Run>;
 	startNextReadyTaskAfterMerge: (taskId: string) => Promise<void>;
-	onGeneratedExecutionReady?: (sourceRunId: string, taskId: string) => void;
 	isGenerationRun: (run: Run) => boolean;
 	hydrateGenerationOutcomeContent: (
 		run: Run,
@@ -55,9 +54,62 @@ export interface RunFinalizerDeps {
 
 export class RunFinalizer {
 	private readonly deps: RunFinalizerDeps;
+	private readonly pendingGeneratedExecutionTaskIds = new Map<string, string>();
 
 	public constructor(deps: RunFinalizerDeps) {
 		this.deps = deps;
+	}
+
+	public consumePendingGeneratedExecutionTaskId(runId: string): string | null {
+		const taskId = this.pendingGeneratedExecutionTaskIds.get(runId);
+		if (!taskId) {
+			return null;
+		}
+
+		this.pendingGeneratedExecutionTaskIds.delete(runId);
+		return taskId;
+	}
+
+	public resolveTriggerFromOutcome(
+		run: Run,
+		runStatus: RunStatus,
+		outcome: RunOutcome,
+	): TaskTransitionTrigger | null {
+		return resolveTriggerFromOutcome(run, runStatus, outcome, {
+			isGenerationRun: (input) => this.deps.isGenerationRun(input),
+		});
+	}
+
+	public staleRunFallbackMarker(run: Run): RunOutcomeMarker {
+		if (this.deps.isGenerationRun(run)) {
+			return "generated";
+		}
+		if (run.metadata?.kind === "task-qa-testing") {
+			return "test_ok";
+		}
+
+		return "done";
+	}
+
+	public canRecoverLateCompletion(run: Run, targetStatus: RunStatus): boolean {
+		return canRecoverLateCompletion(run, targetStatus, (input) =>
+			this.deps.getRunErrorText(input),
+		);
+	}
+
+	public async hydrateOutcomeContent(
+		run: Run,
+		content: string,
+	): Promise<string> {
+		return this.deps.hydrateGenerationOutcomeContent(run, content);
+	}
+
+	public async syncRunWorkspaceState(run: Run): Promise<Run> {
+		return this.deps.syncRunWorkspaceState(run);
+	}
+
+	public async tryAutomaticMerge(run: Run): Promise<Run> {
+		return this.deps.tryAutomaticMerge(run);
 	}
 
 	public async finalizeRunFromSession(
@@ -76,9 +128,7 @@ export class RunFinalizer {
 			return;
 		}
 
-		const canRecover = canRecoverLateCompletion(run, status, (input) =>
-			this.deps.getRunErrorText(input),
-		);
+		const canRecover = this.canRecoverLateCompletion(run, status);
 		if (run.status !== "running" && run.status !== "queued" && !canRecover) {
 			log.warn("Run not in running/queued state, cannot finalize", {
 				runId,
@@ -96,10 +146,7 @@ export class RunFinalizer {
 
 		const hydratedOutcome = {
 			...outcome,
-			content: await this.deps.hydrateGenerationOutcomeContent(
-				run,
-				outcome.content,
-			),
+			content: await this.hydrateOutcomeContent(run, outcome.content),
 		};
 
 		const finishedAt = new Date().toISOString();
@@ -134,7 +181,7 @@ export class RunFinalizer {
 				lastExecutionStatus: nextExecutionStatus,
 			},
 		});
-		nextRun = await this.deps.syncRunWorkspaceState(nextRun);
+		nextRun = await this.syncRunWorkspaceState(nextRun);
 
 		log.info("Run finalized", {
 			runId,
@@ -148,13 +195,10 @@ export class RunFinalizer {
 		this.deps.createStatusEvent(runId, status, `Run ${status}`);
 
 		try {
-			const trigger = resolveTriggerFromOutcome(
+			const trigger = this.resolveTriggerFromOutcome(
 				nextRun,
 				status,
 				hydratedOutcome,
-				{
-					isGenerationRun: (input) => this.deps.isGenerationRun(input),
-				},
 			);
 			if (trigger) {
 				this.deps.applyTaskTransition(
@@ -169,11 +213,11 @@ export class RunFinalizer {
 				this.deps.isGenerationRun(nextRun) &&
 				this.deps.shouldAutoExecuteAfterGeneration()
 			) {
-				this.deps.onGeneratedExecutionReady?.(runId, nextRun.taskId);
+				this.pendingGeneratedExecutionTaskIds.set(runId, nextRun.taskId);
 			}
 
 			if (status === "completed" && !this.deps.isGenerationRun(nextRun)) {
-				const mergedRun = await this.deps.tryAutomaticMerge(nextRun);
+				const mergedRun = await this.tryAutomaticMerge(nextRun);
 				const mergeStatus = mergedRun.metadata?.vcs?.mergeStatus;
 				if (mergeStatus === "merged") {
 					await this.deps.startNextReadyTaskAfterMerge(nextRun.taskId);

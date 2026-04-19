@@ -2,8 +2,6 @@ import { createLogger } from "@/lib/logger";
 import { buildOpencodeStatusLine } from "@/lib/opencode-status";
 import { buildTaskPrompt } from "@/server/run/prompts/task";
 import type {
-	PermissionData,
-	QuestionData,
 	SessionInspectionResult,
 	SessionStartPreferences,
 } from "@/server/opencode/session-manager";
@@ -36,7 +34,7 @@ import { PollingService } from "@/server/run/polling-service";
 import { RetryManager } from "@/server/run/retry-manager";
 import type { QueuedRunInput, QueueStats } from "@/server/run/runs-queue-types";
 import type { TaskPriority } from "@/types/kanban";
-import type { Run, RunStatus, RunVcsMetadata } from "@/types/ipc";
+import type { Run, RunStatus } from "@/types/ipc";
 import type { PollableBoardContext, Task } from "@/server/types";
 import {
 	deriveMetaStatus,
@@ -46,13 +44,7 @@ import {
 	toRunLastExecutionStatus,
 	type RunOutcomeMarker,
 } from "@/server/run/run-session-interpreter";
-import {
-	RunFinalizer,
-	canRecoverLateCompletion,
-	resolveTriggerFromOutcome,
-	staleRunFallbackMarker,
-	type RunOutcome,
-} from "@/server/run/run-finalizer";
+import { RunFinalizer, type RunOutcome } from "@/server/run/run-finalizer";
 import { RunInteractionCoordinator } from "@/server/run/run-interaction-coordinator";
 import { PostRunWorkflowService } from "@/server/run/post-run-workflow-service";
 
@@ -212,7 +204,6 @@ export class RunsQueueManager {
 	private readonly queueManager = new QueueManager();
 	private readonly runInputs = new Map<string, QueuedRunInput>();
 	private readonly activeRunSessions = new Map<string, string>();
-	private readonly pendingGeneratedExecutionTaskIds = new Map<string, string>();
 	private readonly opencodeService = getOpencodeService();
 	private readonly sessionManager = getOpencodeSessionManager();
 	private readonly stateMachine = getTaskStateMachine();
@@ -269,18 +260,28 @@ export class RunsQueueManager {
 			publishRunUpdate: (run) => {
 				publishRunUpdate(run);
 			},
-			syncRunWorkspaceState: async (run) => this.syncRunWorkspaceState(run),
+			syncRunWorkspaceState: async (run) => {
+				const vcsMetadata = await this.vcsManager.syncRunWorkspace(run);
+				if (!vcsMetadata) {
+					return run;
+				}
+
+				return runRepo.update(run.id, {
+					metadata: {
+						...(run.metadata ?? {}),
+						vcs: vcsMetadata,
+					},
+				});
+			},
 			applyTaskTransition: (run, trigger, outcomeContent) => {
 				this.applyTaskTransition(run, trigger, outcomeContent);
 			},
 			shouldAutoExecuteAfterGeneration: () =>
 				this.shouldAutoExecuteAfterGeneration(),
-			tryAutomaticMerge: async (run) => this.tryAutomaticMerge(run),
+			tryAutomaticMerge: async (run) =>
+				this.postRunWorkflowService.tryAutomaticMerge(run),
 			startNextReadyTaskAfterMerge: async (taskId) =>
 				this.startNextReadyTaskAfterMerge(taskId),
-			onGeneratedExecutionReady: (sourceRunId, taskId) => {
-				this.pendingGeneratedExecutionTaskIds.set(sourceRunId, taskId);
-			},
 			isGenerationRun: (run) => this.isGenerationRun(run),
 			hydrateGenerationOutcomeContent: async (run, content) =>
 				hydrateGenerationOutcomeContent(
@@ -376,7 +377,8 @@ export class RunsQueueManager {
 			},
 			scheduleRetryAfterNetworkError: (runId, errorMessage) =>
 				this.scheduleRetryAfterNetworkError(runId, errorMessage),
-			syncRunWorkspaceState: async (run) => this.syncRunWorkspaceState(run),
+			syncRunWorkspaceState: async (run) =>
+				this.runFinalizer.syncRunWorkspaceState(run),
 			isNetworkError,
 			durationSec: (startedAt, finishedAt) =>
 				this.durationSec(startedAt, finishedAt),
@@ -437,16 +439,6 @@ export class RunsQueueManager {
 				});
 			}
 		}
-	}
-
-	private resolveTriggerFromOutcome(
-		run: Run,
-		runStatus: RunStatus,
-		outcome: RunOutcome,
-	): TaskTransitionTrigger | null {
-		return resolveTriggerFromOutcome(run, runStatus, outcome, {
-			isGenerationRun: (input) => this.isGenerationRun(input),
-		});
 	}
 
 	private extractSessionPreferencesFromPreset(
@@ -592,7 +584,7 @@ export class RunsQueueManager {
 			errorText: "",
 			durationSec: this.durationSec(run.startedAt ?? finishedAt, finishedAt),
 		});
-		cancelled = await this.syncRunWorkspaceState(cancelled);
+		cancelled = await this.runFinalizer.syncRunWorkspaceState(cancelled);
 
 		runEventRepo.create({
 			runId,
@@ -669,9 +661,8 @@ export class RunsQueueManager {
 		this.queueManager.completeRun(runId);
 
 		const pendingGeneratedTaskId =
-			this.pendingGeneratedExecutionTaskIds.get(runId);
+			this.runFinalizer.consumePendingGeneratedExecutionTaskId(runId);
 		if (pendingGeneratedTaskId) {
-			this.pendingGeneratedExecutionTaskIds.delete(runId);
 			queueMicrotask(() => {
 				void this.enqueueExecutionForGeneratedTask(pendingGeneratedTaskId);
 			});
@@ -754,38 +745,6 @@ export class RunsQueueManager {
 
 	public stopProjectBoardPolling(projectId: string, viewerId: string): void {
 		this.pollingService.stopProjectBoardPolling(projectId, viewerId);
-	}
-
-	private async resumeRunAfterPermissionApproval(
-		runId: string,
-		permissionId: string,
-	): Promise<void> {
-		await this.runInteractionCoordinator.resumeRunAfterPermissionApproval(
-			runId,
-			permissionId,
-		);
-	}
-
-	private async resumeRunAfterQuestionAnswered(
-		runId: string,
-		questionId: string,
-	): Promise<void> {
-		await this.runInteractionCoordinator.resumeRunAfterQuestionAnswered(
-			runId,
-			questionId,
-		);
-	}
-
-	private async resumeOrphanedPausedRun(runId: string): Promise<void> {
-		await this.runInteractionCoordinator.resumeOrphanedPausedRun(runId);
-	}
-
-	private getAwaitingPermissionId(runId: string): string | null {
-		return this.runInteractionCoordinator.getAwaitingPermissionId(runId);
-	}
-
-	private getAwaitingQuestionId(runId: string): string | null {
-		return this.runInteractionCoordinator.getAwaitingQuestionId(runId);
 	}
 
 	private async finalizeRunFromSession(
@@ -929,11 +888,9 @@ export class RunsQueueManager {
 
 						if (meta.kind === "completed" || meta.kind === "failed") {
 							derivedMarker = meta.marker;
-							derivedContent = await hydrateGenerationOutcomeContent(
+							derivedContent = await this.runFinalizer.hydrateOutcomeContent(
 								latestSettledRun,
 								meta.content,
-								this.sessionManager,
-								generationRunKind,
 							);
 							source = "session";
 						} else {
@@ -963,7 +920,8 @@ export class RunsQueueManager {
 				}
 
 				if (!derivedMarker) {
-					derivedMarker = this.staleRunFallbackMarker(latestSettledRun);
+					derivedMarker =
+						this.runFinalizer.staleRunFallbackMarker(latestSettledRun);
 				}
 			} else if (latestSettledRun.status === "failed") {
 				const sessionId = latestSettledRun.sessionId.trim();
@@ -1017,7 +975,7 @@ export class RunsQueueManager {
 			}
 
 			try {
-				const trigger = this.resolveTriggerFromOutcome(
+				const trigger = this.runFinalizer.resolveTriggerFromOutcome(
 					latestSettledRun,
 					latestSettledRun.status,
 					{
@@ -1162,7 +1120,7 @@ export class RunsQueueManager {
 				},
 			);
 
-			const fallbackMarker = this.staleRunFallbackMarker(run);
+			const fallbackMarker = this.runFinalizer.staleRunFallbackMarker(run);
 			const fallbackContent = findStoryContent(inspection);
 			await this.finalizeRunFromSession(run.id, "completed" as RunStatus, {
 				marker: fallbackMarker,
@@ -1182,10 +1140,6 @@ export class RunsQueueManager {
 				error: error instanceof Error ? error.message : String(error),
 			});
 		}
-	}
-
-	private staleRunFallbackMarker(run: Run): RunOutcomeMarker {
-		return staleRunFallbackMarker(run, generationRunKind);
 	}
 
 	private listActiveRunsForReconciliation(): Run[] {
@@ -1304,19 +1258,27 @@ export class RunsQueueManager {
 			case "running":
 				break;
 			case "permission": {
-				const nextRun = this.ensureRunPausedForPermission(
-					observedRun,
-					meta.permission,
+				const nextRun =
+					this.runInteractionCoordinator.ensureRunPausedForPermission(
+						observedRun,
+						meta.permission,
+					);
+				this.runInteractionCoordinator.attachReconciledSession(
+					nextRun.id,
+					sessionId,
 				);
-				this.attachReconciledSession(nextRun.id, sessionId);
 				return;
 			}
 			case "question": {
-				const nextRun = this.ensureRunPausedForQuestion(
-					observedRun,
-					meta.questions[0],
+				const nextRun =
+					this.runInteractionCoordinator.ensureRunPausedForQuestion(
+						observedRun,
+						meta.questions[0],
+					);
+				this.runInteractionCoordinator.attachReconciledSession(
+					nextRun.id,
+					sessionId,
 				);
-				this.attachReconciledSession(nextRun.id, sessionId);
 				return;
 			}
 		}
@@ -1326,7 +1288,8 @@ export class RunsQueueManager {
 			this.isRunStale(observedRun) &&
 			inspection.probeStatus === "alive"
 		) {
-			const fallbackMarker = this.staleRunFallbackMarker(observedRun);
+			const fallbackMarker =
+				this.runFinalizer.staleRunFallbackMarker(observedRun);
 			await this.finalizeRunFromSession(observedRun.id, "completed", {
 				marker: fallbackMarker,
 				content: "",
@@ -1341,8 +1304,14 @@ export class RunsQueueManager {
 		}
 
 		if (observedRun.status === "paused") {
-			await this.reconcilePausedRun(observedRun.id, sessionId);
-			this.attachReconciledSession(observedRun.id, sessionId);
+			await this.runInteractionCoordinator.reconcilePausedRun(
+				observedRun.id,
+				sessionId,
+			);
+			this.runInteractionCoordinator.attachReconciledSession(
+				observedRun.id,
+				sessionId,
+			);
 			return;
 		}
 
@@ -1379,7 +1348,10 @@ export class RunsQueueManager {
 				runId: observedRun.id,
 				sessionId,
 			});
-			this.attachReconciledSession(resumedRun.id, sessionId);
+			this.runInteractionCoordinator.attachReconciledSession(
+				resumedRun.id,
+				sessionId,
+			);
 			return;
 		}
 
@@ -1388,35 +1360,10 @@ export class RunsQueueManager {
 			sessionId,
 			status: observedRun.status,
 		});
-		this.attachReconciledSession(observedRun.id, sessionId);
-	}
-
-	private async reconcilePausedRun(
-		runId: string,
-		sessionId: string,
-	): Promise<void> {
-		await this.runInteractionCoordinator.reconcilePausedRun(runId, sessionId);
-	}
-
-	private ensureRunPausedForPermission(
-		run: Run,
-		permission: PermissionData,
-	): Run {
-		return this.runInteractionCoordinator.ensureRunPausedForPermission(
-			run,
-			permission,
+		this.runInteractionCoordinator.attachReconciledSession(
+			observedRun.id,
+			sessionId,
 		);
-	}
-
-	private ensureRunPausedForQuestion(run: Run, question: QuestionData): Run {
-		return this.runInteractionCoordinator.ensureRunPausedForQuestion(
-			run,
-			question,
-		);
-	}
-
-	private attachReconciledSession(runId: string, sessionId: string): void {
-		this.runInteractionCoordinator.attachReconciledSession(runId, sessionId);
 	}
 
 	private async failRunDuringReconciliation(
@@ -1440,7 +1387,7 @@ export class RunsQueueManager {
 				},
 			},
 		});
-		failedRun = await this.syncRunWorkspaceState(failedRun);
+		failedRun = await this.runFinalizer.syncRunWorkspaceState(failedRun);
 
 		runEventRepo.create({
 			runId: run.id,
@@ -1459,30 +1406,6 @@ export class RunsQueueManager {
 
 		this.activeRunSessions.delete(run.id);
 		this.removeFromQueue(run.id);
-	}
-
-	private async syncRunWorkspaceState(run: Run): Promise<Run> {
-		const vcsMetadata = await this.vcsManager.syncRunWorkspace(run);
-		if (!vcsMetadata) {
-			return run;
-		}
-
-		return runRepo.update(run.id, {
-			metadata: {
-				...(run.metadata ?? {}),
-				vcs: vcsMetadata,
-			},
-		});
-	}
-
-	private async tryAutomaticMerge(run: Run): Promise<Run> {
-		return this.postRunWorkflowService.tryAutomaticMerge(run);
-	}
-
-	private async cleanupMergedWorkspace(
-		vcsMetadata: RunVcsMetadata,
-	): Promise<RunVcsMetadata> {
-		return this.postRunWorkflowService.cleanupMergedWorkspace(vcsMetadata);
 	}
 
 	private selectNextRunnableRun(queue: string[]): string | null {
@@ -2325,10 +2248,6 @@ export class RunsQueueManager {
 			return 0;
 		}
 		return Math.max(0, Math.round((endMs - startMs) / 1000));
-	}
-
-	private canRecoverLateCompletion(run: Run, targetStatus: RunStatus): boolean {
-		return canRecoverLateCompletion(run, targetStatus, getRunErrorText);
 	}
 
 	private tryFillTaskModelFromSession(
