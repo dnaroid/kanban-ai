@@ -361,7 +361,7 @@ export class ExecutionBootstrapService {
 			"",
 			"Fix ALL issues listed above. Do NOT skip any item.",
 			"",
-			`When done, output exactly one status line: ${buildOpencodeStatusLine("done")} or ${buildOpencodeStatusLine("fail")} or ${buildOpencodeStatusLine("question")}`,
+			`When done, output exactly one corresponding status line.`,
 		].join("\n");
 
 		await this.deps.sendPrompt(completedRun.sessionId, qaMessage);

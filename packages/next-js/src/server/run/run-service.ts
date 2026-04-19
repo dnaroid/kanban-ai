@@ -1191,7 +1191,7 @@ export class RunService {
 			"",
 			"Fix ALL issues listed above. Do NOT skip any item.",
 			"",
-			`When done, output exactly one status line: ${buildOpencodeStatusLine("done")} or ${buildOpencodeStatusLine("fail")} or ${buildOpencodeStatusLine("question")}`,
+			`When done, output exactly one corresponding status line.`,
 		].join("\n");
 
 		const resumedAt = new Date().toISOString();
@@ -1254,15 +1254,12 @@ export class RunService {
 						? sessionError.message
 						: String(sessionError);
 
-				log.warn(
-					"Failed to send QA follow-up message to resumed session",
-					{
-						taskId: task.id,
-						runId: completedRun.id,
-						sessionId: completedRun.sessionId,
-						error: errorMessage,
-					},
-				);
+				log.warn("Failed to send QA follow-up message to resumed session", {
+					taskId: task.id,
+					runId: completedRun.id,
+					sessionId: completedRun.sessionId,
+					error: errorMessage,
+				});
 
 				const failedRun = runRepo.update(completedRun.id, {
 					status: "failed",

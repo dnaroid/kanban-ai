@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import {
+	useState,
+	useEffect,
+	useRef,
+	useCallback,
+	useLayoutEffect,
+} from "react";
 import {
 	ChevronLeft,
 	ChevronRight,
@@ -38,6 +44,41 @@ export function Sidebar({
 	const [queuedRunCount, setQueuedRunCount] = useState(0);
 	const [runningRunCount, setRunningRunCount] = useState(0);
 	const [projects, setProjects] = useState<Project[]>([]);
+	const [showProjectHints, setShowProjectHints] = useState(false);
+	const [hintPositions, setHintPositions] = useState<Record<string, number>>(
+		{},
+	);
+	const scrollContainerRef = useRef<HTMLDivElement>(null);
+	const projectItemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+	const measureHintPositions = useCallback(() => {
+		const positions: Record<string, number> = {};
+		projectItemRefs.current.forEach((el, id) => {
+			const rect = el.getBoundingClientRect();
+			positions[id] = rect.top + rect.height / 2;
+		});
+		setHintPositions(positions);
+	}, []);
+
+	useLayoutEffect(() => {
+		if (showProjectHints && isSidebarCollapsed) {
+			measureHintPositions();
+		}
+	}, [showProjectHints, isSidebarCollapsed, measureHintPositions, projects]);
+
+	useEffect(() => {
+		const container = scrollContainerRef.current;
+		if (!container || !isSidebarCollapsed) return;
+		const onScroll = () => {
+			if (showProjectHints) measureHintPositions();
+		};
+		container.addEventListener("scroll", onScroll, { passive: true });
+		return () => container.removeEventListener("scroll", onScroll);
+	}, [showProjectHints, isSidebarCollapsed, measureHintPositions]);
+
+	useEffect(() => {
+		if (!isSidebarCollapsed) setShowProjectHints(false);
+	}, [isSidebarCollapsed]);
 
 	useEffect(() => {
 		api
@@ -99,6 +140,14 @@ export function Sidebar({
 		setIsQuitModalOpen(true);
 	};
 
+	const handleProjectsAreaEnter = () => {
+		if (isSidebarCollapsed) setShowProjectHints(true);
+	};
+
+	const handleProjectsAreaLeave = () => {
+		setShowProjectHints(false);
+	};
+
 	const isSettingsScreen = pathname.startsWith("/settings");
 
 	return (
@@ -153,10 +202,13 @@ export function Sidebar({
 
 			{projects.length > 0 && (
 				<div
+					ref={scrollContainerRef}
 					className={cn(
 						"flex-1 min-h-0 overflow-y-auto border-t border-slate-800/50",
 						isSidebarCollapsed ? "px-2 py-2" : "px-4 py-2",
 					)}
+					onMouseEnter={handleProjectsAreaEnter}
+					onMouseLeave={handleProjectsAreaLeave}
 				>
 					{!isSidebarCollapsed && (
 						<div className="mb-2 px-3">
@@ -171,6 +223,10 @@ export function Sidebar({
 							return (
 								<div
 									key={project.id}
+									ref={(el) => {
+										if (el) projectItemRefs.current.set(project.id, el);
+										else projectItemRefs.current.delete(project.id);
+									}}
 									role="button"
 									tabIndex={0}
 									onClick={() => {
@@ -186,7 +242,7 @@ export function Sidebar({
 											}
 										}
 									}}
-									title={isSidebarCollapsed ? project.name : undefined}
+									aria-label={project.name}
 									className={cn(
 										"flex items-center transition-all duration-200 w-full group cursor-pointer",
 										isSidebarCollapsed
@@ -261,6 +317,30 @@ export function Sidebar({
 					</div>
 				</div>
 			)}
+
+			{showProjectHints &&
+				isSidebarCollapsed &&
+				projects.map((project) => {
+					const top = hintPositions[project.id];
+					if (top == null) return null;
+					const isActive = activeProject?.id === project.id;
+					return (
+						<div
+							key={project.id}
+							className="fixed left-[4.25rem] z-40 pointer-events-none -translate-y-1/2 whitespace-nowrap max-w-[200px]"
+							style={{ top }}
+						>
+							<div
+								className={cn(
+									"bg-[#1E2433] text-slate-200 text-xs font-medium px-2.5 py-1.5 rounded-md shadow-lg shadow-black/40 border border-slate-700/60 truncate",
+									isActive && "text-blue-400 border-blue-500/30",
+								)}
+							>
+								{project.name}
+							</div>
+						</div>
+					);
+				})}
 
 			<div
 				className={`shrink-0 border-t border-slate-800/50 ${isSidebarCollapsed ? "p-2" : "p-4"}`}
