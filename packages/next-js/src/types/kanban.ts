@@ -40,6 +40,7 @@ export interface KanbanTask {
 	opencodeWebUrl: string | null;
 	qaReport: string | null;
 	isGenerated: boolean;
+	wasQaRejected: boolean;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -81,6 +82,7 @@ export interface KanbanTaskPatch {
 	modelName?: string | null;
 	qaReport?: string | null;
 	isGenerated?: boolean;
+	wasQaRejected?: boolean;
 }
 
 export interface Tag {

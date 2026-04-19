@@ -165,6 +165,7 @@ type TestTask = {
 	assignee: string | null;
 	modelName: string | null;
 	qaReport: string | null;
+	wasQaRejected: boolean;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -201,6 +202,7 @@ function buildTaskBase() {
 		assignee: null,
 		modelName: null,
 		qaReport: null,
+		wasQaRejected: false,
 		createdAt: now,
 		updatedAt: now,
 	};

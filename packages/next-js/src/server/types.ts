@@ -84,6 +84,7 @@ export interface Task {
 	commitMessage: string | null;
 	qaReport: string | null;
 	isGenerated: boolean;
+	wasQaRejected: boolean;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -107,6 +108,7 @@ export interface CreateTaskInput {
 	commitMessage?: string;
 	qaReport?: string | null;
 	isGenerated?: boolean;
+	wasQaRejected?: boolean;
 }
 
 export interface UpdateTaskInput {
@@ -132,6 +134,7 @@ export interface UpdateTaskInput {
 	commitMessage?: string | null;
 	qaReport?: string | null;
 	isGenerated?: boolean;
+	wasQaRejected?: boolean;
 }
 
 export interface Run {

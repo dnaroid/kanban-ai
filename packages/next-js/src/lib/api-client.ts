@@ -56,6 +56,7 @@ function taskToKanban(
 		opencodeWebUrl: task.opencodeWebUrl ?? null,
 		qaReport: task.qaReport ?? null,
 		isGenerated: !!task.isGenerated,
+		wasQaRejected: !!task.wasQaRejected,
 		createdAt: task.createdAt,
 		updatedAt: task.updatedAt,
 	};

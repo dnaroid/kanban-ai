@@ -3,7 +3,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Trash2, Loader2, ExternalLink, XCircle } from "lucide-react";
+import {
+	Trash2,
+	Loader2,
+	ExternalLink,
+	XCircle,
+	RotateCcw,
+} from "lucide-react";
 import type { KanbanTask, Tag } from "@/types/kanban";
 import { cn } from "@/lib/utils";
 import { PillSelect } from "@/components/common/PillSelect";
@@ -190,6 +196,14 @@ export function SortableTask({
 					>
 						{task.status}
 					</span>
+				</div>
+			)}
+			{task.wasQaRejected && (
+				<div
+					className="absolute top-2 right-2 z-10 pointer-events-none"
+					title="Reopened after QA rejection"
+				>
+					<RotateCcw className="h-4 w-4 text-amber-400/80" />
 				</div>
 			)}
 			<div className="block w-full min-w-0 p-4 text-left">

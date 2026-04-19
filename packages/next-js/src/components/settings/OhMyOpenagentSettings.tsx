@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
 	ChevronDown,
+	ExternalLink,
 	FileJson,
 	FileText,
 	FolderOpen,
+	Github,
 	Layers,
 	RotateCcw,
 	Save,
@@ -373,6 +375,16 @@ export function OhMyOpenagentSettings({
 							<span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] leading-none">
 								Runtime Environment
 							</span>
+							<a
+								href="https://github.com/code-yeongyu/oh-my-openagent"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="inline-flex items-center gap-1 ml-3 text-[10px] font-bold text-[#60a5fa] hover:text-[#93bbfd] uppercase tracking-wider transition-colors"
+							>
+								<Github className="w-3 h-3" />
+								OH-MY-OPENAGENT
+								<ExternalLink className="w-2.5 h-2.5" />
+							</a>
 						</div>
 						<p className="text-xl font-black text-white tracking-tight leading-none mt-1">
 							Configuration <span className="text-slate-600">File</span>

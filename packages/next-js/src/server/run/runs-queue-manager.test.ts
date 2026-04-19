@@ -371,6 +371,7 @@ function buildTask(
 		estimateHours: null,
 		assignee: null,
 		modelName: null,
+		wasQaRejected: false,
 		createdAt: now,
 		updatedAt: now,
 	};

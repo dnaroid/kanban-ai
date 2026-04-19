@@ -38,6 +38,7 @@ function buildTask(
 		commitMessage: null,
 		qaReport: null,
 		isGenerated: false,
+		wasQaRejected: false,
 		createdAt: input.createdAt ?? now,
 		updatedAt: input.updatedAt ?? now,
 	};

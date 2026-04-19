@@ -156,6 +156,7 @@ function buildTask(overrides: Partial<Task> = {}): Task {
 		commitMessage: overrides.commitMessage ?? null,
 		qaReport: overrides.qaReport ?? null,
 		isGenerated: overrides.isGenerated ?? false,
+		wasQaRejected: overrides.wasQaRejected ?? false,
 		createdAt: overrides.createdAt ?? NOW,
 		updatedAt: overrides.updatedAt ?? NOW,
 	};

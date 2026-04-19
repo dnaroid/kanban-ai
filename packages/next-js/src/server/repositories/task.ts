@@ -37,10 +37,10 @@ export class TaskRepository {
 				id, project_id, board_id, column_id, title, description, description_md,
 				status, blocked_reason, blocked_reason_text, closed_reason, priority, difficulty, type, order_in_column, tags_json,
 				start_date, due_date, estimate_points, estimate_hours, assignee, model_name, commit_message, qa_report,
-				is_generated,
+				is_generated, was_qa_rejected,
 				created_at, updated_at
 			)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
 		stmt.run(
@@ -69,6 +69,7 @@ export class TaskRepository {
 			input.commitMessage ?? null,
 			input.qaReport ?? null,
 			input.isGenerated ? "1" : "0",
+			input.wasQaRejected ? "1" : "0",
 			now,
 			now,
 		);
@@ -104,6 +105,7 @@ export class TaskRepository {
         commit_message as commitMessage,
         qa_report as qaReport,
         (is_generated = '1') as isGenerated,
+        (was_qa_rejected = '1') as wasQaRejected,
         created_at as createdAt,
         updated_at as updatedAt
       FROM tasks
@@ -142,6 +144,7 @@ export class TaskRepository {
         commit_message as commitMessage,
         qa_report as qaReport,
         (is_generated = '1') as isGenerated,
+        (was_qa_rejected = '1') as wasQaRejected,
         created_at as createdAt,
         updated_at as updatedAt
       FROM tasks
@@ -244,6 +247,10 @@ export class TaskRepository {
 		if (updates.isGenerated !== undefined) {
 			sets.push("is_generated = ?");
 			values.push(updates.isGenerated ? "1" : "0");
+		}
+		if (updates.wasQaRejected !== undefined) {
+			sets.push("was_qa_rejected = ?");
+			values.push(updates.wasQaRejected ? "1" : "0");
 		}
 
 		if (sets.length === 0) return this.getById(id);

@@ -33,6 +33,7 @@ function buildTask(
 		commitMessage: null,
 		qaReport: null,
 		isGenerated: false,
+		wasQaRejected: false,
 		createdAt: now,
 		updatedAt: now,
 	};

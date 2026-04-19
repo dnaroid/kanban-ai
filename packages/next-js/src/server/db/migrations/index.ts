@@ -17,6 +17,7 @@ import {
 	v032TaskBlockedReasonTextSql,
 	v033UploadsSql,
 	v034ProjectOrderIndexSql,
+	v035TaskWasQaRejectedSql,
 } from "./sql";
 export {
 	v017SystemKeySql,
@@ -37,6 +38,7 @@ export {
 	v032TaskBlockedReasonTextSql,
 	v033UploadsSql,
 	v034ProjectOrderIndexSql,
+	v035TaskWasQaRejectedSql,
 };
 
 export const INIT_DB_SQL = `
@@ -125,6 +127,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   commit_message TEXT,
   qa_report TEXT,
   is_generated TEXT NOT NULL DEFAULT '0',
+  was_qa_rejected TEXT NOT NULL DEFAULT '0',
 
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -475,6 +478,10 @@ export const migrations = [
 	{
 		version: 34,
 		sql: v034ProjectOrderIndexSql,
+	},
+	{
+		version: 35,
+		sql: v035TaskWasQaRejectedSql,
 	},
 ] as const;
 

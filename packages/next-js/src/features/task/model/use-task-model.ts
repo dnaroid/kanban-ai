@@ -38,6 +38,8 @@ function mapPatchToUpdateInput(patch: KanbanTaskPatch): UpdateTaskInput {
 	if (patch.isGenerated !== undefined)
 		updateData.isGenerated = patch.isGenerated;
 	if (patch.qaReport !== undefined) updateData.qaReport = patch.qaReport;
+	if (patch.wasQaRejected !== undefined)
+		updateData.wasQaRejected = patch.wasQaRejected;
 
 	return updateData;
 }

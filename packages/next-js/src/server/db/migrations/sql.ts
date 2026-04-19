@@ -123,3 +123,7 @@ FROM (
 ) AS sub
 WHERE projects.id = sub.id;
 `;
+
+export const v035TaskWasQaRejectedSql = `
+ALTER TABLE tasks ADD COLUMN was_qa_rejected TEXT NOT NULL DEFAULT '0';
+`;

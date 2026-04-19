@@ -84,6 +84,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
 		const patch: Record<string, unknown> = {
 			qaReport,
+			wasQaRejected: true,
 			...result.patch,
 		};
 
