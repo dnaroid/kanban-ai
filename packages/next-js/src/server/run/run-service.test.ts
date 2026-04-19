@@ -664,6 +664,7 @@ describe("RunService.start", () => {
 			return [];
 		});
 
+		mockSendSessionMessage.mockResolvedValue(undefined);
 		const service = new RunService();
 		const result = await service.start({ taskId: "task-rejected-manual" });
 
