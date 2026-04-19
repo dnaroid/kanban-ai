@@ -1194,23 +1194,6 @@ export class RunService {
 			`When done, output exactly one status line: ${buildOpencodeStatusLine("done")} or ${buildOpencodeStatusLine("fail")} or ${buildOpencodeStatusLine("question")}`,
 		].join("\n");
 
-		try {
-			await sendSessionMessage(completedRun.sessionId, qaMessage);
-		} catch (sessionError) {
-			log.warn(
-				"Failed to reuse completed run session for rejected task, starting new run",
-				{
-					taskId: task.id,
-					sessionId: completedRun.sessionId,
-					error:
-						sessionError instanceof Error
-							? sessionError.message
-							: String(sessionError),
-				},
-			);
-			return null;
-		}
-
 		const resumedAt = new Date().toISOString();
 		const resumedRun = runRepo.update(completedRun.id, {
 			status: "running",
@@ -1252,7 +1235,7 @@ export class RunService {
 			boardId: task.boardId,
 			projectId: task.projectId,
 			eventType: "task:updated",
-			updatedAt: new Date().toISOString(),
+			updatedAt: resumedAt,
 		});
 		runEventRepo.create({
 			runId: resumedRun.id,
@@ -1263,6 +1246,49 @@ export class RunService {
 			},
 		});
 		publishRunUpdate(resumedRun);
+
+		void sendSessionMessage(completedRun.sessionId, qaMessage).catch(
+			(sessionError) => {
+				const errorMessage =
+					sessionError instanceof Error
+						? sessionError.message
+						: String(sessionError);
+
+				log.warn(
+					"Failed to send QA follow-up message to resumed session",
+					{
+						taskId: task.id,
+						runId: completedRun.id,
+						sessionId: completedRun.sessionId,
+						error: errorMessage,
+					},
+				);
+
+				const failedRun = runRepo.update(completedRun.id, {
+					status: "failed",
+					finishedAt: new Date().toISOString(),
+					errorText: errorMessage,
+					metadata: {
+						...(completedRun.metadata ?? {}),
+						lastExecutionStatus: {
+							kind: "failed",
+							sessionId: completedRun.sessionId,
+							updatedAt: new Date().toISOString(),
+						},
+					},
+				});
+
+				runEventRepo.create({
+					runId: failedRun.id,
+					eventType: "status",
+					payload: {
+						status: "failed",
+						message: errorMessage,
+					},
+				});
+				publishRunUpdate(failedRun);
+			},
+		);
 
 		return { runId: completedRun.id };
 	}
