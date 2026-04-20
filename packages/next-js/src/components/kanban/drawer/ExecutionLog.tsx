@@ -352,8 +352,7 @@ export function ExecutionLog({
 				message,
 			});
 			// Message received via event
-		} catch (error) {
-			console.error("Failed to fetch session messages:", error);
+		} catch {
 			setInputMessage(message);
 		} finally {
 			setIsSending(false);
