@@ -53,9 +53,10 @@ export function OhMyOpenagentSettings({
 		try {
 			const response = await api.omc.listPresets({ path });
 			setPresets(response.presets);
-			setSelectedPreset((prev) =>
-				prev && !response.presets.includes(prev) ? "" : prev,
-			);
+			setSelectedPreset((prev) => {
+				if (response.matchingPreset) return response.matchingPreset;
+				return prev && !response.presets.includes(prev) ? "" : prev;
+			});
 		} catch (error) {
 			console.error("Failed to load presets:", error);
 		}
@@ -309,6 +310,7 @@ export function OhMyOpenagentSettings({
 			return { ...prev, [key]: value };
 		});
 		setUnsavedChanges(true);
+		setSelectedPreset("");
 	}, []);
 
 	const validationErrors = useMemo(() => {

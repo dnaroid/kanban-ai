@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listPresets, resolveOmcPath } from "@/server/omc/io";
+import {
+	detectMatchingPreset,
+	listPresets,
+	resolveOmcPath,
+} from "@/server/omc/io";
 
 export async function GET(request: NextRequest) {
 	try {
@@ -14,7 +18,11 @@ export async function GET(request: NextRequest) {
 		}
 
 		const presets = await listPresets(pathToConfig);
-		return NextResponse.json({ success: true, data: { presets } });
+		const matchingPreset = await detectMatchingPreset(pathToConfig);
+		return NextResponse.json({
+			success: true,
+			data: { presets, matchingPreset },
+		});
 	} catch (error) {
 		const message =
 			error instanceof Error ? error.message : "Failed to list OMC presets";

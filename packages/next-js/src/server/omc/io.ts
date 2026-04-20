@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import fs from "fs/promises";
 import path from "path";
 import { parse as parseJsonc, ParseError } from "jsonc-parser";
@@ -73,4 +74,41 @@ export function buildPresetPath(
 		path.dirname(pathToConfig),
 		`${presetName}${OMC_PRESET_SUFFIX}`,
 	);
+}
+
+function sortObjectKeys(obj: unknown): unknown {
+	if (obj === null || typeof obj !== "object") return obj;
+	if (Array.isArray(obj)) return obj.map(sortObjectKeys);
+	const sorted: Record<string, unknown> = {};
+	for (const key of Object.keys(obj as Record<string, unknown>).sort()) {
+		sorted[key] = sortObjectKeys((obj as Record<string, unknown>)[key]);
+	}
+	return sorted;
+}
+
+/**
+ * Compute a deterministic SHA-256 hash — key order and whitespace are normalized.
+ */
+export function computeContentHash(content: unknown): string {
+	const sorted = sortObjectKeys(content);
+	const normalized = JSON.stringify(sorted);
+	return crypto.createHash("sha256").update(normalized).digest("hex");
+}
+
+export async function detectMatchingPreset(
+	pathToConfig: string,
+): Promise<string | null> {
+	const config = await readConfig(pathToConfig);
+	const configHash = computeContentHash(config);
+	const presetNames = await listPresets(pathToConfig);
+
+	for (const presetName of presetNames) {
+		const presetPath = buildPresetPath(pathToConfig, presetName);
+		const presetContent = await readConfig(presetPath);
+		const presetHash = computeContentHash(presetContent);
+		if (presetHash === configHash) {
+			return presetName;
+		}
+	}
+	return null;
 }

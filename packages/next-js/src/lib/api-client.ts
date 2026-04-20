@@ -1151,7 +1151,7 @@ class ApiClient {
 			path,
 		}: {
 			path: string;
-		}): Promise<{ presets: string[] }> => {
+		}): Promise<{ presets: string[]; matchingPreset: string | null }> => {
 			const response = await fetch(
 				`${this.baseUrl}/api/omc/presets?path=${encodeURIComponent(path)}`,
 			);
@@ -1163,7 +1163,10 @@ class ApiClient {
 				this.fail(message);
 			}
 			const payload = await response.json();
-			return this.unwrapApiData<{ presets: string[] }>(payload);
+			return this.unwrapApiData<{
+				presets: string[];
+				matchingPreset: string | null;
+			}>(payload);
 		},
 		savePreset: async ({
 			path,
