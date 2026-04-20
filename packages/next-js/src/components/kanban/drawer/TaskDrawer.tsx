@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-	Check,
 	Maximize2,
 	Minimize2,
 	MoreVertical,

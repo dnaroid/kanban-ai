@@ -16,8 +16,6 @@ import { publishRunUpdate } from "@/server/run/run-publisher";
 
 const log = createLogger("runs-queue");
 
-const storyChatRunKind = "task-story-chat";
-
 interface RunReconciliationServiceDeps {
 	sessionManager: {
 		inspectSession: (sessionId: string) => Promise<SessionInspectionResult>;

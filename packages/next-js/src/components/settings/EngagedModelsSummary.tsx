@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Cpu, Zap } from "lucide-react";
+import { Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DIFFICULTY_STYLES } from "@/components/common/ModelPicker";
 import type { OpencodeModel } from "@/types/kanban";

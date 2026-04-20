@@ -98,7 +98,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 			try {
 				const stats = await getOpencodeSessionManager().getActiveSessionCount();
 				openCodeSessionBusy = stats.busySessionIds.includes(latestSessionId);
-			} catch {}
+			} catch {
+				// session stats unavailable — treat as not busy
+			}
 		}
 
 		const isSessionBusy = isLatestRunActive(task.id) || openCodeSessionBusy;

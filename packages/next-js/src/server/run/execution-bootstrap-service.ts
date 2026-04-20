@@ -1,5 +1,4 @@
 import { createLogger } from "@/lib/logger";
-import { buildOpencodeStatusLine } from "@/lib/opencode-status";
 import { buildTaskPrompt } from "@/server/run/prompts/task";
 import type { SessionStartPreferences } from "@/server/opencode/session-manager";
 import { artifactRepo } from "@/server/repositories/artifact";
