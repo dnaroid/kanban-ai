@@ -145,6 +145,8 @@ interface TestDeps {
 	durationSec: ReturnType<typeof vi.fn>;
 	staleRunThresholdMs: number;
 	getRunErrorText: ReturnType<typeof vi.fn>;
+	clearLiveSubscription: ReturnType<typeof vi.fn>;
+	ensureLiveSubscription: ReturnType<typeof vi.fn>;
 }
 
 function setupDeps(): TestDeps {
@@ -174,6 +176,8 @@ function setupDeps(): TestDeps {
 		durationSec: vi.fn(() => 10),
 		staleRunThresholdMs: 60000,
 		getRunErrorText: vi.fn(() => ""),
+		clearLiveSubscription: vi.fn(),
+		ensureLiveSubscription: vi.fn(),
 	};
 }
 

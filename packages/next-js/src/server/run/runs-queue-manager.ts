@@ -22,7 +22,6 @@ import { getVcsManager } from "@/server/vcs/vcs-manager";
 import { QueueManager } from "@/server/run/queue-manager";
 import { RunExecutor } from "@/server/run/run-executor";
 import { RunReconciler } from "@/server/run/run-reconciler";
-import { PollingService } from "@/server/run/polling-service";
 import { RetryManager } from "@/server/run/retry-manager";
 import {
 	createServices,
@@ -39,6 +38,7 @@ import { PostRunWorkflowService } from "@/server/run/post-run-workflow-service";
 import { RunReconciliationService } from "@/server/run/run-reconciliation-service";
 import { ExecutionBootstrapService } from "@/server/run/execution-bootstrap-service";
 import { TaskStatusProjectionService } from "@/server/run/task-status-projection-service";
+import { RunLiveSubscriptionService } from "@/server/run/run-live-subscription-service";
 
 const generationRunKind = "task-description-improve";
 const storyChatRunKind = "task-story-chat";
@@ -201,7 +201,6 @@ export class RunsQueueManager {
 	private readonly stateMachine = getTaskStateMachine();
 	private readonly vcsManager = getVcsManager();
 	private readonly retryManager = new RetryManager();
-	private readonly pollingService: PollingService;
 	private readonly runReconciler: RunReconciler;
 	private readonly runExecutor: RunExecutor;
 	private readonly runFinalizer: RunFinalizer;
@@ -210,6 +209,7 @@ export class RunsQueueManager {
 	private readonly executionBootstrapService: ExecutionBootstrapService;
 	private readonly postRunWorkflowService: PostRunWorkflowService;
 	private readonly taskStatusProjectionService: TaskStatusProjectionService;
+	private readonly runLiveSubscriptionService: RunLiveSubscriptionService;
 	private readonly defaultConcurrency = parsePositiveInt(
 		process.env.RUNS_DEFAULT_CONCURRENCY,
 		1,
@@ -236,10 +236,11 @@ export class RunsQueueManager {
 	private readonly worktreeEnabled =
 		process.env.RUNS_WORKTREE_ENABLED === "true";
 	private draining = false;
-	private readonly projectPollingIntervalMs = 5_000;
-	private readonly projectBoardWatcherTtlMs = 15_000;
 	private readonly staleRunThresholdMs = 10 * 60 * 1000;
 	private readonly manualStatusGraceMs = 15_000;
+	private recoveryTimer: ReturnType<typeof setInterval> | null = null;
+	private readonly recoveryIntervalMs = 30_000;
+	private readonly recoveryStaleThresholdMs = 60_000;
 
 	public constructor() {
 		const services = createServices(this as unknown as RqmContext);
@@ -249,9 +250,17 @@ export class RunsQueueManager {
 		this.executionBootstrapService = services.executionBootstrapService;
 		this.postRunWorkflowService = services.postRunWorkflowService;
 		this.taskStatusProjectionService = services.taskStatusProjectionService;
-		this.pollingService = services.pollingService;
 		this.runReconciler = services.runReconciler;
 		this.runExecutor = services.runExecutor;
+		this.runLiveSubscriptionService = services.runLiveSubscriptionService;
+
+		queueMicrotask(() => {
+			void this.runLiveSubscriptionService.restoreActiveRunSubscriptions();
+		});
+
+		queueMicrotask(() => {
+			this.startRecoveryLoop();
+		});
 	}
 
 	private applyTaskTransition(
@@ -467,6 +476,71 @@ export class RunsQueueManager {
 		this.applyTaskTransition(cancelled, "run:cancelled", "");
 
 		this.activeRunSessions.delete(runId);
+		void this.runLiveSubscriptionService.unsubscribe(runId);
+	}
+
+	public restoreActiveRunSubscriptions(): Promise<void> {
+		return this.runLiveSubscriptionService.restoreActiveRunSubscriptions();
+	}
+
+	private startRecoveryLoop(): void {
+		if (this.recoveryTimer) {
+			return;
+		}
+		this.recoveryTimer = setInterval(() => {
+			void this.runRecoveryPass();
+		}, this.recoveryIntervalMs);
+		log.info("Started active run recovery loop", {
+			intervalMs: this.recoveryIntervalMs,
+		});
+	}
+
+	private async runRecoveryPass(): Promise<void> {
+		const activeRuns =
+			this.runReconciliationService.listActiveRunsForReconciliation();
+		const candidates = activeRuns.filter((run) => {
+			const sessionId = run.sessionId?.trim();
+			if (!sessionId) return false;
+
+			const lastEventAt = this.runLiveSubscriptionService.getLastEventAt(
+				run.id,
+			);
+			if (
+				lastEventAt !== null &&
+				Date.now() - lastEventAt < this.recoveryStaleThresholdMs
+			) {
+				return false;
+			}
+
+			return true;
+		});
+
+		if (candidates.length === 0) {
+			return;
+		}
+
+		log.info("Recovery pass found candidates", {
+			count: candidates.length,
+		});
+
+		for (const run of candidates) {
+			try {
+				await this.runReconciliationService.reconcileRun(run.id);
+			} catch (error) {
+				log.error("Recovery pass failed for run", {
+					runId: run.id,
+					error: error instanceof Error ? error.message : String(error),
+				});
+			}
+		}
+	}
+
+	public stopRecoveryLoop(): void {
+		if (this.recoveryTimer) {
+			clearInterval(this.recoveryTimer);
+			this.recoveryTimer = null;
+			log.info("Stopped active run recovery loop");
+		}
 	}
 
 	public getQueueStats(): QueueStats {
@@ -611,14 +685,6 @@ export class RunsQueueManager {
 		});
 
 		return true;
-	}
-
-	public startProjectBoardPolling(projectId: string, viewerId: string): void {
-		this.pollingService.startProjectBoardPolling(projectId, viewerId);
-	}
-
-	public stopProjectBoardPolling(projectId: string, viewerId: string): void {
-		this.pollingService.stopProjectBoardPolling(projectId, viewerId);
 	}
 
 	private async finalizeRunFromSession(

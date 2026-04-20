@@ -56,6 +56,9 @@ interface RunExecutorDeps {
 	isNetworkError: (error: unknown) => boolean;
 	durationSec: (startedAt: string, finishedAt: string) => number;
 	onComplete: (runId: string) => void;
+	runLiveSubscriptionService: {
+		ensureSubscribed: (runId: string, sessionId: string) => Promise<void>;
+	};
 }
 
 export class RunExecutor {
@@ -146,6 +149,11 @@ export class RunExecutor {
 			publishRunUpdate(runningRun);
 
 			this.deps.activeRunSessions.set(runId, sessionId);
+
+			await this.deps.runLiveSubscriptionService.ensureSubscribed(
+				runId,
+				sessionId,
+			);
 
 			log.debug("Sending prompt to OpenCode", { runId, sessionId });
 			await this.deps.sessionManager.sendPrompt(

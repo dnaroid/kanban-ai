@@ -1228,14 +1228,6 @@ export class RunService {
 		return this.queueManager.getQueueStats();
 	}
 
-	public startProjectBoardPolling(projectId: string, viewerId: string): void {
-		this.queueManager.startProjectBoardPolling(projectId, viewerId);
-	}
-
-	public stopProjectBoardPolling(projectId: string, viewerId: string): void {
-		this.queueManager.stopProjectBoardPolling(projectId, viewerId);
-	}
-
 	public async startNextReadyTaskAfterMerge(taskId: string): Promise<void> {
 		await this.queueManager.startNextReadyTaskAfterMerge(taskId);
 	}

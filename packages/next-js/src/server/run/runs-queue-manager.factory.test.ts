@@ -23,7 +23,6 @@ const mockInstances = vi.hoisted(() => {
 	};
 	const taskStatusProjectionService = {};
 	const runReconciler = { pollProjectRuns: vi.fn() };
-	const pollingService = {};
 	const runExecutor = {};
 
 	return {
@@ -34,14 +33,12 @@ const mockInstances = vi.hoisted(() => {
 		runReconciliationService,
 		taskStatusProjectionService,
 		runReconciler,
-		pollingService,
 		runExecutor,
 	};
 });
 
 const captured = vi.hoisted(() => ({
 	executionBootstrapService: [] as unknown[][],
-	pollingService: [] as unknown[][],
 	postRunWorkflowService: [] as unknown[][],
 	runExecutor: [] as unknown[][],
 	runFinalizer: [] as unknown[][],
@@ -82,13 +79,6 @@ vi.mock("@/server/run/execution-bootstrap-service", () => ({
 	) {
 		captured.executionBootstrapService.push([config]);
 		return mockInstances.executionBootstrapService;
-	},
-}));
-
-vi.mock("@/server/run/polling-service", () => ({
-	PollingService: function MockPollingService(this: unknown, config: unknown) {
-		captured.pollingService.push([config]);
-		return mockInstances.pollingService;
 	},
 }));
 
@@ -210,8 +200,6 @@ function createMockCtx(): RqmContext {
 		maxRetryCount: 3,
 		retryBaseDelayMs: 1000,
 		worktreeEnabled: false,
-		projectPollingIntervalMs: 5000,
-		projectBoardWatcherTtlMs: 30_000,
 		applyTaskTransition: vi.fn(),
 		enqueue: vi.fn(),
 		removeFromQueue: vi.fn(),
@@ -243,7 +231,7 @@ describe("runs-queue-manager factory", () => {
 	});
 
 	describe("createServices", () => {
-		it("returns all 9 expected service instances", () => {
+		it("returns all 8 expected service instances", () => {
 			expect(registry.executionBootstrapService).toBe(
 				mockInstances.executionBootstrapService,
 			);
@@ -261,7 +249,6 @@ describe("runs-queue-manager factory", () => {
 				mockInstances.taskStatusProjectionService,
 			);
 			expect(registry.runReconciler).toBe(mockInstances.runReconciler);
-			expect(registry.pollingService).toBe(mockInstances.pollingService);
 			expect(registry.runExecutor).toBe(mockInstances.runExecutor);
 		});
 
@@ -273,7 +260,6 @@ describe("runs-queue-manager factory", () => {
 			expect(captured.runReconciliationService).toHaveLength(1);
 			expect(captured.taskStatusProjectionService).toHaveLength(1);
 			expect(captured.runReconciler).toHaveLength(1);
-			expect(captured.pollingService).toHaveLength(1);
 			expect(captured.runExecutor).toHaveLength(1);
 		});
 	});
@@ -284,16 +270,6 @@ describe("runs-queue-manager factory", () => {
 			expect(config).toHaveProperty("taskStatusProjectionService");
 			expect(config.taskStatusProjectionService).toBe(
 				mockInstances.taskStatusProjectionService,
-			);
-		});
-	});
-
-	describe("pollingService wiring", () => {
-		it("delegates onPollProjectRuns to runReconciler.pollProjectRuns", async () => {
-			const [config] = captured.pollingService[0];
-			await config.onPollProjectRuns("project-42");
-			expect(mockInstances.runReconciler.pollProjectRuns).toHaveBeenCalledWith(
-				"project-42",
 			);
 		});
 	});

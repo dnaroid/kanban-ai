@@ -163,6 +163,7 @@ function buildDeps(
 		clearSessionTracking: vi.fn(),
 		clearRunInput: vi.fn(),
 		getRunErrorText: vi.fn(() => ""),
+		unsubscribeLiveSubscription: vi.fn(),
 		setStoredRun: (run: Run | null) => {
 			storedRun = run;
 		},

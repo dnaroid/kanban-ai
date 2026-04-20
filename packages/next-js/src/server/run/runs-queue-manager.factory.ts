@@ -5,7 +5,6 @@ import { runEventRepo } from "@/server/repositories/run-event";
 import { runRepo } from "@/server/repositories/run";
 import { taskRepo } from "@/server/repositories/task";
 import { ExecutionBootstrapService } from "@/server/run/execution-bootstrap-service";
-import { PollingService } from "@/server/run/polling-service";
 import { PostRunWorkflowService } from "@/server/run/post-run-workflow-service";
 import { QueueManager } from "@/server/run/queue-manager";
 import { RunExecutor } from "@/server/run/run-executor";
@@ -13,6 +12,7 @@ import { RunFinalizer } from "@/server/run/run-finalizer";
 import { RunInteractionCoordinator } from "@/server/run/run-interaction-coordinator";
 import { publishRunUpdate } from "@/server/run/run-publisher";
 import { RunReconciler } from "@/server/run/run-reconciler";
+import { RunLiveSubscriptionService } from "@/server/run/run-live-subscription-service";
 import { RunReconciliationService } from "@/server/run/run-reconciliation-service";
 import { isNetworkError } from "@/server/run/run-session-interpreter";
 import { TaskStatusProjectionService } from "@/server/run/task-status-projection-service";
@@ -48,8 +48,6 @@ export interface RqmContext {
 	readonly maxRetryCount: number;
 	readonly retryBaseDelayMs: number;
 	readonly worktreeEnabled: boolean;
-	readonly projectPollingIntervalMs: number;
-	readonly projectBoardWatcherTtlMs: number;
 	applyTaskTransition: (
 		run: Run,
 		trigger: TaskTransitionTrigger,
@@ -87,9 +85,9 @@ export interface ServiceRegistry {
 	executionBootstrapService: ExecutionBootstrapService;
 	postRunWorkflowService: PostRunWorkflowService;
 	taskStatusProjectionService: TaskStatusProjectionService;
-	pollingService: PollingService;
 	runReconciler: RunReconciler;
 	runExecutor: RunExecutor;
+	runLiveSubscriptionService: RunLiveSubscriptionService;
 }
 
 export function createServices(ctx: RqmContext): ServiceRegistry {
@@ -177,6 +175,9 @@ export function createServices(ctx: RqmContext): ServiceRegistry {
 		clearRunInput: (runId) => {
 			ctx.runInputs.delete(runId);
 		},
+		unsubscribeLiveSubscription: (runId) => {
+			void runLiveSubscriptionService.unsubscribe(runId);
+		},
 		getRunErrorText,
 	});
 
@@ -225,6 +226,24 @@ export function createServices(ctx: RqmContext): ServiceRegistry {
 			ctx.durationSec(startedAt, finishedAt),
 		staleRunThresholdMs: ctx.staleRunThresholdMs,
 		getRunErrorText,
+		clearLiveSubscription: (runId) => {
+			void runLiveSubscriptionService.unsubscribe(runId);
+		},
+		ensureLiveSubscription: (runId, sessionId) => {
+			void runLiveSubscriptionService.ensureSubscribed(runId, sessionId);
+		},
+	});
+
+	const runLiveSubscriptionService = new RunLiveSubscriptionService({
+		reconcileRun: async (runId) => {
+			await runReconciliationService.reconcileRun(runId);
+		},
+		listActiveRunsWithSessions: () => {
+			return runReconciliationService
+				.listActiveRunsForReconciliation()
+				.filter((run) => run.sessionId.trim().length > 0)
+				.map((run) => ({ id: run.id, sessionId: run.sessionId.trim() }));
+		},
 	});
 
 	const taskStatusProjectionService = new TaskStatusProjectionService({
@@ -261,14 +280,6 @@ export function createServices(ctx: RqmContext): ServiceRegistry {
 		},
 	});
 
-	const pollingService = new PollingService({
-		pollingIntervalMs: ctx.projectPollingIntervalMs,
-		watcherTtlMs: ctx.projectBoardWatcherTtlMs,
-		onPollProjectRuns: async (projectId) => {
-			await runReconciler.pollProjectRuns(projectId);
-		},
-	});
-
 	const runExecutor = new RunExecutor({
 		opencodeService: ctx.opencodeService,
 		sessionManager: ctx.sessionManager,
@@ -293,6 +304,11 @@ export function createServices(ctx: RqmContext): ServiceRegistry {
 		durationSec: (startedAt, finishedAt) =>
 			ctx.durationSec(startedAt, finishedAt),
 		onComplete: (runId) => ctx.onRunExecutionCompleted(runId),
+		runLiveSubscriptionService: {
+			ensureSubscribed: async (runId, sessionId) => {
+				await runLiveSubscriptionService.ensureSubscribed(runId, sessionId);
+			},
+		},
 	});
 
 	return {
@@ -302,8 +318,8 @@ export function createServices(ctx: RqmContext): ServiceRegistry {
 		executionBootstrapService,
 		postRunWorkflowService,
 		taskStatusProjectionService,
-		pollingService,
 		runReconciler,
 		runExecutor,
+		runLiveSubscriptionService,
 	};
 }

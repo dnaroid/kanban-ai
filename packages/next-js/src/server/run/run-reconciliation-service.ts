@@ -50,6 +50,8 @@ interface RunReconciliationServiceDeps {
 	durationSec: (startedAt: string, finishedAt: string) => number;
 	staleRunThresholdMs: number;
 	getRunErrorText: (run: Run) => string;
+	clearLiveSubscription: (runId: string) => void;
+	ensureLiveSubscription: (runId: string, sessionId: string) => void;
 }
 
 export class RunReconciliationService {
@@ -197,6 +199,7 @@ export class RunReconciliationService {
 					nextRun.id,
 					sessionId,
 				);
+				this.deps.ensureLiveSubscription(nextRun.id, sessionId);
 				return;
 			}
 			case "question": {
@@ -209,6 +212,7 @@ export class RunReconciliationService {
 					nextRun.id,
 					sessionId,
 				);
+				this.deps.ensureLiveSubscription(nextRun.id, sessionId);
 				return;
 			}
 		}
@@ -282,6 +286,7 @@ export class RunReconciliationService {
 				resumedRun.id,
 				sessionId,
 			);
+			this.deps.ensureLiveSubscription(resumedRun.id, sessionId);
 			return;
 		}
 
@@ -294,6 +299,7 @@ export class RunReconciliationService {
 			observedRun.id,
 			sessionId,
 		);
+		this.deps.ensureLiveSubscription(observedRun.id, sessionId);
 	}
 
 	public async failRunDuringReconciliation(
@@ -339,6 +345,7 @@ export class RunReconciliationService {
 
 		this.deps.clearActiveRunSession(run.id);
 		this.deps.removeFromQueue(run.id);
+		this.deps.clearLiveSubscription(run.id);
 	}
 
 	public async reconcileStaleRun(

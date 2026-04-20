@@ -112,6 +112,14 @@
   background-color: theme('colors.slate.700');
 }
 
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;

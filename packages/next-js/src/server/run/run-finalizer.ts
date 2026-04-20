@@ -50,6 +50,7 @@ export interface RunFinalizerDeps {
 	clearSessionTracking: (runId: string) => void;
 	clearRunInput: (runId: string) => void;
 	getRunErrorText: (run: Run) => string;
+	unsubscribeLiveSubscription: (runId: string) => void;
 }
 
 export class RunFinalizer {
@@ -235,6 +236,7 @@ export class RunFinalizer {
 		this.deps.publishRunUpdate(latestRun);
 		this.deps.clearSessionTracking(runId);
 		this.deps.clearRunInput(runId);
+		this.deps.unsubscribeLiveSubscription(runId);
 	}
 }
 

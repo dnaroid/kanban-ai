@@ -120,7 +120,7 @@ export function SortableColumn({
 						: "#0B0E14",
 				}}
 				className={cn(
-					"flex flex-col h-full w-full relative group/column overflow-hidden rounded-2xl border",
+					"flex flex-col h-full w-full relative group/column overflow-hidden rounded-t-2xl border border-b-0",
 					!color &&
 						(isHovered || isOver ? "border-slate-600" : "border-slate-800/50"),
 					isOver && "ring-4 ring-blue-500/20 scale-[1.02] z-10",
@@ -183,7 +183,7 @@ export function SortableColumn({
 
 				<div
 					className={cn(
-						"flex-1 overflow-y-auto custom-scrollbar p-3 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+						"flex-1 overflow-y-auto no-scrollbar p-3 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
 						isMinimized
 							? "opacity-0 translate-y-8 pointer-events-none"
 							: "opacity-100 translate-y-0",

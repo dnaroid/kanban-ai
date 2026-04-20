@@ -282,6 +282,20 @@ vi.mock("@/server/opencode/session-manager", () => ({
 	getOpencodeSessionManager: () => mockSessionManager,
 }));
 
+vi.mock("@/server/opencode/session-store", () => ({
+	ensureSessionLive: vi.fn(async () => undefined),
+	subscribeSessionEvents: vi.fn(async () => undefined),
+	unsubscribeSessionEvents: vi.fn(async () => undefined),
+}));
+
+vi.mock("@/server/opencode/session-tracker", () => ({
+	getOpencodeSessionTracker: () => ({
+		subscribe: vi.fn(async () => undefined),
+		unsubscribe: vi.fn(async () => undefined),
+		ensureTracking: vi.fn(async () => undefined),
+	}),
+}));
+
 vi.mock("@/server/repositories/context-snapshot", () => ({
 	contextSnapshotRepo: mockContextSnapshotRepo,
 }));
