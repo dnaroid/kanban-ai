@@ -809,7 +809,6 @@ export function resolveTransitionTrigger(params: {
 		| "permission"
 		| "dead"
 		| null;
-	completionMarker: string | null;
 	runKind: string | null;
 }): TaskTransitionTrigger | null {
 	const { runKind, runStatus, sessionMetaKind } = params;

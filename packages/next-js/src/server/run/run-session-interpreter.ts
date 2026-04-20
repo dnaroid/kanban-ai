@@ -30,10 +30,6 @@ export type SessionMetaStatus =
 	| { kind: "running" }
 	| { kind: "dead" };
 
-export function isMarkerlessMode(): boolean {
-	return process.env.RUNS_USE_TEXT_STATUS_MARKERS !== "1";
-}
-
 export function deriveMetaStatus(
 	inspection: SessionInspectionResult,
 ): SessionMetaStatus {

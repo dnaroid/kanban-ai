@@ -278,7 +278,6 @@ export function resolveTriggerFromOutcome(
 	return resolveTransitionTrigger({
 		runStatus,
 		sessionMetaKind,
-		completionMarker: outcome.marker,
 		runKind: run.metadata?.kind ?? null,
 	});
 }
