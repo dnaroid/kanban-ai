@@ -1,4 +1,3 @@
-import { extractOpencodeStatus } from "@/lib/opencode-status";
 import type {
 	PermissionData,
 	QuestionData,
@@ -31,33 +30,13 @@ export type SessionMetaStatus =
 	| { kind: "running" }
 	| { kind: "dead" };
 
+export function isMarkerlessMode(): boolean {
+	return process.env.RUNS_USE_TEXT_STATUS_MARKERS !== "1";
+}
+
 export function deriveMetaStatus(
 	inspection: SessionInspectionResult,
 ): SessionMetaStatus {
-	if (inspection.completionMarker) {
-		const marker = inspection.completionMarker.signalKey as RunOutcomeMarker;
-		const content = findStoryContent(inspection);
-		if (marker === "done" || marker === "generated" || marker === "test_ok") {
-			return { kind: "completed", marker, content };
-		}
-		if (marker === "fail" || marker === "test_fail") {
-			return { kind: "failed", marker, content };
-		}
-		if (marker === "question") {
-			if (inspection.pendingQuestions.length > 0) {
-				return { kind: "question", questions: inspection.pendingQuestions };
-			}
-			return { kind: "running" };
-		}
-	}
-
-	if (
-		inspection.probeStatus === "not_found" ||
-		inspection.probeStatus === "transient_error"
-	) {
-		return { kind: "running" };
-	}
-
 	const permission = inspection.pendingPermissions[0];
 	if (permission) {
 		return { kind: "permission", permission };
@@ -68,14 +47,26 @@ export function deriveMetaStatus(
 		return { kind: "question", questions: inspection.pendingQuestions };
 	}
 
-	if (inspection.sessionStatus === "idle") {
-		const latestMessage = inspection.messages[inspection.messages.length - 1];
-		if (latestMessage?.role === "user") {
-			return { kind: "running" };
-		}
+	if (inspection.probeStatus === "not_found") {
+		return { kind: "dead" };
+	}
 
-		const content = findStoryContent(inspection);
-		return { kind: "completed", marker: "done", content };
+	if (
+		inspection.sessionStatus === "busy" ||
+		inspection.sessionStatus === "retry"
+	) {
+		return { kind: "running" };
+	}
+
+	if (
+		inspection.probeStatus === "alive" &&
+		inspection.sessionStatus === "idle"
+	) {
+		const latestMessage = inspection.messages[inspection.messages.length - 1];
+		if (latestMessage?.role !== "user") {
+			const content = findStoryContent(inspection);
+			return { kind: "completed", marker: "done", content };
+		}
 	}
 
 	return { kind: "running" };
@@ -165,42 +156,24 @@ export function findCompletionContent(
 }
 
 export function stripOpencodeStatusLine(content: string): string {
-	const status = extractOpencodeStatus(content);
-	if (!status) {
-		return content.trim();
-	}
-
 	return content
 		.split(/\r?\n/)
-		.filter((_, index) => index !== status.statusLineIndex)
+		.filter((line) => !line.includes("__OPENCODE_STATUS__"))
 		.join("\n")
 		.trim();
 }
 
 export function findStoryContent(inspection: SessionInspectionResult): string {
-	const markerContent = inspection.completionMarker?.messageContent;
-	if (typeof markerContent === "string" && markerContent.trim().length > 0) {
-		return stripOpencodeStatusLine(markerContent);
-	}
-
 	for (let i = inspection.messages.length - 1; i >= 0; i--) {
 		const msg = inspection.messages[i];
 		if (msg.role !== "assistant") {
-			continue;
-		}
-		const status = extractOpencodeStatus(msg.content);
-		if (status) {
-			const cleaned = stripOpencodeStatusLine(msg.content);
-			if (cleaned.length > 0) {
-				return cleaned;
-			}
 			continue;
 		}
 		if (msg.content.trim().length > 0) {
 			return msg.content.trim();
 		}
 	}
-	return stripOpencodeStatusLine(findCompletionContent(inspection));
+	return "";
 }
 
 export function isNetworkError(error: unknown): boolean {

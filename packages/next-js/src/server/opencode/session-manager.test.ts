@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildOpencodeStatusLine } from "@/lib/opencode-status";
 import type { OpenCodeMessage } from "@/types/ipc";
 import { OpencodeSessionManager } from "@/server/opencode/session-manager";
 
@@ -43,7 +42,6 @@ function buildGeneratedMessage(): OpenCodeMessage {
 			"## Title",
 			"Recovered story content",
 			"</STORY>",
-			buildOpencodeStatusLine("generated"),
 		].join("\n"),
 		parts: [],
 		timestamp: Date.now(),
@@ -75,7 +73,7 @@ describe("OpencodeSessionManager storage fallback", () => {
 		);
 	});
 
-	it("derives completion marker from storage-backed messages during inspection", async () => {
+	it("returns null completion marker since text markers are no longer parsed", async () => {
 		const manager = new OpencodeSessionManager();
 		const privateManager = manager as unknown as PrivateSessionManager;
 		const storageMessages = [buildGeneratedMessage()];
@@ -103,61 +101,7 @@ describe("OpencodeSessionManager storage fallback", () => {
 		const inspection = await manager.inspectSession("session-1");
 
 		expect(inspection.messages).toEqual(storageMessages);
-		expect(inspection.completionMarker).toEqual(
-			expect.objectContaining({
-				signalKey: "generated",
-				messageId: "msg-story",
-				messageContent: storageMessages[0]?.content,
-			}),
-		);
-	});
-
-	it("derives completion marker from prompt-style labeled status lines", async () => {
-		const manager = new OpencodeSessionManager();
-		const privateManager = manager as unknown as PrivateSessionManager;
-		const storageMessages = [
-			{
-				...buildGeneratedMessage(),
-				content: [
-					'<META>{"type":"feature"}</META>',
-					"<STORY>",
-					"## Title",
-					"Recovered story content",
-					"</STORY>",
-					`success: ${buildOpencodeStatusLine("generated")}`,
-				].join("\n"),
-			},
-		];
-
-		vi.spyOn(privateManager, "fetchSessionActivityStatus").mockResolvedValue(
-			"idle",
-		);
-		vi.spyOn(privateManager, "fetchSessionInfo").mockResolvedValue({
-			id: "session-1",
-			directory: "/tmp/project",
-		});
-		vi.spyOn(privateManager, "getSessionClient").mockResolvedValue({
-			session: {
-				messages: vi.fn(async () => []),
-			},
-		});
-		vi.spyOn(manager, "getTodos").mockResolvedValue([]);
-		vi.spyOn(manager, "listPendingPermissions").mockResolvedValue([]);
-		vi.spyOn(manager, "listPendingQuestions").mockResolvedValue([]);
-		vi.spyOn(
-			privateManager.storageReader,
-			"getMessagesFromFilesystem",
-		).mockResolvedValue(storageMessages);
-
-		const inspection = await manager.inspectSession("session-1");
-
-		expect(inspection.completionMarker).toEqual(
-			expect.objectContaining({
-				signalKey: "generated",
-				messageId: "msg-story",
-				messageContent: storageMessages[0]?.content,
-			}),
-		);
+		expect(inspection.completionMarker).toBeNull();
 	});
 
 	it("ignores stale completion marker after a newer user resume message", async () => {

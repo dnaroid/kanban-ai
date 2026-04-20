@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { buildOpencodeStatusLine } from "@/lib/opencode-status";
 
 import {
 	deriveMetaStatus,
@@ -8,10 +7,10 @@ import {
 } from "@/server/run/run-session-interpreter";
 
 describe("run-session-interpreter", () => {
-	it("derives completed status from completion marker", () => {
+	it("derives completed status from idle session with assistant message", () => {
 		const meta = deriveMetaStatus({
 			probeStatus: "alive",
-			sessionStatus: "busy",
+			sessionStatus: "idle",
 			messages: [
 				{
 					id: "m1",
@@ -24,12 +23,7 @@ describe("run-session-interpreter", () => {
 			todos: [],
 			pendingPermissions: [],
 			pendingQuestions: [],
-			completionMarker: {
-				runStatus: "completed",
-				signalKey: "done",
-				messageId: "m1",
-				messageContent: "Final answer",
-			},
+			completionMarker: null,
 		});
 
 		expect(meta).toMatchObject({ kind: "completed", marker: "done" });
@@ -49,9 +43,9 @@ describe("run-session-interpreter", () => {
 		});
 	});
 
-	it("strips OpenCode status line from content", () => {
+	it("strips legacy __OPENCODE_STATUS__ lines from content", () => {
 		const content = stripOpencodeStatusLine(
-			`All done\n${buildOpencodeStatusLine("done")}`,
+			"All done\n__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done",
 		);
 		expect(content).toBe("All done");
 	});

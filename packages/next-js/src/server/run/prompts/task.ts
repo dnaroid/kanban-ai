@@ -1,5 +1,3 @@
-import { buildOpencodeStatusLine } from "@/lib/opencode-status";
-
 /**
  * When true, role skills are included in generated task prompts.
  * Default: false — skills are not injected into prompts.
@@ -78,8 +76,8 @@ export function buildTaskPrompt(
 		"",
 		"Requirements:",
 		"1. Implement the task directly — write code, modify files, run commands. No planning phase.",
-		`2. At the end of your response, output exactly one status line: ${buildOpencodeStatusLine("done")} or ${buildOpencodeStatusLine("fail")} or ${buildOpencodeStatusLine("question")}`,
-		"3. If the task failed, state the reason before the fail status line.",
-		"4. If you need user input, ask a specific question before the question status line.",
+		"2. When finished, summarize what was done.",
+		"3. If the task failed, state the reason clearly.",
+		"4. If you need user input, ask a specific question.",
 	].join("\n");
 }

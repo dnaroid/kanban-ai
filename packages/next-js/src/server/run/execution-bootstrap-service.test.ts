@@ -15,7 +15,6 @@ const {
 	mockPublishRunUpdate,
 	mockPublishSseEvent,
 	mockBuildTaskPrompt,
-	mockBuildOpencodeStatusLine,
 } = vi.hoisted(() => ({
 	mockTaskRepo: {
 		getById: vi.fn(),
@@ -54,7 +53,6 @@ const {
 	mockPublishRunUpdate: vi.fn(),
 	mockPublishSseEvent: vi.fn(),
 	mockBuildTaskPrompt: vi.fn(() => "test-prompt"),
-	mockBuildOpencodeStatusLine: vi.fn((status: string) => `[STATUS:${status}]`),
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -108,10 +106,6 @@ vi.mock("@/server/events/sse-broker", () => ({
 
 vi.mock("@/server/run/prompts/task", () => ({
 	buildTaskPrompt: mockBuildTaskPrompt,
-}));
-
-vi.mock("@/lib/opencode-status", () => ({
-	buildOpencodeStatusLine: mockBuildOpencodeStatusLine,
 }));
 
 vi.mock("@/server/run/task-state-machine", async () => {

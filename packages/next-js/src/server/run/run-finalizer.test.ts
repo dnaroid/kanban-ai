@@ -299,13 +299,13 @@ describe("staleRunFallbackMarker", () => {
 		expect(marker).toBe("generated");
 	});
 
-	it("returns test_ok for QA runs", () => {
+	it("returns done for QA runs", () => {
 		const marker = staleRunFallbackMarker(
 			buildRun({ metadata: { kind: "task-qa-testing" } }),
 			"task-description-improve",
 		);
 
-		expect(marker).toBe("test_ok");
+		expect(marker).toBe("done");
 	});
 
 	it("returns done for normal runs", () => {

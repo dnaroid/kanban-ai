@@ -1,16 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	Bot,
-	CheckCircle2,
 	ChevronsDown,
 	ChevronsUp,
-	Circle,
-	HelpCircle,
 	RefreshCw,
 	Send,
 	Terminal,
 	User,
-	XCircle,
 } from "lucide-react";
 import {
 	AgentPart,
@@ -32,7 +28,6 @@ import type {
 	QuestionData,
 	RunEvent,
 } from "@/types/ipc";
-import { extractOpencodeStatus } from "@/lib/opencode-status";
 import { LightMarkdown } from "@/components/LightMarkdown";
 import { api } from "@/lib/api";
 
@@ -251,43 +246,15 @@ export function ExecutionLog({
 		}
 	};
 
-	const formatStatusPayload = (payload: unknown): string => {
-		if (!payload || typeof payload !== "object") return coerceText(payload);
-		const typed = payload as { message?: string; status?: string };
-		if (typed.message) return typed.message;
-		if (typed.status) return typed.status;
-		return coerceText(payload);
-	};
-
 	const handleNavigateToSubAgent = (childSessionId: string) => {
 		onNavigateToSubAgent?.(childSessionId);
 	};
 
-	const extractStatusLineFromParts = useCallback(
-		(parts: Part[] | undefined): string | null => {
-			if (!parts || parts.length === 0) return null;
-			for (let index = parts.length - 1; index >= 0; index -= 1) {
-				const part = parts[index];
-				if (part.type !== "text") continue;
-				const extracted = extractOpencodeStatus(part.text);
-				if (extracted) return extracted.statusLine;
-			}
+	const extractStatusLineFromMessage = useCallback(
+		(_message: { content?: string; parts?: Part[] }): string | null => {
 			return null;
 		},
 		[],
-	);
-
-	const extractStatusLineFromMessage = useCallback(
-		(message: { content?: string; parts?: Part[] }): string | null => {
-			const fromParts = extractStatusLineFromParts(message.parts);
-			if (fromParts) return fromParts;
-			if (typeof message.content === "string" && message.content.length > 0) {
-				const extracted = extractOpencodeStatus(message.content);
-				if (extracted) return extracted.statusLine;
-			}
-			return null;
-		},
-		[extractStatusLineFromParts],
 	);
 
 	const upsertStatusEvent = useCallback(
@@ -593,13 +560,6 @@ export function ExecutionLog({
 				streamingTimeoutsRef.current.delete(messageId);
 			}, 2000);
 			streamingTimeoutsRef.current.set(messageId, timeout);
-
-			if (part.type === "text") {
-				const extracted = extractOpencodeStatus(part.text);
-				if (extracted) {
-					upsertStatusEvent(extracted.statusLine);
-				}
-			}
 
 			setEvents((prev) => {
 				const existingIndex = prev.findIndex((item) => item.id === id);
@@ -1328,63 +1288,6 @@ export function ExecutionLog({
 		}
 
 		if (event.eventType === "status") {
-			const payloadText = formatStatusPayload(event.payload);
-
-			const extracted = extractOpencodeStatus(payloadText.trim());
-			if (extracted) {
-				const status = extracted.status;
-				const config = {
-					done: {
-						icon: CheckCircle2,
-						color: "text-emerald-400",
-						bg: "bg-emerald-500/10",
-						label: "DONE",
-					},
-					fail: {
-						icon: XCircle,
-						color: "text-red-400",
-						bg: "bg-red-500/10",
-						label: "FAIL",
-					},
-					question: {
-						icon: HelpCircle,
-						color: "text-amber-400",
-						bg: "bg-amber-500/10",
-						label: "QUESTION",
-					},
-				}[status as "done" | "fail" | "question"] || {
-					icon: Circle,
-					color: "text-emerald-400",
-					bg: "bg-emerald-500/10",
-					label: status.toUpperCase(),
-				};
-
-				return (
-					<div
-						key={event.id}
-						className={cn(
-							"flex gap-3 py-1 px-4 group justify-between items-center border-y border-white/5",
-							config.bg,
-						)}
-					>
-						<div className="flex items-center gap-2 flex-1">
-							<config.icon className={cn("w-3.5 h-3.5", config.color)} />
-							<span
-								className={cn(
-									"text-xs font-mono font-bold uppercase tracking-wider",
-									config.color,
-								)}
-							>
-								Session {config.label}
-							</span>
-						</div>
-						<span className="text-[10px] font-mono text-slate-500 shrink-0 select-none">
-							{time}
-						</span>
-					</div>
-				);
-			}
-
 			return null;
 		}
 

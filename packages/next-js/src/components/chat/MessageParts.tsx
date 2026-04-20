@@ -24,7 +24,6 @@ import type {
 	SubtaskPart,
 	ToolState,
 } from "@/types/ipc";
-import { extractOpencodeStatus } from "@/lib/opencode-status";
 import { LightMarkdown } from "@/components/LightMarkdown";
 import { EditToolDiffView } from "./EditToolDiffView";
 import type { EditToolInput } from "./EditToolDiffView";
@@ -134,76 +133,8 @@ function buildQuestionDataFromInput(input: unknown): QuestionData | null {
 	};
 }
 
-function StatusBadge({ status }: { status: string }) {
-	const config = {
-		done: {
-			icon: CheckCircle2,
-			color: "text-emerald-400",
-			bg: "bg-emerald-400/10",
-			border: "border-emerald-400/20",
-			label: "DONE",
-		},
-		fail: {
-			icon: XCircle,
-			color: "text-red-400",
-			bg: "bg-red-400/10",
-			border: "border-red-400/20",
-			label: "FAIL",
-		},
-		question: {
-			icon: HelpCircle,
-			color: "text-amber-400",
-			bg: "bg-amber-400/10",
-			border: "border-amber-400/20",
-			label: "QUESTION",
-		},
-	}[status as "done" | "fail" | "question"] || {
-		icon: Circle,
-		color: "text-slate-400",
-		bg: "bg-slate-400/10",
-		border: "border-slate-400/20",
-		label: status.toUpperCase(),
-	};
-
-	return (
-		<div
-			className={cn(
-				"inline-flex items-center gap-1.5 px-2 py-0.5 rounded border font-mono text-[10px] font-bold tracking-wider",
-				config.bg,
-				config.border,
-				config.color,
-			)}
-		>
-			<config.icon className="w-3 h-3" />
-			{config.label}
-		</div>
-	);
-}
-
 export function TextPart({ part }: { part: { text: string } }) {
 	if (!part.text) return null;
-
-	const extracted = extractOpencodeStatus(part.text);
-	if (extracted) {
-		const { status, statusLineIndex } = extracted;
-		const lines = part.text.split("\n");
-		const otherText = lines
-			.filter((_, i) => i !== statusLineIndex)
-			.join("\n")
-			.trim();
-
-		return (
-			<div className="space-y-2">
-				{otherText && (
-					<LightMarkdown
-						text={otherText}
-						className="text-sm text-slate-300 leading-relaxed"
-					/>
-				)}
-				<StatusBadge status={status} />
-			</div>
-		);
-	}
 
 	return (
 		<LightMarkdown

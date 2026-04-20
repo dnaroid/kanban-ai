@@ -1,4 +1,3 @@
-import { buildOpencodeStatusLine } from "@/lib/opencode-status";
 import { ENABLE_SKILLS_IN_PROMPTS } from "./task";
 
 interface UserStoryPromptTask {
@@ -161,9 +160,5 @@ Rules:
 10) Choose the fe (frontend) role ONLY if the task is focused on UI/UX: components, styles, animations, layouts, design systems, responsiveness, interactivity. Tasks involving logic, API, architecture, DB, configuration, infrastructure, testing — are NOT frontend tasks even if they indirectly affect UI. For such tasks, choose be, tl, or another specialized executor.
 11) The executing agent may delegate part of the work to another agent (including fe) during execution. Do not assign fe "just in case" — if the task is not focused on UI, assign tl or be.
 12) For tasks without clear specialization (architecture, refactoring, mixed logic), choose tl as the universal executor.
-13) ${languageInstruction}
-14) The last line of the response must be a status marker:
-    - success: ${buildOpencodeStatusLine("generated")}
-    - error: ${buildOpencodeStatusLine("fail")}
-    - need user input: ${buildOpencodeStatusLine("question")}`;
+13) ${languageInstruction}`;
 }

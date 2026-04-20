@@ -812,7 +812,7 @@ export function resolveTransitionTrigger(params: {
 	completionMarker: string | null;
 	runKind: string | null;
 }): TaskTransitionTrigger | null {
-	const { completionMarker, runKind, runStatus, sessionMetaKind } = params;
+	const { runKind, runStatus, sessionMetaKind } = params;
 
 	if (sessionMetaKind === "dead") {
 		return "run:dead";
@@ -823,26 +823,11 @@ export function resolveTransitionTrigger(params: {
 	}
 
 	if (sessionMetaKind === "completed") {
-		if (completionMarker === "generated") {
-			return "generate:ok";
-		}
-
-		if (completionMarker === "done" || completionMarker === "test_ok") {
-			return "run:done";
-		}
+		return isDescriptionImproveRun(runKind) ? "generate:ok" : "run:done";
 	}
 
 	if (sessionMetaKind === "failed") {
-		if (
-			isDescriptionImproveRun(runKind) &&
-			(completionMarker === "fail" || completionMarker === "test_fail")
-		) {
-			return "generate:fail";
-		}
-
-		if (completionMarker === "fail" || completionMarker === "test_fail") {
-			return "run:fail";
-		}
+		return isDescriptionImproveRun(runKind) ? "generate:fail" : "run:fail";
 	}
 
 	if (sessionMetaKind === "running") {

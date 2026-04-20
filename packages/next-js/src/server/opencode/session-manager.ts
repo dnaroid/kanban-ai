@@ -1,6 +1,5 @@
 import { randomUUID } from "crypto";
 import { createOpencodeClient } from "@opencode-ai/sdk/v2/client";
-import { extractOpencodeStatus } from "@/lib/opencode-status";
 import { OpencodeStorageReader } from "@/server/opencode/opencode-storage-reader";
 import type {
 	MessageTokens,
@@ -308,7 +307,7 @@ export class OpencodeSessionManager {
 					todos: await this.getTodos(sessionId),
 					pendingPermissions: await this.listPendingPermissions(sessionId),
 					pendingQuestions: await this.listPendingQuestions(sessionId),
-					completionMarker: this.findCompletionMarker(messages),
+					completionMarker: this.resolveCompletionMarker(messages),
 				};
 			}
 
@@ -345,7 +344,7 @@ export class OpencodeSessionManager {
 			todos,
 			pendingPermissions,
 			pendingQuestions,
-			completionMarker: this.findCompletionMarker(messages),
+			completionMarker: this.resolveCompletionMarker(messages),
 		};
 	}
 
@@ -1476,87 +1475,15 @@ export class OpencodeSessionManager {
 		return "error";
 	}
 
-	private findCompletionMarker(
-		messages: OpenCodeMessage[],
+	private resolveCompletionMarker(
+		_messages: OpenCodeMessage[],
 	): AssistantRunSignal | null {
-		for (let index = messages.length - 1; index >= 0; index -= 1) {
-			const message = messages[index];
-			if (message.role === "user") {
-				return null;
-			}
-
-			if (message.role !== "assistant") {
-				continue;
-			}
-
-			const signal = this.resolveAssistantRunSignal(message.content);
-			if (signal) {
-				return {
-					...signal,
-					messageId: message.id,
-					messageContent: message.content,
-				};
-			}
-		}
-
 		return null;
 	}
 
-	private resolveAssistantRunSignal(text: string): AssistantRunSignal | null {
-		const parsed = extractOpencodeStatus(text);
-		if (!parsed) {
-			return null;
-		}
-
-		if (parsed.status === "done") {
-			return {
-				runStatus: "completed",
-				signalKey: "done",
-				messageId: "",
-				messageContent: "",
-			};
-		}
-		if (parsed.status === "generated") {
-			return {
-				runStatus: "completed",
-				signalKey: "generated",
-				messageId: "",
-				messageContent: "",
-			};
-		}
-		if (parsed.status === "fail") {
-			return {
-				runStatus: "failed",
-				signalKey: "fail",
-				messageId: "",
-				messageContent: "",
-			};
-		}
-		if (parsed.status === "question") {
-			return {
-				runStatus: "paused",
-				signalKey: "question",
-				messageId: "",
-				messageContent: "",
-			};
-		}
-		if (parsed.status === "test_ok") {
-			return {
-				runStatus: "completed",
-				signalKey: "test_ok",
-				messageId: "",
-				messageContent: "",
-			};
-		}
-		if (parsed.status === "test_fail") {
-			return {
-				runStatus: "failed",
-				signalKey: "test_fail",
-				messageId: "",
-				messageContent: "",
-			};
-		}
-
+	private findCompletionMarker(
+		_messages: OpenCodeMessage[],
+	): AssistantRunSignal | null {
 		return null;
 	}
 

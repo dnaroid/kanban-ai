@@ -122,27 +122,5 @@ describe("buildTaskPrompt", () => {
 			expect(prompt).toContain("- Project path: /path/to/project");
 			expect(prompt).toContain("- Project ID: proj-1");
 		});
-
-		it("includes execution status markers (done, fail, question)", () => {
-			const prompt = buildTaskPrompt(
-				{ title: "task", description: null },
-				mockProject,
-			);
-
-			expect(prompt).toContain("__OPENCODE_STATUS__");
-			expect(prompt).toContain("::done");
-			expect(prompt).toContain("::fail");
-			expect(prompt).toContain("::question");
-		});
-
-		it("does NOT include QA-specific status markers (test_ok, test_fail)", () => {
-			const prompt = buildTaskPrompt(
-				{ title: "task", description: null },
-				mockProject,
-			);
-
-			expect(prompt).not.toContain("::test_ok");
-			expect(prompt).not.toContain("::test_fail");
-		});
 	});
 });

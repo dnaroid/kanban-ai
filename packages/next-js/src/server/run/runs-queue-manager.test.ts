@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildOpencodeStatusLine } from "@/lib/opencode-status";
 import type {
 	PermissionData,
 	SessionInspectionResult,
@@ -439,22 +438,12 @@ function buildInspection(options?: {
 			: []);
 	return {
 		probeStatus: options?.probeStatus ?? "alive",
-		sessionStatus: options?.sessionStatus ?? "busy",
+		sessionStatus: options?.sessionStatus ?? (marker ? "idle" : "busy"),
 		messages,
 		todos: [],
 		pendingPermissions: options?.pendingPermissions ?? [],
 		pendingQuestions: options?.pendingQuestions ?? [],
-		completionMarker: marker
-			? {
-					runStatus:
-						marker === "fail" || marker === "test_fail"
-							? "failed"
-							: "completed",
-					signalKey: marker,
-					messageId: messages[messages.length - 1]?.id ?? "msg-1",
-					messageContent: messages[messages.length - 1]?.content ?? content,
-				}
-			: null,
+		completionMarker: null,
 	};
 }
 
@@ -714,10 +703,7 @@ describe("RunsQueueManager scheduling", () => {
 		);
 
 		mockSessionManager.inspectSession.mockResolvedValue(
-			buildInspection({
-				marker: "generated",
-				content: buildOpencodeStatusLine("generated"),
-			}),
+			buildInspection({ sessionStatus: "idle" }),
 		);
 
 		const manager = new RunsQueueManager();
@@ -757,10 +743,7 @@ describe("RunsQueueManager scheduling", () => {
 		);
 
 		mockSessionManager.inspectSession.mockResolvedValue(
-			buildInspection({
-				marker: "generated",
-				content: buildOpencodeStatusLine("generated"),
-			}),
+			buildInspection({ sessionStatus: "idle" }),
 		);
 		mockVcsManager.provisionRunWorkspace.mockResolvedValueOnce({
 			repoRoot: "/tmp/project",
@@ -912,7 +895,11 @@ describe("RunsQueueManager scheduling", () => {
 		await withPrivateAccess.finalizeRunFromSession(
 			"run-auto-merge",
 			"completed",
-			{ marker: "done", content: buildOpencodeStatusLine("done") },
+			{
+				marker: "done",
+				content:
+					"__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done",
+			},
 		);
 
 		expect(mockVcsManager.mergeRunWorkspace).toHaveBeenCalledWith(
@@ -990,7 +977,11 @@ describe("RunsQueueManager scheduling", () => {
 		await withPrivateAccess.finalizeRunFromSession(
 			"run-auto-merge-fail",
 			"completed",
-			{ marker: "done", content: buildOpencodeStatusLine("done") },
+			{
+				marker: "done",
+				content:
+					"__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done",
+			},
 		);
 
 		expect(mockVcsManager.cleanupRunWorkspace).not.toHaveBeenCalled();
@@ -1071,7 +1062,11 @@ describe("RunsQueueManager scheduling", () => {
 		await withPrivateAccess.finalizeRunFromSession(
 			"run-auto-cleanup-fail",
 			"completed",
-			{ marker: "done", content: buildOpencodeStatusLine("done") },
+			{
+				marker: "done",
+				content:
+					"__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done",
+			},
 		);
 
 		expect(mockVcsManager.syncVcsMetadata).toHaveBeenCalled();
@@ -1117,7 +1112,7 @@ describe("RunsQueueManager scheduling", () => {
 		});
 	});
 
-	it("maps QA success marker to test_ok signal", async () => {
+	it("maps completion to run:done signal for non-generation runs", async () => {
 		taskMap.set("task-qa-ok", buildTask("task-qa-ok", "normal", "running"));
 		runMap.set(
 			"run-qa-ok",
@@ -1130,10 +1125,7 @@ describe("RunsQueueManager scheduling", () => {
 		);
 
 		mockSessionManager.inspectSession.mockResolvedValue(
-			buildInspection({
-				marker: "test_ok",
-				content: buildOpencodeStatusLine("test_ok"),
-			}),
+			buildInspection({ sessionStatus: "idle" }),
 		);
 
 		const manager = new RunsQueueManager();
@@ -1149,34 +1141,31 @@ describe("RunsQueueManager scheduling", () => {
 		expectTransitionCall("run:done", { outcomeContent: "" });
 	});
 
-	it("maps QA failure marker to test_fail signal", async () => {
+	it("maps failure marker to run:fail signal for non-generation runs", async () => {
 		taskMap.set("task-qa-fail", buildTask("task-qa-fail", "normal", "running"));
-		runMap.set(
-			"run-qa-fail",
-			buildRun(
+		runMap.set("run-qa-fail", {
+			...buildRun(
 				"run-qa-fail",
 				"task-qa-fail",
 				"execution",
 				"2026-01-01T00:00:00.000Z",
 			),
-		);
-
-		mockSessionManager.inspectSession.mockResolvedValue(
-			buildInspection({
-				marker: "test_fail",
-				content: buildOpencodeStatusLine("test_fail"),
-			}),
-		);
-
-		const manager = new RunsQueueManager();
-		manager.enqueue("run-qa-fail", {
-			projectPath: "/tmp/project",
-			sessionTitle: "qa-fail",
-			prompt: "prompt",
+			status: "running",
+			startedAt: new Date(Date.now() - 15_000).toISOString(),
 		});
 
-		await waitForDrain();
-		await waitForDrain();
+		const manager = new RunsQueueManager();
+		const access = manager as unknown as {
+			finalizeRunFromSession: (
+				runId: string,
+				status: "completed" | "failed" | "paused",
+				outcome: MockRunOutcome,
+			) => Promise<void>;
+		};
+		await access.finalizeRunFromSession("run-qa-fail", "failed", {
+			marker: "fail",
+			content: "",
+		});
 
 		expectTransitionCall("run:fail", { outcomeContent: "" });
 	});
@@ -1284,12 +1273,17 @@ describe("RunsQueueManager scheduling", () => {
 		await withPrivateAccess.finalizeRunFromSession(
 			"run-late-done",
 			"completed",
-			{ marker: "done", content: buildOpencodeStatusLine("done") },
+			{
+				marker: "done",
+				content:
+					"__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done",
+			},
 		);
 
 		expect(runMap.get("run-late-done")?.status).toBe("completed");
 		expectTransitionCall("run:done", {
-			outcomeContent: buildOpencodeStatusLine("done"),
+			outcomeContent:
+				"__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done",
 		});
 	});
 
@@ -1326,14 +1320,19 @@ describe("RunsQueueManager scheduling", () => {
 		await withPrivateAccess.finalizeRunFromSession(
 			"run-late-done-no-recover",
 			"completed",
-			{ marker: "done", content: buildOpencodeStatusLine("done") },
+			{
+				marker: "done",
+				content:
+					"__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done",
+			},
 		);
 
 		expect(runMap.get("run-late-done-no-recover")?.status).toBe("failed");
 		expect(mockStateMachine.transition).not.toHaveBeenCalledWith(
 			expect.objectContaining({
 				trigger: "run:done",
-				outcomeContent: buildOpencodeStatusLine("done"),
+				outcomeContent:
+					"__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done",
 			}),
 		);
 	});
@@ -1360,10 +1359,7 @@ describe("RunsQueueManager scheduling", () => {
 			},
 		});
 		mockSessionManager.inspectSession.mockResolvedValue(
-			buildInspection({
-				marker: "done",
-				content: buildOpencodeStatusLine("done"),
-			}),
+			buildInspection({ sessionStatus: "idle" }),
 		);
 
 		const manager = new RunsQueueManager();
@@ -1459,7 +1455,7 @@ describe("RunsQueueManager scheduling", () => {
 		);
 	});
 
-	it("does not fail a running run when polling probe reports not_found", async () => {
+	it("fails a running run when polling probe reports not_found in markerless mode", async () => {
 		taskMap.set("task-not-found-1", buildTask("task-not-found-1", "normal"));
 		runMap.set(
 			"run-not-found-1",
@@ -1485,13 +1481,13 @@ describe("RunsQueueManager scheduling", () => {
 
 		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
-		expect(runMap.get("run-not-found-1")?.status).toBe("running");
-		expect(mockStateMachine.transition).not.toHaveBeenCalledWith(
-			expect.objectContaining({ trigger: "run:fail" }),
-		);
+		expect(runMap.get("run-not-found-1")?.status).toBe("failed");
+		expectTransitionCall("run:fail", {
+			outcomeContent: "Session not found",
+		});
 	});
 
-	it("does not fail stale runs when polling probe reports not_found", async () => {
+	it("fails stale runs when polling probe reports not_found in markerless mode", async () => {
 		taskMap.set(
 			"task-stale-not-found",
 			buildTask("task-stale-not-found", "normal", "running"),
@@ -1514,10 +1510,10 @@ describe("RunsQueueManager scheduling", () => {
 		const manager = new RunsQueueManager();
 		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
-		expect(runMap.get("run-stale-not-found")?.status).toBe("running");
-		expect(mockStateMachine.transition).not.toHaveBeenCalledWith(
-			expect.objectContaining({ trigger: "run:fail" }),
-		);
+		expect(runMap.get("run-stale-not-found")?.status).toBe("failed");
+		expectTransitionCall("run:fail", {
+			outcomeContent: "Session not found",
+		});
 	});
 
 	it("preserves generated marker when polling settled generation runs", async () => {
@@ -1564,7 +1560,7 @@ describe("RunsQueueManager scheduling", () => {
 		});
 		mockSessionManager.inspectSession.mockResolvedValue(
 			buildInspection({
-				marker: "generated",
+				sessionStatus: "idle",
 				messages: [
 					{
 						id: "msg-1",
@@ -1575,7 +1571,6 @@ describe("RunsQueueManager scheduling", () => {
 							"## Title",
 							"Clean up CLI output",
 							"</STORY>",
-							buildOpencodeStatusLine("generated"),
 						].join("\n"),
 						parts: [],
 						timestamp: Date.now(),
@@ -1598,7 +1593,7 @@ describe("RunsQueueManager scheduling", () => {
 		});
 	});
 
-	it("uses the marker-bearing assistant message as story content and strips the status line", async () => {
+	it("uses the last assistant message as story content for generation runs", async () => {
 		taskMap.set(
 			"task-story-content",
 			buildTask("task-story-content", "normal", "generating"),
@@ -1615,7 +1610,7 @@ describe("RunsQueueManager scheduling", () => {
 
 		mockSessionManager.inspectSession.mockResolvedValue(
 			buildInspection({
-				marker: "generated",
+				sessionStatus: "idle",
 				messages: [
 					{
 						id: "msg-1",
@@ -1634,7 +1629,6 @@ describe("RunsQueueManager scheduling", () => {
 							"## Title",
 							"Highlight icon",
 							"</STORY>",
-							buildOpencodeStatusLine("generated"),
 						].join("\n"),
 						parts: [],
 						timestamp: Date.now() + 1,
@@ -1664,7 +1658,7 @@ describe("RunsQueueManager scheduling", () => {
 		});
 	});
 
-	it("handles prompt-style prefixed generated markers during polling and strips the label", async () => {
+	it("extracts story content from settled generation run messages during polling", async () => {
 		taskMap.set("task-prefixed-marker", {
 			...buildTask("task-prefixed-marker", "normal", "generating"),
 			updatedAt: new Date(Date.now() - 60_000).toISOString(),
@@ -1684,7 +1678,7 @@ describe("RunsQueueManager scheduling", () => {
 
 		mockSessionManager.inspectSession.mockResolvedValue(
 			buildInspection({
-				marker: "generated",
+				sessionStatus: "idle",
 				messages: [
 					{
 						id: "msg-prefixed",
@@ -1695,7 +1689,6 @@ describe("RunsQueueManager scheduling", () => {
 							"## Title",
 							"Prefixed marker story",
 							"</STORY>",
-							`success: ${buildOpencodeStatusLine("generated")}`,
 						].join("\n"),
 						parts: [],
 						timestamp: Date.now(),
@@ -1718,7 +1711,7 @@ describe("RunsQueueManager scheduling", () => {
 		});
 	});
 
-	it("anchors extracted content to the completion marker message even if later assistant text exists", async () => {
+	it("extracts content from the last assistant message for generation run completion", async () => {
 		taskMap.set(
 			"task-marker-anchor",
 			buildTask("task-marker-anchor", "normal", "generating"),
@@ -1743,28 +1736,14 @@ describe("RunsQueueManager scheduling", () => {
 					"## Title",
 					"Correct content",
 					"</STORY>",
-					buildOpencodeStatusLine("generated"),
 				].join("\n"),
 				parts: [],
 				timestamp: Date.now(),
 			},
-			{
-				id: "msg-late",
-				role: "assistant",
-				content: "Late non-marker chatter that must be ignored",
-				parts: [],
-				timestamp: Date.now() + 1,
-			},
 		];
 
 		mockSessionManager.inspectSession.mockResolvedValue({
-			...buildInspection({ marker: "generated", messages }),
-			completionMarker: {
-				runStatus: "completed",
-				signalKey: "generated",
-				messageId: "msg-story",
-				messageContent: messages[0]!.content,
-			},
+			...buildInspection({ sessionStatus: "idle", messages }),
 		});
 
 		const manager = new RunsQueueManager();
@@ -1885,7 +1864,8 @@ describe("RunsQueueManager permission handling", () => {
 					{
 						id: "msg-assistant-done",
 						role: "assistant",
-						content: buildOpencodeStatusLine("done"),
+						content:
+							"__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done",
 						parts: [],
 						timestamp: Date.now(),
 					},
@@ -2041,10 +2021,7 @@ describe("RunsQueueManager permission handling", () => {
 		mockSessionManager.inspectSession.mockImplementation(
 			async (currentSessionId?: string) => {
 				return currentSessionId === isolatedSessionId
-					? buildInspection({
-							marker: "fail",
-							content: buildOpencodeStatusLine("fail"),
-						})
+					? buildInspection({ probeStatus: "not_found" })
 					: buildInspection();
 			},
 		);
@@ -2052,7 +2029,7 @@ describe("RunsQueueManager permission handling", () => {
 		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
 		expect(runMap.get("run-perm-4")?.status).toBe("failed");
-		expectTransitionCall("run:fail", { outcomeContent: "" });
+		expectTransitionCall("run:fail", { outcomeContent: "Session not found" });
 	});
 
 	it("ignores pending permission for a non-running run during project polling", async () => {
@@ -2146,7 +2123,8 @@ describe("RunsQueueManager permission handling", () => {
 				return currentSessionId === isolatedSessionId
 					? buildInspection({
 							marker: "done",
-							content: buildOpencodeStatusLine("done"),
+							content:
+								"__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done",
 						})
 					: buildInspection();
 			},

@@ -85,10 +85,6 @@ export class RunFinalizer {
 		if (this.deps.isGenerationRun(run)) {
 			return "generated";
 		}
-		if (run.metadata?.kind === "task-qa-testing") {
-			return "test_ok";
-		}
-
 		return "done";
 	}
 
@@ -294,9 +290,6 @@ export function staleRunFallbackMarker(
 	const kind = run.metadata?.kind;
 	if (kind === generationRunKind) {
 		return "generated";
-	}
-	if (kind === "task-qa-testing") {
-		return "test_ok";
 	}
 	return "done";
 }

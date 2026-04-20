@@ -1,5 +1,3 @@
-import { buildOpencodeStatusLine } from "@/lib/opencode-status";
-
 interface QaTestingPromptTask {
 	title: string;
 	description: string | null;
@@ -66,9 +64,5 @@ What to do:
 Response format:
 - A brief markdown report.
 - Sections: "What was checked", "Result", "Issues found" (if any), "Recommendations".
-
-Status marker on the last line:
-- all checks passed: ${buildOpencodeStatusLine("test_ok")}
-- test failures / critical discrepancies: ${buildOpencodeStatusLine("test_fail")}
-- need user input: ${buildOpencodeStatusLine("question")}`;
+`;
 }
