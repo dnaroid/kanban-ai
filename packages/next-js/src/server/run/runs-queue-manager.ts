@@ -6,6 +6,7 @@ import type {
 import { getOpencodeService } from "@/server/opencode/opencode-service";
 import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
 import { roleRepo } from "@/server/repositories/role";
+import { projectRepo } from "@/server/repositories/project";
 import { runEventRepo } from "@/server/repositories/run-event";
 import { runRepo } from "@/server/repositories/run";
 import { taskLinkRepo } from "@/server/repositories/task-link";
@@ -241,6 +242,8 @@ export class RunsQueueManager {
 	private recoveryTimer: ReturnType<typeof setInterval> | null = null;
 	private readonly recoveryIntervalMs = 30_000;
 	private readonly recoveryStaleThresholdMs = 60_000;
+	private startupPromise: Promise<void> | null = null;
+	private startupCompleted = false;
 
 	public constructor() {
 		const services = createServices(this as unknown as RqmContext);
@@ -255,11 +258,7 @@ export class RunsQueueManager {
 		this.runLiveSubscriptionService = services.runLiveSubscriptionService;
 
 		queueMicrotask(() => {
-			void this.runLiveSubscriptionService.restoreActiveRunSubscriptions();
-		});
-
-		queueMicrotask(() => {
-			this.startRecoveryLoop();
+			void this.ensureBootstrapped();
 		});
 	}
 
@@ -540,6 +539,92 @@ export class RunsQueueManager {
 			clearInterval(this.recoveryTimer);
 			this.recoveryTimer = null;
 			log.info("Stopped active run recovery loop");
+		}
+	}
+
+	public ensureBootstrapped(): Promise<void> {
+		if (this.startupCompleted) {
+			return Promise.resolve();
+		}
+		if (!this.startupPromise) {
+			this.startupPromise = this.bootstrapRuntimeState();
+		}
+		return this.startupPromise;
+	}
+
+	private async bootstrapRuntimeState(): Promise<void> {
+		try {
+			log.info("startup bootstrap started");
+
+			// B2: Start OpenCode service first
+			await this.opencodeService.start();
+			log.info("startup opencode service ready");
+
+			// Restore active run subscriptions from DB
+			await this.runLiveSubscriptionService.restoreActiveRunSubscriptions();
+			log.info("startup active run subscriptions restored");
+
+			const aliveSessions = await this.sessionManager.listAliveSessions();
+			log.info("startup sessions discovered", {
+				count: aliveSessions.length,
+			});
+
+			if (aliveSessions.length > 0) {
+				const relevantRuns =
+					this.runReconciliationService.listActiveRunsForReconciliation();
+				const runsBySessionId = new Map<string, Run>();
+				for (const run of relevantRuns) {
+					const sid = run.sessionId?.trim();
+					if (sid) {
+						runsBySessionId.set(sid, run);
+					}
+				}
+
+				let matchedCount = 0;
+				let orphanCount = 0;
+				for (const session of aliveSessions) {
+					const matchedRun = runsBySessionId.get(session.sessionId);
+					if (matchedRun) {
+						await this.runLiveSubscriptionService.ensureSubscribed(
+							matchedRun.id,
+							session.sessionId,
+						);
+						matchedCount++;
+					} else {
+						orphanCount++;
+						log.warn("startup orphan session found", {
+							sessionId: session.sessionId,
+							status: session.status,
+							directory: session.directory,
+						});
+					}
+				}
+				log.info("startup session matching finished", {
+					matchedCount,
+					orphanCount,
+				});
+			}
+
+			const projects = projectRepo.getAll();
+			for (const project of projects) {
+				await this.runReconciler.pollProjectRuns(project.id);
+			}
+			log.info("startup project reconciliation finished", {
+				projectCount: projects.length,
+			});
+
+			// Start recovery loop ONLY after bootstrap completes
+			this.startRecoveryLoop();
+			log.info("startup recovery loop started");
+
+			this.startupCompleted = true;
+			log.info("startup bootstrap completed");
+		} catch (error) {
+			log.error("startup bootstrap failed", {
+				error: error instanceof Error ? error.message : String(error),
+			});
+			// Still mark as completed to prevent infinite retry
+			this.startupCompleted = true;
 		}
 	}
 

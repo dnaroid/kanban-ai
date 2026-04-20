@@ -921,22 +921,9 @@ export class OpencodeSessionManager {
 		if (type === "question.asked") {
 			const sessionId =
 				this.pickSessionId(properties, data) ?? asString(properties.sessionID);
-			console.log(
-				"[session-manager] question.asked raw properties:",
-				JSON.stringify(properties).slice(0, 300),
-			);
-			if (!sessionId) {
-				console.warn("[session-manager] question.asked: no sessionId");
-				return null;
-			}
+			if (!sessionId) return null;
 			const question = this.normalizeQuestion(properties);
-			if (!question) {
-				console.warn(
-					"[session-manager] question.asked: normalizeQuestion returned null",
-				);
-				return null;
-			}
-			console.log("[session-manager] question.asked normalized:", question.id);
+			if (!question) return null;
 			return { type, sessionId, question };
 		}
 
@@ -1081,6 +1068,48 @@ export class OpencodeSessionManager {
 			busySessions: busySessionIds.length,
 			busySessionIds,
 		};
+	}
+
+	public async listAliveSessions(): Promise<
+		Array<{
+			sessionId: string;
+			directory: string | null;
+			status: "idle" | "busy" | "retry" | "unknown";
+		}>
+	> {
+		try {
+			const client = this.getRootClient();
+			const response = await client.session.status();
+			const data = getData<Record<string, { type: string }>>(response);
+
+			const sessions = await Promise.all(
+				Object.entries(data).map(async ([sessionId, sessionStatus]) => {
+					const type = sessionStatus?.type;
+					const status: "idle" | "busy" | "retry" | "unknown" =
+						type === "idle" || type === "busy" || type === "retry"
+							? type
+							: "unknown";
+
+					const cachedSession = this.sessions.get(sessionId);
+					let directory: string | null = cachedSession?.directory ?? null;
+
+					if (!directory) {
+						try {
+							const info = await this.fetchSessionInfo(sessionId);
+							directory = info?.directory ?? null;
+						} catch {
+							directory = null;
+						}
+					}
+
+					return { sessionId, directory, status };
+				}),
+			);
+
+			return sessions;
+		} catch {
+			return [];
+		}
 	}
 
 	private emit(sessionId: string, event: SessionEvent): void {

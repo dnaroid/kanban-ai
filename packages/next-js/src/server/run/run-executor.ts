@@ -58,6 +58,7 @@ interface RunExecutorDeps {
 	onComplete: (runId: string) => void;
 	runLiveSubscriptionService: {
 		ensureSubscribed: (runId: string, sessionId: string) => Promise<void>;
+		unsubscribe: (runId: string) => Promise<void>;
 	};
 }
 
@@ -262,6 +263,7 @@ export class RunExecutor {
 			);
 			this.deps.activeRunSessions.delete(runId);
 			this.deps.runInputs.delete(runId);
+			void this.deps.runLiveSubscriptionService.unsubscribe(runId);
 		} finally {
 			this.deps.onComplete(runId);
 		}

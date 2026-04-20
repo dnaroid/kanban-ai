@@ -310,6 +310,9 @@ export function createServices(ctx: RqmContext): ServiceRegistry {
 			ensureSubscribed: async (runId, sessionId) => {
 				await runLiveSubscriptionService.ensureSubscribed(runId, sessionId);
 			},
+			unsubscribe: async (runId) => {
+				await runLiveSubscriptionService.unsubscribe(runId);
+			},
 		},
 	});
 
