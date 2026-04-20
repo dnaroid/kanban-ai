@@ -144,13 +144,17 @@ export function WriteToolView({
 	const BadgeIcon = badgeConfig.icon;
 
 	const diagnosticsMap = extractDiagnostics(metadata);
-	const diagnosticEntries = diagnosticsMap
-		? Object.entries(diagnosticsMap).filter(([, diags]) => diags.length > 0)
+	const normalizedFilePath = input.filePath.replace(/\\/g, "/");
+	const fileDiagnostics = diagnosticsMap
+		? (Object.entries(diagnosticsMap).find(([path]) => {
+				const normalized = path.replace(/\\/g, "/");
+				return (
+					normalized === normalizedFilePath ||
+					normalized.endsWith("/" + normalizedFilePath)
+				);
+			})?.[1] ?? [])
 		: [];
-	const totalDiagCount = diagnosticEntries.reduce(
-		(sum, [, diags]) => sum + diags.length,
-		0,
-	);
+	const totalDiagCount = fileDiagnostics.length;
 
 	return (
 		<div className="space-y-2">
@@ -187,48 +191,6 @@ export function WriteToolView({
 				</div>
 			</div>
 
-			{diagnosticEntries.length > 0 && (
-				<div className="space-y-1">
-					{diagnosticEntries.map(([filePath, diags]) => (
-						<div
-							key={filePath}
-							className="rounded-md border border-slate-800/60 bg-slate-950/40 overflow-hidden"
-						>
-							<div className="px-2 py-1 border-b border-slate-800/40">
-								<p className="text-[10px] font-mono text-slate-500 truncate">
-									{filePath}
-								</p>
-							</div>
-							<div className="space-y-px">
-								{diags.map((diag, i) => {
-									const sev = diag.severity ?? 1;
-									const cfg = severityConfig[sev] ?? severityConfig[1];
-									const SevIcon = cfg.icon;
-									return (
-										<div
-											key={`${sev}-${diag.message.slice(0, 30)}-${i}`}
-											className={`flex items-start gap-1.5 px-2 py-1 ${cfg.bg}`}
-										>
-											<SevIcon
-												className={`w-3 h-3 mt-px shrink-0 ${cfg.color}`}
-											/>
-											<span
-												className={`text-[10px] font-mono font-semibold shrink-0 ${cfg.color}`}
-											>
-												[{formatPosition(diag.range)}]
-											</span>
-											<span className="text-[10px] font-mono text-slate-300 min-w-0">
-												{diag.message}
-											</span>
-										</div>
-									);
-								})}
-							</div>
-						</div>
-					))}
-				</div>
-			)}
-
 			<div className="max-h-96 overflow-auto rounded-lg border border-slate-800/60 bg-slate-950/60 custom-scrollbar">
 				{!input.content ? (
 					<div className="px-3 py-2 text-[11px] text-slate-500 font-mono">
@@ -252,6 +214,34 @@ export function WriteToolView({
 					</div>
 				)}
 			</div>
+
+			{fileDiagnostics.length > 0 && (
+				<div className="rounded-md border border-slate-800/60 bg-slate-950/40 overflow-hidden">
+					<div className="space-y-px">
+						{fileDiagnostics.map((diag, i) => {
+							const sev = diag.severity ?? 1;
+							const cfg = severityConfig[sev] ?? severityConfig[1];
+							const SevIcon = cfg.icon;
+							return (
+								<div
+									key={`${sev}-${diag.message.slice(0, 30)}-${i}`}
+									className={`flex items-start gap-1.5 px-2 py-1 ${cfg.bg}`}
+								>
+									<SevIcon className={`w-3 h-3 mt-px shrink-0 ${cfg.color}`} />
+									<span
+										className={`text-[10px] font-mono font-semibold shrink-0 ${cfg.color}`}
+									>
+										[{formatPosition(diag.range)}]
+									</span>
+									<span className="text-[10px] font-mono text-slate-300 min-w-0">
+										{diag.message}
+									</span>
+								</div>
+							);
+						})}
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }
