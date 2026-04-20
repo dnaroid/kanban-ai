@@ -58,12 +58,6 @@ export function EngagedModelsSummary({
 	if (isLoading) {
 		return (
 			<div className="flex items-center gap-3 pb-4 mb-6 border-b border-slate-800/60">
-				<div className="w-7 h-7 rounded-lg bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center justify-center text-blue-400">
-					<Cpu className="w-3.5 h-3.5 animate-pulse" />
-				</div>
-				<span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em]">
-					Models
-				</span>
 				<div className="flex gap-2">
 					{[1, 2, 3].map((i) => (
 						<div
@@ -82,12 +76,6 @@ export function EngagedModelsSummary({
 
 	return (
 		<div className="flex items-center gap-3 pb-4 mb-6 border-b border-slate-800/60 flex-wrap">
-			<div className="w-7 h-7 rounded-lg bg-emerald-500/10 ring-1 ring-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-				<Zap className="w-3.5 h-3.5" />
-			</div>
-			<span className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em] shrink-0">
-				Models
-			</span>
 			<div className="flex items-center gap-1.5 flex-wrap">
 				{modelNames.map((name) => {
 					const difficulty = difficultyLookup.get(
