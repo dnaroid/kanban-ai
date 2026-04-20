@@ -30,6 +30,8 @@ import { EditToolDiffView } from "./EditToolDiffView";
 import type { EditToolInput } from "./EditToolDiffView";
 import { ApplyPatchDiffView } from "./ApplyPatchDiffView";
 import type { ApplyPatchToolInput } from "./ApplyPatchDiffView";
+import { WriteToolView } from "./WriteToolView";
+import type { WriteToolInput } from "./WriteToolView";
 import { QuestionInteraction } from "./QuestionInteraction";
 import { TodoWriteToolView } from "./TodoWriteToolView";
 
@@ -49,6 +51,15 @@ function isApplyPatchToolInput(input: unknown): input is ApplyPatchToolInput {
 
 	const record = input as Record<string, unknown>;
 	return typeof record.patchText === "string";
+}
+
+function isWriteToolInput(input: unknown): input is WriteToolInput {
+	if (!input || typeof input !== "object") return false;
+
+	const record = input as Record<string, unknown>;
+	return (
+		typeof record.filePath === "string" && typeof record.content === "string"
+	);
 }
 
 function hasRenderableApplyPatchSections(patchText: string): boolean {
@@ -251,6 +262,7 @@ export function ToolPart({
 		input?: unknown;
 		output?: unknown;
 		error?: string;
+		metadata?: Record<string, unknown>;
 	};
 	projectPath?: string;
 	pendingQuestion?: QuestionData;
@@ -310,6 +322,7 @@ export function ToolPart({
 	const applyPatchToolInput = isApplyPatchToolInput(part.input)
 		? part.input
 		: null;
+	const writeToolInput = isWriteToolInput(part.input) ? part.input : null;
 	const isCompletedEditTool =
 		part.tool === "edit" && part.state === "completed" && editToolInput != null;
 	const isCompletedApplyPatchTool =
@@ -317,10 +330,15 @@ export function ToolPart({
 		part.state === "completed" &&
 		applyPatchToolInput != null &&
 		hasRenderableApplyPatchSections(applyPatchToolInput.patchText);
-	const shouldShowCustomDiff = isCompletedEditTool || isCompletedApplyPatchTool;
+	const isCompletedWriteTool =
+		part.tool === "write" &&
+		part.state === "completed" &&
+		writeToolInput != null;
+	const shouldShowCustomDiff =
+		isCompletedEditTool || isCompletedApplyPatchTool || isCompletedWriteTool;
 
 	const toolFilePath =
-		part.tool === "read" || part.tool === "edit"
+		part.tool === "read" || part.tool === "edit" || part.tool === "write"
 			? getReadFilePath(part.input, projectPath)
 			: null;
 
@@ -365,6 +383,9 @@ export function ToolPart({
 					)}
 					{isCompletedApplyPatchTool && applyPatchToolInput && (
 						<ApplyPatchDiffView input={applyPatchToolInput} />
+					)}
+					{isCompletedWriteTool && writeToolInput && (
+						<WriteToolView input={writeToolInput} metadata={part.metadata} />
 					)}
 					{part.tool === "question" &&
 						(part.state === "pending" || part.state === "running") &&
