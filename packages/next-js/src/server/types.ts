@@ -30,7 +30,6 @@ export interface BoardColumn {
 	name: string;
 	systemKey: string;
 	orderIndex: number;
-	wipLimit?: number | null;
 	color?: string | null;
 	createdAt: string;
 	updatedAt: string;
@@ -75,10 +74,7 @@ export interface Task {
 	type: string;
 	orderInColumn: number;
 	tags: string; // JSON string
-	startDate: string | null;
 	dueDate: string | null;
-	estimatePoints: number | null;
-	estimateHours: number | null;
 	assignee: string | null;
 	modelName: string | null;
 	commitMessage: string | null;
@@ -125,10 +121,7 @@ export interface UpdateTaskInput {
 	type?: string;
 	orderInColumn?: number;
 	tags?: string;
-	startDate?: string | null;
 	dueDate?: string | null;
-	estimatePoints?: number | null;
-	estimateHours?: number | null;
 	assignee?: string | null;
 	modelName?: string | null;
 	commitMessage?: string | null;

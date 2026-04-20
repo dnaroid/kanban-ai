@@ -18,6 +18,7 @@ import {
 	v033UploadsSql,
 	v034ProjectOrderIndexSql,
 	v035TaskWasQaRejectedSql,
+	v036DropDeadColumnsAndFtsSql,
 } from "./sql";
 export {
 	v017SystemKeySql,
@@ -39,6 +40,7 @@ export {
 	v033UploadsSql,
 	v034ProjectOrderIndexSql,
 	v035TaskWasQaRejectedSql,
+	v036DropDeadColumnsAndFtsSql,
 };
 
 export const INIT_DB_SQL = `
@@ -80,7 +82,6 @@ CREATE TABLE IF NOT EXISTS board_columns (
   name TEXT NOT NULL,
   system_key TEXT NOT NULL DEFAULT '',
   order_index INTEGER NOT NULL,
-  wip_limit INTEGER,
   color TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -103,7 +104,6 @@ CREATE TABLE IF NOT EXISTS tasks (
   closed_reason TEXT,
   priority TEXT NOT NULL,         -- 'low' | 'normal' | 'urgent' (migration 4)
   difficulty TEXT NOT NULL DEFAULT 'medium',  -- migration 1
-  assigned_agent TEXT,            -- optional (manual), не обязателен при queue
 
   -- board placement
   board_id TEXT,
@@ -115,11 +115,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   tags_json TEXT NOT NULL DEFAULT '[]',
   description_md TEXT,
 
-  -- scheduling (migration 3)
-  start_date TEXT,
+  -- dates and assignment
   due_date TEXT,
-  estimate_points REAL,
-  estimate_hours REAL,
   assignee TEXT,
 
   -- model assignment (migration 15)
@@ -184,7 +181,6 @@ CREATE TABLE IF NOT EXISTS context_snapshots (
   kind TEXT NOT NULL,
   summary TEXT NOT NULL DEFAULT '',
   payload_json TEXT NOT NULL,
-  hash TEXT NOT NULL,
   created_at TEXT NOT NULL,
   FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
 );
@@ -233,7 +229,6 @@ CREATE TABLE IF NOT EXISTS artifacts (
   kind TEXT NOT NULL,
   title TEXT NOT NULL,
   content TEXT NOT NULL,
-  metadata_json TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL,
   FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
@@ -262,124 +257,6 @@ CREATE TABLE IF NOT EXISTS task_links (
 CREATE INDEX IF NOT EXISTS idx_links_from ON task_links(from_task_id);
 CREATE INDEX IF NOT EXISTS idx_links_to ON task_links(to_task_id);
 CREATE INDEX IF NOT EXISTS idx_links_project ON task_links(project_id);
-
--- ---------------------------------------------------------------------------
--- FTS
--- ---------------------------------------------------------------------------
-
--- tasks_fts
-CREATE VIRTUAL TABLE IF NOT EXISTS tasks_fts USING fts5(
-  task_id UNINDEXED,
-  title,
-  description,
-  tags
-);
-
-CREATE TRIGGER IF NOT EXISTS tasks_fts_insert AFTER INSERT ON tasks
-BEGIN
-  INSERT INTO tasks_fts (task_id, title, description, tags)
-  VALUES (
-    new.id,
-    new.title,
-    COALESCE(new.description_md, new.description, ''),
-    COALESCE(new.tags_json, '')
-  );
-END;
-
-CREATE TRIGGER IF NOT EXISTS tasks_fts_update AFTER UPDATE ON tasks
-BEGIN
-  UPDATE tasks_fts
-  SET
-    title = new.title,
-    description = COALESCE(new.description_md, new.description, ''),
-    tags = COALESCE(new.tags_json, '')
-  WHERE task_id = new.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS tasks_fts_delete AFTER DELETE ON tasks
-BEGIN
-  DELETE FROM tasks_fts WHERE task_id = old.id;
-END;
-
--- runs_fts
-CREATE VIRTUAL TABLE IF NOT EXISTS runs_fts USING fts5(
-  run_id UNINDEXED,
-  role_id,
-  status,
-  error_text
-);
-
-CREATE TRIGGER IF NOT EXISTS runs_fts_insert AFTER INSERT ON runs
-BEGIN
-  INSERT INTO runs_fts (run_id, role_id, status, error_text)
-  VALUES (new.id, new.role_id, new.status, COALESCE(new.error_text, ''));
-END;
-
-CREATE TRIGGER IF NOT EXISTS runs_fts_update AFTER UPDATE ON runs
-BEGIN
-  UPDATE runs_fts
-  SET role_id = new.role_id,
-      status = new.status,
-      error_text = COALESCE(new.error_text, '')
-  WHERE run_id = new.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS runs_fts_delete AFTER DELETE ON runs
-BEGIN
-  DELETE FROM runs_fts WHERE run_id = old.id;
-END;
-
--- run_events_fts
-CREATE VIRTUAL TABLE IF NOT EXISTS run_events_fts USING fts5(
-  run_id UNINDEXED,
-  event_type,
-  payload
-);
-
-CREATE TRIGGER IF NOT EXISTS run_events_fts_insert AFTER INSERT ON run_events
-BEGIN
-  INSERT INTO run_events_fts (run_id, event_type, payload)
-  VALUES (new.run_id, new.event_type, COALESCE(new.payload_json, ''));
-END;
-
-CREATE TRIGGER IF NOT EXISTS run_events_fts_update AFTER UPDATE ON run_events
-BEGIN
-  UPDATE run_events_fts
-  SET event_type = new.event_type,
-      payload = COALESCE(new.payload_json, '')
-  WHERE run_id = new.run_id AND rowid = old.rowid;
-END;
-
-CREATE TRIGGER IF NOT EXISTS run_events_fts_delete AFTER DELETE ON run_events
-BEGIN
-  DELETE FROM run_events_fts WHERE run_id = old.run_id AND rowid = old.rowid;
-END;
-
--- artifacts_fts
-CREATE VIRTUAL TABLE IF NOT EXISTS artifacts_fts USING fts5(
-  artifact_id UNINDEXED,
-  title,
-  content
-);
-
-CREATE TRIGGER IF NOT EXISTS artifacts_fts_insert AFTER INSERT ON artifacts
-BEGIN
-  INSERT INTO artifacts_fts (artifact_id, title, content)
-  VALUES (new.id, new.title, COALESCE(new.content, ''));
-END;
-
-CREATE TRIGGER IF NOT EXISTS artifacts_fts_update AFTER UPDATE ON artifacts
-BEGIN
-  UPDATE artifacts_fts
-  SET title = new.title,
-      content = COALESCE(new.content, '')
-  WHERE artifact_id = new.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS artifacts_fts_delete AFTER DELETE ON artifacts
-BEGIN
-  DELETE FROM artifacts_fts WHERE artifact_id = old.id;
-END;
 
 -- ---------------------------------------------------------------------------
 -- opencode_models + app_settings
@@ -482,6 +359,10 @@ export const migrations = [
 	{
 		version: 35,
 		sql: v035TaskWasQaRejectedSql,
+	},
+	{
+		version: 36,
+		sql: v036DropDeadColumnsAndFtsSql,
 	},
 ] as const;
 

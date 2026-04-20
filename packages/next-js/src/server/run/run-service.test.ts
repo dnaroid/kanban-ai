@@ -158,10 +158,7 @@ type TestTask = {
 	type: string;
 	orderInColumn: number;
 	tags: string;
-	startDate: string | null;
 	dueDate: string | null;
-	estimatePoints: number | null;
-	estimateHours: number | null;
 	assignee: string | null;
 	modelName: string | null;
 	qaReport: string | null;
@@ -195,10 +192,7 @@ function buildTaskBase() {
 		type: "chore",
 		orderInColumn: 0,
 		tags: "[]",
-		startDate: null,
 		dueDate: null,
-		estimatePoints: null,
-		estimateHours: null,
 		assignee: null,
 		modelName: null,
 		qaReport: null,

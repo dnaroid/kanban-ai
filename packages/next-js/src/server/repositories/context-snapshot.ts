@@ -1,4 +1,4 @@
-import { randomUUID, createHash } from "crypto";
+import { randomUUID } from "crypto";
 import type Database from "better-sqlite3";
 import { dbManager } from "@/server/db";
 
@@ -18,7 +18,6 @@ export class ContextSnapshotRepository {
 		const id = randomUUID();
 		const createdAt = new Date().toISOString();
 		const payloadJson = JSON.stringify(input.payload);
-		const hash = createHash("sha256").update(payloadJson).digest("hex");
 
 		this.db
 			.prepare(
@@ -28,19 +27,10 @@ export class ContextSnapshotRepository {
 				kind,
 				summary,
 				payload_json,
-				hash,
 				created_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?)`,
 			)
-			.run(
-				id,
-				input.taskId,
-				input.kind,
-				input.summary,
-				payloadJson,
-				hash,
-				createdAt,
-			);
+			.run(id, input.taskId, input.kind, input.summary, payloadJson, createdAt);
 
 		return id;
 	}

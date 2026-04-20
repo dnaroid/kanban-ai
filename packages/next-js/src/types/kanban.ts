@@ -32,10 +32,7 @@ export interface KanbanTask {
 	type: TaskType;
 	orderInColumn: number;
 	tags: string[];
-	startDate: string | null;
 	dueDate: string | null;
-	estimatePoints: number | null;
-	estimateHours: number | null;
 	assignee: string | null;
 	modelName: string | null;
 	latestSessionId: string | null;
@@ -78,10 +75,7 @@ export interface KanbanTaskPatch {
 	columnId?: string;
 	orderInColumn?: number;
 	tags?: string[];
-	startDate?: string | null;
 	dueDate?: string | null;
-	estimatePoints?: number | null;
-	estimateHours?: number | null;
 	assignee?: string | null;
 	modelName?: string | null;
 	qaReport?: string | null;

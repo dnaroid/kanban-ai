@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { TaskStatusProjectionServiceDeps } from "@/server/run/task-status-projection-service";
 import type { Task, Board, BoardColumn } from "@/server/types";
 import type { Run } from "@/types/ipc";
 
@@ -29,10 +28,7 @@ function buildTask(
 		type: "task",
 		orderInColumn: input.orderInColumn ?? 0,
 		tags: "[]",
-		startDate: null,
 		dueDate: null,
-		estimatePoints: null,
-		estimateHours: null,
 		assignee: null,
 		modelName: null,
 		commitMessage: null,
@@ -250,6 +246,10 @@ vi.mock("@/server/run/run-session-interpreter", async (importOriginal) => {
 
 import { TaskStatusProjectionService } from "@/server/run/task-status-projection-service";
 
+type TaskStatusProjectionServiceDeps = ConstructorParameters<
+	typeof TaskStatusProjectionService
+>[0];
+
 // ---------------------------------------------------------------------------
 // Deps factory helper
 // ---------------------------------------------------------------------------
@@ -263,7 +263,7 @@ function buildDeps(
 		},
 		runFinalizer: {
 			resolveStaleCompletionOutcome: vi.fn(() => ({
-				kind: "completed",
+				kind: "completed" as const,
 				content: "",
 			})),
 			hydrateOutcomeContent: vi.fn(
@@ -781,7 +781,7 @@ describe("TaskStatusProjectionService", () => {
 				applyTaskTransition,
 				runFinalizer: {
 					resolveStaleCompletionOutcome: vi.fn(() => ({
-						kind: "completed",
+						kind: "completed" as const,
 						content: "",
 					})),
 					hydrateOutcomeContent,
@@ -885,7 +885,7 @@ describe("TaskStatusProjectionService", () => {
 				getRunErrorText: vi.fn(() => "fetch failed"),
 				runFinalizer: {
 					resolveStaleCompletionOutcome: vi.fn(() => ({
-						kind: "completed",
+						kind: "completed" as const,
 						content: "",
 					})),
 					hydrateOutcomeContent: vi.fn(async (_r: Run, c: string) => c),
@@ -935,7 +935,7 @@ describe("TaskStatusProjectionService", () => {
 				getRunErrorText: vi.fn(() => "fetch failed"),
 				runFinalizer: {
 					resolveStaleCompletionOutcome: vi.fn(() => ({
-						kind: "completed",
+						kind: "completed" as const,
 						content: "",
 					})),
 					hydrateOutcomeContent: vi.fn(),
@@ -975,7 +975,7 @@ describe("TaskStatusProjectionService", () => {
 				getRunErrorText: vi.fn(() => "internal error"),
 				runFinalizer: {
 					resolveStaleCompletionOutcome: vi.fn(() => ({
-						kind: "completed",
+						kind: "completed" as const,
 						content: "",
 					})),
 					hydrateOutcomeContent: vi.fn(),
@@ -1025,7 +1025,7 @@ describe("TaskStatusProjectionService", () => {
 				applyTaskTransition,
 				runFinalizer: {
 					resolveStaleCompletionOutcome: vi.fn(() => ({
-						kind: "completed",
+						kind: "completed" as const,
 						content: "",
 					})),
 					hydrateOutcomeContent: vi.fn(async (_r: Run, c: string) => c),

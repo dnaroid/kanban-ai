@@ -1143,12 +1143,7 @@ export function useBoardModel({
 		if (patch.orderInColumn !== undefined)
 			updateData.orderInColumn = patch.orderInColumn;
 		if (patch.tags !== undefined) updateData.tags = JSON.stringify(patch.tags);
-		if (patch.startDate !== undefined) updateData.startDate = patch.startDate;
 		if (patch.dueDate !== undefined) updateData.dueDate = patch.dueDate;
-		if (patch.estimatePoints !== undefined)
-			updateData.estimatePoints = patch.estimatePoints;
-		if (patch.estimateHours !== undefined)
-			updateData.estimateHours = patch.estimateHours;
 		if (patch.assignee !== undefined) updateData.assignee = patch.assignee;
 		if (patch.modelName !== undefined) updateData.modelName = patch.modelName;
 		if (patch.isGenerated !== undefined)

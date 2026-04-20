@@ -5,7 +5,6 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import {
 	BarChart3,
-	Calendar,
 	CalendarClock,
 	Circle,
 	ClipboardCheck,
@@ -22,8 +21,6 @@ import {
 	Sparkles,
 	Tag,
 	Tags,
-	Target,
-	Timer,
 	Type,
 	User,
 	AlertTriangle,
@@ -333,45 +330,11 @@ export function TaskDrawerProperties({
 
 				<div className="space-y-2">
 					<p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-						<Calendar className="w-2.5 h-2.5" />
-						Start Date
-					</p>
-					<span className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
-						{formatDate(task.startDate, "Not set")}
-					</span>
-				</div>
-
-				<div className="space-y-2">
-					<p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
 						<CalendarClock className="w-2.5 h-2.5" />
 						Due Date
 					</p>
 					<span className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
 						{formatDate(task.dueDate, "Not set")}
-					</span>
-				</div>
-
-				<div className="space-y-2">
-					<p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-						<Target className="w-2.5 h-2.5" />
-						Estimate Points
-					</p>
-					<span className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
-						{task.estimatePoints !== null
-							? `${task.estimatePoints} pts`
-							: "Not set"}
-					</span>
-				</div>
-
-				<div className="space-y-2">
-					<p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-						<Timer className="w-2.5 h-2.5" />
-						Estimate Hours
-					</p>
-					<span className="block text-xs text-slate-400 bg-slate-900/50 px-4 py-3 rounded-xl border border-slate-800/50 shadow-inner">
-						{task.estimateHours !== null
-							? `${task.estimateHours} h`
-							: "Not set"}
 					</span>
 				</div>
 

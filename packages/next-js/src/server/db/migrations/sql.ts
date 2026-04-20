@@ -127,3 +127,34 @@ WHERE projects.id = sub.id;
 export const v035TaskWasQaRejectedSql = `
 ALTER TABLE tasks ADD COLUMN was_qa_rejected TEXT NOT NULL DEFAULT '0';
 `;
+
+export const v036DropDeadColumnsAndFtsSql = `
+-- Drop FTS triggers (write-only, never queried)
+DROP TRIGGER IF EXISTS tasks_fts_insert;
+DROP TRIGGER IF EXISTS tasks_fts_update;
+DROP TRIGGER IF EXISTS tasks_fts_delete;
+DROP TRIGGER IF EXISTS runs_fts_insert;
+DROP TRIGGER IF EXISTS runs_fts_update;
+DROP TRIGGER IF EXISTS runs_fts_delete;
+DROP TRIGGER IF EXISTS run_events_fts_insert;
+DROP TRIGGER IF EXISTS run_events_fts_update;
+DROP TRIGGER IF EXISTS run_events_fts_delete;
+DROP TRIGGER IF EXISTS artifacts_fts_insert;
+DROP TRIGGER IF EXISTS artifacts_fts_update;
+DROP TRIGGER IF EXISTS artifacts_fts_delete;
+
+-- Drop FTS virtual tables
+DROP TABLE IF EXISTS tasks_fts;
+DROP TABLE IF EXISTS runs_fts;
+DROP TABLE IF EXISTS run_events_fts;
+DROP TABLE IF EXISTS artifacts_fts;
+
+-- Drop dead columns
+ALTER TABLE tasks DROP COLUMN assigned_agent;
+ALTER TABLE tasks DROP COLUMN start_date;
+ALTER TABLE tasks DROP COLUMN estimate_points;
+ALTER TABLE tasks DROP COLUMN estimate_hours;
+ALTER TABLE artifacts DROP COLUMN metadata_json;
+ALTER TABLE context_snapshots DROP COLUMN hash;
+ALTER TABLE board_columns DROP COLUMN wip_limit;
+`;

@@ -78,9 +78,9 @@ export class BoardRepository {
 		return this.db
 			.prepare(
 				`SELECT id, board_id as boardId, name, system_key as systemKey,
-                order_index as orderIndex, wip_limit as wipLimit, color,
-                created_at as createdAt, updated_at as updatedAt
-         FROM board_columns WHERE board_id = ? ORDER BY order_index ASC`,
+								order_index as orderIndex, color,
+								created_at as createdAt, updated_at as updatedAt
+		 FROM board_columns WHERE board_id = ? ORDER BY order_index ASC`,
 			)
 			.all(boardId) as BoardColumn[];
 	}

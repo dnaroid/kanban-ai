@@ -803,7 +803,6 @@ export function resolveTransitionTrigger(params: {
 	runStatus: RunStatus;
 	sessionMetaKind:
 		| "completed"
-		| "failed"
 		| "running"
 		| "question"
 		| "permission"
@@ -823,10 +822,6 @@ export function resolveTransitionTrigger(params: {
 
 	if (sessionMetaKind === "completed") {
 		return isDescriptionImproveRun(runKind) ? "generate:ok" : "run:done";
-	}
-
-	if (sessionMetaKind === "failed") {
-		return isDescriptionImproveRun(runKind) ? "generate:fail" : "run:fail";
 	}
 
 	if (sessionMetaKind === "running") {

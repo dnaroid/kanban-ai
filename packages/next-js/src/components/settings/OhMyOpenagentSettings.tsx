@@ -244,18 +244,19 @@ export function OhMyOpenagentSettings({
 		}
 	};
 
-	const handleLoadPreset = async () => {
-		if (!configPath || !selectedPreset) return;
+	const handleLoadPreset = async (presetName?: string) => {
+		const name = presetName ?? selectedPreset;
+		if (!configPath || !name) return;
 		try {
 			setIsLoading(true);
 			const response = await api.omc.loadPreset({
 				path: configPath,
-				presetName: selectedPreset,
+				presetName: name,
 			});
 			setConfig(response.config as OhMyOpenagentConfig);
 			setUnsavedChanges(true);
 			onStatusChangeAction({
-				message: `Preset loaded: ${selectedPreset}`,
+				message: `Preset loaded: ${name}`,
 				type: "success",
 			});
 		} catch (error) {
@@ -400,8 +401,13 @@ export function OhMyOpenagentSettings({
 							<div className="relative">
 								<select
 									value={selectedPreset}
-									onChange={(e) => setSelectedPreset(e.target.value)}
-									className="bg-transparent text-[11px] font-bold text-slate-200 pr-6 py-1 focus:outline-none appearance-none cursor-pointer min-w-[120px] max-w-[180px] truncate hover:bg-slate-800/50 hover:text-slate-100 transition-colors"
+									disabled={isLoading}
+									onChange={(e) => {
+										const value = e.target.value;
+										setSelectedPreset(value);
+										if (value) void handleLoadPreset(value);
+									}}
+									className="bg-transparent text-[11px] font-bold text-slate-200 pr-6 py-1 focus:outline-none appearance-none cursor-pointer min-w-[120px] max-w-[180px] truncate hover:bg-slate-800/50 hover:text-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 								>
 									<option value="" className="bg-[#161B26]">
 										Select Preset...
@@ -419,20 +425,6 @@ export function OhMyOpenagentSettings({
 								<ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500 pointer-events-none" />
 							</div>
 						</div>
-
-						<button
-							type="button"
-							onClick={() => void handleLoadPreset()}
-							disabled={!selectedPreset}
-							className={cn(
-								"h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all",
-								selectedPreset
-									? "bg-slate-700 text-white hover:bg-slate-600"
-									: "text-slate-600 cursor-not-allowed",
-							)}
-						>
-							Load
-						</button>
 
 						<div className="w-px h-4 bg-slate-700 mx-1" />
 

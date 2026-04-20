@@ -119,6 +119,10 @@ vi.mock("@/server/run/task-state-machine", async () => {
 
 import { ExecutionBootstrapService } from "@/server/run/execution-bootstrap-service";
 
+type ExecutionBootstrapServiceDeps = ConstructorParameters<
+	typeof ExecutionBootstrapService
+>[0];
+
 // --- Helpers ---
 
 const NOW = new Date().toISOString();
@@ -141,10 +145,7 @@ function buildTask(overrides: Partial<Task> = {}): Task {
 		type: overrides.type ?? "task",
 		orderInColumn: overrides.orderInColumn ?? 0,
 		tags: overrides.tags ?? "[]",
-		startDate: overrides.startDate ?? null,
 		dueDate: overrides.dueDate ?? null,
-		estimatePoints: overrides.estimatePoints ?? null,
-		estimateHours: overrides.estimateHours ?? null,
 		assignee: overrides.assignee ?? null,
 		modelName: overrides.modelName ?? null,
 		commitMessage: overrides.commitMessage ?? null,
@@ -237,14 +238,20 @@ const defaultRolesList = [
 function createService(
 	deps: {
 		worktreeEnabled?: boolean;
-		enqueue?: ReturnType<typeof vi.fn>;
-		provisionRunWorkspace?: ReturnType<typeof vi.fn>;
-		sendPrompt?: ReturnType<typeof vi.fn>;
+		enqueue?: ExecutionBootstrapServiceDeps["enqueue"];
+		provisionRunWorkspace?: ExecutionBootstrapServiceDeps["provisionRunWorkspace"];
+		sendPrompt?: ExecutionBootstrapServiceDeps["sendPrompt"];
 	} = {},
 ) {
-	const enqueue = deps.enqueue ?? vi.fn();
-	const provisionRunWorkspace = deps.provisionRunWorkspace ?? vi.fn();
-	const sendPrompt = deps.sendPrompt ?? vi.fn();
+	const enqueue =
+		deps.enqueue ??
+		(vi.fn() as unknown as ExecutionBootstrapServiceDeps["enqueue"]);
+	const provisionRunWorkspace =
+		deps.provisionRunWorkspace ??
+		(vi.fn() as unknown as ExecutionBootstrapServiceDeps["provisionRunWorkspace"]);
+	const sendPrompt =
+		deps.sendPrompt ??
+		(vi.fn() as unknown as ExecutionBootstrapServiceDeps["sendPrompt"]);
 
 	const service = new ExecutionBootstrapService({
 		worktreeEnabled: deps.worktreeEnabled ?? false,

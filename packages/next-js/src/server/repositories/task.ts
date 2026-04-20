@@ -36,11 +36,11 @@ export class TaskRepository {
       INSERT INTO tasks (
 				id, project_id, board_id, column_id, title, description, description_md,
 				status, blocked_reason, blocked_reason_text, closed_reason, priority, difficulty, type, order_in_column, tags_json,
-				start_date, due_date, estimate_points, estimate_hours, assignee, model_name, commit_message, qa_report,
+				due_date, assignee, model_name, commit_message, qa_report,
 				is_generated, was_qa_rejected,
 				created_at, updated_at
 			)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
 		stmt.run(
@@ -60,10 +60,7 @@ export class TaskRepository {
 			type,
 			orderInColumn,
 			tags,
-			null, // start_date
 			input.dueDate ?? null,
-			null, // estimate_points
-			null, // estimate_hours
 			null, // assignee
 			input.modelName ?? null,
 			input.commitMessage ?? null,
@@ -96,10 +93,7 @@ export class TaskRepository {
         type,
         order_in_column as orderInColumn,
         tags_json as tags,
-        start_date as startDate,
         due_date as dueDate,
-        estimate_points as estimatePoints,
-        estimate_hours as estimateHours,
         assignee,
         model_name as modelName,
         commit_message as commitMessage,
@@ -135,10 +129,7 @@ export class TaskRepository {
         type,
         order_in_column as orderInColumn,
         tags_json as tags,
-        start_date as startDate,
         due_date as dueDate,
-        estimate_points as estimatePoints,
-        estimate_hours as estimateHours,
         assignee,
         model_name as modelName,
         commit_message as commitMessage,
@@ -212,21 +203,9 @@ export class TaskRepository {
 			sets.push("tags_json = ?");
 			values.push(updates.tags);
 		}
-		if (updates.startDate !== undefined) {
-			sets.push("start_date = ?");
-			values.push(updates.startDate);
-		}
 		if (updates.dueDate !== undefined) {
 			sets.push("due_date = ?");
 			values.push(updates.dueDate);
-		}
-		if (updates.estimatePoints !== undefined) {
-			sets.push("estimate_points = ?");
-			values.push(updates.estimatePoints);
-		}
-		if (updates.estimateHours !== undefined) {
-			sets.push("estimate_hours = ?");
-			values.push(updates.estimateHours);
 		}
 		if (updates.assignee !== undefined) {
 			sets.push("assignee = ?");
