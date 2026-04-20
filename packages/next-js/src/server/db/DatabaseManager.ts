@@ -87,15 +87,17 @@ export class DatabaseManager {
 					try {
 						this.db!.exec(migration.sql);
 					} catch (err: unknown) {
-						// Handle duplicate column error (migration already applied at schema level)
+						// Handle idempotent migration errors (column already exists or already dropped)
 						if (
 							err instanceof Error &&
-							err.message.includes("duplicate column name")
+							(err.message.includes("duplicate column name") ||
+								err.message.includes("no such column"))
 						) {
 							console.log(
 								"[DB] Migration version",
 								migration.version,
-								"skipped - column already exists",
+								"skipped -",
+								err.message,
 							);
 						} else {
 							throw err;
