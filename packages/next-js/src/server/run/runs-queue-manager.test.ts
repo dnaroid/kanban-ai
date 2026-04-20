@@ -8,20 +8,10 @@ import type {
 	TaskTransitionInput,
 	TaskTransitionTrigger,
 } from "@/server/run/task-state-machine";
+import type { RunOutcome } from "@/server/run/run-finalizer";
 
 type MockRecord = Record<string, unknown>;
-type RunOutcomeMarker =
-	| "done"
-	| "generated"
-	| "fail"
-	| "test_ok"
-	| "test_fail"
-	| "dead"
-	| "question"
-	| "resumed"
-	| "cancelled"
-	| "timeout";
-type MockRunOutcome = { marker: RunOutcomeMarker; content: string };
+type MockRunOutcome = RunOutcome;
 
 const {
 	runMap,
@@ -69,7 +59,6 @@ const {
 				todos: [],
 				pendingPermissions: [],
 				pendingQuestions: [],
-				completionMarker: null,
 			})),
 			getMessages: vi.fn(
 				async (_sessionId?: string, _limit?: number) => [] as Array<MockRecord>,
@@ -413,7 +402,6 @@ function buildRun(
 }
 
 function buildInspection(options?: {
-	marker?: RunOutcomeMarker;
 	content?: string;
 	messages?: SessionInspectionResult["messages"];
 	pendingPermissions?: SessionInspectionResult["pendingPermissions"];
@@ -421,7 +409,6 @@ function buildInspection(options?: {
 	probeStatus?: SessionInspectionResult["probeStatus"];
 	sessionStatus?: SessionInspectionResult["sessionStatus"];
 }): SessionInspectionResult {
-	const marker = options?.marker;
 	const content = options?.content ?? "";
 	const messages: SessionInspectionResult["messages"] =
 		options?.messages ??
@@ -438,12 +425,11 @@ function buildInspection(options?: {
 			: []);
 	return {
 		probeStatus: options?.probeStatus ?? "alive",
-		sessionStatus: options?.sessionStatus ?? (marker ? "idle" : "busy"),
+		sessionStatus: options?.sessionStatus ?? "busy",
 		messages,
 		todos: [],
 		pendingPermissions: options?.pendingPermissions ?? [],
 		pendingQuestions: options?.pendingQuestions ?? [],
-		completionMarker: null,
 	};
 }
 
@@ -896,9 +882,8 @@ describe("RunsQueueManager scheduling", () => {
 			"run-auto-merge",
 			"completed",
 			{
-				marker: "done",
-				content:
-					"__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done",
+				kind: "completed",
+				content: "Done",
 			},
 		);
 
@@ -978,9 +963,8 @@ describe("RunsQueueManager scheduling", () => {
 			"run-auto-merge-fail",
 			"completed",
 			{
-				marker: "done",
-				content:
-					"__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done",
+				kind: "completed",
+				content: "Done",
 			},
 		);
 
@@ -1063,9 +1047,8 @@ describe("RunsQueueManager scheduling", () => {
 			"run-auto-cleanup-fail",
 			"completed",
 			{
-				marker: "done",
-				content:
-					"__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done",
+				kind: "completed",
+				content: "Done",
 			},
 		);
 
@@ -1141,7 +1124,7 @@ describe("RunsQueueManager scheduling", () => {
 		expectTransitionCall("run:done", { outcomeContent: "" });
 	});
 
-	it("maps failure marker to run:fail signal for non-generation runs", async () => {
+	it("maps failed outcome to run:fail signal for non-generation runs", async () => {
 		taskMap.set("task-qa-fail", buildTask("task-qa-fail", "normal", "running"));
 		runMap.set("run-qa-fail", {
 			...buildRun(
@@ -1163,7 +1146,7 @@ describe("RunsQueueManager scheduling", () => {
 			) => Promise<void>;
 		};
 		await access.finalizeRunFromSession("run-qa-fail", "failed", {
-			marker: "fail",
+			kind: "failed",
 			content: "",
 		});
 
@@ -1240,7 +1223,7 @@ describe("RunsQueueManager scheduling", () => {
 		expectTransitionCall("run:fail", { outcomeContent: "Something broke" });
 	});
 
-	it("recovers failed run when late done marker arrives after fetch failure", async () => {
+	it("recovers failed run when late completion arrives after fetch failure", async () => {
 		taskMap.set(
 			"task-late-done",
 			buildTask("task-late-done", "normal", "failed"),
@@ -1274,20 +1257,18 @@ describe("RunsQueueManager scheduling", () => {
 			"run-late-done",
 			"completed",
 			{
-				marker: "done",
-				content:
-					"__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done",
+				kind: "completed",
+				content: "Done",
 			},
 		);
 
 		expect(runMap.get("run-late-done")?.status).toBe("completed");
 		expectTransitionCall("run:done", {
-			outcomeContent:
-				"__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done",
+			outcomeContent: "Done",
 		});
 	});
 
-	it("does not recover failed run with non-network error on late done marker", async () => {
+	it("does not recover failed run with non-network error on late completion", async () => {
 		taskMap.set(
 			"task-late-done-no-recover",
 			buildTask("task-late-done-no-recover", "normal", "failed"),
@@ -1321,9 +1302,8 @@ describe("RunsQueueManager scheduling", () => {
 			"run-late-done-no-recover",
 			"completed",
 			{
-				marker: "done",
-				content:
-					"__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done",
+				kind: "completed",
+				content: "Done",
 			},
 		);
 
@@ -1331,8 +1311,7 @@ describe("RunsQueueManager scheduling", () => {
 		expect(mockStateMachine.transition).not.toHaveBeenCalledWith(
 			expect.objectContaining({
 				trigger: "run:done",
-				outcomeContent:
-					"__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done",
+				outcomeContent: "Done",
 			}),
 		);
 	});
@@ -1864,8 +1843,7 @@ describe("RunsQueueManager permission handling", () => {
 					{
 						id: "msg-assistant-done",
 						role: "assistant",
-						content:
-							"__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done",
+						content: "Done",
 						parts: [],
 						timestamp: Date.now(),
 					},
@@ -2066,7 +2044,7 @@ describe("RunsQueueManager permission handling", () => {
 		);
 	});
 
-	it("still detects completion marker after permission is resolved during project polling", async () => {
+	it("still detects completion after permission is resolved during project polling", async () => {
 		const { manager, sessionId } = await setupRunningRun(
 			"run-perm-6",
 			"task-perm-6",
@@ -2122,9 +2100,8 @@ describe("RunsQueueManager permission handling", () => {
 			async (currentSessionId?: string) => {
 				return currentSessionId === isolatedSessionId
 					? buildInspection({
-							marker: "done",
-							content:
-								"__OPENCODE_STATUS__::7f2b3b52-2a7f-4f2a-8d2e-9b6c8b0f2e7a::done",
+							content: "Done",
+							sessionStatus: "idle",
 						})
 					: buildInspection();
 			},

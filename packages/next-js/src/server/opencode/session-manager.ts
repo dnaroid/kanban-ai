@@ -6,7 +6,6 @@ import type {
 	OpenCodeMessage,
 	OpenCodeTodo,
 	Part,
-	RunStatus,
 } from "@/types/ipc";
 import { getOpencodeService } from "@/server/opencode/opencode-service";
 
@@ -104,14 +103,6 @@ export interface SessionInspectionResult {
 	todos: OpenCodeTodo[];
 	pendingPermissions: PermissionData[];
 	pendingQuestions: QuestionData[];
-	completionMarker: AssistantRunSignal | null;
-}
-
-export interface AssistantRunSignal {
-	runStatus: RunStatus;
-	signalKey: string;
-	messageId: string;
-	messageContent: string;
 }
 
 function getData<T>(value: unknown): T {
@@ -307,7 +298,6 @@ export class OpencodeSessionManager {
 					todos: await this.getTodos(sessionId),
 					pendingPermissions: await this.listPendingPermissions(sessionId),
 					pendingQuestions: await this.listPendingQuestions(sessionId),
-					completionMarker: this.resolveCompletionMarker(messages),
 				};
 			}
 
@@ -319,7 +309,6 @@ export class OpencodeSessionManager {
 				todos: [],
 				pendingPermissions: [],
 				pendingQuestions: [],
-				completionMarker: null,
 			};
 		}
 
@@ -344,7 +333,6 @@ export class OpencodeSessionManager {
 			todos,
 			pendingPermissions,
 			pendingQuestions,
-			completionMarker: this.resolveCompletionMarker(messages),
 		};
 	}
 
@@ -1473,18 +1461,6 @@ export class OpencodeSessionManager {
 		}
 
 		return "error";
-	}
-
-	private resolveCompletionMarker(
-		_messages: OpenCodeMessage[],
-	): AssistantRunSignal | null {
-		return null;
-	}
-
-	private findCompletionMarker(
-		_messages: OpenCodeMessage[],
-	): AssistantRunSignal | null {
-		return null;
 	}
 
 	private isSessionNotFoundError(error: unknown): boolean {

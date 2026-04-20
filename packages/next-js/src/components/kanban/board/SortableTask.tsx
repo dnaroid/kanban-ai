@@ -10,8 +10,6 @@ import {
 	XCircle,
 	RotateCcw,
 	CheckCircle2,
-	FileText,
-	TestTube2,
 	AlertTriangle,
 	Wand2,
 } from "lucide-react";
@@ -400,19 +398,14 @@ export function SortableTask({
 	);
 }
 
-const COMPLETED_MARKER_VISUALS: Record<
-	string,
-	{ icon: typeof CheckCircle2; color: string; label: string } | undefined
+const EXECUTION_STATUS_VISUALS: Partial<
+	Record<
+		RunLastExecutionStatus["kind"],
+		{ icon: typeof CheckCircle2; color: string; label: string }
+	>
 > = {
-	done: { icon: CheckCircle2, color: "text-emerald-400", label: "Done" },
-	generated: { icon: FileText, color: "text-emerald-400", label: "Generated" },
-	test_ok: {
-		icon: TestTube2,
-		color: "text-emerald-400",
-		label: "Tests passed",
-	},
-	test_fail: { icon: TestTube2, color: "text-red-400", label: "Tests failed" },
-	fail: { icon: AlertTriangle, color: "text-red-400", label: "Failed" },
+	completed: { icon: CheckCircle2, color: "text-emerald-400", label: "Done" },
+	failed: { icon: AlertTriangle, color: "text-red-400", label: "Failed" },
 };
 
 function ExecutionStatusIcon({
@@ -433,11 +426,11 @@ function ExecutionStatusIcon({
 		);
 	}
 
-	if (!status?.marker) {
+	if (!status) {
 		return null;
 	}
 
-	const visual = COMPLETED_MARKER_VISUALS[status.marker];
+	const visual = EXECUTION_STATUS_VISUALS[status.kind];
 	if (!visual) {
 		return null;
 	}

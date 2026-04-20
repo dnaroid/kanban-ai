@@ -64,5 +64,9 @@ What to do:
 Response format:
 - A brief markdown report.
 - Sections: "What was checked", "Result", "Issues found" (if any), "Recommendations".
+
+Do not output textual status markers or special control tokens.
+If you can proceed with a reasonable assumption, do so and state it briefly.
+If you cannot continue without user input, ask one specific question.
 `;
 }

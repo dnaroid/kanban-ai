@@ -160,5 +160,6 @@ Rules:
 10) Choose the fe (frontend) role ONLY if the task is focused on UI/UX: components, styles, animations, layouts, design systems, responsiveness, interactivity. Tasks involving logic, API, architecture, DB, configuration, infrastructure, testing — are NOT frontend tasks even if they indirectly affect UI. For such tasks, choose be, tl, or another specialized executor.
 11) The executing agent may delegate part of the work to another agent (including fe) during execution. Do not assign fe "just in case" — if the task is not focused on UI, assign tl or be.
 12) For tasks without clear specialization (architecture, refactoring, mixed logic), choose tl as the universal executor.
-13) ${languageInstruction}`;
+13) ${languageInstruction}
+14) Do not output textual status markers or special control tokens. If you can proceed with a reasonable assumption, do so. If you cannot continue without user input, ask one specific question.`;
 }

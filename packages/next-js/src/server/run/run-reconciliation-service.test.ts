@@ -5,7 +5,7 @@ import type {
 	SessionInspectionResult,
 	SessionProbeStatus,
 } from "@/server/opencode/session-manager";
-import type { RunOutcomeMarker } from "@/server/run/run-session-interpreter";
+import type { RunOutcome } from "@/server/run/run-finalizer";
 import { RunReconciliationService } from "@/server/run/run-reconciliation-service";
 
 let mockHasListByStatuses = true;
@@ -106,7 +106,6 @@ function buildInspection(
 		todos: [],
 		pendingPermissions: [],
 		pendingQuestions: [],
-		completionMarker: null,
 		...overrides,
 	};
 }
@@ -134,7 +133,7 @@ interface TestDeps {
 	isStoryChatRun: ReturnType<typeof vi.fn>;
 	finalizeRunFromSession: ReturnType<typeof vi.fn>;
 	runFinalizer: {
-		staleRunFallbackMarker: ReturnType<typeof vi.fn>;
+		resolveStaleCompletionOutcome: ReturnType<typeof vi.fn>;
 		syncRunWorkspaceState: ReturnType<typeof vi.fn>;
 	};
 	applyTaskTransition: ReturnType<typeof vi.fn>;
@@ -165,7 +164,9 @@ function setupDeps(): TestDeps {
 		isStoryChatRun: vi.fn(() => false),
 		finalizeRunFromSession: vi.fn(async () => {}),
 		runFinalizer: {
-			staleRunFallbackMarker: vi.fn(() => "done" as RunOutcomeMarker),
+			resolveStaleCompletionOutcome: vi.fn(
+				() => ({ kind: "completed", content: "" }) as RunOutcome,
+			),
 			syncRunWorkspaceState: vi.fn(async (run: Run) => run),
 		},
 		applyTaskTransition: vi.fn(),
@@ -370,7 +371,6 @@ describe("RunReconciliationService", () => {
 			mockRunRepoUpdate.mockReturnValue(run);
 			mockDeriveMetaStatus.mockReturnValue({
 				kind: "completed",
-				marker: "done",
 				content: "done-content",
 			});
 
@@ -379,24 +379,8 @@ describe("RunReconciliationService", () => {
 			expect(deps.finalizeRunFromSession).toHaveBeenCalledWith(
 				"r1",
 				"completed",
-				{ marker: "done", content: "done-content" },
+				{ kind: "completed", content: "done-content" },
 			);
-		});
-
-		it("meta.kind failed calls finalizeRunFromSession with failed", async () => {
-			mockRunRepoUpdate.mockReturnValue(run);
-			mockDeriveMetaStatus.mockReturnValue({
-				kind: "failed",
-				marker: "fail",
-				content: "fail-content",
-			});
-
-			await service.applyInspectionResult(run, "session-1", buildInspection());
-
-			expect(deps.finalizeRunFromSession).toHaveBeenCalledWith("r1", "failed", {
-				marker: "fail",
-				content: "fail-content",
-			});
 		});
 
 		it("meta.kind dead calls failRunDuringReconciliation", async () => {
@@ -527,7 +511,7 @@ describe("RunReconciliationService", () => {
 			).toHaveBeenCalledWith("r1", "session-1");
 		});
 
-		it("stale running run with alive probe and non-terminal meta force-finalizes via staleRunFallbackMarker", async () => {
+		it("stale running run with alive probe and non-terminal meta force-finalizes via resolveStaleCompletionOutcome", async () => {
 			const oldDate = new Date(Date.now() - 120000).toISOString();
 			const staleRun = makeRun({
 				id: "r1",
@@ -537,9 +521,10 @@ describe("RunReconciliationService", () => {
 			});
 			mockRunRepoUpdate.mockReturnValue(staleRun);
 			mockDeriveMetaStatus.mockReturnValue({ kind: "running" });
-			deps.runFinalizer.staleRunFallbackMarker.mockReturnValue(
-				"done" as RunOutcomeMarker,
-			);
+			deps.runFinalizer.resolveStaleCompletionOutcome.mockReturnValue({
+				kind: "completed",
+				content: "",
+			});
 
 			await service.applyInspectionResult(
 				staleRun,
@@ -547,13 +532,13 @@ describe("RunReconciliationService", () => {
 				buildInspection({ probeStatus: "alive" }),
 			);
 
-			expect(deps.runFinalizer.staleRunFallbackMarker).toHaveBeenCalledWith(
-				staleRun,
-			);
+			expect(
+				deps.runFinalizer.resolveStaleCompletionOutcome,
+			).toHaveBeenCalledWith(staleRun);
 			expect(deps.finalizeRunFromSession).toHaveBeenCalledWith(
 				"r1",
 				"completed",
-				{ marker: "done", content: "" },
+				{ kind: "completed", content: "" },
 			);
 		});
 	});
@@ -670,7 +655,6 @@ describe("RunReconciliationService", () => {
 			deps.sessionManager.inspectSession.mockResolvedValue(buildInspection());
 			mockDeriveMetaStatus.mockReturnValue({
 				kind: "completed",
-				marker: "done",
 				content: "done-content",
 			});
 
@@ -679,29 +663,8 @@ describe("RunReconciliationService", () => {
 			expect(deps.finalizeRunFromSession).toHaveBeenCalledWith(
 				"r1",
 				"completed",
-				{ marker: "done", content: "done-content" },
+				{ kind: "completed", content: "done-content" },
 			);
-		});
-
-		it("terminal session (failed) finalizes run", async () => {
-			const run = makeRun({
-				id: "r1",
-				status: "running",
-				sessionId: "session-1",
-			});
-			deps.sessionManager.inspectSession.mockResolvedValue(buildInspection());
-			mockDeriveMetaStatus.mockReturnValue({
-				kind: "failed",
-				marker: "fail",
-				content: "fail-msg",
-			});
-
-			await service.reconcileStaleRun(run, "proj-1", "task-1");
-
-			expect(deps.finalizeRunFromSession).toHaveBeenCalledWith("r1", "failed", {
-				marker: "fail",
-				content: "fail-msg",
-			});
 		});
 
 		it("dead session calls failRunDuringReconciliation", async () => {
@@ -720,7 +683,7 @@ describe("RunReconciliationService", () => {
 			expect(deps.removeFromQueue).toHaveBeenCalledWith("r1");
 		});
 
-		it("alive non-terminal session uses fallback finalize via staleRunFallbackMarker", async () => {
+		it("alive non-terminal session uses fallback finalize via resolveStaleCompletionOutcome", async () => {
 			const run = makeRun({
 				id: "r1",
 				status: "running",
@@ -732,13 +695,13 @@ describe("RunReconciliationService", () => {
 
 			await service.reconcileStaleRun(run, "proj-1", "task-1");
 
-			expect(deps.runFinalizer.staleRunFallbackMarker).toHaveBeenCalledWith(
-				run,
-			);
+			expect(
+				deps.runFinalizer.resolveStaleCompletionOutcome,
+			).toHaveBeenCalledWith(run);
 			expect(deps.finalizeRunFromSession).toHaveBeenCalledWith(
 				"r1",
 				"completed",
-				{ marker: "done", content: "fallback-story" },
+				{ kind: "completed", content: "fallback-story" },
 			);
 		});
 
@@ -769,7 +732,6 @@ describe("RunReconciliationService", () => {
 			deps.sessionManager.inspectSession.mockResolvedValue(buildInspection());
 			mockDeriveMetaStatus.mockReturnValue({
 				kind: "completed",
-				marker: "done",
 				content: "snapshot-content",
 			});
 
@@ -778,30 +740,8 @@ describe("RunReconciliationService", () => {
 			expect(deps.finalizeRunFromSession).toHaveBeenCalledWith(
 				"r1",
 				"completed",
-				{ marker: "done", content: "snapshot-content" },
+				{ kind: "completed", content: "snapshot-content" },
 			);
-		});
-
-		it("queued run with terminal failed inspection calls finalizeRunFromSession", async () => {
-			const run = makeRun({
-				id: "r1",
-				status: "queued",
-				sessionId: "session-1",
-			});
-			mockRunRepoGetById.mockReturnValue(run);
-			deps.sessionManager.inspectSession.mockResolvedValue(buildInspection());
-			mockDeriveMetaStatus.mockReturnValue({
-				kind: "failed",
-				marker: "fail",
-				content: "fail-snapshot",
-			});
-
-			await service.tryFinalizeFromSessionSnapshot("r1", "session-1");
-
-			expect(deps.finalizeRunFromSession).toHaveBeenCalledWith("r1", "failed", {
-				marker: "fail",
-				content: "fail-snapshot",
-			});
 		});
 
 		it("non-terminal inspection is a no-op", async () => {

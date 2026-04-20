@@ -73,7 +73,7 @@ describe("OpencodeSessionManager storage fallback", () => {
 		);
 	});
 
-	it("returns null completion marker since text markers are no longer parsed", async () => {
+	it("returns markerless inspection result since text markers are no longer parsed", async () => {
 		const manager = new OpencodeSessionManager();
 		const privateManager = manager as unknown as PrivateSessionManager;
 		const storageMessages = [buildGeneratedMessage()];
@@ -101,10 +101,9 @@ describe("OpencodeSessionManager storage fallback", () => {
 		const inspection = await manager.inspectSession("session-1");
 
 		expect(inspection.messages).toEqual(storageMessages);
-		expect(inspection.completionMarker).toBeNull();
 	});
 
-	it("ignores stale completion marker after a newer user resume message", async () => {
+	it("ignores stale completion signal after a newer user resume message", async () => {
 		const manager = new OpencodeSessionManager();
 		const privateManager = manager as unknown as PrivateSessionManager;
 		const storageMessages: OpenCodeMessage[] = [
@@ -140,6 +139,6 @@ describe("OpencodeSessionManager storage fallback", () => {
 
 		const inspection = await manager.inspectSession("session-1");
 
-		expect(inspection.completionMarker).toBeNull();
+		expect(inspection.messages).toEqual(storageMessages);
 	});
 });

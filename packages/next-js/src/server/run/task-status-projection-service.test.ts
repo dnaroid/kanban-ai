@@ -262,7 +262,10 @@ function buildDeps(
 			inspectSession: vi.fn(),
 		},
 		runFinalizer: {
-			staleRunFallbackMarker: vi.fn(() => "done" as const),
+			resolveStaleCompletionOutcome: vi.fn(() => ({
+				kind: "completed",
+				content: "",
+			})),
 			hydrateOutcomeContent: vi.fn(
 				async (_run: Run, content: string) => content,
 			),
@@ -768,7 +771,6 @@ describe("TaskStatusProjectionService", () => {
 
 			mockDeriveMetaStatus.mockReturnValue({
 				kind: "completed",
-				marker: "done",
 				content: "Task finished successfully",
 			});
 
@@ -778,7 +780,10 @@ describe("TaskStatusProjectionService", () => {
 			const deps = buildDeps({
 				applyTaskTransition,
 				runFinalizer: {
-					staleRunFallbackMarker: vi.fn(),
+					resolveStaleCompletionOutcome: vi.fn(() => ({
+						kind: "completed",
+						content: "",
+					})),
 					hydrateOutcomeContent,
 					resolveTriggerFromOutcome,
 				},
@@ -794,7 +799,7 @@ describe("TaskStatusProjectionService", () => {
 			expect(resolveTriggerFromOutcome).toHaveBeenCalledWith(
 				completedRun,
 				"completed",
-				{ marker: "done", content: "Task finished successfully" },
+				{ kind: "completed", content: "Task finished successfully" },
 			);
 			expect(applyTaskTransition).toHaveBeenCalledWith(
 				completedRun,
@@ -803,7 +808,7 @@ describe("TaskStatusProjectionService", () => {
 			);
 		});
 
-		it("completed run with non-terminal session inspection falls back to staleRunFallbackMarker", async () => {
+		it("completed run with non-terminal session inspection falls back to resolveStaleCompletionOutcome", async () => {
 			const applyTaskTransition = vi.fn();
 			const task = buildTask({
 				id: "task-1",
@@ -821,16 +826,18 @@ describe("TaskStatusProjectionService", () => {
 			});
 			runsByTaskStore.set("task-1", [completedRun]);
 
-			// Non-terminal: kind is "running", not "completed" or "failed"
 			mockDeriveMetaStatus.mockReturnValue({ kind: "running" });
 
-			const staleRunFallbackMarker = vi.fn(() => "timeout" as const);
+			const resolveStaleCompletionOutcome = vi.fn(() => ({
+				kind: "completed" as const,
+				content: "",
+			}));
 			const resolveTriggerFromOutcome = vi.fn(() => "run:fail" as const);
 
 			const deps = buildDeps({
 				applyTaskTransition,
 				runFinalizer: {
-					staleRunFallbackMarker,
+					resolveStaleCompletionOutcome,
 					hydrateOutcomeContent: vi.fn(async (_r: Run, c: string) => c),
 					resolveTriggerFromOutcome,
 				},
@@ -839,7 +846,7 @@ describe("TaskStatusProjectionService", () => {
 
 			await service.reconcileTaskStatuses("project-1", board, [task]);
 
-			expect(staleRunFallbackMarker).toHaveBeenCalledWith(completedRun);
+			expect(resolveStaleCompletionOutcome).toHaveBeenCalledWith(completedRun);
 			expect(applyTaskTransition).toHaveBeenCalledWith(
 				completedRun,
 				"run:fail",
@@ -867,7 +874,6 @@ describe("TaskStatusProjectionService", () => {
 
 			mockDeriveMetaStatus.mockReturnValue({
 				kind: "completed",
-				marker: "done",
 				content: "Actually succeeded",
 			});
 
@@ -878,7 +884,10 @@ describe("TaskStatusProjectionService", () => {
 				isNetworkError: vi.fn(() => true),
 				getRunErrorText: vi.fn(() => "fetch failed"),
 				runFinalizer: {
-					staleRunFallbackMarker: vi.fn(),
+					resolveStaleCompletionOutcome: vi.fn(() => ({
+						kind: "completed",
+						content: "",
+					})),
 					hydrateOutcomeContent: vi.fn(async (_r: Run, c: string) => c),
 					resolveTriggerFromOutcome,
 				},
@@ -890,7 +899,7 @@ describe("TaskStatusProjectionService", () => {
 			expect(resolveTriggerFromOutcome).toHaveBeenCalledWith(
 				failedRun,
 				"failed",
-				{ marker: "done", content: "Actually succeeded" },
+				{ kind: "completed", content: "Actually succeeded" },
 			);
 			expect(applyTaskTransition).toHaveBeenCalledWith(
 				failedRun,
@@ -925,7 +934,10 @@ describe("TaskStatusProjectionService", () => {
 				isNetworkError: vi.fn(() => true),
 				getRunErrorText: vi.fn(() => "fetch failed"),
 				runFinalizer: {
-					staleRunFallbackMarker: vi.fn(),
+					resolveStaleCompletionOutcome: vi.fn(() => ({
+						kind: "completed",
+						content: "",
+					})),
 					hydrateOutcomeContent: vi.fn(),
 					resolveTriggerFromOutcome: vi.fn(),
 				},
@@ -937,7 +949,7 @@ describe("TaskStatusProjectionService", () => {
 			expect(applyTaskTransition).not.toHaveBeenCalled();
 		});
 
-		it("failed run without recoverable error uses marker 'fail'", async () => {
+		it("failed run without recoverable error uses failed outcome", async () => {
 			const applyTaskTransition = vi.fn();
 			const task = buildTask({
 				id: "task-1",
@@ -962,7 +974,10 @@ describe("TaskStatusProjectionService", () => {
 				isNetworkError: vi.fn(() => false),
 				getRunErrorText: vi.fn(() => "internal error"),
 				runFinalizer: {
-					staleRunFallbackMarker: vi.fn(),
+					resolveStaleCompletionOutcome: vi.fn(() => ({
+						kind: "completed",
+						content: "",
+					})),
 					hydrateOutcomeContent: vi.fn(),
 					resolveTriggerFromOutcome,
 				},
@@ -974,7 +989,7 @@ describe("TaskStatusProjectionService", () => {
 			expect(resolveTriggerFromOutcome).toHaveBeenCalledWith(
 				failedRun,
 				"failed",
-				{ marker: "fail", content: "" },
+				{ kind: "failed", content: "" },
 			);
 			expect(applyTaskTransition).toHaveBeenCalledWith(
 				failedRun,
@@ -1003,14 +1018,16 @@ describe("TaskStatusProjectionService", () => {
 
 			mockDeriveMetaStatus.mockReturnValue({
 				kind: "completed",
-				marker: "done",
 				content: "Done content",
 			});
 
 			const deps = buildDeps({
 				applyTaskTransition,
 				runFinalizer: {
-					staleRunFallbackMarker: vi.fn(),
+					resolveStaleCompletionOutcome: vi.fn(() => ({
+						kind: "completed",
+						content: "",
+					})),
 					hydrateOutcomeContent: vi.fn(async (_r: Run, c: string) => c),
 					resolveTriggerFromOutcome: vi.fn(() => null),
 				},
@@ -1042,7 +1059,7 @@ describe("TaskStatusProjectionService", () => {
 			expect(applyTaskTransition).not.toHaveBeenCalled();
 		});
 
-		it("completed run without sessionId falls back to staleRunFallbackMarker", async () => {
+		it("completed run without sessionId falls back to resolveStaleCompletionOutcome", async () => {
 			const applyTaskTransition = vi.fn();
 			const task = buildTask({
 				id: "task-1",
@@ -1060,13 +1077,16 @@ describe("TaskStatusProjectionService", () => {
 			});
 			runsByTaskStore.set("task-1", [completedRun]);
 
-			const staleRunFallbackMarker = vi.fn(() => "done" as const);
+			const resolveStaleCompletionOutcome = vi.fn(() => ({
+				kind: "completed" as const,
+				content: "",
+			}));
 			const resolveTriggerFromOutcome = vi.fn(() => "run:done" as const);
 
 			const deps = buildDeps({
 				applyTaskTransition,
 				runFinalizer: {
-					staleRunFallbackMarker,
+					resolveStaleCompletionOutcome,
 					hydrateOutcomeContent: vi.fn(async (_r: Run, c: string) => c),
 					resolveTriggerFromOutcome,
 				},
@@ -1075,9 +1095,8 @@ describe("TaskStatusProjectionService", () => {
 
 			await service.reconcileTaskStatuses("project-1", board, [task]);
 
-			// No session inspection was attempted; fallback marker is used
 			expect(mockDeriveMetaStatus).not.toHaveBeenCalled();
-			expect(staleRunFallbackMarker).toHaveBeenCalledWith(completedRun);
+			expect(resolveStaleCompletionOutcome).toHaveBeenCalledWith(completedRun);
 			expect(applyTaskTransition).toHaveBeenCalledWith(
 				completedRun,
 				"run:done",

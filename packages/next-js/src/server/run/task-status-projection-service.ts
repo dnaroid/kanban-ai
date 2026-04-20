@@ -7,10 +7,7 @@ import {
 	getWorkflowColumnSystemKey,
 	type TaskTransitionTrigger,
 } from "@/server/run/task-state-machine";
-import {
-	deriveMetaStatus,
-	type RunOutcomeMarker,
-} from "@/server/run/run-session-interpreter";
+import { deriveMetaStatus } from "@/server/run/run-session-interpreter";
 import type { RunOutcome } from "@/server/run/run-finalizer";
 import type { PollableBoardContext, Task } from "@/server/types";
 import type { Run, RunStatus } from "@/types/ipc";
@@ -22,7 +19,7 @@ interface TaskStatusProjectionServiceDeps {
 		inspectSession: (sessionId: string) => Promise<SessionInspectionResult>;
 	};
 	runFinalizer: {
-		staleRunFallbackMarker: (run: Run) => RunOutcomeMarker;
+		resolveStaleCompletionOutcome: (run: Run) => RunOutcome;
 		hydrateOutcomeContent: (run: Run, content: string) => Promise<string>;
 		resolveTriggerFromOutcome: (
 			run: Run,
@@ -173,7 +170,7 @@ export class TaskStatusProjectionService {
 				continue;
 			}
 
-			let derivedMarker: RunOutcomeMarker | null = null;
+			let derivedOutcome: RunOutcome | null = null;
 			let derivedContent = "";
 			let source: "session" | "fallback" = "fallback";
 
@@ -185,17 +182,20 @@ export class TaskStatusProjectionService {
 							await this.deps.sessionManager.inspectSession(sessionId);
 						const meta = deriveMetaStatus(inspection);
 
-						if (meta.kind === "completed" || meta.kind === "failed") {
-							derivedMarker = meta.marker;
+						if (meta.kind === "completed") {
 							derivedContent =
 								await this.deps.runFinalizer.hydrateOutcomeContent(
 									latestSettledRun,
 									meta.content,
 								);
+							derivedOutcome = {
+								kind: meta.kind,
+								content: derivedContent,
+							};
 							source = "session";
 						} else {
 							log.warn(
-								"Task status reconciliation inspection did not yield a terminal marker",
+								"Task status reconciliation inspection did not yield a terminal outcome",
 								{
 									projectId,
 									taskId: task.id,
@@ -219,9 +219,11 @@ export class TaskStatusProjectionService {
 					}
 				}
 
-				if (!derivedMarker) {
-					derivedMarker =
-						this.deps.runFinalizer.staleRunFallbackMarker(latestSettledRun);
+				if (!derivedOutcome) {
+					derivedOutcome =
+						this.deps.runFinalizer.resolveStaleCompletionOutcome(
+							latestSettledRun,
+						);
 				}
 			} else if (latestSettledRun.status === "failed") {
 				const sessionId = latestSettledRun.sessionId.trim();
@@ -236,9 +238,12 @@ export class TaskStatusProjectionService {
 							await this.deps.sessionManager.inspectSession(sessionId);
 						const meta = deriveMetaStatus(inspection);
 
-						if (meta.kind === "completed" || meta.kind === "failed") {
-							derivedMarker = meta.marker;
+						if (meta.kind === "completed") {
 							derivedContent = meta.content;
+							derivedOutcome = {
+								kind: meta.kind,
+								content: derivedContent,
+							};
 							source = "session";
 						} else {
 							log.info(
@@ -267,22 +272,20 @@ export class TaskStatusProjectionService {
 						continue;
 					}
 				} else {
-					derivedMarker = "fail";
+					derivedOutcome = { kind: "failed", content: "" };
 				}
 			}
 
-			if (!derivedMarker) {
+			if (!derivedOutcome) {
 				continue;
 			}
+			derivedContent = derivedOutcome.content ?? derivedContent;
 
 			try {
 				const trigger = this.deps.runFinalizer.resolveTriggerFromOutcome(
 					latestSettledRun,
 					latestSettledRun.status,
-					{
-						marker: derivedMarker,
-						content: derivedContent,
-					},
+					derivedOutcome,
 				);
 				if (!trigger) {
 					continue;
@@ -299,7 +302,7 @@ export class TaskStatusProjectionService {
 					runId: latestSettledRun.id,
 					runStatus: latestSettledRun.status,
 					runKind: latestSettledRun.metadata?.kind ?? null,
-					marker: derivedMarker,
+					outcomeKind: derivedOutcome.kind,
 					source,
 				});
 			} catch (error) {
@@ -307,7 +310,7 @@ export class TaskStatusProjectionService {
 					projectId,
 					taskId: task.id,
 					runId: latestSettledRun.id,
-					marker: derivedMarker,
+					outcomeKind: derivedOutcome.kind,
 					error: error instanceof Error ? error.message : String(error),
 				});
 			}

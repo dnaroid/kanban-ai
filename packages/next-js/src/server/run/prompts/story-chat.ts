@@ -59,6 +59,6 @@ Objective:
 Response rules:
 1) Keep each answer focused and actionable.
 2) If you need user input, ask questions directly.
-3) Do NOT output any status markers or special tokens (no __OPENCODE_STATUS__ lines).
+3) Do not output textual status markers or special control tokens. If you can proceed with a reasonable assumption, do so and state it briefly. If you cannot continue without user input, ask one specific question.
 4) This is an interactive chat — the user will decide when to trigger final user story generation.`;
 }

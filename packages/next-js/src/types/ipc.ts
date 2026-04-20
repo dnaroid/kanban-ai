@@ -206,7 +206,6 @@ export interface RunVcsMetadata {
 
 export interface RunLastExecutionStatus {
 	kind: "completed" | "failed" | "question" | "permission" | "running" | "dead";
-	marker?: "done" | "generated" | "test_ok" | "fail" | "test_fail";
 	content?: string;
 	sessionId?: string;
 	permissionId?: string;

@@ -79,5 +79,9 @@ export function buildTaskPrompt(
 		"2. When finished, summarize what was done.",
 		"3. If the task failed, state the reason clearly.",
 		"4. If you need user input, ask a specific question.",
+		"",
+		"Do not output textual status markers or special control tokens.",
+		"If you can proceed with a reasonable assumption, do so and state it briefly.",
+		"If you cannot continue without user input, ask one specific question.",
 	].join("\n");
 }

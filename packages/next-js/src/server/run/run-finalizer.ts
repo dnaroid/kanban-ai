@@ -1,19 +1,19 @@
 import { createLogger } from "@/lib/logger";
-import {
-	resolveTransitionTrigger,
-	type TaskTransitionTrigger,
-} from "@/server/run/task-state-machine";
+import type { TaskTransitionTrigger } from "@/server/run/task-state-machine";
 import type { Run, RunLastExecutionStatus, RunStatus } from "@/types/ipc";
-import type { RunOutcomeMarker } from "@/server/run/run-session-interpreter";
 
 const log = createLogger("runs-queue");
 
 const lateCompletionRecoveryWindowMs = 15 * 60 * 1000;
 
-export type RunOutcome = {
-	marker: RunOutcomeMarker;
-	content: string;
-};
+export type RunOutcome =
+	| { kind: "completed"; content: string }
+	| { kind: "failed"; content: string }
+	| { kind: "question"; content?: string }
+	| { kind: "resumed"; content?: string }
+	| { kind: "cancelled"; content?: string }
+	| { kind: "dead"; content?: string }
+	| { kind: "timeout"; content?: string };
 
 interface RunUpdatePatch {
 	status?: RunStatus;
@@ -81,11 +81,8 @@ export class RunFinalizer {
 		});
 	}
 
-	public staleRunFallbackMarker(run: Run): RunOutcomeMarker {
-		if (this.deps.isGenerationRun(run)) {
-			return "generated";
-		}
-		return "done";
+	public resolveStaleCompletionOutcome(_run: Run): RunOutcome {
+		return { kind: "completed", content: "" };
 	}
 
 	public canRecoverLateCompletion(run: Run, targetStatus: RunStatus): boolean {
@@ -135,7 +132,7 @@ export class RunFinalizer {
 		}
 
 		if (canRecover) {
-			log.info("Recovering failed run from late completion marker", {
+			log.info("Recovering failed run from late completion outcome", {
 				runId,
 				errorText: this.deps.getRunErrorText(run),
 			});
@@ -143,7 +140,7 @@ export class RunFinalizer {
 
 		const hydratedOutcome = {
 			...outcome,
-			content: await this.hydrateOutcomeContent(run, outcome.content),
+			content: await this.hydrateOutcomeContent(run, outcome.content ?? ""),
 		};
 
 		const finishedAt = new Date().toISOString();
@@ -152,15 +149,6 @@ export class RunFinalizer {
 			sessionId: run.sessionId.trim() || undefined,
 			updatedAt: finishedAt,
 		};
-		if (
-			hydratedOutcome.marker === "done" ||
-			hydratedOutcome.marker === "generated" ||
-			hydratedOutcome.marker === "test_ok" ||
-			hydratedOutcome.marker === "fail" ||
-			hydratedOutcome.marker === "test_fail"
-		) {
-			nextExecutionStatus.marker = hydratedOutcome.marker;
-		}
 		if (hydratedOutcome.content.trim().length > 0) {
 			nextExecutionStatus.content = hydratedOutcome.content;
 		}
@@ -238,59 +226,41 @@ export class RunFinalizer {
 
 export function resolveTriggerFromOutcome(
 	run: Run,
-	runStatus: RunStatus,
+	_runStatus: RunStatus,
 	outcome: RunOutcome,
 	deps: { isGenerationRun: (run: Run) => boolean },
 ): TaskTransitionTrigger | null {
-	if (outcome.marker === "cancelled") {
+	if (outcome.kind === "cancelled") {
 		return "run:cancelled";
 	}
 
-	if (outcome.marker === "resumed") {
+	if (outcome.kind === "resumed") {
 		return "run:answer";
 	}
 
-	if (outcome.marker === "question") {
+	if (outcome.kind === "question") {
 		return "run:question";
 	}
 
-	if (outcome.marker === "dead") {
+	if (outcome.kind === "dead") {
 		return "run:dead";
 	}
 
-	if (outcome.marker === "timeout") {
+	if (outcome.kind === "timeout") {
+		return deps.isGenerationRun(run) ? "generate:fail" : "run:fail";
+	}
+	if (outcome.kind === "completed") {
+		return deps.isGenerationRun(run) ? "generate:ok" : "run:done";
+	}
+	if (outcome.kind === "failed") {
 		return deps.isGenerationRun(run) ? "generate:fail" : "run:fail";
 	}
 
-	const sessionMetaKind =
-		outcome.marker === "done" ||
-		outcome.marker === "generated" ||
-		outcome.marker === "test_ok"
-			? "completed"
-			: outcome.marker === "fail" || outcome.marker === "test_fail"
-				? "failed"
-				: null;
-
-	if (!sessionMetaKind) {
-		return null;
-	}
-
-	return resolveTransitionTrigger({
-		runStatus,
-		sessionMetaKind,
-		runKind: run.metadata?.kind ?? null,
-	});
+	return null;
 }
 
-export function staleRunFallbackMarker(
-	run: Run,
-	generationRunKind: string,
-): RunOutcomeMarker {
-	const kind = run.metadata?.kind;
-	if (kind === generationRunKind) {
-		return "generated";
-	}
-	return "done";
+export function resolveStaleCompletionOutcome(_run: Run): RunOutcome {
+	return { kind: "completed", content: "" };
 }
 
 export function canRecoverLateCompletion(

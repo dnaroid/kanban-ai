@@ -6,25 +6,11 @@ import type {
 import type { RunLastExecutionStatus } from "@/types/ipc";
 import type { Run } from "@/types/ipc";
 
-export type RunOutcomeMarker =
-	| "done"
-	| "generated"
-	| "fail"
-	| "test_ok"
-	| "test_fail"
-	| "dead"
-	| "question"
-	| "resumed"
-	| "cancelled"
-	| "timeout";
-
 export type SessionMetaStatus =
 	| {
 			kind: "completed";
-			marker: "done" | "generated" | "test_ok";
 			content: string;
 	  }
-	| { kind: "failed"; marker: "fail" | "test_fail"; content: string }
 	| { kind: "question"; questions: QuestionData[] }
 	| { kind: "permission"; permission: PermissionData }
 	| { kind: "running" }
@@ -61,7 +47,7 @@ export function deriveMetaStatus(
 		const latestMessage = inspection.messages[inspection.messages.length - 1];
 		if (latestMessage?.role !== "user") {
 			const content = findStoryContent(inspection);
-			return { kind: "completed", marker: "done", content };
+			return { kind: "completed", content };
 		}
 	}
 
@@ -76,10 +62,8 @@ export function toRunLastExecutionStatus(
 
 	switch (meta.kind) {
 		case "completed":
-		case "failed":
 			return {
-				kind: meta.kind,
-				marker: meta.marker,
+				kind: "completed",
 				content: meta.content,
 				sessionId,
 				updatedAt,
@@ -137,26 +121,6 @@ export async function hydrateGenerationOutcomeContent(
 	} catch {
 		return content;
 	}
-}
-
-export function findCompletionContent(
-	inspection: SessionInspectionResult,
-): string {
-	for (let i = inspection.messages.length - 1; i >= 0; i--) {
-		const msg = inspection.messages[i];
-		if (msg.role === "assistant") {
-			return msg.content;
-		}
-	}
-	return "";
-}
-
-export function stripOpencodeStatusLine(content: string): string {
-	return content
-		.split(/\r?\n/)
-		.filter((line) => !line.includes("__OPENCODE_STATUS__"))
-		.join("\n")
-		.trim();
 }
 
 export function findStoryContent(inspection: SessionInspectionResult): string {

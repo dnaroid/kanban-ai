@@ -290,7 +290,6 @@ describe("RunService.generateUserStory", () => {
 			todos: [],
 			pendingPermissions: [],
 			pendingQuestions: [],
-			completionMarker: null,
 		});
 		mockContextSnapshotRepo.create.mockReturnValue("snapshot-1");
 		const storedRuns = new Map<string, Run>();
@@ -477,7 +476,6 @@ describe("RunService.start", () => {
 			todos: [],
 			pendingPermissions: [],
 			pendingQuestions: [],
-			completionMarker: null,
 		});
 		mockContextSnapshotRepo.create.mockReturnValue("snapshot-run");
 		const storedRuns = new Map<string, Run>();
@@ -750,7 +748,6 @@ describe("RunService.startReadyTasks", () => {
 			todos: [],
 			pendingPermissions: [],
 			pendingQuestions: [],
-			completionMarker: null,
 		});
 		mockSendSessionMessage.mockResolvedValue(undefined);
 	});
@@ -841,7 +838,6 @@ describe("RunService.startReadyTasks", () => {
 			todos: [],
 			pendingPermissions: [],
 			pendingQuestions: [],
-			completionMarker: null,
 		});
 
 		const service = new RunService();
@@ -903,7 +899,6 @@ describe("RunService.startReadyTasks", () => {
 			todos: [],
 			pendingPermissions: [],
 			pendingQuestions: [],
-			completionMarker: null,
 		});
 
 		const service = new RunService();

@@ -209,7 +209,8 @@ export function createServices(ctx: RqmContext): ServiceRegistry {
 		finalizeRunFromSession: async (runId, status, outcome) =>
 			ctx.finalizeRunFromSession(runId, status, outcome),
 		runFinalizer: {
-			staleRunFallbackMarker: (run) => runFinalizer.staleRunFallbackMarker(run),
+			resolveStaleCompletionOutcome: (run) =>
+				runFinalizer.resolveStaleCompletionOutcome(run),
 			syncRunWorkspaceState: async (run) =>
 				runFinalizer.syncRunWorkspaceState(run),
 		},
@@ -249,7 +250,8 @@ export function createServices(ctx: RqmContext): ServiceRegistry {
 	const taskStatusProjectionService = new TaskStatusProjectionService({
 		sessionManager: ctx.sessionManager,
 		runFinalizer: {
-			staleRunFallbackMarker: (run) => runFinalizer.staleRunFallbackMarker(run),
+			resolveStaleCompletionOutcome: (run) =>
+				runFinalizer.resolveStaleCompletionOutcome(run),
 			hydrateOutcomeContent: async (run, content) =>
 				runFinalizer.hydrateOutcomeContent(run, content),
 			resolveTriggerFromOutcome: (run, runStatus, outcome) =>

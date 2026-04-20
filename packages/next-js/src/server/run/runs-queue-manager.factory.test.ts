@@ -9,7 +9,7 @@ const mockInstances = vi.hoisted(() => {
 	};
 	const postRunWorkflowService = { tryAutomaticMerge: vi.fn() };
 	const runFinalizer = {
-		staleRunFallbackMarker: vi.fn(),
+		resolveStaleCompletionOutcome: vi.fn(),
 		syncRunWorkspaceState: vi.fn(),
 		hydrateOutcomeContent: vi.fn(),
 		resolveTriggerFromOutcome: vi.fn(),

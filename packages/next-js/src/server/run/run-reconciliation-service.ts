@@ -8,7 +8,6 @@ import {
 	deriveMetaStatus,
 	findStoryContent,
 	toRunLastExecutionStatus,
-	type RunOutcomeMarker,
 } from "@/server/run/run-session-interpreter";
 import type { QueuedRunInput } from "@/server/run/runs-queue-types";
 import type { Run, RunStatus } from "@/types/ipc";
@@ -30,7 +29,7 @@ interface RunReconciliationServiceDeps {
 		outcome: RunOutcome,
 	) => Promise<void>;
 	runFinalizer: {
-		staleRunFallbackMarker: (run: Run) => RunOutcomeMarker;
+		resolveStaleCompletionOutcome: (run: Run) => RunOutcome;
 		syncRunWorkspaceState: (run: Run) => Promise<Run>;
 	};
 	applyTaskTransition: (
@@ -155,8 +154,7 @@ export class RunReconciliationService {
 		const isStoryChat = this.deps.isStoryChatRun(run);
 
 		switch (meta.kind) {
-			case "completed":
-			case "failed": {
+			case "completed": {
 				if (isStoryChat) {
 					log.info(
 						"Skipping finalization for story-chat run; waiting for explicit generate trigger",
@@ -168,12 +166,8 @@ export class RunReconciliationService {
 					);
 					break;
 				}
-				const runStatus =
-					meta.kind === "completed"
-						? ("completed" as RunStatus)
-						: ("failed" as RunStatus);
-				await this.deps.finalizeRunFromSession(observedRun.id, runStatus, {
-					marker: meta.marker as RunOutcomeMarker,
+				await this.deps.finalizeRunFromSession(observedRun.id, "completed", {
+					kind: "completed",
 					content: meta.content,
 				});
 				return;
@@ -220,16 +214,17 @@ export class RunReconciliationService {
 			this.isRunStale(observedRun) &&
 			inspection.probeStatus === "alive"
 		) {
-			const fallbackMarker =
-				this.deps.runFinalizer.staleRunFallbackMarker(observedRun);
-			await this.deps.finalizeRunFromSession(observedRun.id, "completed", {
-				marker: fallbackMarker,
-				content: "",
-			});
+			const staleOutcome =
+				this.deps.runFinalizer.resolveStaleCompletionOutcome(observedRun);
+			await this.deps.finalizeRunFromSession(
+				observedRun.id,
+				"completed",
+				staleOutcome,
+			);
 			log.info("Force-finalized stale running run during reconciliation", {
 				runId: observedRun.id,
 				sessionId,
-				marker: fallbackMarker,
+				outcomeKind: staleOutcome.kind,
 				runKind: observedRun.metadata?.kind ?? null,
 			});
 			return;
@@ -378,13 +373,10 @@ export class RunReconciliationService {
 			}
 			const meta = deriveMetaStatus(inspection);
 
-			if (meta.kind === "completed" || meta.kind === "failed") {
-				const runStatus =
-					meta.kind === "completed"
-						? ("completed" as RunStatus)
-						: ("failed" as RunStatus);
+			if (meta.kind === "completed") {
+				const runStatus = "completed" as RunStatus;
 				await this.deps.finalizeRunFromSession(run.id, runStatus, {
-					marker: meta.marker as RunOutcomeMarker,
+					kind: meta.kind,
 					content: meta.content,
 				});
 				log.info("Finalized stale run during task reconciliation", {
@@ -392,7 +384,7 @@ export class RunReconciliationService {
 					taskId,
 					runId: run.id,
 					runStatus,
-					marker: meta.marker,
+					outcomeKind: meta.kind,
 				});
 				return;
 			}
@@ -411,28 +403,26 @@ export class RunReconciliationService {
 				return;
 			}
 
-			log.info(
-				"Stale run session alive but no completion marker; force-finalizing",
-				{
-					projectId,
-					taskId,
-					runId: run.id,
-					inspectionKind: meta.kind,
-					runKind: run.metadata?.kind ?? null,
-				},
-			);
-
-			const fallbackMarker = this.deps.runFinalizer.staleRunFallbackMarker(run);
-			const fallbackContent = findStoryContent(inspection);
-			await this.deps.finalizeRunFromSession(run.id, "completed" as RunStatus, {
-				marker: fallbackMarker,
-				content: fallbackContent,
-			});
-			log.info("Force-finalized stale run with fallback marker", {
+			log.info("Stale run session alive but non-terminal; force-finalizing", {
 				projectId,
 				taskId,
 				runId: run.id,
-				marker: fallbackMarker,
+				inspectionKind: meta.kind,
+				runKind: run.metadata?.kind ?? null,
+			});
+
+			const staleOutcome =
+				this.deps.runFinalizer.resolveStaleCompletionOutcome(run);
+			const fallbackContent = findStoryContent(inspection);
+			await this.deps.finalizeRunFromSession(run.id, "completed" as RunStatus, {
+				...staleOutcome,
+				content: fallbackContent,
+			});
+			log.info("Force-finalized stale run with fallback outcome", {
+				projectId,
+				taskId,
+				runId: run.id,
+				outcomeKind: staleOutcome.kind,
 			});
 		} catch (error) {
 			log.error("Failed to reconcile stale run", {
@@ -456,13 +446,9 @@ export class RunReconciliationService {
 		const inspection = await this.deps.sessionManager.inspectSession(sessionId);
 		const meta = deriveMetaStatus(inspection);
 
-		if (meta.kind === "completed" || meta.kind === "failed") {
-			const runStatus =
-				meta.kind === "completed"
-					? ("completed" as RunStatus)
-					: ("failed" as RunStatus);
-			await this.deps.finalizeRunFromSession(runId, runStatus, {
-				marker: meta.marker as RunOutcomeMarker,
+		if (meta.kind === "completed") {
+			await this.deps.finalizeRunFromSession(runId, "completed", {
+				kind: meta.kind,
 				content: meta.content,
 			});
 		}

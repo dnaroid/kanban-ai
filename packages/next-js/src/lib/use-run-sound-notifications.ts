@@ -17,16 +17,12 @@ type SseRunEventPayload = {
 	[eventKey: string]: unknown;
 };
 
-const DONE_MARKERS = new Set(["done", "test_ok"]);
-
 function resolveSound(
 	status: RunStatus,
-	metadata?: RunMetadata,
+	_metadata?: RunMetadata,
 ): SoundId | null {
 	if (status === "completed") {
-		const marker = metadata?.lastExecutionStatus?.marker;
-		if (marker && DONE_MARKERS.has(marker)) return "done";
-		return null;
+		return "done";
 	}
 	if (status === "failed") return "fail";
 	return null;

@@ -3,11 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	RunFinalizer,
 	canRecoverLateCompletion,
+	resolveStaleCompletionOutcome,
 	resolveTriggerFromOutcome,
-	staleRunFallbackMarker,
 } from "@/server/run/run-finalizer";
-import type { RunFinalizerDeps } from "@/server/run/run-finalizer";
-import type { RunOutcomeMarker } from "@/server/run/run-session-interpreter";
+import type { RunFinalizerDeps, RunOutcome } from "@/server/run/run-finalizer";
 import type { TaskTransitionTrigger } from "@/server/run/task-state-machine";
 import type { Run, RunMetadata } from "@/types/ipc";
 
@@ -30,14 +29,14 @@ describe("run-finalizer helpers", () => {
 		const trigger = resolveTriggerFromOutcome(
 			generationRun,
 			"failed",
-			{ marker: "timeout", content: "" },
+			{ kind: "timeout", content: "" },
 			{ isGenerationRun: () => true },
 		);
 
 		expect(trigger).toBe("generate:fail");
 	});
 
-	it("returns generated fallback marker for generation runs", () => {
+	it("returns completed stale outcome for generation runs", () => {
 		const generationRun = {
 			id: "run-2",
 			taskId: "task-2",
@@ -52,11 +51,10 @@ describe("run-finalizer helpers", () => {
 			metadata: { kind: "task-description-improve" },
 		} as Run;
 
-		const marker = staleRunFallbackMarker(
-			generationRun,
-			"task-description-improve",
-		);
-		expect(marker).toBe("generated");
+		expect(resolveStaleCompletionOutcome(generationRun)).toEqual({
+			kind: "completed",
+			content: "",
+		});
 	});
 
 	it("allows late fetch-failed completion recovery within window", () => {
@@ -103,8 +101,17 @@ function buildRun(overrides: Partial<Run> = {}): Run {
 	};
 }
 
-function buildOutcome(marker: RunOutcomeMarker, content = "") {
-	return { marker, content };
+function buildOutcome(kind: RunOutcome["kind"], content = ""): RunOutcome {
+	if (
+		kind === "question" ||
+		kind === "resumed" ||
+		kind === "cancelled" ||
+		kind === "dead" ||
+		kind === "timeout"
+	) {
+		return { kind, content };
+	}
+	return { kind, content } as RunOutcome;
 }
 
 type TestRunFinalizerDeps = RunFinalizerDeps & {
@@ -184,11 +191,11 @@ describe("resolveTriggerFromOutcome", () => {
 		["resumed", "run:answer"],
 		["question", "run:question"],
 		["dead", "run:dead"],
-	] as const)("returns %s -> %s", (marker, expectedTrigger) => {
+	] as const)("returns %s -> %s", (kind, expectedTrigger) => {
 		const trigger = resolveTriggerFromOutcome(
 			buildRun(),
 			"completed",
-			buildOutcome(marker),
+			buildOutcome(kind),
 			{ isGenerationRun: () => false },
 		);
 
@@ -217,64 +224,64 @@ describe("resolveTriggerFromOutcome", () => {
 		expect(trigger).toBe("run:fail");
 	});
 
-	it("returns a non-null trigger for done markers on completed runs", () => {
+	it("returns run:done for completed non-generation runs", () => {
 		const trigger = resolveTriggerFromOutcome(
 			buildRun(),
 			"completed",
-			buildOutcome("done"),
+			buildOutcome("completed"),
 			{ isGenerationRun: () => false },
 		);
 
-		expect(trigger).not.toBeNull();
+		expect(trigger).toBe("run:done");
 	});
 
-	it("returns a non-null trigger for fail markers on failed runs", () => {
+	it("returns run:fail for failed non-generation runs", () => {
 		const trigger = resolveTriggerFromOutcome(
 			buildRun(),
 			"failed",
-			buildOutcome("fail"),
+			buildOutcome("failed"),
 			{ isGenerationRun: () => false },
 		);
 
-		expect(trigger).not.toBeNull();
+		expect(trigger).toBe("run:fail");
 	});
 
-	it("returns a non-null trigger for generated markers on completed runs", () => {
+	it("returns generate:ok for completed generation runs", () => {
 		const trigger = resolveTriggerFromOutcome(
 			buildRun({ metadata: { kind: "task-description-improve" } }),
 			"completed",
-			buildOutcome("generated"),
+			buildOutcome("completed"),
 			{ isGenerationRun: () => true },
 		);
 
-		expect(trigger).not.toBeNull();
+		expect(trigger).toBe("generate:ok");
 	});
 
-	it("returns a non-null trigger for test_ok markers on completed runs", () => {
+	it("returns run:done for completed QA runs", () => {
 		const trigger = resolveTriggerFromOutcome(
 			buildRun({ metadata: { kind: "task-qa-testing" } }),
 			"completed",
-			buildOutcome("test_ok"),
+			buildOutcome("completed"),
 			{ isGenerationRun: () => false },
 		);
 
-		expect(trigger).not.toBeNull();
+		expect(trigger).toBe("run:done");
 	});
 
-	it("returns a non-null trigger for test_fail markers on failed runs", () => {
+	it("returns run:fail for failed QA runs", () => {
 		const trigger = resolveTriggerFromOutcome(
 			buildRun({ metadata: { kind: "task-qa-testing" } }),
 			"failed",
-			buildOutcome("test_fail"),
+			buildOutcome("failed"),
 			{ isGenerationRun: () => false },
 		);
 
-		expect(trigger).not.toBeNull();
+		expect(trigger).toBe("run:fail");
 	});
 
-	it("returns null for unknown markers", () => {
+	it("returns null for unknown outcome kind", () => {
 		const unknownOutcome = {
-			marker: "unknown",
+			kind: "unknown",
 			content: "",
 		} as unknown as Parameters<typeof resolveTriggerFromOutcome>[2];
 
@@ -289,32 +296,29 @@ describe("resolveTriggerFromOutcome", () => {
 	});
 });
 
-describe("staleRunFallbackMarker", () => {
-	it("returns generated for generation runs", () => {
-		const marker = staleRunFallbackMarker(
-			buildRun({ metadata: { kind: "task-description-improve" } }),
-			"task-description-improve",
-		);
-
-		expect(marker).toBe("generated");
+describe("resolveStaleCompletionOutcome", () => {
+	it("returns completed for generation runs", () => {
+		expect(
+			resolveStaleCompletionOutcome(
+				buildRun({ metadata: { kind: "task-description-improve" } }),
+			),
+		).toEqual({ kind: "completed", content: "" });
 	});
 
-	it("returns done for QA runs", () => {
-		const marker = staleRunFallbackMarker(
-			buildRun({ metadata: { kind: "task-qa-testing" } }),
-			"task-description-improve",
-		);
-
-		expect(marker).toBe("done");
+	it("returns completed for QA runs", () => {
+		expect(
+			resolveStaleCompletionOutcome(
+				buildRun({ metadata: { kind: "task-qa-testing" } }),
+			),
+		).toEqual({ kind: "completed", content: "" });
 	});
 
-	it("returns done for normal runs", () => {
-		const marker = staleRunFallbackMarker(
-			buildRun({ metadata: { kind: "task-execution" } }),
-			"task-description-improve",
-		);
-
-		expect(marker).toBe("done");
+	it("returns completed for normal runs", () => {
+		expect(
+			resolveStaleCompletionOutcome(
+				buildRun({ metadata: { kind: "task-execution" } }),
+			),
+		).toEqual({ kind: "completed", content: "" });
 	});
 });
 
@@ -474,7 +478,7 @@ describe("RunFinalizer", () => {
 			await finalizer.finalizeRunFromSession(
 				"missing-run",
 				"completed",
-				buildOutcome("done", "result"),
+				buildOutcome("completed", "result"),
 			);
 
 			expect(deps.updateRun).not.toHaveBeenCalled();
@@ -486,7 +490,7 @@ describe("RunFinalizer", () => {
 			await finalizer.finalizeRunFromSession(
 				"run-1",
 				"completed",
-				buildOutcome("done", "result"),
+				buildOutcome("completed", "result"),
 			);
 
 			expect(deps.updateRun).not.toHaveBeenCalled();
@@ -498,7 +502,7 @@ describe("RunFinalizer", () => {
 			await finalizer.finalizeRunFromSession(
 				"run-1",
 				"completed",
-				buildOutcome("done", "result"),
+				buildOutcome("completed", "result"),
 			);
 
 			expect(deps.updateRun).not.toHaveBeenCalled();
@@ -520,7 +524,7 @@ describe("RunFinalizer", () => {
 				await finalizer.finalizeRunFromSession(
 					"run-1",
 					"completed",
-					buildOutcome("done", "result"),
+					buildOutcome("completed", "result"),
 				);
 
 				expect(deps.updateRun).toHaveBeenCalledTimes(1);
@@ -537,7 +541,7 @@ describe("RunFinalizer", () => {
 			await finalizer.finalizeRunFromSession(
 				"run-1",
 				"completed",
-				buildOutcome("done", "raw content"),
+				buildOutcome("completed", "raw content"),
 			);
 
 			expect(deps.hydrateGenerationOutcomeContent).toHaveBeenCalledWith(
@@ -555,7 +559,7 @@ describe("RunFinalizer", () => {
 			await finalizer.finalizeRunFromSession(
 				"run-1",
 				"completed",
-				buildOutcome("done", "finished successfully"),
+				buildOutcome("completed", "finished successfully"),
 			);
 
 			const patch = vi.mocked(deps.updateRun).mock.calls[0]?.[1];
@@ -567,7 +571,6 @@ describe("RunFinalizer", () => {
 			expect(typeof patch.finishedAt).toBe("string");
 			expect(patch.metadata?.lastExecutionStatus).toMatchObject({
 				kind: "completed",
-				marker: "done",
 				content: "finished successfully",
 			});
 		});
@@ -576,7 +579,7 @@ describe("RunFinalizer", () => {
 			await finalizer.finalizeRunFromSession(
 				"run-1",
 				"failed",
-				buildOutcome("fail"),
+				buildOutcome("failed"),
 			);
 
 			const patch = vi.mocked(deps.updateRun).mock.calls[0]?.[1];
@@ -588,35 +591,15 @@ describe("RunFinalizer", () => {
 			expect(typeof patch.finishedAt).toBe("string");
 			expect(patch.metadata?.lastExecutionStatus).toMatchObject({
 				kind: "failed",
-				marker: "fail",
 			});
 			expect(patch.metadata?.lastExecutionStatus).not.toHaveProperty("content");
-		});
-
-		it.each([
-			["done", "completed"],
-			["generated", "completed"],
-			["test_ok", "completed"],
-			["fail", "failed"],
-			["test_fail", "failed"],
-		] as const)("stores %s as the last execution marker", async (marker, status) => {
-			await finalizer.finalizeRunFromSession(
-				"run-1",
-				status,
-				buildOutcome(marker, "marker content"),
-			);
-
-			const patch = vi.mocked(deps.updateRun).mock.calls[0]?.[1];
-			expect(patch.metadata?.lastExecutionStatus).toMatchObject({
-				marker,
-			});
 		});
 
 		it("creates a status event with the run id, status, and message", async () => {
 			await finalizer.finalizeRunFromSession(
 				"run-1",
 				"completed",
-				buildOutcome("done", "result"),
+				buildOutcome("completed", "result"),
 			);
 
 			expect(deps.createStatusEvent).toHaveBeenCalledWith(
@@ -633,7 +616,7 @@ describe("RunFinalizer", () => {
 			await finalizer.finalizeRunFromSession(
 				"run-1",
 				"completed",
-				buildOutcome("done", "transition content"),
+				buildOutcome("completed", "transition content"),
 			);
 
 			expect(deps.applyTaskTransition).toHaveBeenCalledWith(
@@ -649,7 +632,7 @@ describe("RunFinalizer", () => {
 			await finalizer.finalizeRunFromSession(
 				"run-1",
 				"completed",
-				buildOutcome("done", "transition content"),
+				buildOutcome("completed", "transition content"),
 			);
 
 			expect(deps.applyTaskTransition).not.toHaveBeenCalled();
@@ -666,7 +649,7 @@ describe("RunFinalizer", () => {
 			await finalizer.finalizeRunFromSession(
 				"run-1",
 				"completed",
-				buildOutcome("done", "result"),
+				buildOutcome("completed", "result"),
 			);
 
 			expect(deps.publishRunUpdate).toHaveBeenCalledTimes(1);
@@ -681,7 +664,7 @@ describe("RunFinalizer", () => {
 			await finalizer.finalizeRunFromSession(
 				"run-1",
 				"completed",
-				buildOutcome("generated", "story"),
+				buildOutcome("completed", "story"),
 			);
 
 			expect(finalizer.consumePendingGeneratedExecutionTaskId("run-1")).toBe(
@@ -696,7 +679,7 @@ describe("RunFinalizer", () => {
 			await finalizer.finalizeRunFromSession(
 				"run-1",
 				"completed",
-				buildOutcome("generated", "story"),
+				buildOutcome("completed", "story"),
 			);
 
 			expect(
@@ -708,7 +691,7 @@ describe("RunFinalizer", () => {
 			await finalizer.finalizeRunFromSession(
 				"run-1",
 				"completed",
-				buildOutcome("done", "result"),
+				buildOutcome("completed", "result"),
 			);
 
 			expect(deps.tryAutomaticMerge).toHaveBeenCalledWith(
@@ -740,7 +723,7 @@ describe("RunFinalizer", () => {
 			await finalizer.finalizeRunFromSession(
 				"run-1",
 				"completed",
-				buildOutcome("done", "result"),
+				buildOutcome("completed", "result"),
 			);
 
 			expect(deps.startNextReadyTaskAfterMerge).toHaveBeenCalledWith("task-1");
@@ -770,7 +753,7 @@ describe("RunFinalizer", () => {
 			await finalizer.finalizeRunFromSession(
 				"run-1",
 				"completed",
-				buildOutcome("done", "result"),
+				buildOutcome("completed", "result"),
 			);
 
 			expect(deps.startNextReadyTaskAfterMerge).not.toHaveBeenCalled();
@@ -798,7 +781,7 @@ describe("RunFinalizer", () => {
 			await customFinalizer.finalizeRunFromSession(
 				"run-1",
 				"completed",
-				buildOutcome("done", "result"),
+				buildOutcome("completed", "result"),
 			);
 
 			expect(customDeps.publishRunUpdate).toHaveBeenCalledWith(latestRun);
@@ -808,7 +791,7 @@ describe("RunFinalizer", () => {
 			await finalizer.finalizeRunFromSession(
 				"run-1",
 				"completed",
-				buildOutcome("done", "result"),
+				buildOutcome("completed", "result"),
 			);
 
 			expect(deps.clearSessionTracking).toHaveBeenCalledWith("run-1");
@@ -818,7 +801,7 @@ describe("RunFinalizer", () => {
 			await finalizer.finalizeRunFromSession(
 				"run-1",
 				"completed",
-				buildOutcome("done", "result"),
+				buildOutcome("completed", "result"),
 			);
 
 			expect(deps.clearRunInput).toHaveBeenCalledWith("run-1");
@@ -839,7 +822,7 @@ describe("RunFinalizer", () => {
 			await finalizer.finalizeRunFromSession(
 				"run-1",
 				"completed",
-				buildOutcome("generated", "story"),
+				buildOutcome("completed", "story"),
 			);
 
 			expect(finalizer.consumePendingGeneratedExecutionTaskId("run-1")).toBe(
