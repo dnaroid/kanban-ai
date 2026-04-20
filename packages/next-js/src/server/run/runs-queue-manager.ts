@@ -547,7 +547,13 @@ export class RunsQueueManager {
 			return Promise.resolve();
 		}
 		if (!this.startupPromise) {
-			this.startupPromise = this.bootstrapRuntimeState();
+			this.startupPromise = this.bootstrapRuntimeState()
+				.then(() => {
+					this.startupCompleted = true;
+				})
+				.finally(() => {
+					this.startupPromise = null;
+				});
 		}
 		return this.startupPromise;
 	}
@@ -570,8 +576,17 @@ export class RunsQueueManager {
 			});
 
 			if (aliveSessions.length > 0) {
-				const relevantRuns =
+				const activeRuns =
 					this.runReconciliationService.listActiveRunsForReconciliation();
+				const recoverableFailedRuns = runRepo
+					.listByStatus("failed")
+					.filter((run) => {
+						return (
+							run.sessionId.trim().length > 0 &&
+							getRunErrorText(run).toLowerCase() === "fetch failed"
+						);
+					});
+				const relevantRuns = [...activeRuns, ...recoverableFailedRuns];
 				const runsBySessionId = new Map<string, Run>();
 				for (const run of relevantRuns) {
 					const sid = run.sessionId?.trim();
@@ -617,14 +632,11 @@ export class RunsQueueManager {
 			this.startRecoveryLoop();
 			log.info("startup recovery loop started");
 
-			this.startupCompleted = true;
 			log.info("startup bootstrap completed");
 		} catch (error) {
 			log.error("startup bootstrap failed", {
 				error: error instanceof Error ? error.message : String(error),
 			});
-			// Still mark as completed to prevent infinite retry
-			this.startupCompleted = true;
 		}
 	}
 

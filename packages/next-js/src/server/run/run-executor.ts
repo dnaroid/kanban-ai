@@ -200,12 +200,12 @@ export class RunExecutor {
 						eventType: "status",
 						payload: {
 							status: "running",
-							message: `Network error after session creation; waiting for polling recovery: ${message}`,
+							message: `Network error after session creation; waiting for session recovery: ${message}`,
 						},
 					});
 					publishRunUpdate(resumedRun);
 					log.warn(
-						"Network error after session creation; keeping run active for polling recovery",
+						"Network error after session creation; keeping run active for session recovery",
 						{
 							runId,
 							sessionId: latestRun.sessionId,
