@@ -1,3 +1,4 @@
+import { createLogger } from "@/lib/logger";
 import type {
 	PermissionData,
 	QuestionData,
@@ -5,6 +6,8 @@ import type {
 } from "@/server/opencode/session-manager";
 import type { RunLastExecutionStatus } from "@/types/ipc";
 import type { Run } from "@/types/ipc";
+
+const log = createLogger("runs-queue");
 
 export type SessionMetaStatus =
 	| {
@@ -16,9 +19,30 @@ export type SessionMetaStatus =
 	| { kind: "running" }
 	| { kind: "dead" };
 
+type StorySearchOptions = {
+	afterTimestamp?: number;
+};
+
+export function deriveMetaStatus(
+	run: Run,
+	inspection: SessionInspectionResult,
+): SessionMetaStatus;
 export function deriveMetaStatus(
 	inspection: SessionInspectionResult,
+): SessionMetaStatus;
+export function deriveMetaStatus(
+	runOrInspection: Run | SessionInspectionResult,
+	inspectionArg?: SessionInspectionResult,
 ): SessionMetaStatus {
+	const run = inspectionArg ? (runOrInspection as Run) : null;
+	const inspection =
+		inspectionArg ?? (runOrInspection as SessionInspectionResult);
+	const runKind =
+		typeof run?.metadata?.kind === "string" ? run.metadata.kind : "";
+	const isStoryChatRun = runKind === "task-story-chat";
+	const isGenerationRun = runKind === "task-description-improve";
+	const storyGenerationBoundary = getStoryGenerationBoundaryTimestamp(run);
+
 	const permission = inspection.pendingPermissions[0];
 	if (permission) {
 		return { kind: "permission", permission };
@@ -37,6 +61,21 @@ export function deriveMetaStatus(
 		inspection.sessionStatus === "busy" ||
 		inspection.sessionStatus === "retry"
 	) {
+		return { kind: "running" };
+	}
+
+	if (isStoryChatRun) {
+		return { kind: "running" };
+	}
+
+	if (isGenerationRun) {
+		const content = findStrictStoryContent(inspection, {
+			afterTimestamp: storyGenerationBoundary ?? undefined,
+		});
+		if (content) {
+			return { kind: "completed", content };
+		}
+
 		return { kind: "running" };
 	}
 
@@ -122,9 +161,28 @@ export async function hydrateGenerationOutcomeContent(
 
 	try {
 		const inspection = await sessionManager.inspectSession(sessionId);
-		const hydrated = findStoryContent(inspection);
-		return hydrated.trim().length > 0 ? hydrated : content;
-	} catch {
+		const hydrated = findStrictStoryContent(inspection, {
+			afterTimestamp: getStoryGenerationBoundaryTimestamp(run) ?? undefined,
+		});
+		if (hydrated) {
+			return hydrated;
+		}
+
+		log.warn("Generation finalized without strict <STORY> payload", {
+			runId: run.id,
+			sessionId,
+			storyGenerationRequestedAt:
+				typeof run.metadata?.storyGenerationRequestedAt === "string"
+					? run.metadata.storyGenerationRequestedAt
+					: null,
+		});
+		return content;
+	} catch (error) {
+		log.warn("Failed to hydrate generation outcome content from session", {
+			runId: run.id,
+			sessionId,
+			error: error instanceof Error ? error.message : String(error),
+		});
 		return content;
 	}
 }
@@ -134,6 +192,89 @@ const STORY_TAG_RE = /<STORY>([\s\S]*?)<\/STORY>/i;
 function extractStoryTagContent(text: string): string | null {
 	const match = text.match(STORY_TAG_RE);
 	return match?.[1]?.trim() || null;
+}
+
+function getStoryGenerationBoundaryTimestamp(run: Run | null): number | null {
+	const rawTimestamp = run?.metadata?.storyGenerationRequestedAt;
+	if (typeof rawTimestamp !== "string") {
+		return null;
+	}
+
+	const parsedTimestamp = Date.parse(rawTimestamp);
+	return Number.isNaN(parsedTimestamp) ? null : parsedTimestamp;
+}
+
+function findLatestAssistantMessage(
+	inspection: SessionInspectionResult,
+	options: StorySearchOptions = {},
+) {
+	for (let i = inspection.messages.length - 1; i >= 0; i--) {
+		const msg = inspection.messages[i];
+		if (msg.role !== "assistant") {
+			continue;
+		}
+		if (
+			typeof options.afterTimestamp === "number" &&
+			msg.timestamp < options.afterTimestamp
+		) {
+			continue;
+		}
+		return msg;
+	}
+
+	return null;
+}
+
+function buildAssistantTextContent(message: {
+	content: string;
+	parts: Array<{ type: string; text?: string }>;
+}): string[] {
+	const candidates: string[] = [];
+	const rawContent = message.content.trim();
+	if (rawContent.length > 0) {
+		candidates.push(rawContent);
+	}
+
+	const textOnlyContent = message.parts
+		.filter((part) => part.type === "text" && typeof part.text === "string")
+		.map((part) => part.text?.trim() ?? "")
+		.filter((part) => part.length > 0)
+		.join("\n\n")
+		.trim();
+
+	if (textOnlyContent.length > 0 && textOnlyContent !== rawContent) {
+		candidates.push(textOnlyContent);
+	}
+
+	return candidates;
+}
+
+export function findStrictStoryContent(
+	inspection: SessionInspectionResult,
+	options: StorySearchOptions = {},
+): string | null {
+	let message = findLatestAssistantMessage(inspection, options);
+	while (message) {
+		for (const candidate of buildAssistantTextContent(message)) {
+			const storyContent = extractStoryTagContent(candidate);
+			if (storyContent) {
+				return storyContent;
+			}
+		}
+
+		message = findLatestAssistantMessage(
+			{
+				...inspection,
+				messages: inspection.messages.slice(
+					0,
+					inspection.messages.indexOf(message),
+				),
+			},
+			options,
+		);
+	}
+
+	return null;
 }
 
 export function findStoryContent(inspection: SessionInspectionResult): string {

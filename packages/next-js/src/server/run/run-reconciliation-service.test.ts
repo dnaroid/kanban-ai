@@ -18,7 +18,7 @@ const {
 	mockRunEventRepoCreate,
 	mockPublishRunUpdate,
 	mockDeriveMetaStatus,
-	mockFindStoryContent,
+	mockFindStrictStoryContent,
 	mockToRunLastExecutionStatus,
 } = vi.hoisted(() => ({
 	mockRunRepoGetById: vi.fn(),
@@ -28,7 +28,7 @@ const {
 	mockRunEventRepoCreate: vi.fn(),
 	mockPublishRunUpdate: vi.fn(),
 	mockDeriveMetaStatus: vi.fn(),
-	mockFindStoryContent: vi.fn(() => "story-content"),
+	mockFindStrictStoryContent: vi.fn(() => "story-content"),
 	mockToRunLastExecutionStatus: vi.fn(() => ({
 		kind: "running",
 		sessionId: "session-1",
@@ -74,7 +74,7 @@ vi.mock("@/server/run/run-session-interpreter", async (importActual) => {
 	return {
 		...actual,
 		deriveMetaStatus: mockDeriveMetaStatus,
-		findStoryContent: mockFindStoryContent,
+		findStrictStoryContent: mockFindStrictStoryContent,
 		toRunLastExecutionStatus: mockToRunLastExecutionStatus,
 	};
 });
@@ -376,6 +376,11 @@ describe("RunReconciliationService", () => {
 
 			await service.applyInspectionResult(run, "session-1", buildInspection());
 
+			expect(mockDeriveMetaStatus).toHaveBeenCalledWith(
+				run,
+				expect.any(Object),
+			);
+
 			expect(deps.finalizeRunFromSession).toHaveBeenCalledWith(
 				"r1",
 				"completed",
@@ -541,6 +546,31 @@ describe("RunReconciliationService", () => {
 				{ kind: "completed", content: "" },
 			);
 		});
+
+		it("does not stale force-finalize generation runs without strict completion", async () => {
+			const oldDate = new Date(Date.now() - 120000).toISOString();
+			const staleRun = makeRun({
+				id: "r1",
+				status: "running",
+				sessionId: "session-1",
+				startedAt: oldDate,
+				metadata: { kind: "task-description-improve" },
+			});
+			mockRunRepoUpdate.mockReturnValue(staleRun);
+			mockDeriveMetaStatus.mockReturnValue({ kind: "running" });
+			deps.isGenerationRun.mockReturnValue(true);
+
+			await service.applyInspectionResult(
+				staleRun,
+				"session-1",
+				buildInspection({ probeStatus: "alive" }),
+			);
+
+			expect(
+				deps.runFinalizer.resolveStaleCompletionOutcome,
+			).not.toHaveBeenCalled();
+			expect(deps.finalizeRunFromSession).not.toHaveBeenCalled();
+		});
 	});
 
 	describe("failRunDuringReconciliation", () => {
@@ -689,9 +719,20 @@ describe("RunReconciliationService", () => {
 				status: "running",
 				sessionId: "session-1",
 			});
-			deps.sessionManager.inspectSession.mockResolvedValue(buildInspection());
+			deps.sessionManager.inspectSession.mockResolvedValue(
+				buildInspection({
+					messages: [
+						{
+							id: "m1",
+							role: "assistant",
+							content: "fallback-story",
+							parts: [],
+							timestamp: 1,
+						},
+					],
+				}),
+			);
 			mockDeriveMetaStatus.mockReturnValue({ kind: "running" });
-			mockFindStoryContent.mockReturnValue("fallback-story");
 
 			await service.reconcileStaleRun(run, "proj-1", "task-1");
 
@@ -703,6 +744,23 @@ describe("RunReconciliationService", () => {
 				"completed",
 				{ kind: "completed", content: "fallback-story" },
 			);
+		});
+
+		it("skips stale fallback finalization for generation runs", async () => {
+			const run = makeRun({
+				id: "r1",
+				status: "running",
+				sessionId: "session-1",
+				metadata: { kind: "task-description-improve" },
+			});
+			deps.sessionManager.inspectSession.mockResolvedValue(buildInspection());
+			mockDeriveMetaStatus.mockReturnValue({ kind: "running" });
+			deps.isGenerationRun.mockReturnValue(true);
+
+			await service.reconcileStaleRun(run, "proj-1", "task-1");
+
+			expect(mockFindStrictStoryContent).not.toHaveBeenCalled();
+			expect(deps.finalizeRunFromSession).not.toHaveBeenCalled();
 		});
 
 		it("catches exceptions and does not throw", async () => {

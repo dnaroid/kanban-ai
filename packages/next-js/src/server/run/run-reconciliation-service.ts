@@ -139,7 +139,7 @@ export class RunReconciliationService {
 		sessionId: string,
 		inspection: SessionInspectionResult,
 	): Promise<void> {
-		const meta = deriveMetaStatus(inspection);
+		const meta = deriveMetaStatus(run, inspection);
 		const observedRun = runRepo.update(run.id, {
 			metadata: {
 				...(run.metadata ?? {}),
@@ -224,20 +224,34 @@ export class RunReconciliationService {
 			this.isRunStale(observedRun) &&
 			inspection.probeStatus === "alive"
 		) {
-			const staleOutcome =
-				this.deps.runFinalizer.resolveStaleCompletionOutcome(observedRun);
-			await this.deps.finalizeRunFromSession(
-				observedRun.id,
-				"completed",
-				staleOutcome,
-			);
-			log.info("Force-finalized stale running run during reconciliation", {
-				runId: observedRun.id,
-				sessionId,
-				outcomeKind: staleOutcome.kind,
-				runKind: observedRun.metadata?.kind ?? null,
-			});
-			return;
+			if (
+				this.deps.isGenerationRun(observedRun) ||
+				this.deps.isStoryChatRun(observedRun)
+			) {
+				log.info(
+					"Skipping stale force-finalization for story generation flow without strict completion",
+					{
+						runId: observedRun.id,
+						sessionId,
+						runKind: observedRun.metadata?.kind ?? null,
+					},
+				);
+			} else {
+				const staleOutcome =
+					this.deps.runFinalizer.resolveStaleCompletionOutcome(observedRun);
+				await this.deps.finalizeRunFromSession(
+					observedRun.id,
+					"completed",
+					staleOutcome,
+				);
+				log.info("Force-finalized stale running run during reconciliation", {
+					runId: observedRun.id,
+					sessionId,
+					outcomeKind: staleOutcome.kind,
+					runKind: observedRun.metadata?.kind ?? null,
+				});
+				return;
+			}
 		}
 
 		if (observedRun.status === "paused") {
@@ -381,7 +395,7 @@ export class RunReconciliationService {
 				);
 				return;
 			}
-			const meta = deriveMetaStatus(inspection);
+			const meta = deriveMetaStatus(run, inspection);
 
 			if (meta.kind === "completed") {
 				const runStatus = "completed" as RunStatus;
@@ -421,6 +435,19 @@ export class RunReconciliationService {
 				runKind: run.metadata?.kind ?? null,
 			});
 
+			if (this.deps.isGenerationRun(run) || this.deps.isStoryChatRun(run)) {
+				log.info(
+					"Skipping stale reconciliation fallback finalization for story generation flow",
+					{
+						projectId,
+						taskId,
+						runId: run.id,
+						runKind: run.metadata?.kind ?? null,
+					},
+				);
+				return;
+			}
+
 			const staleOutcome =
 				this.deps.runFinalizer.resolveStaleCompletionOutcome(run);
 			const fallbackContent = findStoryContent(inspection);
@@ -454,7 +481,7 @@ export class RunReconciliationService {
 		}
 
 		const inspection = await this.deps.sessionManager.inspectSession(sessionId);
-		const meta = deriveMetaStatus(inspection);
+		const meta = deriveMetaStatus(run, inspection);
 
 		if (meta.kind === "completed") {
 			await this.deps.finalizeRunFromSession(runId, "completed", {

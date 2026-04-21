@@ -180,7 +180,7 @@ export class TaskStatusProjectionService {
 					try {
 						const inspection =
 							await this.deps.sessionManager.inspectSession(sessionId);
-						const meta = deriveMetaStatus(inspection);
+						const meta = deriveMetaStatus(latestSettledRun, inspection);
 
 						if (meta.kind === "completed") {
 							derivedContent =
@@ -236,7 +236,7 @@ export class TaskStatusProjectionService {
 					try {
 						const inspection =
 							await this.deps.sessionManager.inspectSession(sessionId);
-						const meta = deriveMetaStatus(inspection);
+						const meta = deriveMetaStatus(latestSettledRun, inspection);
 
 						if (meta.kind === "completed") {
 							derivedContent = meta.content;

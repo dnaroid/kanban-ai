@@ -215,6 +215,7 @@ export interface RunLastExecutionStatus {
 
 export interface RunMetadata {
 	kind?: string;
+	storyGenerationRequestedAt?: string;
 	errorText?: string;
 	budget?: unknown;
 	tokensIn?: number;

@@ -847,11 +847,21 @@ export class RunService {
 			},
 		);
 
+		const storyGenerationRequestedAt = new Date().toISOString();
+		await sendSessionMessage(sessionId, generationPrompt);
+
 		const switchedRun = runRepo.update(run.id, {
 			kind: generationRunKind,
+			metadata: {
+				...(run.metadata ?? {}),
+				storyGenerationRequestedAt,
+				lastExecutionStatus: {
+					kind: "running",
+					sessionId,
+					updatedAt: storyGenerationRequestedAt,
+				},
+			},
 		});
-
-		await sendSessionMessage(sessionId, generationPrompt);
 
 		const updatedTask = taskRepo.update(task.id, { status: "generating" });
 		if (updatedTask) {

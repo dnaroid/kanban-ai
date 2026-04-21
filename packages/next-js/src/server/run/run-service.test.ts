@@ -441,6 +441,109 @@ describe("RunService.generateUserStory", () => {
 	});
 });
 
+describe("RunService.triggerStoryGeneration", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockTaskRepo.getById.mockReturnValue(buildTask());
+		mockProjectRepo.getById.mockReturnValue({
+			id: "project-1",
+			name: "Kanban",
+			path: "/tmp/kanban",
+			color: "#111111",
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		});
+		mockRoleRepo.listWithPresets.mockReturnValue([
+			{ id: "dev", name: "Developer", preset_json: "{}" },
+		]);
+		mockRoleRepo.getPresetJson.mockReturnValue("{}");
+		mockSessionManager.inspectSession.mockResolvedValue({
+			probeStatus: "alive",
+			sessionStatus: "idle",
+			messages: [],
+			todos: [],
+			pendingPermissions: [],
+			pendingQuestions: [],
+		});
+		mockTaskRepo.update.mockImplementation((_taskId, updates) => ({
+			...buildTask(),
+			...updates,
+		}));
+	});
+
+	it("sends generation prompt before switching run kind and stores generation boundary metadata", async () => {
+		const run = buildRun("running", "run-story-chat", "task-story-chat");
+		run.sessionId = "session-1";
+		run.roleId = "dev";
+		mockRunRepo.getById.mockReturnValue(run);
+		mockRunRepo.update.mockImplementation((_runId, patch) => ({
+			...run,
+			...patch,
+			metadata: patch.metadata ?? run.metadata,
+		}));
+
+		const service = new RunService();
+		await service.triggerStoryGeneration("run-story-chat");
+
+		expect(mockSendSessionMessage).toHaveBeenCalledWith(
+			"session-1",
+			"user-story-prompt",
+		);
+		expect(mockRunRepo.update).toHaveBeenCalledWith(
+			"run-story-chat",
+			expect.objectContaining({
+				kind: "task-description-improve",
+				metadata: expect.objectContaining({
+					storyGenerationRequestedAt: expect.any(String),
+					lastExecutionStatus: expect.objectContaining({
+						kind: "running",
+						sessionId: "session-1",
+					}),
+				}),
+			}),
+		);
+		expect(mockSendSessionMessage.mock.invocationCallOrder[0]).toBeLessThan(
+			mockRunRepo.update.mock.invocationCallOrder[0],
+		);
+	});
+
+	it("captures storyGenerationRequestedAt before the send completes", async () => {
+		vi.useFakeTimers();
+		const requestedAt = new Date("2026-01-01T10:00:00.000Z");
+		const afterSend = new Date("2026-01-01T10:00:05.000Z");
+		vi.setSystemTime(requestedAt);
+
+		const run = buildRun("running", "run-story-chat", "task-story-chat");
+		run.sessionId = "session-1";
+		run.roleId = "dev";
+		mockRunRepo.getById.mockReturnValue(run);
+		mockSendSessionMessage.mockImplementation(async () => {
+			vi.setSystemTime(afterSend);
+		});
+		mockRunRepo.update.mockImplementation((_runId, patch) => ({
+			...run,
+			...patch,
+			metadata: patch.metadata ?? run.metadata,
+		}));
+
+		try {
+			const service = new RunService();
+			await service.triggerStoryGeneration("run-story-chat");
+
+			expect(mockRunRepo.update).toHaveBeenCalledWith(
+				"run-story-chat",
+				expect.objectContaining({
+					metadata: expect.objectContaining({
+						storyGenerationRequestedAt: requestedAt.toISOString(),
+					}),
+				}),
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+});
+
 describe("RunService.start", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
