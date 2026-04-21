@@ -92,6 +92,9 @@ export function SortableColumn({
 		<div
 			ref={setNodeRef}
 			style={style}
+			data-testid={
+				systemKey ? `board-column-${systemKey}` : "board-column-unknown"
+			}
 			title={isMinimized ? name : undefined}
 			className={cn(
 				"flex-shrink-0 h-full px-3 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
@@ -129,6 +132,9 @@ export function SortableColumn({
 				<div
 					{...attributes}
 					{...listeners}
+					data-testid={
+						systemKey ? `column-header-${systemKey}` : "column-header-unknown"
+					}
 					className="p-4 border-b border-slate-800/50 cursor-grab active:cursor-grabbing select-none shrink-0"
 					title={isMinimized ? name : undefined}
 				>

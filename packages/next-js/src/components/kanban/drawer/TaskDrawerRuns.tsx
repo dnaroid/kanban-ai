@@ -426,6 +426,7 @@ export function TaskDrawerRuns({
 															{run.id.slice(0, 8)}
 														</span>
 														<span
+															data-testid="run-status"
 															className={cn(
 																"text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border tracking-wider",
 																statusStyle.bg,

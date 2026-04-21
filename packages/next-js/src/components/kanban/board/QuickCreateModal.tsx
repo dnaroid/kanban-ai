@@ -584,6 +584,7 @@ export function QuickCreateModal({
 						type="button"
 						onClick={handleGenerateStory}
 						disabled={isSubmitting}
+						data-testid="create-task-submit"
 						className={cn(
 							"inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-xs font-bold transition-all border shadow-lg relative group overflow-hidden",
 							isSubmitting
@@ -609,10 +610,11 @@ export function QuickCreateModal({
 				</div>
 			}
 		>
-			<div className="space-y-4">
+			<div className="space-y-4" data-testid="create-task-modal">
 				<div className="relative group">
 					<div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-5 focus-within:border-emerald-500/40 focus-within:ring-4 focus-within:ring-emerald-500/5 transition-all duration-300 shadow-inner">
 						<textarea
+							data-testid="create-task-prompt"
 							value={prompt}
 							onChange={(e) => setPrompt(e.target.value)}
 							onPaste={handlePromptPaste}

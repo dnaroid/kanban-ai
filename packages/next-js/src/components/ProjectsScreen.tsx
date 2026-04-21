@@ -483,7 +483,7 @@ export function ProjectsScreen({ onProjectSelect }: ProjectsScreenProps) {
 				</button>
 			</div>
 
-			<div className="p-8 space-y-8">
+			<div className="p-8 space-y-8" data-testid="projects-list">
 				{loading ? (
 					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 						{[1, 2, 3].map((i) => (

@@ -152,6 +152,7 @@ function SingleQuestionForm({
 					<span className="text-xs font-medium">Type your own answer</span>
 					{state.useCustom && (
 						<textarea
+							data-testid="run-follow-up-input"
 							className="mt-1.5 w-full bg-slate-950/50 border border-slate-700/50 rounded-lg px-2 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 resize-none focus:outline-none focus:border-amber-500/50 custom-scrollbar"
 							placeholder="Enter your answer..."
 							value={state.customText}
@@ -244,7 +245,10 @@ export function QuestionInteraction({
 		const hasAnswer = isAnswered(state, q);
 
 		return (
-			<div className="flex flex-col gap-3 px-4 py-3 my-1 bg-amber-500/[0.06] border border-amber-500/20 rounded-xl">
+			<div
+				className="flex flex-col gap-3 px-4 py-3 my-1 bg-amber-500/[0.06] border border-amber-500/20 rounded-xl"
+				data-testid="run-follow-up-dialog"
+			>
 				<div className="flex items-start gap-2">
 					<div className="flex items-center justify-center w-7 h-7 rounded-lg bg-amber-500/10 shrink-0 mt-0.5">
 						<HelpCircle className="w-4 h-4 text-amber-400 animate-pulse" />
@@ -284,6 +288,7 @@ export function QuestionInteraction({
 						type="button"
 						onClick={() => void handleSubmit()}
 						disabled={sending || !onReply || !hasAnswer}
+						data-testid="run-follow-up-submit"
 						className={cn(
 							"flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all",
 							sending || !onReply || !hasAnswer
@@ -307,7 +312,10 @@ export function QuestionInteraction({
 	const currentAnswerState = answerStates[currentTab] ?? null;
 
 	return (
-		<div className="flex flex-col gap-3 px-4 py-3 my-1 bg-amber-500/[0.06] border border-amber-500/20 rounded-xl">
+		<div
+			className="flex flex-col gap-3 px-4 py-3 my-1 bg-amber-500/[0.06] border border-amber-500/20 rounded-xl"
+			data-testid="run-follow-up-dialog"
+		>
 			<div className="flex items-start gap-2">
 				<div className="flex items-center justify-center w-7 h-7 rounded-lg bg-amber-500/10 shrink-0 mt-0.5">
 					<HelpCircle className="w-4 h-4 text-amber-400 animate-pulse" />
@@ -475,6 +483,7 @@ export function QuestionInteraction({
 							type="button"
 							onClick={() => void handleSubmit()}
 							disabled={sending || !onReply}
+							data-testid="run-follow-up-submit"
 							className={cn(
 								"flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all",
 								sending || !onReply

@@ -174,6 +174,7 @@ export function SortableTask({
 			ref={setCombinedRef}
 			style={style}
 			{...(isDeleting ? {} : { ...attributes, ...listeners })}
+			data-testid={`task-card-${task.id}`}
 			className={cn(
 				"bg-slate-900/40 backdrop-blur-md border rounded-xl mb-[17px] group hover:shadow-lg hover:shadow-black/20 cursor-grab active:cursor-grabbing relative z-10 hover:z-20 border-slate-700 hover:border-slate-600",
 				!task.isGenerated && "border-dashed",
@@ -286,7 +287,10 @@ export function SortableTask({
 					onClick={() => onClick?.(task)}
 					className="block w-full min-w-0 text-left"
 				>
-					<h4 className="mb-2 text-sm font-semibold leading-snug text-slate-200">
+					<h4
+						data-testid="task-title"
+						className="mb-2 text-sm font-semibold leading-snug text-slate-200"
+					>
 						{task.title}
 					</h4>
 
@@ -344,6 +348,7 @@ export function SortableTask({
 						onClick={handleContextClick}
 						onPointerDown={handleContextPointerDown}
 						disabled={isLoading}
+						data-testid="run-task-button"
 						className={cn(
 							"inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
 							systemKey === "review"

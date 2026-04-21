@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { createOpencodeClient } from "@opencode-ai/sdk/v2/client";
 import { OpencodeStorageReader } from "@/server/opencode/opencode-storage-reader";
+import { FakeOpencodeSessionManager } from "@/server/opencode/fake-session-manager";
 import type {
 	MessageTokens,
 	OpenCodeMessage,
@@ -1564,8 +1565,16 @@ export class OpencodeSessionManager {
 }
 
 let sessionManager: OpencodeSessionManager | null = null;
+let fakeSessionManager: FakeOpencodeSessionManager | null = null;
 
 export function getOpencodeSessionManager(): OpencodeSessionManager {
+	if (process.env.AI_RUNTIME_MODE === "fake") {
+		if (!fakeSessionManager) {
+			fakeSessionManager = new FakeOpencodeSessionManager();
+		}
+		return fakeSessionManager as unknown as OpencodeSessionManager;
+	}
+
 	if (!sessionManager) {
 		sessionManager = new OpencodeSessionManager();
 	}
