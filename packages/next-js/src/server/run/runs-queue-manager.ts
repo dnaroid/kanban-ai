@@ -576,12 +576,8 @@ export class RunsQueueManager {
 		try {
 			log.info("startup bootstrap started");
 
-			if (process.env.AI_RUNTIME_MODE !== "fake") {
-				await this.opencodeService.start();
-				log.info("startup opencode service ready");
-			} else {
-				log.info("startup opencode service skipped (fake mode)");
-			}
+			await this.opencodeService.start();
+			log.info("startup opencode service ready");
 
 			// Restore active run subscriptions from DB
 			await this.runLiveSubscriptionService.restoreActiveRunSubscriptions();

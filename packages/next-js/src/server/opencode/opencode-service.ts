@@ -117,6 +117,10 @@ export class OpencodeService {
 	}
 
 	public async start(): Promise<void> {
+		if (process.env.AI_RUNTIME_MODE === "fake") {
+			return;
+		}
+
 		if (this.startupPromise) {
 			await this.startupPromise;
 			return;
