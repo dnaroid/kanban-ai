@@ -224,24 +224,38 @@ class ApiClient {
 			return { success: true };
 		},
 		merge: async ({ runId }: { runId: string }): Promise<{ run: Run }> => {
-			const response = await fetch(`${this.baseUrl}/api/run/merge`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ runId }),
-			});
-			if (!response.ok) {
-				const message = await this.getErrorMessage(
-					response,
-					"Failed to merge run changes",
-				);
-				this.fail(message);
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), 65_000);
+			try {
+				const response = await fetch(`${this.baseUrl}/api/run/merge`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ runId }),
+					signal: controller.signal,
+				});
+				if (!response.ok) {
+					const message = await this.getErrorMessage(
+						response,
+						"Failed to merge run changes",
+					);
+					this.fail(message);
+				}
+				const payload = await response.json();
+				const data = this.unwrapApiData<{ run?: Run | null }>(payload);
+				if (!data.run) {
+					throw new Error("Run merge response did not contain run");
+				}
+				return { run: data.run };
+			} catch (error) {
+				if (error instanceof Error && error.name === "AbortError") {
+					this.fail(
+						"Merge request timed out. The git operation took too long to complete.",
+					);
+				}
+				throw error;
+			} finally {
+				clearTimeout(timeoutId);
 			}
-			const payload = await response.json();
-			const data = this.unwrapApiData<{ run?: Run | null }>(payload);
-			if (!data.run) {
-				throw new Error("Run merge response did not contain run");
-			}
-			return { run: data.run };
 		},
 		get: async ({ runId }: { runId: string }): Promise<{ run: Run | null }> => {
 			const query = new URLSearchParams({ runId });

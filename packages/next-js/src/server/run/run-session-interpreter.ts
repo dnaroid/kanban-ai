@@ -64,6 +64,10 @@ export function deriveMetaStatus(
 		return { kind: "running" };
 	}
 
+	if (hasActiveChildSessions(inspection)) {
+		return { kind: "running" };
+	}
+
 	if (isStoryChatRun) {
 		return { kind: "running" };
 	}
@@ -92,6 +96,23 @@ export function deriveMetaStatus(
 	}
 
 	return { kind: "running" };
+}
+
+function hasActiveChildSessions(
+	inspection: SessionInspectionResult,
+): boolean {
+	for (const childInspection of inspection.childSessions ?? []) {
+		const childMeta = deriveMetaStatus(childInspection);
+		if (
+			childMeta.kind === "running" ||
+			childMeta.kind === "permission" ||
+			childMeta.kind === "question"
+		) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 export function toRunLastExecutionStatus(

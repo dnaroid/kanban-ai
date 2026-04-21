@@ -1,8 +1,26 @@
 import { NextResponse } from "next/server";
 import { runService } from "@/server/run/run-service";
 
+const MERGE_TIMEOUT_MS = 60_000;
+
 interface MergeRunBody {
 	runId?: unknown;
+}
+
+function withTimeout<T>(
+	promise: Promise<T>,
+	ms: number,
+	message: string,
+): Promise<T> {
+	let timeoutId: ReturnType<typeof setTimeout> | undefined;
+	return Promise.race([
+		promise,
+		new Promise<never>((_, reject) => {
+			timeoutId = setTimeout(() => reject(new Error(message)), ms);
+		}),
+	]).finally(() => {
+		if (timeoutId !== undefined) clearTimeout(timeoutId);
+	});
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -17,7 +35,11 @@ export async function POST(request: Request): Promise<Response> {
 			);
 		}
 
-		const data = await runService.merge(runId);
+		const data = await withTimeout(
+			runService.merge(runId),
+			MERGE_TIMEOUT_MS,
+			"Merge operation timed out",
+		);
 		return NextResponse.json({ success: true, data });
 	} catch (error) {
 		const message =

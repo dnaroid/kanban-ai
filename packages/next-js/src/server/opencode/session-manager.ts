@@ -104,6 +104,7 @@ export interface SessionInspectionResult {
 	todos: OpenCodeTodo[];
 	pendingPermissions: PermissionData[];
 	pendingQuestions: QuestionData[];
+	childSessions: SessionInspectionResult[];
 }
 
 function getData<T>(value: unknown): T {
@@ -147,6 +148,22 @@ function normalizeTodoPriority(value: unknown): "high" | "medium" | "low" {
 		return value;
 	}
 	return "medium";
+}
+
+function buildTransientInspectionResult(): SessionInspectionResult {
+	return {
+		probeStatus: "transient_error",
+		sessionStatus: "unknown",
+		messages: [],
+		todos: [],
+		pendingPermissions: [],
+		pendingQuestions: [],
+		childSessions: [],
+	};
+}
+
+function cloneVisitedSessions(visited: Set<string>): Set<string> {
+	return new Set<string>(visited);
 }
 
 export class OpencodeSessionManager {
@@ -285,12 +302,27 @@ export class OpencodeSessionManager {
 
 	public async inspectSession(
 		sessionId: string,
+		visited: Set<string> = new Set<string>(),
 	): Promise<SessionInspectionResult> {
+		if (visited.has(sessionId)) {
+			return {
+				...buildTransientInspectionResult(),
+				probeStatus: "alive",
+			};
+		}
+
+		const nextVisited = cloneVisitedSessions(visited);
+		nextVisited.add(sessionId);
+
 		const sessionStatus = await this.fetchSessionActivityStatus(sessionId);
 
 		const session = await this.fetchSessionInfo(sessionId);
 		if (!session) {
 			const messages = await this.getMessages(sessionId, 50);
+			const childSessions = await this.inspectChildSessions(
+				this.collectSubtaskSessionIds(messages),
+				nextVisited,
+			);
 			if (messages.length > 0) {
 				return {
 					probeStatus: "alive",
@@ -299,6 +331,7 @@ export class OpencodeSessionManager {
 					todos: await this.getTodos(sessionId),
 					pendingPermissions: await this.listPendingPermissions(sessionId),
 					pendingQuestions: await this.listPendingQuestions(sessionId),
+					childSessions,
 				};
 			}
 
@@ -310,6 +343,7 @@ export class OpencodeSessionManager {
 				todos: [],
 				pendingPermissions: [],
 				pendingQuestions: [],
+				childSessions,
 			};
 		}
 
@@ -327,6 +361,11 @@ export class OpencodeSessionManager {
 				this.listPendingQuestions(sessionId),
 			]);
 
+		const childSessions = await this.inspectChildSessions(
+			this.collectSubtaskSessionIds(messages),
+			nextVisited,
+		);
+
 		return {
 			probeStatus: "alive",
 			sessionStatus,
@@ -334,6 +373,7 @@ export class OpencodeSessionManager {
 			todos,
 			pendingPermissions,
 			pendingQuestions,
+			childSessions,
 		};
 	}
 
@@ -723,6 +763,43 @@ export class OpencodeSessionManager {
 		}
 
 		return [];
+	}
+
+	private collectSubtaskSessionIds(messages: OpenCodeMessage[]): string[] {
+		const sessionIds = new Set<string>();
+
+		for (const message of messages) {
+			for (const part of message.parts) {
+				if (part.type !== "subtask") {
+					continue;
+				}
+
+				const childSessionId = part.sessionID.trim();
+				if (childSessionId.length > 0) {
+					sessionIds.add(childSessionId);
+				}
+			}
+		}
+
+		return [...sessionIds];
+	}
+
+	private async inspectChildSessions(
+		sessionIds: string[],
+		visited: Set<string>,
+	): Promise<SessionInspectionResult[]> {
+		const childSessionIds = sessionIds.filter((id) => !visited.has(id));
+		if (childSessionIds.length === 0) {
+			return [];
+		}
+
+		return Promise.all(
+			childSessionIds.map((id) =>
+				this.inspectSession(id, cloneVisitedSessions(visited)).catch(() =>
+					buildTransientInspectionResult(),
+				),
+			),
+		);
 	}
 
 	private async probeSessionStatus(
