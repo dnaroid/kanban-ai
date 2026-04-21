@@ -77,16 +77,24 @@ export function SortableColumn({
 		},
 	});
 
-	const style = {
-		transform: CSS.Transform.toString(transform),
-		transition,
-	};
-
 	const isEmpty = tasks.length === 0;
 	const isOver = isColumnOver || isTaskOverThisColumn;
 	const isMinimized = isEmpty;
 	const [isHovered, setIsHovered] = useState(false);
 	const columnWidthClass = !isMinimized ? "w-[344px]" : "w-[80px]";
+
+	const columnTransition = [
+		transition,
+		"width 500ms cubic-bezier(0.34,1.56,0.64,1)",
+		"opacity 500ms cubic-bezier(0.34,1.56,0.64,1)",
+	]
+		.filter(Boolean)
+		.join(", ");
+
+	const style = {
+		transform: CSS.Transform.toString(transform),
+		transition: columnTransition,
+	};
 
 	return (
 		<div
@@ -97,7 +105,7 @@ export function SortableColumn({
 			}
 			title={isMinimized ? name : undefined}
 			className={cn(
-				"flex-shrink-0 h-full px-3 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+				"flex-shrink-0 h-full px-3",
 				columnWidthClass,
 				isDragging && "opacity-50 scale-95",
 			)}
@@ -141,10 +149,10 @@ export function SortableColumn({
 					<div className="flex items-center justify-between relative min-h-[32px]">
 						<div
 							className={cn(
-								"flex items-center gap-2 flex-1 min-w-0 transition-all duration-500 ease-in-out",
+								"flex items-center gap-2 flex-1 min-w-0 transition-all duration-300 ease-in-out",
 								isMinimized
-									? "opacity-0 translate-x-4 pointer-events-none"
-									: "opacity-100 translate-x-0 pointer-events-auto",
+									? "opacity-0 translate-x-4 pointer-events-none delay-100"
+									: "opacity-100 translate-x-0 pointer-events-auto delay-200",
 							)}
 						>
 							<ColumnIcon
@@ -175,8 +183,10 @@ export function SortableColumn({
 
 						<div
 							className={cn(
-								"absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-500 ease-in-out",
-								isMinimized ? "opacity-100 scale-100" : "opacity-0 scale-150",
+								"absolute inset-0 flex items-center justify-center pointer-events-none transition-all duration-300 ease-in-out",
+								isMinimized
+									? "opacity-100 scale-100 delay-200"
+									: "opacity-0 scale-150 delay-0",
 							)}
 						>
 							<ColumnIcon
@@ -189,10 +199,10 @@ export function SortableColumn({
 
 				<div
 					className={cn(
-						"flex-1 overflow-y-auto no-scrollbar p-3 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+						"flex-1 overflow-y-auto no-scrollbar p-3 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
 						isMinimized
-							? "opacity-0 translate-y-8 pointer-events-none"
-							: "opacity-100 translate-y-0",
+							? "opacity-0 translate-y-4 pointer-events-none delay-100"
+							: "opacity-100 translate-y-0 delay-200",
 					)}
 				>
 					<SortableContext
