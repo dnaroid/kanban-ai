@@ -484,12 +484,13 @@ export function BoardScreen({
 					projectId={projectId}
 					isOpen={isQuickCreateModalOpen}
 					onClose={() => setIsQuickCreateModalOpen(false)}
-					onGenerateStory={async (prompt, selectedAttachments) => {
+					onGenerateStory={async (prompt, selectedAttachments, modelName) => {
 						if (firstColumnId) {
 							await handleQuickGenerateStory(
 								firstColumnId,
 								prompt,
 								selectedAttachments,
+								modelName,
 							);
 						}
 					}}

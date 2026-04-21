@@ -7,10 +7,19 @@ export async function POST(request: Request) {
 		const body = (await request.json()) as {
 			taskId?: unknown;
 			taskIds?: unknown;
+			modelName?: unknown;
 		};
 
+		const parsedModelName =
+			typeof body.modelName === "string" && body.modelName.length > 0
+				? body.modelName
+				: undefined;
+
 		if (typeof body.taskId === "string" && body.taskId.trim().length > 0) {
-			const { runId } = await runService.generateUserStory(body.taskId.trim());
+			const { runId } = await runService.generateUserStory(
+				body.taskId.trim(),
+				parsedModelName,
+			);
 			const data: OpenCodeGenerateUserStoryResponse = { runId };
 			return NextResponse.json({ success: true, data });
 		}
@@ -35,7 +44,9 @@ export async function POST(request: Request) {
 		}
 
 		const results = await Promise.all(
-			taskIds.map((taskId) => runService.generateUserStory(taskId)),
+			taskIds.map((taskId) =>
+				runService.generateUserStory(taskId, parsedModelName),
+			),
 		);
 		const data = { runIds: results.map((result) => result.runId) };
 		return NextResponse.json({ success: true, data });

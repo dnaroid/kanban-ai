@@ -576,6 +576,7 @@ export function useBoardModel({
 		columnId: string,
 		prompt: string,
 		selectedAttachments?: PromptAttachment[],
+		modelName?: string | null,
 	) => {
 		if (!board) {
 			throw new Error("Board not found");
@@ -613,6 +614,7 @@ export function useBoardModel({
 
 			const { runId } = await api.opencode.generateUserStory({
 				taskId: createdTask.id,
+				modelName,
 			});
 			pendingStoryGenerations.current.set(runId, createdTask.id);
 			await loadBoard();

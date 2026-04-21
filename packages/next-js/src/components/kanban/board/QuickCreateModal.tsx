@@ -68,6 +68,7 @@ interface QuickCreateModalProps {
 	onGenerateStory: (
 		prompt: string,
 		selectedAttachments: QuickCreateAttachment[],
+		modelName?: string | null,
 	) => Promise<void>;
 	onStartStoryChat: (
 		prompt: string,
@@ -306,7 +307,7 @@ export function QuickCreateModal({
 		setSubmittingAction("generate");
 
 		try {
-			await onGenerateStory(fullPrompt, selectedAttachments);
+			await onGenerateStory(fullPrompt, selectedAttachments, selectedModel);
 			onClose();
 		} catch (err) {
 			setError(

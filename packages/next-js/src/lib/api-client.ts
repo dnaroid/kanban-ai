@@ -620,15 +620,20 @@ class ApiClient {
 		},
 		generateUserStory: async ({
 			taskId,
+			modelName,
 		}: {
 			taskId: string;
+			modelName?: string | null;
 		}): Promise<{ runId: string }> => {
 			const response = await fetch(
 				`${this.baseUrl}/api/opencode/generate-user-story`,
 				{
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ taskId }),
+					body: JSON.stringify({
+						taskId,
+						...(modelName ? { modelName } : {}),
+					}),
 				},
 			);
 			if (!response.ok) {

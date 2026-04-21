@@ -514,7 +514,10 @@ export class RunService {
 		return { run: updatedRun };
 	}
 
-	public async generateUserStory(taskId: string): Promise<{ runId: string }> {
+	public async generateUserStory(
+		taskId: string,
+		modelName?: string | null,
+	): Promise<{ runId: string }> {
 		log.info("Generating user story", { taskId });
 
 		const task = taskRepo.getById(taskId);
@@ -616,6 +619,8 @@ export class RunService {
 			sessionPreferences: this.toSessionPreferences(
 				selectedRole,
 				selectedRole?.preset_json,
+				undefined,
+				modelName,
 			),
 			prompt: buildUserStoryPrompt(
 				{
