@@ -69,6 +69,7 @@ const {
 			listPendingQuestions: vi.fn(async (_sessionId?: string) => []),
 			unsubscribe: vi.fn(async () => undefined),
 			abortSession: vi.fn(async () => undefined),
+			listAliveSessions: vi.fn(async () => []),
 		},
 		mockContextSnapshotRepo: {
 			create: vi.fn(() => "snapshot-1"),
@@ -82,6 +83,7 @@ const {
 				createdAt: new Date().toISOString(),
 				updatedAt: new Date().toISOString(),
 			})),
+			getAll: vi.fn(() => []),
 		},
 		mockRoleRepo: {
 			list: vi.fn(() => [{ id: "dev", name: "Developer" }]),
@@ -686,7 +688,10 @@ describe("RunsQueueManager scheduling", () => {
 		);
 
 		mockSessionManager.inspectSession.mockResolvedValue(
-			buildInspection({ sessionStatus: "idle" }),
+			buildInspection({
+				sessionStatus: "idle",
+				content: "<STORY>Generated task description</STORY>",
+			}),
 		);
 
 		const manager = new RunsQueueManager();
@@ -705,7 +710,9 @@ describe("RunsQueueManager scheduling", () => {
 				mode: "execute",
 			}),
 		);
-		expectTransitionCall("generate:ok", { outcomeContent: "" });
+		expectTransitionCall("generate:ok", {
+			outcomeContent: "Generated task description",
+		});
 	});
 
 	it("auto-enqueues generated execution into a provisioned worktree", async () => {
@@ -726,7 +733,10 @@ describe("RunsQueueManager scheduling", () => {
 		);
 
 		mockSessionManager.inspectSession.mockResolvedValue(
-			buildInspection({ sessionStatus: "idle" }),
+			buildInspection({
+				sessionStatus: "idle",
+				content: "<STORY>Generated task description</STORY>",
+			}),
 		);
 		mockVcsManager.provisionRunWorkspace.mockResolvedValueOnce({
 			repoRoot: "/tmp/project",
@@ -1377,7 +1387,7 @@ describe("RunsQueueManager scheduling", () => {
 		);
 	});
 
-	it("force-finalizes stale generation runs during project polling", async () => {
+	it("does not force-finalize stale generation runs during project polling", async () => {
 		taskMap.set(
 			"task-stale-generation",
 			buildTask("task-stale-generation", "normal", "generating"),
@@ -1398,8 +1408,10 @@ describe("RunsQueueManager scheduling", () => {
 		const manager = new RunsQueueManager();
 		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
-		expect(runMap.get("run-stale-generation")?.status).toBe("completed");
-		expectTransitionCall("generate:ok", { outcomeContent: "" });
+		expect(runMap.get("run-stale-generation")?.status).toBe("running");
+		expect(mockStateMachine.transition).not.toHaveBeenCalledWith(
+			expect.objectContaining({ trigger: "generate:ok" }),
+		);
 	});
 
 	it("does not finalize stale runs when polling inspection is transiently unavailable", async () => {

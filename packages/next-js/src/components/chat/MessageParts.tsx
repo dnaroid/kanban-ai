@@ -33,6 +33,7 @@ import { WriteToolView } from "./WriteToolView";
 import type { WriteToolInput } from "./WriteToolView";
 import { QuestionInteraction } from "./QuestionInteraction";
 import { TodoWriteToolView } from "./TodoWriteToolView";
+import { HighlightedJson } from "./HighlightedJson";
 
 function isEditToolInput(input: unknown): input is EditToolInput {
 	if (!input || typeof input !== "object") return false;
@@ -382,11 +383,10 @@ export function ToolPart({
 								<span className="text-[10px] font-semibold text-slate-500 uppercase px-1">
 									Input
 								</span>
-								<pre className="p-2 bg-slate-950/50 rounded-lg text-[10px] text-slate-400 font-mono overflow-x-auto custom-scrollbar">
-									{typeof part.input === "string"
-										? part.input
-										: JSON.stringify(part.input, null, 2)}
-								</pre>
+								<HighlightedJson
+									value={part.input}
+									className="p-2 bg-slate-950/50 rounded-lg text-[10px] font-mono overflow-x-auto custom-scrollbar"
+								/>
 							</div>
 						)}
 					{!shouldShowCustomDiff && part.output != null && (
@@ -394,11 +394,10 @@ export function ToolPart({
 							<span className="text-[10px] font-semibold text-slate-500 uppercase px-1">
 								Output
 							</span>
-							<pre className="p-2 bg-slate-950/50 rounded-lg text-[10px] text-emerald-400/80 font-mono overflow-x-auto custom-scrollbar">
-								{typeof part.output === "string"
-									? part.output
-									: JSON.stringify(part.output, null, 2)}
-							</pre>
+							<HighlightedJson
+								value={part.output}
+								className="p-2 bg-slate-950/50 rounded-lg text-[10px] font-mono overflow-x-auto custom-scrollbar"
+							/>
 						</div>
 					)}
 					{part.error && (
