@@ -62,12 +62,14 @@ export default function StandaloneTaskPage() {
 	const runsStatuses = ["chat", "question", "running", "paused", "failed"];
 	const defaultTab =
 		tabParam ??
-		(task.status === "rejected"
-			? "qa"
-			: runsStatuses.includes(task.status) ||
-					(task.opencodeWebUrl && !isInBacklog)
-				? "runs"
-				: "details");
+		(columnSystemKey === "ready"
+			? "details"
+			: task.status === "rejected"
+				? "qa"
+				: runsStatuses.includes(task.status) ||
+						(task.opencodeWebUrl && !isInBacklog)
+					? "runs"
+					: "details");
 
 	return (
 		<div className="flex h-full bg-[#0B0E14] text-slate-200 overflow-hidden">
