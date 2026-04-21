@@ -3,6 +3,9 @@ import {
 	type APIRequestContext,
 	type APIResponse,
 } from "@playwright/test";
+import fs from "fs";
+import os from "os";
+import path from "path";
 
 const DEFAULT_BASE_URL = "http://127.0.0.1:3100";
 const RUN_COMPLETION_TIMEOUT_MS = 90_000;
@@ -51,7 +54,14 @@ export interface SeedData {
 	runs: SeedRun[];
 }
 
-export type SeedScenario = "minimal" | "task-ready" | "task-with-run";
+export type SeedScenario =
+	| "minimal"
+	| "task-ready"
+	| "task-with-run"
+	| "paused-run"
+	| "failed-run"
+	| "multi-column-board"
+	| "history-rich-task";
 
 interface ApiFailure {
 	success: false;
@@ -240,6 +250,17 @@ async function startRun(
 	return started.runId;
 }
 
+async function setFakeScenario(
+	apiContext: APIRequestContext,
+	scenario: string,
+): Promise<void> {
+	await ensureSuccess<{ scenario: string }>(
+		await apiContext.post("/api/e2e/set-scenario", {
+			data: { scenario },
+		}),
+	);
+}
+
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -249,17 +270,34 @@ async function waitForCompletedRun(
 	runId: string,
 	timeoutMs: number = RUN_COMPLETION_TIMEOUT_MS,
 ): Promise<RunApiData> {
+	return waitForRunStatus(apiContext, runId, "completed", timeoutMs);
+}
+
+async function triggerReconciliation(
+	apiContext: APIRequestContext,
+): Promise<void> {
+	await apiContext.post("/api/e2e/reconcile");
+}
+
+async function waitForRunStatus(
+	apiContext: APIRequestContext,
+	runId: string,
+	targetStatus: string,
+	timeoutMs: number = RUN_COMPLETION_TIMEOUT_MS,
+): Promise<RunApiData> {
 	const deadline = Date.now() + timeoutMs;
 	let lastStatus = "queued";
 
 	while (Date.now() < deadline) {
+		await triggerReconciliation(apiContext);
+
 		const result = await ensureSuccess<RunGetApiData>(
 			await apiContext.get(`/api/run/get?runId=${encodeURIComponent(runId)}`),
 		);
 
 		if (result.run) {
 			lastStatus = result.run.status;
-			if (result.run.status === "completed") {
+			if (result.run.status === targetStatus) {
 				return result.run;
 			}
 		}
@@ -268,13 +306,32 @@ async function waitForCompletedRun(
 	}
 
 	throw new Error(
-		`Run ${runId} did not reach completed status within ${timeoutMs}ms (last status: ${lastStatus})`,
+		`Run ${runId} did not reach ${targetStatus} status within ${timeoutMs}ms (last status: ${lastStatus})`,
 	);
 }
 
 function createProjectPath(): string {
 	const randomSuffix = globalThis.crypto.randomUUID().slice(0, 8);
-	return `${process.cwd()}/.e2e-seed-projects/${Date.now()}-${randomSuffix}`;
+	const projectPath = path.join(
+		os.tmpdir(),
+		`kanban-e2e-seed-${Date.now()}-${randomSuffix}`,
+	);
+	(
+		fs as unknown as {
+			mkdirSync: (
+				targetPath: string,
+				options?: { recursive?: boolean },
+			) => void;
+		}
+	).mkdirSync(projectPath, { recursive: true });
+
+	const currentRepoGitDir = path.join(process.cwd(), ".git");
+	fs.writeFileSync(
+		path.join(projectPath, ".git"),
+		`gitdir: ${currentRepoGitDir}\n`,
+	);
+
+	return projectPath;
 }
 
 export async function seedScenario(
@@ -332,6 +389,113 @@ export async function seedScenario(
 					id: completedRun.id,
 					taskId: completedRun.taskId,
 					status: completedRun.status,
+				});
+				break;
+			}
+			case "paused-run": {
+				const readyColumn = requireColumn(board, "ready");
+				const task = await createTask(apiContext, {
+					projectId: project.id,
+					boardId: board.id,
+					columnId: readyColumn.id,
+					title: "Task with paused run",
+					description: "Task seeded for pause/resume scenario",
+				});
+				data.tasks.push(task);
+
+				await setFakeScenario(apiContext, "pause-resume");
+				const runId = await startRun(apiContext, task.id);
+				const pausedRun = await waitForRunStatus(apiContext, runId, "paused");
+				data.runs.push({
+					id: pausedRun.id,
+					taskId: pausedRun.taskId,
+					status: pausedRun.status,
+				});
+				await setFakeScenario(apiContext, "happy-path");
+				break;
+			}
+			case "failed-run": {
+				const readyColumn = requireColumn(board, "ready");
+				const task = await createTask(apiContext, {
+					projectId: project.id,
+					boardId: board.id,
+					columnId: readyColumn.id,
+					title: "Task with failed run",
+					description: "Task seeded for failure scenario",
+				});
+				data.tasks.push(task);
+
+				await setFakeScenario(apiContext, "failure");
+				const runId = await startRun(apiContext, task.id);
+				const failedRun = await waitForRunStatus(apiContext, runId, "failed");
+				data.runs.push({
+					id: failedRun.id,
+					taskId: failedRun.taskId,
+					status: failedRun.status,
+				});
+				await setFakeScenario(apiContext, "happy-path");
+				break;
+			}
+			case "multi-column-board": {
+				const backlogColumn = requireColumn(board, "backlog");
+				const readyColumn = requireColumn(board, "ready");
+				const inProgressColumn = board.columns.find(
+					(c) => c.systemKey === "in_progress",
+				);
+
+				const backlogTask = await createTask(apiContext, {
+					projectId: project.id,
+					boardId: board.id,
+					columnId: backlogColumn.id,
+					title: "Backlog task",
+					description: "Task in backlog column",
+				});
+				const readyTask = await createTask(apiContext, {
+					projectId: project.id,
+					boardId: board.id,
+					columnId: readyColumn.id,
+					title: "Ready task",
+					description: "Task in ready column",
+				});
+				data.tasks.push(backlogTask, readyTask);
+
+				if (inProgressColumn) {
+					const inProgressTask = await createTask(apiContext, {
+						projectId: project.id,
+						boardId: board.id,
+						columnId: inProgressColumn.id,
+						title: "In-progress task",
+						description: "Task in in_progress column",
+					});
+					data.tasks.push(inProgressTask);
+				}
+				break;
+			}
+			case "history-rich-task": {
+				const readyColumn = requireColumn(board, "ready");
+				const task = await createTask(apiContext, {
+					projectId: project.id,
+					boardId: board.id,
+					columnId: readyColumn.id,
+					title: "Task with run history",
+					description: "Task with multiple completed runs",
+				});
+				data.tasks.push(task);
+
+				const runId1 = await startRun(apiContext, task.id);
+				const run1 = await waitForCompletedRun(apiContext, runId1);
+				data.runs.push({
+					id: run1.id,
+					taskId: run1.taskId,
+					status: run1.status,
+				});
+
+				const runId2 = await startRun(apiContext, task.id);
+				const run2 = await waitForCompletedRun(apiContext, runId2);
+				data.runs.push({
+					id: run2.id,
+					taskId: run2.taskId,
+					status: run2.status,
 				});
 				break;
 			}

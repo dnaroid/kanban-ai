@@ -156,7 +156,7 @@ export function Sidebar({
 
 	return (
 		<aside
-			className={`fixed top-0 left-0 h-full bg-[#11151C] border-r border-slate-800/50 flex flex-col z-50 transition-all duration-300 ${isSidebarCollapsed ? "w-16" : "w-64"}`}
+			className={`fixed top-0 left-0 h-full bg-[#11151C] border-r border-slate-800/50 flex flex-col z-50 transition-all duration-300 overflow-x-hidden ${isSidebarCollapsed ? "w-16" : "w-64"}`}
 		>
 			<div
 				className={cn(
@@ -208,7 +208,7 @@ export function Sidebar({
 				<div
 					ref={scrollContainerRef}
 					className={cn(
-						"flex-1 min-h-0 overflow-y-auto border-t border-slate-800/50",
+						"flex-1 min-h-0 overflow-y-auto overflow-x-hidden border-t border-slate-800/50",
 						isSidebarCollapsed ? "px-2 py-2" : "px-4 py-2",
 					)}
 					onMouseEnter={handleProjectsAreaEnter}
@@ -331,7 +331,11 @@ export function Sidebar({
 					return (
 						<div
 							key={project.id}
-							className="fixed left-[4.25rem] z-40 pointer-events-none -translate-y-1/2 whitespace-nowrap max-w-[200px]"
+							className={cn(
+								"fixed left-[4rem] z-40 pointer-events-none -translate-y-1/2 whitespace-nowrap max-w-[200px]",
+								"before:content-[''] before:absolute before:-left-[9px] before:top-1/2 before:-translate-y-1/2 before:w-4 before:h-4 before:rotate-[45deg] before:bg-[#1E2433] before:border-l-2 before:border-b-2 before:border-slate-700/60 before:rounded-[2px]",
+								isActive && "before:border-blue-500/30",
+							)}
 							style={{ top }}
 						>
 							<div

@@ -53,6 +53,28 @@ interface FakeSessionState {
 	absent: boolean;
 }
 
+interface FakeSessionStore {
+	sessionCounter: number;
+	scenario: FakeScenario;
+	sessions: Map<string, FakeSessionState>;
+}
+
+declare global {
+	var __fakeOpencodeSessionStore: FakeSessionStore | undefined;
+}
+
+function getFakeSessionStore(): FakeSessionStore {
+	if (!globalThis.__fakeOpencodeSessionStore) {
+		globalThis.__fakeOpencodeSessionStore = {
+			sessionCounter: 0,
+			scenario: parseScenario(process.env.AI_RUNTIME_FAKE_SCENARIO),
+			sessions: new Map<string, FakeSessionState>(),
+		};
+	}
+
+	return globalThis.__fakeOpencodeSessionStore;
+}
+
 export interface FakeSessionManagerConfig {
 	scenario?: FakeScenario;
 }
@@ -65,22 +87,21 @@ function parseScenario(value: string | undefined): FakeScenario {
 }
 
 export class FakeOpencodeSessionManager {
-	private static sessionCounter = 0;
-	private readonly sessions = new Map<string, FakeSessionState>();
-	private readonly defaultScenario: FakeScenario;
+	private readonly store = getFakeSessionStore();
 
 	public constructor(config?: FakeSessionManagerConfig) {
-		this.defaultScenario =
-			config?.scenario ?? parseScenario(process.env.AI_RUNTIME_FAKE_SCENARIO);
+		if (config?.scenario) {
+			this.store.scenario = config.scenario;
+		}
 	}
 
 	public async createSession(
 		title: string,
 		directory: string,
 	): Promise<string> {
-		FakeOpencodeSessionManager.sessionCounter += 1;
-		const sessionId = `fake-session-${FakeOpencodeSessionManager.sessionCounter}`;
-		this.sessions.set(sessionId, {
+		this.store.sessionCounter += 1;
+		const sessionId = `fake-session-${this.store.sessionCounter}`;
+		this.store.sessions.set(sessionId, {
 			sessionId,
 			title,
 			directory,
@@ -94,7 +115,7 @@ export class FakeOpencodeSessionManager {
 			questionRejections: [],
 			lastPrompt: null,
 			progressStep: 0,
-			scenario: this.defaultScenario,
+			scenario: this.store.scenario,
 			questionIssued: false,
 			resumedFromQuestion: false,
 			absent: false,
@@ -130,7 +151,7 @@ export class FakeOpencodeSessionManager {
 	public async inspectSession(
 		sessionId: string,
 	): Promise<SessionInspectionResult> {
-		const session = this.sessions.get(sessionId);
+		const session = this.store.sessions.get(sessionId);
 		if (!session || session.absent) {
 			return {
 				probeStatus: "not_found",
@@ -264,7 +285,7 @@ export class FakeOpencodeSessionManager {
 			status: "idle" | "busy" | "retry" | "unknown";
 		}>
 	> {
-		return Array.from(this.sessions.values()).map((session) => ({
+		return Array.from(this.store.sessions.values()).map((session) => ({
 			sessionId: session.sessionId,
 			directory: session.directory,
 			status: this.computeSessionStatus(session),
@@ -276,10 +297,12 @@ export class FakeOpencodeSessionManager {
 		busySessions: number;
 		busySessionIds: string[];
 	}> {
-		const statuses = Array.from(this.sessions.values()).map((session) => ({
-			sessionId: session.sessionId,
-			status: this.computeSessionStatus(session),
-		}));
+		const statuses = Array.from(this.store.sessions.values()).map(
+			(session) => ({
+				sessionId: session.sessionId,
+				status: this.computeSessionStatus(session),
+			}),
+		);
 
 		const busySessionIds = statuses
 			.filter(({ status }) => status === "busy")
@@ -295,13 +318,13 @@ export class FakeOpencodeSessionManager {
 	public async resolveSessionDirectory(
 		sessionId: string,
 	): Promise<string | null> {
-		const session = this.sessions.get(sessionId);
+		const session = this.store.sessions.get(sessionId);
 		if (!session) return null;
 		return "/fake/project";
 	}
 
 	private getSessionOrThrow(sessionId: string): FakeSessionState {
-		const session = this.sessions.get(sessionId);
+		const session = this.store.sessions.get(sessionId);
 		if (!session || session.absent) {
 			throw new Error(`Unknown fake OpenCode session ${sessionId}`);
 		}
@@ -342,48 +365,28 @@ export class FakeOpencodeSessionManager {
 		}
 
 		if (session.scenario === "happy-path") {
-			if (session.phase === "queued") {
-				session.phase = "running";
-				session.progressStep = 1;
-				return;
-			}
-			if (session.phase === "running") {
-				session.phase = "completed";
-				session.progressStep = 2;
-				session.messages.push(
-					this.buildAssistantMessage(
-						"Fake run completed successfully (happy-path scenario).",
-					),
-				);
-			}
+			session.phase = "completed";
+			session.progressStep = 2;
+			session.messages.push(
+				this.buildAssistantMessage(
+					"Fake run completed successfully (happy-path scenario).",
+				),
+			);
 			return;
 		}
 
 		if (session.scenario === "failure") {
-			if (session.phase === "queued") {
-				session.phase = "running";
-				session.progressStep = 1;
-				return;
-			}
-			if (session.phase === "running") {
-				session.phase = "failed";
-				session.progressStep = 2;
-				session.messages.push(
-					this.buildAssistantMessage(
-						"Fake run failed deterministically (failure scenario).",
-					),
-				);
-			}
+			session.phase = "failed";
+			session.progressStep = 2;
+			session.absent = true;
 			return;
 		}
 
-		if (session.phase === "queued") {
-			session.phase = "running";
-			session.progressStep = 1;
-			return;
-		}
-
-		if (session.phase === "running" && !session.questionIssued) {
+		// pause-resume: advance to paused on first inspect, completed after answer
+		if (
+			session.phase === "queued" ||
+			(session.phase === "running" && !session.questionIssued)
+		) {
 			session.phase = "paused";
 			session.progressStep = 2;
 			session.questionIssued = true;
@@ -465,4 +468,10 @@ export class FakeOpencodeSessionManager {
 
 		return entries.length > 0 ? `[fake-preferences ${entries.join(" ")}]` : "";
 	}
+}
+
+export function setFakeOpencodeScenario(rawScenario: string): FakeScenario {
+	const scenario = parseScenario(rawScenario);
+	getFakeSessionStore().scenario = scenario;
+	return scenario;
 }

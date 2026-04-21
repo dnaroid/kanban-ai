@@ -349,6 +349,7 @@ export function TaskDrawerRuns({
 								<button
 									type="button"
 									onClick={() => void handleStartRun()}
+									aria-label="Start first execution"
 									className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition-colors border border-slate-700"
 								>
 									<Plus className="w-3.5 h-3.5" />
@@ -375,6 +376,7 @@ export function TaskDrawerRuns({
 												<button
 													type="button"
 													onClick={(e) => handleRetryRun(run, e)}
+													data-testid="run-task-button"
 													className="p-1.5 bg-slate-800 text-slate-400 hover:text-white rounded-lg border border-slate-700 hover:border-slate-600 transition-colors shadow-lg"
 													title="Retry run"
 												>

@@ -80,6 +80,10 @@ cp packages/next-js/.env.local.example packages/next-js/.env.local
 | `pnpm lint` | Run ESLint |
 | `pnpm test` | Run tests in watch mode |
 | `pnpm test:run` | Run tests once |
+| `pnpm e2e` | Run E2E tests (Playwright, Chromium) |
+| `pnpm e2e:ui` | Run E2E tests with Playwright UI |
+| `pnpm e2e:headed` | Run E2E tests in headed browser mode |
+| `pnpm e2e:debug` | Run E2E tests in debug mode |
 
 ## Project Structure
 
@@ -106,8 +110,43 @@ kanban-ai/
 |---|---|
 | Linting | `pnpm lint` |
 | Tests | `pnpm test:run` |
+| E2E Tests | `pnpm e2e` |
 
 Additional tooling configured: [Prettier](https://prettier.io/) (`.prettierrc`), TypeScript strict mode.
+
+## E2E Testing
+
+End-to-end tests use [Playwright](https://playwright.dev/) with a fake AI runtime (no real AI calls).
+
+### Quick Start
+
+```bash
+pnpm e2e              # run all E2E tests
+pnpm e2e:ui           # interactive test UI
+```
+
+### How It Works
+
+- Tests run against the Next.js dev server started automatically by Playwright
+- Each test run gets an **isolated SQLite database** in a temp directory
+- A **fake AI runtime** simulates run execution without external dependencies
+- Database is cleaned up after each run
+
+### Configuration
+
+E2E settings are in `.env.e2e`:
+
+| Variable | Default | Description |
+|---|---|---|
+| `AI_RUNTIME_MODE` | `fake` | Always `fake` for E2E |
+| `AI_RUNTIME_FAKE_SCENARIO` | `happy-path` | Fake scenario to use (`happy-path`, `pause-resume`, `failure`) |
+
+### Test Scenarios
+
+Tests are organized in `e2e/tests/`:
+- **Smoke** — app loads, boards render
+- **Create Task** — task creation via modal, seeded tasks display
+- **Run Happy Path** — starting and viewing AI runs
 
 ## Git Worktrees
 

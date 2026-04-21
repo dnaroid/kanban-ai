@@ -173,6 +173,16 @@ export class RunReconciliationService {
 				return;
 			}
 			case "dead":
+				if (observedRun.status === "paused") {
+					log.warn(
+						"Paused run session missing during reconciliation; keeping paused state",
+						{
+							runId: observedRun.id,
+							sessionId,
+						},
+					);
+					return;
+				}
 				await this.failRunDuringReconciliation(
 					observedRun,
 					"Session not found during reconciliation",

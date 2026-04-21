@@ -91,6 +91,16 @@ function buildQuestionDataFromInput(input: unknown): QuestionData | null {
 
 	const questions: QuestionItem[] = rawQuestions
 		.map((q): QuestionItem | null => {
+			if (typeof q === "string" && q.trim().length > 0) {
+				return {
+					question: q.trim(),
+					options: [
+						{ label: "yes", description: "Continue execution" },
+						{ label: "no", description: "Stop execution" },
+					],
+				};
+			}
+
 			if (!q || typeof q !== "object") return null;
 			const qr = q as Record<string, unknown>;
 			const question =
@@ -117,9 +127,17 @@ function buildQuestionDataFromInput(input: unknown): QuestionData | null {
 						})
 						.filter((o): o is QuestionOption => o !== null)
 				: [];
+			const normalizedOptions =
+				options.length > 0
+					? options
+					: [
+							{ label: "yes", description: "Continue execution" },
+							{ label: "no", description: "Stop execution" },
+						];
+
 			return qr.multiple === true
 				? { question, options, multiple: true }
-				: { question, options };
+				: { question, options: normalizedOptions };
 		})
 		.filter((q): q is QuestionItem => q !== null);
 
@@ -202,6 +220,8 @@ export function ToolPart({
 	onQuestionError?: (message: string) => void;
 }) {
 	const [isExpanded, setIsExpanded] = useState(false);
+	const [dismissedFallbackQuestion, setDismissedFallbackQuestion] =
+		useState(false);
 
 	const isActiveQuestion =
 		part.tool === "question" &&
@@ -322,14 +342,35 @@ export function ToolPart({
 						(part.state === "pending" || part.state === "running") &&
 						(() => {
 							const fromInput = buildQuestionDataFromInput(part.input);
-							const requestId = pendingQuestion?.id ?? "";
+							const fallbackRequestId =
+								typeof (part.input as { questionId?: unknown } | null)
+									?.questionId === "string"
+									? ((part.input as { questionId: string }).questionId ?? "")
+									: "";
+							const requestId = pendingQuestion?.id ?? fallbackRequestId;
 							const merged: QuestionData | null = pendingQuestion ?? fromInput;
 							if (!merged || merged.questions.length === 0) return null;
+							if (!pendingQuestion && dismissedFallbackQuestion) return null;
+
+							const handleFallbackDismiss = async (): Promise<void> => {
+								setDismissedFallbackQuestion(true);
+							};
+
+							const replyHandler = requestId
+								? onQuestionReply
+								: async () => {
+										await handleFallbackDismiss();
+									};
+							const rejectHandler = requestId
+								? onQuestionReject
+								: async () => {
+										await handleFallbackDismiss();
+									};
 							return (
 								<QuestionInteraction
 									question={requestId ? { ...merged, id: requestId } : merged}
-									onReply={requestId ? onQuestionReply : undefined}
-									onReject={requestId ? onQuestionReject : undefined}
+									onReply={replyHandler}
+									onReject={rejectHandler}
 									onError={onQuestionError}
 								/>
 							);

@@ -196,6 +196,14 @@ export function RunDetailsView({
 					<span className="text-xs font-mono text-blue-400/80">
 						{runId.slice(0, 8)}
 					</span>
+					{run ? (
+						<span
+							data-testid="run-status"
+							className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border tracking-wider bg-slate-800/70 border-slate-700 text-slate-300"
+						>
+							{run.status}
+						</span>
+					) : null}
 
 					<div className="flex items-center gap-1.5 ml-2 border-l border-slate-800 pl-3">
 						{onRestart &&
@@ -204,6 +212,7 @@ export function RunDetailsView({
 								<button
 									type="button"
 									onClick={onRestart}
+									data-testid="run-task-button"
 									className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
 									title="Restart run"
 								>
@@ -408,6 +417,7 @@ export function RunDetailsView({
 					<ExecutionLog
 						runId={runId}
 						sessionId={activeSessionId}
+						runStatus={run?.status ?? null}
 						onContextStats={setMessageContextStats}
 						showReasoning={showReasoning}
 						onNavigateToSubAgent={handleNavigateToSubAgent}

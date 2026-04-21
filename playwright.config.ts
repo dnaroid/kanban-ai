@@ -1,10 +1,16 @@
 import fs from "fs";
 import { defineConfig, devices } from "@playwright/test";
+import os from "os";
 import path from "path";
 
 const envFilePath = path.resolve(process.cwd(), ".env.e2e");
 if (typeof process.loadEnvFile === "function" && fs.existsSync(envFilePath)) {
 	process.loadEnvFile(envFilePath);
+}
+
+if (!process.env.DB_PATH) {
+	const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "kanban-e2e-"));
+	process.env.DB_PATH = path.join(tempDir, "test.db");
 }
 
 export default defineConfig({
@@ -34,7 +40,7 @@ export default defineConfig({
 	webServer: {
 		command: "pnpm dev",
 		url: "http://127.0.0.1:3100",
-		reuseExistingServer: !process.env.CI,
+		reuseExistingServer: false,
 		timeout: 60_000,
 		env: {
 			...process.env,

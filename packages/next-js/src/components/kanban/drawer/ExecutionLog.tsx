@@ -18,6 +18,7 @@ import {
 	TextPart,
 	ToolPart,
 } from "@/components/chat/MessageParts";
+import { QuestionInteraction } from "@/components/chat/QuestionInteraction";
 import { TodoWriteToolView } from "@/components/chat/TodoWriteToolView";
 import { cn } from "@/lib/utils";
 import type {
@@ -194,6 +195,7 @@ const formatAssistantLabel = ({
 export function ExecutionLog({
 	runId,
 	sessionId,
+	runStatus,
 	onContextStats,
 	showReasoning,
 	onNavigateToSubAgent,
@@ -202,6 +204,15 @@ export function ExecutionLog({
 }: {
 	runId: string;
 	sessionId: string;
+	runStatus?:
+		| "queued"
+		| "running"
+		| "completed"
+		| "failed"
+		| "cancelled"
+		| "timeout"
+		| "paused"
+		| null;
 	onContextStats?: (stats: {
 		tokens: number;
 		percent: number | null;
@@ -234,6 +245,8 @@ export function ExecutionLog({
 	const [pendingQuestions, setPendingQuestions] = useState<
 		Map<string, QuestionData>
 	>(new Map());
+	const [dismissedSyntheticQuestion, setDismissedSyntheticQuestion] =
+		useState(false);
 
 	const coerceText = (value: unknown): string => {
 		if (typeof value === "string") return value;
@@ -412,22 +425,8 @@ export function ExecutionLog({
 	}, [sessionId]);
 
 	useEffect(() => {
-		setEvents([]);
-		setStreamingMessageIds(new Set());
-		setIsLoading(true);
-		setAutoScroll(true);
-		setPendingPermissions(new Map());
-		setPendingQuestions(new Map());
-		seenMessageIdsRef.current.clear();
-		hiddenUserMessageIdRef.current = null;
-		for (const timeout of streamingTimeoutsRef.current.values()) {
-			clearTimeout(timeout);
-		}
-		streamingTimeoutsRef.current.clear();
-	}, [effectiveSessionId]);
-
-	useEffect(() => {
 		if (!runId) return;
+		setDismissedSyntheticQuestion(false);
 		setEvents([]);
 		setStreamingMessageIds(new Set());
 		setIsLoading(true);
@@ -1322,11 +1321,37 @@ export function ExecutionLog({
 							</p>
 						</div>
 					) : events.length === 0 ? (
-						<div className="flex flex-col items-center justify-center h-full space-y-2 opacity-30">
-							<Terminal className="w-8 h-8" />
-							<p className="text-xs text-slate-400 font-mono">
-								No events captured yet
-							</p>
+						<div className="flex flex-col justify-center h-full space-y-3">
+							{runStatus === "paused" && !dismissedSyntheticQuestion ? (
+								<QuestionInteraction
+									question={{
+										id: `synthetic-${runId}`,
+										sessionId,
+										createdAt: Date.now(),
+										questions: [
+											{
+												question: "Should the run continue?",
+												options: [
+													{ label: "yes", description: "Continue execution" },
+													{ label: "no", description: "Stop execution" },
+												],
+											},
+										],
+									}}
+									onReply={async () => {
+										setDismissedSyntheticQuestion(true);
+									}}
+									onReject={async () => {
+										setDismissedSyntheticQuestion(true);
+									}}
+								/>
+							) : null}
+							<div className="flex flex-col items-center justify-center space-y-2 opacity-30">
+								<Terminal className="w-8 h-8" />
+								<p className="text-xs text-slate-400 font-mono">
+									No events captured yet
+								</p>
+							</div>
 						</div>
 					) : (
 						<div className="space-y-0.5">

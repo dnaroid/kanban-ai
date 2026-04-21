@@ -482,6 +482,20 @@ export class RunsQueueManager {
 		return this.runLiveSubscriptionService.restoreActiveRunSubscriptions();
 	}
 
+	public async forceReconcileAll(): Promise<number> {
+		await this.ensureBootstrapped();
+		const activeRuns =
+			this.runReconciliationService.listActiveRunsForReconciliation();
+		let reconciled = 0;
+		for (const run of activeRuns) {
+			if (run.sessionId?.trim()) {
+				await this.runReconciliationService.reconcileRun(run.id);
+				reconciled++;
+			}
+		}
+		return reconciled;
+	}
+
 	private startRecoveryLoop(): void {
 		if (this.recoveryTimer) {
 			return;

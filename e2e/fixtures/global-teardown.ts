@@ -13,10 +13,14 @@ async function globalTeardown() {
 
 		const fullPath = path.join(tmpDir, entry);
 		try {
-			for (const file of fs.readdirSync(fullPath)) {
-				fs.unlinkSync(path.join(fullPath, file));
-			}
-			fs.rmdirSync(fullPath);
+			(
+				fs as unknown as {
+					rmSync: (
+						targetPath: string,
+						options?: { recursive?: boolean; force?: boolean },
+					) => void;
+				}
+			).rmSync(fullPath, { recursive: true, force: true });
 			console.log(`[E2E Global Teardown] Cleaned up: ${fullPath}`);
 		} catch (error) {
 			console.warn(`[E2E Global Teardown] Failed to clean ${fullPath}:`, error);

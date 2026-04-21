@@ -1,17 +1,16 @@
 import fs from "fs";
-import os from "os";
 import path from "path";
 
-const envFilePath = path.resolve(process.cwd(), ".env.e2e");
-if (typeof process.loadEnvFile === "function" && fs.existsSync(envFilePath)) {
-	process.loadEnvFile(envFilePath);
-}
-
 async function globalSetup() {
-	const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "kanban-e2e-"));
-	const dbPath = path.join(tempDir, "test.db");
+	const dbPath = process.env.DB_PATH;
+	if (!dbPath) {
+		throw new Error(
+			"DB_PATH is not set — playwright.config.ts should have configured it",
+		);
+	}
 
-	process.env.DB_PATH = dbPath;
+	const tempDir = path.dirname(dbPath);
+
 	process.env.AI_RUNTIME_MODE = "fake";
 	process.env.AI_RUNTIME_FAKE_SCENARIO =
 		process.env.AI_RUNTIME_FAKE_SCENARIO || "happy-path";
