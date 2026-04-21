@@ -42,7 +42,8 @@ export function deriveMetaStatus(
 
 	if (
 		inspection.probeStatus === "alive" &&
-		inspection.sessionStatus === "idle"
+		(inspection.sessionStatus === "idle" ||
+			inspection.sessionStatus === "unknown")
 	) {
 		const latestMessage = inspection.messages[inspection.messages.length - 1];
 		if (latestMessage?.role !== "user") {
