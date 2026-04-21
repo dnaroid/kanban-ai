@@ -1559,13 +1559,7 @@ describe("RunsQueueManager scheduling", () => {
 		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
 		expectTransitionCall("generate:ok", {
-			outcomeContent: [
-				'<META>{"type":"improvement"}</META>',
-				"<STORY>",
-				"## Title",
-				"Clean up CLI output",
-				"</STORY>",
-			].join("\n"),
+			outcomeContent: ["## Title", "Clean up CLI output"].join("\n"),
 		});
 	});
 
@@ -1624,13 +1618,7 @@ describe("RunsQueueManager scheduling", () => {
 		await waitForDrain();
 
 		expectTransitionCall("generate:ok", {
-			outcomeContent: [
-				'<META>{"type":"bug"}</META>',
-				"<STORY>",
-				"## Title",
-				"Highlight icon",
-				"</STORY>",
-			].join("\n"),
+			outcomeContent: ["## Title", "Highlight icon"].join("\n"),
 		});
 	});
 
@@ -1677,13 +1665,7 @@ describe("RunsQueueManager scheduling", () => {
 		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
 		expectTransitionCall("generate:ok", {
-			outcomeContent: [
-				'<META>{"type":"feature"}</META>',
-				"<STORY>",
-				"## Title",
-				"Prefixed marker story",
-				"</STORY>",
-			].join("\n"),
+			outcomeContent: ["## Title", "Prefixed marker story"].join("\n"),
 		});
 	});
 
@@ -1733,13 +1715,7 @@ describe("RunsQueueManager scheduling", () => {
 		await waitForDrain();
 
 		expectTransitionCall("generate:ok", {
-			outcomeContent: [
-				'<META>{"type":"feature"}</META>',
-				"<STORY>",
-				"## Title",
-				"Correct content",
-				"</STORY>",
-			].join("\n"),
+			outcomeContent: ["## Title", "Correct content"].join("\n"),
 		});
 	});
 

@@ -106,13 +106,18 @@ export async function hydrateGenerationOutcomeContent(
 	},
 	generationRunKind: string,
 ): Promise<string> {
-	if (content.trim().length > 0 || run.metadata?.kind !== generationRunKind) {
+	if (run.metadata?.kind !== generationRunKind) {
 		return content;
 	}
 
 	const sessionId = run.sessionId.trim();
 	if (sessionId.length === 0) {
 		return content;
+	}
+
+	const storyFromCurrentContent = extractStoryTagContent(content);
+	if (storyFromCurrentContent) {
+		return storyFromCurrentContent;
 	}
 
 	try {
@@ -124,15 +129,31 @@ export async function hydrateGenerationOutcomeContent(
 	}
 }
 
+const STORY_TAG_RE = /<STORY>([\s\S]*?)<\/STORY>/i;
+
+function extractStoryTagContent(text: string): string | null {
+	const match = text.match(STORY_TAG_RE);
+	return match?.[1]?.trim() || null;
+}
+
 export function findStoryContent(inspection: SessionInspectionResult): string {
 	for (let i = inspection.messages.length - 1; i >= 0; i--) {
 		const msg = inspection.messages[i];
 		if (msg.role !== "assistant") {
 			continue;
 		}
-		if (msg.content.trim().length > 0) {
-			return msg.content.trim();
+
+		const content = msg.content.trim();
+		if (content.length === 0) {
+			continue;
 		}
+
+		const storyContent = extractStoryTagContent(content);
+		if (storyContent) {
+			return storyContent;
+		}
+
+		return content;
 	}
 	return "";
 }
