@@ -292,12 +292,6 @@ export function createServices(ctx: RqmContext): ServiceRegistry {
 		applyTaskTransition: (run, trigger, outcomeContent) => {
 			ctx.applyTaskTransition(run, trigger, outcomeContent);
 		},
-		tryFinalizeFromSessionSnapshot: async (runId, sessionId) => {
-			await runReconciliationService.tryFinalizeFromSessionSnapshot(
-				runId,
-				sessionId,
-			);
-		},
 		scheduleRetryAfterNetworkError: (runId, errorMessage) =>
 			ctx.scheduleRetryAfterNetworkError(runId, errorMessage),
 		syncRunWorkspaceState: async (run) =>

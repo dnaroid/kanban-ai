@@ -703,6 +703,7 @@ describe("RunsQueueManager scheduling", () => {
 
 		await waitForDrain();
 		await waitForDrain();
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
 		expect(mockRunRepo.create).not.toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -760,8 +761,12 @@ describe("RunsQueueManager scheduling", () => {
 
 		await waitForDrain();
 		await waitForDrain();
-		await waitForDrain();
 		await withPrivateAccess(manager).pollProjectRuns("project-1");
+		(
+			manager as unknown as { onRunExecutionCompleted: (runId: string) => void }
+		).onRunExecutionCompleted("run-generation");
+		await waitForDrain();
+		await waitForDrain();
 
 		expect(mockVcsManager.provisionRunWorkspace).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -1127,8 +1132,100 @@ describe("RunsQueueManager scheduling", () => {
 
 		await waitForDrain();
 		await waitForDrain();
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
 		expectTransitionCall("run:done", { outcomeContent: "" });
+	});
+
+	it("does not prematurely finalize run when prompt is sent and session is idle", async () => {
+		taskMap.set(
+			"task-no-premature-done",
+			buildTask("task-no-premature-done", "normal", "running"),
+		);
+		runMap.set(
+			"run-no-premature-done",
+			buildRun(
+				"run-no-premature-done",
+				"task-no-premature-done",
+				"execution",
+				"2026-01-01T00:00:00.000Z",
+			),
+		);
+
+		mockSessionManager.inspectSession.mockResolvedValue(
+			buildInspection({ sessionStatus: "idle" }),
+		);
+
+		const manager = new RunsQueueManager();
+		manager.enqueue("run-no-premature-done", {
+			projectPath: "/tmp/project",
+			sessionTitle: "no-premature-done",
+			prompt: "prompt",
+		});
+
+		await waitForDrain();
+		await waitForDrain();
+
+		expect(runMap.get("run-no-premature-done")?.status).toBe("running");
+		expect(mockStateMachine.transition).not.toHaveBeenCalledWith(
+			expect.objectContaining({ trigger: "run:done" }),
+		);
+	});
+
+	it("does not overwrite finalized run on network error after session creation", async () => {
+		taskMap.set(
+			"task-net-guard",
+			buildTask("task-net-guard", "normal", "running"),
+		);
+		runMap.set(
+			"run-net-guard",
+			buildRun(
+				"run-net-guard",
+				"task-net-guard",
+				"execution",
+				"2026-01-01T00:00:00.000Z",
+			),
+		);
+
+		mockSessionManager.inspectSession.mockResolvedValue(
+			buildInspection({ sessionStatus: "idle" }),
+		);
+
+		const manager = new RunsQueueManager();
+		manager.enqueue("run-net-guard", {
+			projectPath: "/tmp/project",
+			sessionTitle: "net-guard",
+			prompt: "prompt",
+		});
+
+		await waitForDrain();
+		await waitForDrain();
+
+		expect(runMap.get("run-net-guard")?.status).toBe("running");
+
+		mockSessionManager.inspectSession.mockResolvedValue(
+			buildInspection({
+				sessionStatus: "idle",
+				pendingQuestions: [
+					{
+						id: "que-test-1",
+						sessionId: runMap.get("run-net-guard")?.sessionId ?? "",
+						questions: [
+							{
+								question: "What should I do?",
+								options: [],
+							},
+						],
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
+
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
+
+		expect(runMap.get("run-net-guard")?.status).toBe("paused");
+		expectTransitionCall("run:question");
 	});
 
 	it("maps failed outcome to run:fail signal for non-generation runs", async () => {
@@ -1628,6 +1725,7 @@ describe("RunsQueueManager scheduling", () => {
 
 		await waitForDrain();
 		await waitForDrain();
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
 		expectTransitionCall("generate:ok", {
 			outcomeContent: ["## Title", "Highlight icon"].join("\n"),
@@ -1725,6 +1823,7 @@ describe("RunsQueueManager scheduling", () => {
 
 		await waitForDrain();
 		await waitForDrain();
+		await withPrivateAccess(manager).pollProjectRuns("project-1");
 
 		expectTransitionCall("generate:ok", {
 			outcomeContent: ["## Title", "Correct content"].join("\n"),

@@ -44,10 +44,6 @@ interface RunExecutorDeps {
 			| "run:fail",
 		outcomeContent: string,
 	) => void;
-	tryFinalizeFromSessionSnapshot: (
-		runId: string,
-		sessionId: string,
-	) => Promise<void>;
 	scheduleRetryAfterNetworkError: (
 		runId: string,
 		errorMessage: string,
@@ -172,8 +168,6 @@ export class RunExecutor {
 					message: "Prompt sent to OpenCode",
 				},
 			});
-
-			await this.deps.tryFinalizeFromSessionSnapshot(runId, sessionId);
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : "Run execution failed";
@@ -181,6 +175,23 @@ export class RunExecutor {
 
 			if (this.deps.isNetworkError(error)) {
 				if (latestRun.sessionId.trim().length > 0) {
+					if (
+						latestRun.status === "completed" ||
+						latestRun.status === "failed" ||
+						latestRun.status === "cancelled" ||
+						latestRun.status === "paused"
+					) {
+						log.info(
+							"Network error after session creation; run already finalized or paused, skipping recovery",
+							{
+								runId,
+								sessionId: latestRun.sessionId,
+								runStatus: latestRun.status,
+								error: message,
+							},
+						);
+						return;
+					}
 					const recoveredAt = new Date().toISOString();
 					const resumedRun = runRepo.update(runId, {
 						status: "running",
