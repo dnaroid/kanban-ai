@@ -1663,6 +1663,14 @@ class ApiClient {
 		return response.ok;
 	}
 
+	async getProjectAttentionIds(): Promise<string[]> {
+		const response = await this.fetch(`${this.baseUrl}/api/projects/attention`);
+		if (!response.ok) return [];
+		const payload = await response.json();
+		const data = this.unwrapApiData<{ projectIds: string[] }>(payload);
+		return data.projectIds;
+	}
+
 	// Tasks
 	async getTasks(boardId: string): Promise<KanbanTask[]> {
 		const response = await this.fetch(

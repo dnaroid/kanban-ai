@@ -1,5 +1,9 @@
 import { FileCode2 } from "lucide-react";
 import { diffLines } from "diff";
+import {
+	DiffViewer,
+	type DiffViewerLine,
+} from "@/components/common/DiffViewer";
 
 export interface EditToolInput {
 	filePath: string;
@@ -53,18 +57,6 @@ function buildDiffLines(oldString: string, newString: string): DiffLine[] {
 	return lines;
 }
 
-const lineStyle: Record<DiffLine["kind"], string> = {
-	added: "bg-emerald-500/10 text-emerald-200 border-l-2 border-emerald-400/50",
-	removed: "bg-red-500/10 text-red-200 border-l-2 border-red-400/50",
-	context: "bg-slate-950/50 text-slate-300 border-l-2 border-transparent",
-};
-
-const linePrefix: Record<DiffLine["kind"], string> = {
-	added: "+",
-	removed: "-",
-	context: " ",
-};
-
 export function EditToolDiffView({ input }: { input: EditToolInput }) {
 	const { fileName, directory } = getPathMeta(input.filePath);
 	const diffLinesData = buildDiffLines(input.oldString, input.newString);
@@ -75,6 +67,11 @@ export function EditToolDiffView({ input }: { input: EditToolInput }) {
 	const removedCount = diffLinesData.filter(
 		(line) => line.kind === "removed",
 	).length;
+
+	const viewerLines: DiffViewerLine[] = diffLinesData.map((line) => ({
+		type: line.kind,
+		content: line.text,
+	}));
 
 	return (
 		<div className="space-y-2">
@@ -103,29 +100,17 @@ export function EditToolDiffView({ input }: { input: EditToolInput }) {
 				</div>
 			</div>
 
-			<div className="max-h-96 overflow-auto rounded-lg border border-slate-800/60 bg-slate-950/60 custom-scrollbar">
-				{diffLinesData.length === 0 ? (
-					<div className="px-3 py-2 text-[11px] text-slate-500 font-mono">
-						No textual changes to display.
-					</div>
-				) : (
-					<div className="font-mono text-[11px] leading-5 min-w-max">
-						{diffLinesData.map((line, index) => (
-							<div
-								key={`${line.kind}-${index}`}
-								className={lineStyle[line.kind]}
-							>
-								<div className="flex items-start gap-2 px-2 py-0.5">
-									<span className="w-4 text-slate-500 select-none shrink-0">
-										{linePrefix[line.kind]}
-									</span>
-									<span className="whitespace-pre">{line.text || " "}</span>
-								</div>
-							</div>
-						))}
-					</div>
-				)}
-			</div>
+			{viewerLines.length === 0 ? (
+				<div className="rounded-lg border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-[11px] text-slate-500 font-mono">
+					No textual changes to display.
+				</div>
+			) : (
+				<DiffViewer
+					lines={viewerLines}
+					maxHeight="24rem"
+					className="rounded-lg border border-slate-800/60 bg-slate-950/60"
+				/>
+			)}
 		</div>
 	);
 }

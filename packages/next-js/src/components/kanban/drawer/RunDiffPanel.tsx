@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { FileCode2, ChevronDown, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import type { DiffFile, DiffLine } from "@/types/ipc";
+import { DiffViewer } from "@/components/common/DiffViewer";
+import type { DiffFile } from "@/types/ipc";
 
 interface RunDiffPanelProps {
 	runId: string;
@@ -15,18 +15,6 @@ type DiffState =
 	| { status: "empty" }
 	| { status: "too_large" }
 	| { status: "error"; message: string };
-
-const LINE_STYLES: Record<DiffLine["type"], string> = {
-	added: "bg-emerald-500/10 text-emerald-200 border-l-2 border-emerald-400/50",
-	removed: "bg-red-500/10 text-red-200 border-l-2 border-red-400/50",
-	context: "bg-slate-950/50 text-slate-300 border-l-2 border-transparent",
-};
-
-const LINE_PREFIX: Record<DiffLine["type"], string> = {
-	added: "+",
-	removed: "-",
-	context: " ",
-};
 
 function getFilePathMeta(filePath: string) {
 	const normalized = filePath.replace(/\\/g, "/");
@@ -175,36 +163,22 @@ export function RunDiffPanel({ runId }: RunDiffPanelProps) {
 							</button>
 
 							{isExpanded && (
-								<div className="overflow-x-auto custom-scrollbar bg-slate-950/60">
+								<div className="bg-slate-950/60">
 									{file.hunks.length === 0 ? (
 										<div className="px-3 py-2 text-[11px] text-slate-500 font-mono">
 											Binary file or no textual changes.
 										</div>
 									) : (
-										<div className="font-mono text-[11px] leading-5 min-w-max">
-											{file.hunks.map((hunk, hunkIdx) => (
-												<div key={`${file.path}-hunk-${hunkIdx}`}>
-													<div className="px-3 py-0.5 text-[10px] text-slate-500 bg-slate-900/40 border-l-2 border-slate-700 select-none">
-														{hunk.header}
-													</div>
-													{hunk.lines.map((line, lineIdx) => (
-														<div
-															key={`${file.path}-${hunkIdx}-${lineIdx}`}
-															className={cn(LINE_STYLES[line.type])}
-														>
-															<div className="flex items-start gap-2 px-2 py-0.5">
-																<span className="w-4 text-slate-500 select-none shrink-0 text-center">
-																	{LINE_PREFIX[line.type]}
-																</span>
-																<span className="whitespace-pre">
-																	{line.content || " "}
-																</span>
-															</div>
-														</div>
-													))}
-												</div>
-											))}
-										</div>
+										<DiffViewer
+											lines={file.hunks.flatMap((hunk) => [
+												{ type: "separator", content: hunk.header },
+												...hunk.lines.map((line) => ({
+													type: line.type,
+													content: line.content,
+												})),
+											])}
+											className="border-none bg-transparent"
+										/>
 									)}
 								</div>
 							)}

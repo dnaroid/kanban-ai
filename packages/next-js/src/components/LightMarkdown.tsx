@@ -4,6 +4,7 @@ import type { LmdBlock, LmdColumnAlign, LmdInline } from "@/lib/lightmd/types";
 import { parseLightMd } from "@/lib/lightmd/parse";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { CodeBlock } from "@/components/chat/CodeBlock";
 
 function alignClass(align: LmdColumnAlign | undefined): string {
 	if (align === "center") return "text-center";
@@ -140,11 +141,7 @@ function RenderBlock({
 		case "hr":
 			return <hr className="my-4 border-t border-slate-800" />;
 		case "code":
-			return (
-				<pre className="my-3 rounded-lg bg-[#0D1117] border border-slate-800 p-3 overflow-auto text-xs font-mono text-slate-300">
-					<code className="whitespace-pre">{block.text}</code>
-				</pre>
-			);
+			return <CodeBlock code={block.text} lang={block.lang} />;
 		case "blockquote":
 			return (
 				<blockquote className="my-3 border-l-2 border-slate-700 pl-4 text-sm text-slate-400 italic">

@@ -1,4 +1,8 @@
 import { FileCode2, FilePlus2, FilePenLine, FileX2 } from "lucide-react";
+import {
+	DiffViewer,
+	type DiffViewerLine,
+} from "@/components/common/DiffViewer";
 
 export interface ApplyPatchToolInput {
 	patchText: string;
@@ -99,13 +103,6 @@ function getPatchLineKind(line: string): PatchLineKind {
 	return "context";
 }
 
-const lineStyle: Record<PatchLineKind, string> = {
-	added: "bg-emerald-500/10 text-emerald-200 border-l-2 border-emerald-400/50",
-	removed: "bg-red-500/10 text-red-200 border-l-2 border-red-400/50",
-	meta: "bg-cyan-500/10 text-cyan-200 border-l-2 border-cyan-400/40",
-	context: "bg-slate-950/50 text-slate-300 border-l-2 border-transparent",
-};
-
 const kindConfig: Record<
 	SectionKind,
 	{
@@ -156,6 +153,20 @@ export function ApplyPatchDiffView({ input }: { input: ApplyPatchToolInput }) {
 					(line) => getPatchLineKind(line) === "removed",
 				).length;
 
+				const viewerLines: DiffViewerLine[] = section.lines.map((line) => {
+					const kind = getPatchLineKind(line);
+					if (kind === "meta") {
+						return { type: "separator", content: line };
+					}
+					if (kind === "added") {
+						return { type: "added", content: line.slice(1) };
+					}
+					if (kind === "removed") {
+						return { type: "removed", content: line.slice(1) };
+					}
+					return { type: "context", content: line };
+				});
+
 				return (
 					<div
 						key={`${section.filePath}-${sectionIndex}`}
@@ -191,29 +202,17 @@ export function ApplyPatchDiffView({ input }: { input: ApplyPatchToolInput }) {
 							</div>
 						</div>
 
-						<div className="max-h-80 overflow-auto rounded-md border border-slate-800/60 bg-slate-950/60 custom-scrollbar">
-							<div className="font-mono text-[11px] leading-5 min-w-max">
-								{section.lines.length === 0 ? (
-									<div className="px-3 py-2 text-slate-500">
-										No file body changes.
-									</div>
-								) : (
-									section.lines.map((line, lineIndex) => {
-										const lineKind = getPatchLineKind(line);
-										return (
-											<div
-												key={`${section.filePath}-${lineIndex}`}
-												className={lineStyle[lineKind]}
-											>
-												<div className="px-2 py-0.5 whitespace-pre">
-													{line || " "}
-												</div>
-											</div>
-										);
-									})
-								)}
+						{viewerLines.length === 0 ? (
+							<div className="rounded-md border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-[11px] text-slate-500 font-mono">
+								No file body changes.
 							</div>
-						</div>
+						) : (
+							<DiffViewer
+								lines={viewerLines}
+								maxHeight="20rem"
+								className="rounded-md border border-slate-800/60 bg-slate-950/60"
+							/>
+						)}
 					</div>
 				);
 			})}

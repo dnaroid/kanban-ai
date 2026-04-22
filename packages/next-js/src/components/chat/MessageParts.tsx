@@ -4,9 +4,11 @@ import {
 	Bot,
 	Brain,
 	CheckCircle2,
+	CheckIcon,
 	ChevronDown,
 	ChevronRight,
 	Circle,
+	Copy,
 	FileIcon,
 	HelpCircle,
 	ImageIcon,
@@ -25,6 +27,7 @@ import type {
 	ToolState,
 } from "@/types/ipc";
 import { LightMarkdown } from "@/components/LightMarkdown";
+import AnsiToHtml from "ansi-to-html";
 import { EditToolDiffView } from "./EditToolDiffView";
 import type { EditToolInput } from "./EditToolDiffView";
 import { ApplyPatchDiffView } from "./ApplyPatchDiffView";
@@ -33,7 +36,15 @@ import { WriteToolView } from "./WriteToolView";
 import type { WriteToolInput } from "./WriteToolView";
 import { QuestionInteraction } from "./QuestionInteraction";
 import { TodoWriteToolView } from "./TodoWriteToolView";
+import { ReadToolView } from "./ReadToolView";
 import { HighlightedJson } from "./HighlightedJson";
+
+const ansiConverter = new AnsiToHtml({
+	fg: "#e2e8f0",
+	bg: "transparent",
+	newline: true,
+	escapeXML: true,
+});
 
 function isEditToolInput(input: unknown): input is EditToolInput {
 	if (!input || typeof input !== "object") return false;
@@ -198,6 +209,26 @@ export function FilePart({
 	);
 }
 
+const ESC = "\x1b";
+const ANSI_BG_RE = new RegExp(
+	`${ESC}\\[4[0-9]m|${ESC}\\[10[0-7]m|${ESC}\\[48;[0-9;]*m|${ESC}\\[49m`,
+	"g",
+);
+
+function stripAnsiBackground(text: string): string {
+	return text.replace(ANSI_BG_RE, "");
+}
+
+function AnsiOutput({ text }: { text: string }) {
+	const html = ansiConverter.toHtml(stripAnsiBackground(text));
+	return (
+		<pre
+			className="p-2 bg-black rounded-lg text-[10px] font-mono overflow-x-auto custom-scrollbar"
+			dangerouslySetInnerHTML={{ __html: html }}
+		/>
+	);
+}
+
 export function ToolPart({
 	part,
 	projectPath,
@@ -221,6 +252,7 @@ export function ToolPart({
 	onQuestionError?: (message: string) => void;
 }) {
 	const [isExpanded, setIsExpanded] = useState(false);
+	const [copied, setCopied] = useState(false);
 	const [dismissedFallbackQuestion, setDismissedFallbackQuestion] =
 		useState(false);
 
@@ -288,6 +320,8 @@ export function ToolPart({
 		writeToolInput != null;
 	const shouldShowCustomDiff =
 		isCompletedEditTool || isCompletedApplyPatchTool || isCompletedWriteTool;
+	const isCompletedReadTool =
+		part.tool === "read" && part.state === "completed" && part.output != null;
 
 	const toolFilePath =
 		part.tool === "read" || part.tool === "edit" || part.tool === "write"
@@ -302,12 +336,12 @@ export function ToolPart({
 				config.border,
 			)}
 		>
-			<button
-				type="button"
-				className="w-full flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-white/5 transition-colors text-left"
-				onClick={() => setIsExpanded(!isExpanded)}
-			>
-				<div className="flex items-center gap-2">
+			<div className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/5 transition-colors">
+				<button
+					type="button"
+					className="flex-1 flex items-center gap-2 min-w-0 text-left cursor-pointer"
+					onClick={() => setIsExpanded(!isExpanded)}
+				>
 					<Wrench className={cn("w-3.5 h-3.5", config.color)} />
 					<span className="text-xs font-mono font-medium text-slate-200">
 						{part.tool}
@@ -320,13 +354,45 @@ export function ToolPart({
 					<config.icon
 						className={cn("w-4 h-4", config.color, config.animate)}
 					/>
+				</button>
+				<div className="flex items-center gap-1 shrink-0">
+					<button
+						type="button"
+						className="p-1 rounded hover:bg-white/10 transition-colors cursor-pointer"
+						title="Copy as JSON"
+						onClick={() => {
+							const obj: Record<string, unknown> = {
+								tool: part.tool,
+							};
+							if (part.state != null) obj.state = part.state;
+							if (part.input != null) obj.input = part.input;
+							if (part.output != null) obj.output = part.output;
+							if (part.error) obj.error = part.error;
+							if (part.metadata) obj.metadata = part.metadata;
+							navigator.clipboard.writeText(JSON.stringify(obj, null, 2));
+							setCopied(true);
+							setTimeout(() => setCopied(false), 1500);
+						}}
+					>
+						{copied ? (
+							<CheckIcon className="w-3 h-3 text-emerald-400" />
+						) : (
+							<Copy className="w-3 h-3 text-slate-500" />
+						)}
+					</button>
+					<button
+						type="button"
+						className="p-1 cursor-pointer"
+						onClick={() => setIsExpanded(!isExpanded)}
+					>
+						{isExpanded ? (
+							<ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+						) : (
+							<ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+						)}
+					</button>
 				</div>
-				{isExpanded ? (
-					<ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-				) : (
-					<ChevronRight className="w-3.5 h-3.5 text-slate-500" />
-				)}
-			</button>
+			</div>
 
 			{isExpanded && (
 				<div className="px-3 pb-3 space-y-2 border-t border-white/5 pt-2">
@@ -338,6 +404,9 @@ export function ToolPart({
 					)}
 					{isCompletedWriteTool && writeToolInput && (
 						<WriteToolView input={writeToolInput} metadata={part.metadata} />
+					)}
+					{isCompletedReadTool && (
+						<ReadToolView input={part.input} output={part.output} />
 					)}
 					{part.tool === "question" &&
 						(part.state === "pending" || part.state === "running") &&
@@ -377,6 +446,7 @@ export function ToolPart({
 							);
 						})()}
 					{!shouldShowCustomDiff &&
+						!isCompletedReadTool &&
 						part.input != null &&
 						part.tool !== "question" && (
 							<div className="space-y-1">
@@ -389,17 +459,29 @@ export function ToolPart({
 								/>
 							</div>
 						)}
-					{!shouldShowCustomDiff && part.output != null && (
-						<div className="space-y-1">
-							<span className="text-[10px] font-semibold text-slate-500 uppercase px-1">
-								Output
-							</span>
-							<HighlightedJson
-								value={part.output}
-								className="p-2 bg-slate-950/50 rounded-lg text-[10px] font-mono overflow-x-auto custom-scrollbar"
-							/>
-						</div>
-					)}
+					{!shouldShowCustomDiff &&
+						!isCompletedReadTool &&
+						part.output != null && (
+							<div className="space-y-1">
+								<span className="text-[10px] font-semibold text-slate-500 uppercase px-1">
+									Output
+								</span>
+								{part.tool === "bash" && typeof part.output === "string" ? (
+									<AnsiOutput text={part.output} />
+								) : part.tool === "background_output" &&
+									typeof part.output === "string" ? (
+									<LightMarkdown
+										text={part.output}
+										className="p-2 bg-slate-950/50 rounded-lg text-sm text-slate-300 leading-relaxed"
+									/>
+								) : (
+									<HighlightedJson
+										value={part.output}
+										className="p-2 bg-slate-950/50 rounded-lg text-[10px] font-mono overflow-x-auto custom-scrollbar"
+									/>
+								)}
+							</div>
+						)}
 					{part.error && (
 						<div className="space-y-1">
 							<span className="text-[10px] font-semibold text-slate-500 uppercase px-1">
