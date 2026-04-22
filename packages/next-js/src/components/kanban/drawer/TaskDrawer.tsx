@@ -192,6 +192,7 @@ export function TaskDrawerContent({
 					<button
 						type="button"
 						key={tab.id}
+						data-testid={`tab-${tab.id}`}
 						onClick={() => setActiveTab(tab.id)}
 						className={cn(
 							"px-4 py-3 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors relative",

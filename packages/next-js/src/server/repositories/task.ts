@@ -321,30 +321,6 @@ export class TaskRepository {
 		return stmt.all() as { projectId: string }[];
 	}
 
-	getProjectIdsWithActiveSessions(
-		runRepo: {
-			getByTask(taskId: string): { sessionId: string; status: string } | null;
-		},
-		busySessionIds: Set<string>,
-	): string[] {
-		const allTasks = this.db
-			.prepare("SELECT id, project_id as projectId FROM tasks")
-			.all() as { id: string; projectId: string }[];
-
-		const projectIds = new Set<string>();
-		for (const task of allTasks) {
-			const run = runRepo.getByTask(task.id);
-			if (!run) continue;
-			const isRunActive = run.status === "running" || run.status === "queued";
-			const isSessionBusy =
-				run.sessionId != null && busySessionIds.has(run.sessionId);
-			if (isRunActive || isSessionBusy) {
-				projectIds.add(task.projectId);
-			}
-		}
-		return Array.from(projectIds);
-	}
-
 	delete(id: string): boolean {
 		const stmt = this.db.prepare("DELETE FROM tasks WHERE id = ?");
 		const result = stmt.run(id);

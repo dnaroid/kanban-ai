@@ -28,6 +28,9 @@ test.describe("Board Smoke", () => {
 		await expect(taskCard).toBeVisible({ timeout: 10_000 });
 
 		await taskCard.getByTestId("task-title").click();
-		await expect(page.getByTestId("task-details-panel")).toBeVisible();
+		await page.waitForSelector("[data-testid='task-details-panel']", {
+			state: "visible",
+			timeout: 10_000,
+		});
 	});
 });

@@ -15,7 +15,7 @@ test.describe("Run Happy Path", () => {
 		await taskCard.getByTestId("task-title").click();
 		await expect(page.getByTestId("task-details-panel")).toBeVisible();
 
-		await page.getByRole("button", { name: "Run" }).click();
+		await page.getByTestId("tab-runs").click();
 
 		const runTab = page.locator(
 			"[data-testid='run-status'], button:has-text('Start')",
