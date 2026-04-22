@@ -68,6 +68,7 @@ class ApiClient {
 	private baseUrl: string;
 
 	onError?: (message: string) => void;
+	onNetworkError?: () => void;
 
 	readonly project = {
 		getAll: async (): Promise<Project[]> => this.getProjects(),
@@ -102,7 +103,7 @@ class ApiClient {
 			taskId: string;
 			qaReport: string;
 		}): Promise<{ success: boolean }> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/tasks/${taskId}/reject`,
 				{
 					method: "POST",
@@ -127,7 +128,7 @@ class ApiClient {
 			taskId: string;
 		}): Promise<{ runs: Run[]; opencodeWebUrl: string | null }> => {
 			const query = new URLSearchParams({ taskId });
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/run/listByTask?${query.toString()}`,
 			);
 			if (!response.ok) {
@@ -160,7 +161,7 @@ class ApiClient {
 			modelName?: string | null;
 			forceDirtyGit?: boolean;
 		}): Promise<{ runId: string }> => {
-			const response = await fetch(`${this.baseUrl}/api/run/start`, {
+			const response = await this.fetch(`${this.baseUrl}/api/run/start`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
@@ -190,7 +191,7 @@ class ApiClient {
 		}: {
 			runId: string;
 		}): Promise<{ success: true }> => {
-			const response = await fetch(`${this.baseUrl}/api/run/cancel`, {
+			const response = await this.fetch(`${this.baseUrl}/api/run/cancel`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ runId }),
@@ -209,7 +210,7 @@ class ApiClient {
 		}: {
 			runId: string;
 		}): Promise<{ success: true }> => {
-			const response = await fetch(`${this.baseUrl}/api/run/delete`, {
+			const response = await this.fetch(`${this.baseUrl}/api/run/delete`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ runId }),
@@ -227,7 +228,7 @@ class ApiClient {
 			const controller = new AbortController();
 			const timeoutId = setTimeout(() => controller.abort(), 65_000);
 			try {
-				const response = await fetch(`${this.baseUrl}/api/run/merge`, {
+				const response = await this.fetch(`${this.baseUrl}/api/run/merge`, {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ runId }),
@@ -259,7 +260,7 @@ class ApiClient {
 		},
 		get: async ({ runId }: { runId: string }): Promise<{ run: Run | null }> => {
 			const query = new URLSearchParams({ runId });
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/run/get?${query.toString()}`,
 			);
 			if (!response.ok) {
@@ -279,7 +280,7 @@ class ApiClient {
 			runId: string;
 		}): Promise<{ files: DiffFile[] } | null> => {
 			const query = new URLSearchParams({ runId });
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/run/diff?${query.toString()}`,
 			);
 			if (!response.ok) {
@@ -297,7 +298,7 @@ class ApiClient {
 			return { files: data.files };
 		},
 		queueStats: async (): Promise<QueueStatsResponse> => {
-			const response = await fetch(`${this.baseUrl}/api/run/queueStats`);
+			const response = await this.fetch(`${this.baseUrl}/api/run/queueStats`);
 			if (!response.ok) {
 				const message = await this.getErrorMessage(
 					response,
@@ -326,16 +327,19 @@ class ApiClient {
 			taskIds: string[];
 			runIds: string[];
 		}> => {
-			const response = await fetch(`${this.baseUrl}/api/run/startReadyTasks`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					projectId,
-					force: force ?? false,
-					forceDirtyGit: forceDirtyGit ?? false,
-					confirmActiveSession: confirmActiveSession ?? false,
-				}),
-			});
+			const response = await this.fetch(
+				`${this.baseUrl}/api/run/startReadyTasks`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						projectId,
+						force: force ?? false,
+						forceDirtyGit: forceDirtyGit ?? false,
+						confirmActiveSession: confirmActiveSession ?? false,
+					}),
+				},
+			);
 			if (!response.ok) {
 				const message = await this.getErrorMessage(
 					response,
@@ -362,7 +366,7 @@ class ApiClient {
 			permissionId: string;
 			response: "once" | "always" | "reject";
 		}): Promise<void> => {
-			const res = await fetch(`${this.baseUrl}/api/run/permission/reply`, {
+			const res = await this.fetch(`${this.baseUrl}/api/run/permission/reply`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ runId, permissionId, response }),
@@ -383,7 +387,7 @@ class ApiClient {
 		}: {
 			taskId: string;
 		}): Promise<{ links: TaskLink[] }> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/deps?taskId=${encodeURIComponent(taskId)}`,
 			);
 			if (!response.ok) {
@@ -406,7 +410,7 @@ class ApiClient {
 			toTaskId: string;
 			type: TaskLinkType;
 		}): Promise<{ link: TaskLink }> => {
-			const response = await fetch(`${this.baseUrl}/api/deps`, {
+			const response = await this.fetch(`${this.baseUrl}/api/deps`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ fromTaskId, toTaskId, type }),
@@ -422,7 +426,7 @@ class ApiClient {
 			return this.unwrapApiData<{ link: TaskLink }>(payload);
 		},
 		remove: async ({ linkId }: { linkId: string }): Promise<{ ok: true }> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/deps/${encodeURIComponent(linkId)}`,
 				{
 					method: "DELETE",
@@ -451,7 +455,7 @@ class ApiClient {
 		create: async (input: { name: string; color: string }): Promise<Tag> =>
 			this.createTag(input),
 		delete: async ({ id }: { id: string }): Promise<{ ok: boolean }> => {
-			const response = await fetch(`${this.baseUrl}/api/tags/${id}`, {
+			const response = await this.fetch(`${this.baseUrl}/api/tags/${id}`, {
 				method: "DELETE",
 			});
 			if (!response.ok) {
@@ -472,7 +476,7 @@ class ApiClient {
 			name: string;
 			color: string;
 		}): Promise<Tag> => {
-			const response = await fetch(`${this.baseUrl}/api/tags/${id}`, {
+			const response = await this.fetch(`${this.baseUrl}/api/tags/${id}`, {
 				method: "PUT",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ name, color }),
@@ -493,7 +497,7 @@ class ApiClient {
 		list: async (): Promise<{
 			roles: Array<{ id: string; name: string; description: string }>;
 		}> => {
-			const response = await fetch(`${this.baseUrl}/api/roles/list`);
+			const response = await this.fetch(`${this.baseUrl}/api/roles/list`);
 			if (!response.ok) {
 				const message = await this.getErrorMessage(
 					response,
@@ -518,7 +522,7 @@ class ApiClient {
 				preferred_llm_agent?: string | null;
 			}>;
 		}> => {
-			const response = await fetch(`${this.baseUrl}/api/roles/list-full`);
+			const response = await this.fetch(`${this.baseUrl}/api/roles/list-full`);
 			if (!response.ok) {
 				const message = await this.getErrorMessage(
 					response,
@@ -549,7 +553,7 @@ class ApiClient {
 			preferred_model_variant?: string | null;
 			preferred_llm_agent?: string | null;
 		}): Promise<{ success: boolean }> => {
-			const response = await fetch(`${this.baseUrl}/api/roles/save`, {
+			const response = await this.fetch(`${this.baseUrl}/api/roles/save`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(role),
@@ -564,7 +568,7 @@ class ApiClient {
 			return { success: true };
 		},
 		delete: async ({ id }: { id: string }): Promise<{ success: boolean }> => {
-			const response = await fetch(`${this.baseUrl}/api/roles/delete`, {
+			const response = await this.fetch(`${this.baseUrl}/api/roles/delete`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ id }),
@@ -590,7 +594,7 @@ class ApiClient {
 			prompt?: string;
 			modelName?: string | null;
 		}): Promise<{ runId: string }> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/story-chat/start`,
 				{
 					method: "POST",
@@ -613,7 +617,7 @@ class ApiClient {
 		}: {
 			runId: string;
 		}): Promise<{ success: boolean }> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/story-chat/generate`,
 				{
 					method: "POST",
@@ -639,7 +643,7 @@ class ApiClient {
 			taskId: string;
 			modelName?: string | null;
 		}): Promise<{ runId: string }> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/generate-user-story`,
 				{
 					method: "POST",
@@ -665,7 +669,7 @@ class ApiClient {
 		}: {
 			taskId: string;
 		}): Promise<{ runId: string }> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/start-qa-testing`,
 				{
 					method: "POST",
@@ -688,7 +692,7 @@ class ApiClient {
 		}: {
 			taskIds: string[];
 		}): Promise<{ runIds: string[] }> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/generate-user-story`,
 				{
 					method: "POST",
@@ -708,7 +712,7 @@ class ApiClient {
 			return { runIds: data.runIds ?? [] };
 		},
 		listSkills: async (): Promise<{ skills: string[] }> => {
-			const response = await fetch(`${this.baseUrl}/api/opencode/skills`);
+			const response = await this.fetch(`${this.baseUrl}/api/opencode/skills`);
 			if (!response.ok) {
 				const message = await this.getErrorMessage(
 					response,
@@ -721,7 +725,7 @@ class ApiClient {
 			return { skills: data.skills ?? [] };
 		},
 		listAgents: async (): Promise<{ agents: OpencodeAgent[] }> => {
-			const response = await fetch(`${this.baseUrl}/api/opencode/agents`);
+			const response = await this.fetch(`${this.baseUrl}/api/opencode/agents`);
 			if (!response.ok) {
 				const message = await this.getErrorMessage(
 					response,
@@ -738,7 +742,7 @@ class ApiClient {
 			updatedRoles: number;
 			consideredRoles: number;
 		}> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/skills/refresh-assignments`,
 				{ method: "POST" },
 			);
@@ -757,7 +761,7 @@ class ApiClient {
 			}>(payload);
 		},
 		listEnabledModels: async (): Promise<{ models: OpencodeModel[] }> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/models/enabled`,
 			);
 			if (!response.ok) {
@@ -771,7 +775,7 @@ class ApiClient {
 			return this.unwrapApiData<{ models: OpencodeModel[] }>(payload);
 		},
 		listModels: async (): Promise<{ models: OpencodeModel[] }> => {
-			const response = await fetch(`${this.baseUrl}/api/opencode/models`);
+			const response = await this.fetch(`${this.baseUrl}/api/opencode/models`);
 			if (!response.ok) {
 				const message = await this.getErrorMessage(
 					response,
@@ -789,7 +793,7 @@ class ApiClient {
 			name: string;
 			enabled: boolean;
 		}): Promise<{ model: OpencodeModel }> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/models/toggle`,
 				{
 					method: "POST",
@@ -814,7 +818,7 @@ class ApiClient {
 			name: string;
 			difficulty: OpencodeModel["difficulty"];
 		}): Promise<{ model: OpencodeModel }> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/models/difficulty`,
 				{
 					method: "POST",
@@ -833,7 +837,7 @@ class ApiClient {
 			return this.unwrapApiData<{ model: OpencodeModel }>(payload);
 		},
 		refreshModels: async (): Promise<{ models: OpencodeModel[] }> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/models/refresh`,
 				{
 					method: "POST",
@@ -859,7 +863,7 @@ class ApiClient {
 			defaultModels: Record<string, string>;
 			allModelsHash: string;
 		}> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/models/config`,
 			);
 			if (!response.ok) {
@@ -894,7 +898,7 @@ class ApiClient {
 			skipped: number;
 			hashMismatch: boolean;
 		}> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/models/config`,
 				{
 					method: "POST",
@@ -922,7 +926,7 @@ class ApiClient {
 			const params = new URLSearchParams();
 			if (options?.force) params.set("force", "true");
 			const qs = params.toString() ? `?${params.toString()}` : "";
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/restart${qs}`,
 				{
 					method: "POST",
@@ -943,7 +947,7 @@ class ApiClient {
 			busySessions: number;
 			busySessionIds: string[];
 		}> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/session/active-stats`,
 			);
 			if (!response.ok) {
@@ -965,7 +969,7 @@ class ApiClient {
 		}: {
 			sessionId: string;
 		}): Promise<{ todos: OpenCodeTodo[] }> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/sessions/${sessionId}/todos`,
 			);
 			if (!response.ok) {
@@ -986,7 +990,7 @@ class ApiClient {
 			sessionId: string;
 			message: string;
 		}): Promise<{ success: boolean }> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/sessions/${sessionId}/messages`,
 				{
 					method: "POST",
@@ -1016,7 +1020,7 @@ class ApiClient {
 				typeof limit === "number" && limit > 0
 					? `?limit=${encodeURIComponent(String(limit))}`
 					: "";
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/sessions/${sessionId}/messages${query}`,
 			);
 			if (!response.ok) {
@@ -1035,7 +1039,7 @@ class ApiClient {
 		}: {
 			sessionId: string;
 		}): Promise<PermissionData[]> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/sessions/${sessionId}/permissions`,
 			);
 			if (!response.ok) {
@@ -1050,7 +1054,7 @@ class ApiClient {
 		}: {
 			sessionId: string;
 		}): Promise<import("@/types/ipc").QuestionData[]> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/session/question/list?sessionId=${encodeURIComponent(sessionId)}`,
 			);
 			if (!response.ok) {
@@ -1069,7 +1073,7 @@ class ApiClient {
 			requestId: string;
 			answers: string[][];
 		}): Promise<void> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/session/question/reply`,
 				{
 					method: "POST",
@@ -1092,7 +1096,7 @@ class ApiClient {
 			sessionId: string;
 			requestId: string;
 		}): Promise<void> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/session/question/reject`,
 				{
 					method: "POST",
@@ -1112,7 +1116,7 @@ class ApiClient {
 
 	readonly schema = {
 		fetch: async (url: string): Promise<{ schema: JSONSchema }> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/schema?url=${encodeURIComponent(url)}`,
 			);
 			if (!response.ok) {
@@ -1134,7 +1138,7 @@ class ApiClient {
 			path?: string;
 		}): Promise<{ config: unknown; path?: string }> => {
 			const query = path ? `?path=${encodeURIComponent(path)}` : "";
-			const response = await fetch(`${this.baseUrl}/api/omc${query}`);
+			const response = await this.fetch(`${this.baseUrl}/api/omc${query}`);
 			if (!response.ok) {
 				const message = await this.getErrorMessage(
 					response,
@@ -1152,7 +1156,7 @@ class ApiClient {
 			path: string;
 			config: unknown;
 		}): Promise<{ ok: boolean }> => {
-			const response = await fetch(`${this.baseUrl}/api/omc`, {
+			const response = await this.fetch(`${this.baseUrl}/api/omc`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ path, config }),
@@ -1171,7 +1175,7 @@ class ApiClient {
 		}: {
 			path: string;
 		}): Promise<{ presets: string[]; matchingPreset: string | null }> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/omc/presets?path=${encodeURIComponent(path)}`,
 			);
 			if (!response.ok) {
@@ -1196,11 +1200,14 @@ class ApiClient {
 			presetName: string;
 			config: unknown;
 		}): Promise<{ ok: boolean; presetPath?: string }> => {
-			const response = await fetch(`${this.baseUrl}/api/omc/presets/save`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ path, presetName, config }),
-			});
+			const response = await this.fetch(
+				`${this.baseUrl}/api/omc/presets/save`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ path, presetName, config }),
+				},
+			);
 			if (!response.ok) {
 				const message = await this.getErrorMessage(
 					response,
@@ -1218,11 +1225,14 @@ class ApiClient {
 			path: string;
 			presetName: string;
 		}): Promise<{ config: unknown }> => {
-			const response = await fetch(`${this.baseUrl}/api/omc/presets/load`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ path, presetName }),
-			});
+			const response = await this.fetch(
+				`${this.baseUrl}/api/omc/presets/load`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ path, presetName }),
+				},
+			);
 			if (!response.ok) {
 				const message = await this.getErrorMessage(
 					response,
@@ -1238,7 +1248,7 @@ class ApiClient {
 		}: {
 			path: string;
 		}): Promise<{ ok: boolean; backupPath: string }> => {
-			const response = await fetch(`${this.baseUrl}/api/omc/backup`, {
+			const response = await this.fetch(`${this.baseUrl}/api/omc/backup`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ path }),
@@ -1254,7 +1264,7 @@ class ApiClient {
 			return this.unwrapApiData<{ ok: boolean; backupPath: string }>(payload);
 		},
 		restore: async ({ path }: { path: string }): Promise<{ ok: boolean }> => {
-			const response = await fetch(`${this.baseUrl}/api/omc/restore`, {
+			const response = await this.fetch(`${this.baseUrl}/api/omc/restore`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ path }),
@@ -1276,7 +1286,7 @@ class ApiClient {
 		}: {
 			path: string;
 		}): Promise<{ exists: boolean }> => {
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/filesystem/exists?path=${encodeURIComponent(path)}`,
 			);
 			if (!response.ok) {
@@ -1297,7 +1307,7 @@ class ApiClient {
 		}: {
 			projectId: string;
 		}): Promise<{ success: boolean; output?: string }> => {
-			const response = await fetch(`${this.baseUrl}/api/git/push`, {
+			const response = await this.fetch(`${this.baseUrl}/api/git/push`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ projectId }),
@@ -1315,7 +1325,7 @@ class ApiClient {
 			projectId: string;
 		}): Promise<{ aheadCount: number }> => {
 			const query = new URLSearchParams({ projectId });
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/git/status?${query.toString()}`,
 			);
 			if (!response.ok) {
@@ -1332,7 +1342,7 @@ class ApiClient {
 
 	readonly database = {
 		delete: async (_: Record<string, never>): Promise<{ ok: boolean }> => {
-			const response = await fetch(`${this.baseUrl}/api/database/delete`, {
+			const response = await this.fetch(`${this.baseUrl}/api/database/delete`, {
 				method: "POST",
 			});
 			if (!response.ok) {
@@ -1382,7 +1392,7 @@ class ApiClient {
 			runId: string;
 		}): Promise<{ artifacts: Artifact[] }> => {
 			const query = new URLSearchParams({ runId });
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/artifact/list?${query.toString()}`,
 			);
 			if (!response.ok) {
@@ -1402,7 +1412,7 @@ class ApiClient {
 			taskId: string;
 		}): Promise<{ artifacts: Artifact[] }> => {
 			const query = new URLSearchParams({ taskId });
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/artifact/list-by-task?${query.toString()}`,
 			);
 			if (!response.ok) {
@@ -1422,7 +1432,7 @@ class ApiClient {
 			artifactId: string;
 		}): Promise<{ artifact: Artifact | null }> => {
 			const query = new URLSearchParams({ artifactId });
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/artifact/get?${query.toString()}`,
 			);
 			if (!response.ok) {
@@ -1456,7 +1466,7 @@ class ApiClient {
 			}>;
 		}> => {
 			const query = new URLSearchParams({ taskId });
-			const response = await fetch(
+			const response = await this.fetch(
 				`${this.baseUrl}/api/uploads/list-by-task?${query.toString()}`,
 			);
 			if (!response.ok) {
@@ -1485,7 +1495,7 @@ class ApiClient {
 
 	readonly app = {
 		openPath: async (path: string): Promise<{ success: true }> => {
-			const response = await fetch(`${this.baseUrl}/api/app/open-path`, {
+			const response = await this.fetch(`${this.baseUrl}/api/app/open-path`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ path }),
@@ -1505,9 +1515,12 @@ class ApiClient {
 			const params = new URLSearchParams();
 			if (options?.force) params.set("force", "true");
 			const qs = params.toString() ? `?${params.toString()}` : "";
-			const response = await fetch(`${this.baseUrl}/api/app/shutdown${qs}`, {
-				method: "POST",
-			});
+			const response = await this.fetch(
+				`${this.baseUrl}/api/app/shutdown${qs}`,
+				{
+					method: "POST",
+				},
+			);
 			if (!response.ok) {
 				const message = await this.getErrorMessage(
 					response,
@@ -1521,6 +1534,24 @@ class ApiClient {
 
 	constructor(baseUrl: string = "") {
 		this.baseUrl = baseUrl;
+	}
+
+	private isNetworkFailureMessage(message: string): boolean {
+		return message.includes("TypeError: Failed to fetch");
+	}
+
+	private async fetch(input: RequestInfo | URL, init?: RequestInit) {
+		try {
+			return await globalThis.fetch(input, init);
+		} catch (error) {
+			if (
+				error instanceof TypeError &&
+				error.message.includes("Failed to fetch")
+			) {
+				this.fail(`TypeError: ${error.message}`);
+			}
+			throw error;
+		}
 	}
 
 	private async getErrorMessage(
@@ -1538,6 +1569,9 @@ class ApiClient {
 	}
 
 	private fail(message: string): never {
+		if (this.isNetworkFailureMessage(message)) {
+			this.onNetworkError?.();
+		}
 		this.onError?.(message);
 		throw new Error(message);
 	}
@@ -1555,21 +1589,21 @@ class ApiClient {
 
 	// Projects
 	async getProjects(): Promise<Project[]> {
-		const response = await fetch(`${this.baseUrl}/api/projects`);
+		const response = await this.fetch(`${this.baseUrl}/api/projects`);
 		if (!response.ok) this.fail("Failed to fetch projects");
 		const payload = await response.json();
 		return this.unwrapApiData<Project[]>(payload);
 	}
 
 	async getProject(id: string): Promise<Project | null> {
-		const response = await fetch(`${this.baseUrl}/api/projects/${id}`);
+		const response = await this.fetch(`${this.baseUrl}/api/projects/${id}`);
 		if (!response.ok) return null;
 		const payload = await response.json();
 		return this.unwrapApiData<Project>(payload);
 	}
 
 	async createProject(input: CreateProjectInput): Promise<Project> {
-		const response = await fetch(`${this.baseUrl}/api/projects`, {
+		const response = await this.fetch(`${this.baseUrl}/api/projects`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(input),
@@ -1589,7 +1623,7 @@ class ApiClient {
 		id: string,
 		updates: UpdateProjectInput,
 	): Promise<Project | null> {
-		const response = await fetch(`${this.baseUrl}/api/projects/${id}`, {
+		const response = await this.fetch(`${this.baseUrl}/api/projects/${id}`, {
 			method: "PUT",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(updates),
@@ -1603,11 +1637,14 @@ class ApiClient {
 		id: string,
 		direction: "up" | "down",
 	): Promise<Project | null> {
-		const response = await fetch(`${this.baseUrl}/api/projects/${id}/reorder`, {
-			method: "PATCH",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ direction }),
-		});
+		const response = await this.fetch(
+			`${this.baseUrl}/api/projects/${id}/reorder`,
+			{
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ direction }),
+			},
+		);
 		if (!response.ok) {
 			const message = await this.getErrorMessage(
 				response,
@@ -1620,7 +1657,7 @@ class ApiClient {
 	}
 
 	async deleteProject(id: string): Promise<boolean> {
-		const response = await fetch(`${this.baseUrl}/api/projects/${id}`, {
+		const response = await this.fetch(`${this.baseUrl}/api/projects/${id}`, {
 			method: "DELETE",
 		});
 		return response.ok;
@@ -1628,7 +1665,7 @@ class ApiClient {
 
 	// Tasks
 	async getTasks(boardId: string): Promise<KanbanTask[]> {
-		const response = await fetch(
+		const response = await this.fetch(
 			`${this.baseUrl}/api/tasks?boardId=${boardId}`,
 			{ cache: "no-store" },
 		);
@@ -1647,7 +1684,7 @@ class ApiClient {
 	}
 
 	async getTask(id: string): Promise<KanbanTask | null> {
-		const response = await fetch(`${this.baseUrl}/api/tasks/${id}`, {
+		const response = await this.fetch(`${this.baseUrl}/api/tasks/${id}`, {
 			cache: "no-store",
 		});
 		if (!response.ok) return null;
@@ -1662,7 +1699,7 @@ class ApiClient {
 	}
 
 	async createTask(input: CreateTaskInput): Promise<KanbanTask> {
-		const response = await fetch(`${this.baseUrl}/api/tasks`, {
+		const response = await this.fetch(`${this.baseUrl}/api/tasks`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(input),
@@ -1680,7 +1717,7 @@ class ApiClient {
 		for (const file of files) {
 			formData.append("files", file);
 		}
-		const response = await fetch(`${this.baseUrl}/api/uploads`, {
+		const response = await this.fetch(`${this.baseUrl}/api/uploads`, {
 			method: "POST",
 			body: formData,
 		});
@@ -1703,7 +1740,7 @@ class ApiClient {
 		id: string,
 		updates: UpdateTaskInput,
 	): Promise<KanbanTask | null> {
-		const response = await fetch(`${this.baseUrl}/api/tasks/${id}`, {
+		const response = await this.fetch(`${this.baseUrl}/api/tasks/${id}`, {
 			method: "PUT",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(updates),
@@ -1715,7 +1752,7 @@ class ApiClient {
 	}
 
 	async deleteTask(id: string): Promise<boolean> {
-		const response = await fetch(`${this.baseUrl}/api/tasks/${id}`, {
+		const response = await this.fetch(`${this.baseUrl}/api/tasks/${id}`, {
 			method: "DELETE",
 		});
 		return response.ok;
@@ -1726,7 +1763,7 @@ class ApiClient {
 		columnId: string,
 		toIndex?: number,
 	): Promise<KanbanTask | null> {
-		const response = await fetch(`${this.baseUrl}/api/tasks/${id}/move`, {
+		const response = await this.fetch(`${this.baseUrl}/api/tasks/${id}/move`, {
 			method: "PUT",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ columnId, toIndex }),
@@ -1739,7 +1776,7 @@ class ApiClient {
 
 	// Boards
 	async getBoardByProject(projectId: string): Promise<Board | null> {
-		const response = await fetch(
+		const response = await this.fetch(
 			`${this.baseUrl}/api/boards/project/${projectId}`,
 		);
 		if (!response.ok) return null;
@@ -1757,7 +1794,7 @@ class ApiClient {
 			color?: string | null;
 		}>,
 	): Promise<BoardColumn[]> {
-		const response = await fetch(
+		const response = await this.fetch(
 			`${this.baseUrl}/api/boards/${boardId}/columns`,
 			{
 				method: "PUT",
@@ -1772,14 +1809,14 @@ class ApiClient {
 
 	// Tags
 	async getGlobalTags(): Promise<Tag[]> {
-		const response = await fetch(`${this.baseUrl}/api/tags`);
+		const response = await this.fetch(`${this.baseUrl}/api/tags`);
 		if (!response.ok) this.fail("Failed to fetch tags");
 		const payload = await response.json();
 		return this.unwrapApiData<Tag[]>(payload);
 	}
 
 	async createTag(input: { name: string; color: string }): Promise<Tag> {
-		const response = await fetch(`${this.baseUrl}/api/tags`, {
+		const response = await this.fetch(`${this.baseUrl}/api/tags`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(input),
@@ -1791,7 +1828,9 @@ class ApiClient {
 
 	// App Settings
 	async getAppSetting(key: string): Promise<string | null> {
-		const response = await fetch(`${this.baseUrl}/api/app-settings?key=${key}`);
+		const response = await this.fetch(
+			`${this.baseUrl}/api/app-settings?key=${key}`,
+		);
 		if (!response.ok) return null;
 		const payload = await response.json();
 
@@ -1807,7 +1846,7 @@ class ApiClient {
 	}
 
 	async setAppSetting(key: string, value: string): Promise<boolean> {
-		const response = await fetch(`${this.baseUrl}/api/app-settings`, {
+		const response = await this.fetch(`${this.baseUrl}/api/app-settings`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ key, value }),
@@ -1836,7 +1875,7 @@ class ApiClient {
 		}[];
 	}> {
 		const pathParam = dirPath ? `?path=${encodeURIComponent(dirPath)}` : "";
-		const response = await fetch(`${this.baseUrl}/api/browse${pathParam}`);
+		const response = await this.fetch(`${this.baseUrl}/api/browse${pathParam}`);
 		if (!response.ok) this.fail("Failed to browse directory");
 		return response.json();
 	}

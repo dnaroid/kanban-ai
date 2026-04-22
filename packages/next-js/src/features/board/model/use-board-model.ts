@@ -12,6 +12,7 @@ import type { Board, BoardColumn } from "@/server/types";
 import type { KanbanTask, Tag, BoardColumnInput } from "@/types/kanban";
 import { api } from "@/lib/api-client";
 import { useToast } from "@/components/common/toast/ToastContext";
+import { useServerStatus } from "@/components/common/ServerStatusContext";
 
 export type DirtyGitConfirmState =
 	| false
@@ -70,6 +71,7 @@ export function useBoardModel({
 	const router = useRouter();
 	const pathname = usePathname();
 	const { addToast } = useToast();
+	const { reportNetworkError } = useServerStatus();
 	const [board, setBoard] = useState<Board | null>(null);
 	const [tasks, setTasks] = useState<KanbanTask[]>([]);
 	const [globalTags, setGlobalTags] = useState<Tag[]>([]);
@@ -358,6 +360,7 @@ export function useBoardModel({
 
 		eventSource.onerror = (event) => {
 			console.error("Board model SSE error:", event);
+			reportNetworkError();
 		};
 
 		return () => {
@@ -376,6 +379,7 @@ export function useBoardModel({
 		refreshBoardTasksFromServer,
 		scheduleDebouncedBoardTasksRefresh,
 		addToast,
+		reportNetworkError,
 		router,
 	]);
 
