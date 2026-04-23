@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus, RotateCcw, Square, Terminal, Trash2, User } from "lucide-react";
+import {
+	FlaskConical,
+	Loader2,
+	Plus,
+	RotateCcw,
+	Square,
+	Terminal,
+	Trash2,
+	User,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { KanbanTask } from "@/types/kanban";
 import type { Run } from "@/types/ipc";
@@ -28,6 +37,7 @@ interface AgentRole {
 }
 
 const AGENT_ROLE_TAG_PREFIX = "agent:";
+const QA_TESTING_RUN_KIND = "task-qa-testing";
 
 function parseQuickSelectFlag(rawPresetJson: string): boolean {
 	try {
@@ -84,6 +94,10 @@ function selectRunId(
 	return sortedRuns[0].id;
 }
 
+function isQaTestingRun(run: Run): boolean {
+	return run.metadata?.kind === QA_TESTING_RUN_KIND;
+}
+
 export function TaskDrawerRuns({
 	task,
 	isActive,
@@ -93,6 +107,7 @@ export function TaskDrawerRuns({
 	const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 	const [isLoadingRuns, setIsLoadingRuns] = useState(false);
 	const [isStartingRun, setIsStartingRun] = useState(false);
+	const [isStartingQaTesting, setIsStartingQaTesting] = useState(false);
 	const [mergingRunId, setMergingRunId] = useState<string | null>(null);
 	const [roles, setRoles] = useState<AgentRole[]>([]);
 	const [selectedRoleId, setSelectedRoleId] = useState<string>("");
@@ -200,6 +215,23 @@ export function TaskDrawerRuns({
 		}
 	};
 
+	const handleStartQaTesting = async () => {
+		if (isStartingQaTesting) return;
+		setIsStartingQaTesting(true);
+		try {
+			const response = await api.opencode.startQaTesting({ taskId: task.id });
+			await onRefreshTask?.();
+			await fetchRuns();
+			setSelectedRunId(response.runId);
+		} catch (error) {
+			console.error("Failed to start QA testing:", error);
+			await onRefreshTask?.();
+			await fetchRuns();
+		} finally {
+			setIsStartingQaTesting(false);
+		}
+	};
+
 	const handleDirtyGitConfirmStart = () => {
 		setShowDirtyGitConfirm(false);
 		void handleStartRun(true);
@@ -241,17 +273,15 @@ export function TaskDrawerRuns({
 	const handleRetryRun = async (run: Run, e: React.MouseEvent) => {
 		e.stopPropagation();
 		try {
-			const retryRoleId = run.roleId || selectedRoleId || visibleRoles[0]?.id;
-			if (!retryRoleId) {
-				console.error("Failed to retry run: no role available");
-				return;
-			}
-			const response = await api.run.start({
-				taskId: task.id,
-				roleId: retryRoleId,
-				mode: run.mode,
-				modelName: task.modelName ?? null,
-			});
+			const response = isQaTestingRun(run)
+				? await api.opencode.startQaTesting({ taskId: task.id })
+				: await api.run.start({
+						taskId: task.id,
+						roleId:
+							run.roleId || selectedRoleId || visibleRoles[0]?.id,
+						mode: run.mode,
+						modelName: task.modelName ?? null,
+				  });
 			await onRefreshTask?.();
 			await fetchRuns();
 			setSelectedRunId(response.runId);
@@ -332,133 +362,179 @@ export function TaskDrawerRuns({
 						taskStatus={task.status}
 					/>
 				) : (
-					<div className="p-4 space-y-3">
-						{runs.length === 0 && !isLoadingRuns ? (
-							<div className="flex flex-col items-center justify-center h-full space-y-4 opacity-50 py-12">
-								<div className="w-16 h-16 rounded-2xl bg-slate-800/50 flex items-center justify-center border border-slate-700/50">
-									<Terminal className="w-8 h-8 text-slate-600" />
-								</div>
-								<div className="text-center space-y-1">
-									<p className="text-sm font-medium text-slate-400">
-										No runs yet
-									</p>
-									<p className="text-xs text-slate-600 max-w-[200px]">
-										Start a new run to execute this task
-									</p>
-								</div>
+					<>
+						<div className="sticky top-0 z-10 px-4 pt-4 pb-2 bg-[#0B0E14]/95 backdrop-blur supports-[backdrop-filter]:bg-[#0B0E14]/80">
+							<div className="flex items-center justify-end gap-2">
+								<button
+									type="button"
+									onClick={() => void handleStartQaTesting()}
+									disabled={isStartingQaTesting || isStartingRun}
+									className={cn(
+										"inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors border",
+										isStartingQaTesting || isStartingRun
+											? "cursor-not-allowed border-emerald-500/20 bg-emerald-500/10 text-emerald-300/60"
+											: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20",
+									)}
+								>
+									{isStartingQaTesting ? (
+										<>
+											<Loader2 className="w-3.5 h-3.5 animate-spin" />
+											QA Testing...
+										</>
+									) : (
+										<>
+											<FlaskConical className="w-3.5 h-3.5" />
+											QA Testing
+										</>
+									)}
+								</button>
 								<button
 									type="button"
 									onClick={() => void handleStartRun()}
-									aria-label="Start first execution"
-									className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition-colors border border-slate-700"
+									disabled={isStartingRun || isStartingQaTesting}
+									className={cn(
+										"inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors border",
+										isStartingRun || isStartingQaTesting
+											? "cursor-not-allowed border-slate-700 bg-slate-800 text-slate-500"
+											: "border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700",
+									)}
 								>
-									<Plus className="w-3.5 h-3.5" />
-									Start First Run
+									{isStartingRun ? (
+										<>
+											<Loader2 className="w-3.5 h-3.5 animate-spin" />
+											Starting Run...
+										</>
+									) : (
+										<>
+											<Plus className="w-3.5 h-3.5" />
+											New Run
+										</>
+									)}
 								</button>
 							</div>
-						) : (
-							runs.map((run) => {
-								const statusStyle =
-									runStatusConfig[run.status as keyof typeof runStatusConfig] ||
-									runStatusConfig.queued;
+						</div>
+						<div className="p-4 space-y-3">
+							{runs.length === 0 && !isLoadingRuns ? (
+								<div className="flex flex-col items-center justify-center h-full space-y-4 opacity-50 py-12">
+									<div className="w-16 h-16 rounded-2xl bg-slate-800/50 flex items-center justify-center border border-slate-700/50">
+										<Terminal className="w-8 h-8 text-slate-600" />
+									</div>
+									<div className="text-center space-y-1">
+										<p className="text-sm font-medium text-slate-400">
+											No runs yet
+										</p>
+										<p className="text-xs text-slate-600 max-w-[220px]">
+											Start a regular execution run or launch QA testing for this task.
+										</p>
+									</div>
+								</div>
+							) : (
+								runs.map((run) => {
+									const statusStyle =
+										runStatusConfig[run.status as keyof typeof runStatusConfig] ||
+										runStatusConfig.queued;
 
-								return (
-									<button
-										key={run.id}
-										type="button"
-										className={cn(
-											"group relative bg-[#161B26] border border-slate-800 hover:border-slate-700 rounded-xl p-4 transition-all duration-200 hover:shadow-lg hover:shadow-black/20 overflow-hidden cursor-pointer text-left w-full",
-										)}
-										onClick={() => setSelectedRunId(run.id)}
-									>
-										<div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
-											{!["running", "queued"].includes(run.status) && (
-												<button
-													type="button"
-													onClick={(e) => handleRetryRun(run, e)}
-													data-testid="run-task-button"
-													className="p-1.5 bg-slate-800 text-slate-400 hover:text-white rounded-lg border border-slate-700 hover:border-slate-600 transition-colors shadow-lg"
-													title="Retry run"
-												>
-													<RotateCcw className="w-3.5 h-3.5" />
-												</button>
+									return (
+										<button
+											key={run.id}
+											type="button"
+											className={cn(
+												"group relative bg-[#161B26] border border-slate-800 hover:border-slate-700 rounded-xl p-4 transition-all duration-200 hover:shadow-lg hover:shadow-black/20 overflow-hidden cursor-pointer text-left w-full",
 											)}
-											{["running", "queued"].includes(run.status) && (
-												<button
-													type="button"
-													onClick={(e) => handleCancelRun(run.id, e)}
-													className="p-1.5 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg border border-red-500/20 transition-colors shadow-lg"
-													title="Cancel run"
-												>
-													<Square className="w-3.5 h-3.5 fill-current" />
-												</button>
-											)}
-											{!["running", "queued"].includes(run.status) && (
-												<button
-													type="button"
-													onClick={(e) => handleDeleteRun(run.id, e)}
-													className="p-1.5 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg border border-red-500/20 transition-colors shadow-lg"
-													title="Delete run"
-												>
-													<Trash2 className="w-3.5 h-3.5" />
-												</button>
-											)}
-										</div>
+											onClick={() => setSelectedRunId(run.id)}
+										>
+											<div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
+												{!["running", "queued"].includes(run.status) && (
+													<button
+														type="button"
+														onClick={(e) => handleRetryRun(run, e)}
+														data-testid="run-task-button"
+														className="p-1.5 bg-slate-800 text-slate-400 hover:text-white rounded-lg border border-slate-700 hover:border-slate-600 transition-colors shadow-lg"
+														title={isQaTestingRun(run) ? "Retry QA testing" : "Retry run"}
+													>
+														<RotateCcw className="w-3.5 h-3.5" />
+													</button>
+												)}
+												{["running", "queued"].includes(run.status) && (
+													<button
+														type="button"
+														onClick={(e) => handleCancelRun(run.id, e)}
+														className="p-1.5 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg border border-red-500/20 transition-colors shadow-lg"
+														title="Cancel run"
+													>
+														<Square className="w-3.5 h-3.5 fill-current" />
+													</button>
+												)}
+												{!["running", "queued"].includes(run.status) && (
+													<button
+														type="button"
+														onClick={(e) => handleDeleteRun(run.id, e)}
+														className="p-1.5 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg border border-red-500/20 transition-colors shadow-lg"
+														title="Delete run"
+													>
+														<Trash2 className="w-3.5 h-3.5" />
+													</button>
+												)}
+											</div>
 
-										<div className="flex items-start justify-between mb-3">
-											<div className="flex items-center gap-3">
-												<div
-													className={cn(
-														"w-8 h-8 rounded-lg flex items-center justify-center border",
-														statusStyle.bg,
-														statusStyle.border,
-														statusStyle.color,
-													)}
-												>
-													<statusStyle.icon
+											<div className="flex items-start justify-between mb-3">
+												<div className="flex items-center gap-3">
+													<div
 														className={cn(
-															"w-4 h-4",
-															run.status === "running" && "animate-spin",
+															"w-8 h-8 rounded-lg flex items-center justify-center border",
+															statusStyle.bg,
+															statusStyle.border,
+															statusStyle.color,
 														)}
-													/>
-												</div>
-												<div>
-													<div className="flex items-center gap-2">
-														<span className="text-sm font-semibold text-slate-200 font-mono">
-															{run.id.slice(0, 8)}
-														</span>
-														<span
-															data-testid="run-status"
+													>
+														<statusStyle.icon
 															className={cn(
-																"text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border tracking-wider",
-																statusStyle.bg,
-																statusStyle.border,
-																statusStyle.color,
+																"w-4 h-4",
+																run.status === "running" && "animate-spin",
 															)}
-														>
-															{run.status}
-														</span>
+														/>
 													</div>
-													<div className="flex items-center gap-2 mt-1">
-														<span className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
-															<User className="w-3 h-3" />
-															{run.roleId || "default"}
-														</span>
-														<span className="text-slate-700 text-[10px]">
-															•
-														</span>
-														<span className="text-[10px] text-slate-500 font-medium font-mono">
-															{new Date(run.createdAt).toLocaleString()}
-														</span>
+													<div>
+														<div className="flex items-center gap-2 flex-wrap">
+															<span className="text-sm font-semibold text-slate-200 font-mono">
+																{run.id.slice(0, 8)}
+															</span>
+															<span
+																data-testid="run-status"
+																className={cn(
+																	"text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border tracking-wider",
+																	statusStyle.bg,
+																	statusStyle.border,
+																	statusStyle.color,
+																)}
+															>
+																{run.status}
+															</span>
+															{isQaTestingRun(run) && (
+																<span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border tracking-wider bg-emerald-500/10 border-emerald-500/20 text-emerald-300">
+																	QA
+																</span>
+															)}
+														</div>
+														<div className="flex items-center gap-2 mt-1 flex-wrap">
+															<span className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
+																<User className="w-3 h-3" />
+																{run.roleId || "default"}
+															</span>
+															<span className="text-slate-700 text-[10px]">•</span>
+															<span className="text-[10px] text-slate-500 font-medium font-mono">
+																{new Date(run.createdAt).toLocaleString()}
+															</span>
+														</div>
 													</div>
 												</div>
 											</div>
-										</div>
-									</button>
-								);
-							})
-						)}
-					</div>
+										</button>
+									);
+								})
+							)}
+						</div>
+					</>
 				)}
 			</div>
 
