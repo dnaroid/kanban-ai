@@ -275,10 +275,10 @@ export class OpencodeSessionManager {
 				return messages;
 			}
 		} catch {
-			return this.storageReader.getMessagesFromFilesystem(sessionId, limit);
+			return this.storageReader.getMessages(sessionId, limit);
 		}
 
-		return this.storageReader.getMessagesFromFilesystem(sessionId, limit);
+		return this.storageReader.getMessages(sessionId, limit);
 	}
 
 	public async getTodos(sessionId: string): Promise<OpenCodeTodo[]> {
@@ -577,7 +577,7 @@ export class OpencodeSessionManager {
 
 		const session = await this.fetchSessionInfo(sessionId);
 		if (!session) {
-			return this.storageReader.getSessionDirectoryFromStorage(sessionId);
+			return this.storageReader.getSessionDirectory(sessionId);
 		}
 
 		this.sessions.set(session.id, session);
@@ -633,8 +633,7 @@ export class OpencodeSessionManager {
 			return fromProjectScan;
 		}
 
-		const fromStorage =
-			await this.storageReader.getSessionDirectoryFromStorage(sessionId);
+		const fromStorage = await this.storageReader.getSessionDirectory(sessionId);
 		return fromStorage ? { id: sessionId, directory: fromStorage } : null;
 	}
 

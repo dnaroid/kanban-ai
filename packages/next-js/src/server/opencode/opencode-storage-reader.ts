@@ -1,237 +1,364 @@
+import Database from "better-sqlite3";
+import { existsSync, readdirSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
-import { readdir, readFile } from "fs/promises";
-import type { OpenCodeMessage, Part } from "@/types/ipc";
+import type {
+	MessageTokens,
+	OpenCodeMessage,
+	Part,
+	ToolState,
+} from "@/types/ipc";
 
-function getStorageBasePath(): string {
+type BuildMessageContent = (parts: Part[]) => string;
+
+interface MessageRow {
+	id: string;
+	session_id: string;
+	time_created: number;
+	data: string;
+}
+
+interface PartRow {
+	id: string;
+	message_id: string;
+	session_id: string;
+	data: string;
+}
+
+interface SessionDirectoryRow {
+	directory: string;
+}
+
+function getStorageDirectoryPath(): string {
 	const home = homedir();
 	if (process.platform === "darwin") {
-		return join(home, "Library", "Application Support", "opencode", "storage");
+		return join(home, "Library", "Application Support", "opencode");
 	}
 
 	if (process.platform === "win32") {
 		const appData = process.env.APPDATA;
 		if (appData) {
-			return join(appData, "opencode", "storage");
+			return join(appData, "opencode");
 		}
-		return join(home, "AppData", "Roaming", "opencode", "storage");
+		return join(home, "AppData", "Roaming", "opencode");
 	}
 
-	return join(home, ".local", "share", "opencode", "storage");
+	return join(home, ".local", "share", "opencode");
 }
 
-type BuildMessageContent = (parts: Part[]) => string;
+function sanitizeChannel(value: string): string {
+	return value.replace(/[^a-zA-Z0-9._-]/g, "-");
+}
+
+function getDbCandidatePaths(): string[] {
+	const directory = getStorageDirectoryPath();
+	const channelCandidates = [
+		process.env.OPENCODE_CHANNEL,
+		process.env.OPENCODE_INSTALL_CHANNEL,
+		process.env.OPENCODE_RELEASE_CHANNEL,
+	]
+		.map((value) => (typeof value === "string" ? value.trim() : ""))
+		.filter((value) => value.length > 0)
+		.map((channel) => `opencode-${sanitizeChannel(channel)}.db`);
+
+	const detectedChannelFiles = existsSync(directory)
+		? readdirSync(directory).filter(
+				(fileName) =>
+					fileName.startsWith("opencode-") && fileName.endsWith(".db"),
+			)
+		: [];
+
+	const uniqueNames = new Set<string>([
+		...channelCandidates,
+		"opencode.db",
+		...detectedChannelFiles,
+	]);
+
+	return Array.from(uniqueNames).map((fileName) => join(directory, fileName));
+}
 
 export class OpencodeStorageReader {
-	private readonly storageBasePath = getStorageBasePath();
 	private readonly buildMessageContent: BuildMessageContent;
+	private db: Database.Database | null = null;
+	private dbUnavailable = false;
 
 	constructor(buildMessageContent: BuildMessageContent) {
 		this.buildMessageContent = buildMessageContent;
 	}
 
-	public async getMessagesFromFilesystem(
+	public async getMessages(
 		sessionId: string,
 		limit?: number,
 	): Promise<OpenCodeMessage[]> {
 		try {
-			const messageDir = join(this.storageBasePath, "message", sessionId);
-			let messageFiles = await readdir(messageDir);
-			messageFiles = messageFiles
-				.filter(
-					(fileName) =>
-						fileName.startsWith("msg_") && fileName.endsWith(".json"),
-				)
-				.sort();
-
-			if (limit && limit > 0 && messageFiles.length > limit) {
-				messageFiles = messageFiles.slice(-limit);
+			const db = this.getDb();
+			if (!db) {
+				return [];
 			}
 
-			const messages = await Promise.all(
-				messageFiles.map(async (fileName) => {
-					try {
-						const filePath = join(messageDir, fileName);
-						const content = await readFile(filePath, "utf-8");
-						const messageData = JSON.parse(content) as {
-							id?: string;
-							role?: "user" | "assistant";
-							time?: { created?: number };
-							content?: string;
-							summary?: { title?: string };
-						};
+			const messageRows =
+				typeof limit === "number" && limit > 0
+					? (db
+							.prepare(
+								"SELECT id, session_id, time_created, data FROM message WHERE session_id = ? ORDER BY time_created ASC, id ASC LIMIT ?",
+							)
+							.all(sessionId, limit) as MessageRow[])
+					: (db
+							.prepare(
+								"SELECT id, session_id, time_created, data FROM message WHERE session_id = ? ORDER BY time_created ASC, id ASC",
+							)
+							.all(sessionId) as MessageRow[]);
 
-						if (!messageData.id) {
-							return null;
-						}
+			if (messageRows.length === 0) {
+				return [];
+			}
 
-						const parts = await this.loadPartsForMessage(messageData.id);
-						const contentText =
-							(messageData.content?.trim() ??
-								this.buildMessageContent(parts)) ||
-							messageData.summary?.title ||
-							"";
+			const messageIds = messageRows.map((row) => row.id);
+			const placeholders = messageIds.map(() => "?").join(", ");
+			const partRows = db
+				.prepare(
+					`SELECT id, message_id, session_id, data FROM part WHERE message_id IN (${placeholders}) ORDER BY message_id, id`,
+				)
+				.all(...messageIds) as PartRow[];
 
-						return {
-							id: messageData.id,
-							role: messageData.role === "assistant" ? "assistant" : "user",
-							content: contentText,
-							timestamp: messageData.time?.created ?? Date.now(),
-							parts,
-						} satisfies OpenCodeMessage;
-					} catch {
-						return null;
-					}
-				}),
-			);
+			const partsByMessageId = new Map<string, Part[]>();
+			for (const row of partRows) {
+				const partData = this.parseRecord(row.data);
+				const part = this.normalizePart({
+					...partData,
+					id: row.id,
+					messageID: row.message_id,
+					sessionID: row.session_id,
+				});
+				const existing = partsByMessageId.get(row.message_id);
+				if (existing) {
+					existing.push(part);
+				} else {
+					partsByMessageId.set(row.message_id, [part]);
+				}
+			}
 
-			return messages
-				.filter((message): message is OpenCodeMessage => message !== null)
-				.sort((a, b) => a.timestamp - b.timestamp);
+			return messageRows.map((row) => {
+				const data = this.parseRecord(row.data);
+				const parts = partsByMessageId.get(row.id) ?? [];
+				const content = this.extractMessageContent(parts, data);
+				const role = data.role === "assistant" ? "assistant" : "user";
+				const tokens = this.normalizeTokens(data.tokens);
+
+				return {
+					id: row.id,
+					role,
+					content,
+					parts,
+					timestamp: row.time_created,
+					...(role === "assistant"
+						? {
+								modelID: this.optionalStringValue(data.modelID),
+								providerID: this.optionalStringValue(data.providerID),
+								variant: this.optionalStringValue(data.variant),
+								...(tokens ? { tokens } : {}),
+							}
+						: {}),
+				} satisfies OpenCodeMessage;
+			});
 		} catch {
 			return [];
 		}
 	}
 
-	public async getSessionDirectoryFromStorage(
-		sessionId: string,
-	): Promise<string | null> {
+	public async getSessionDirectory(sessionId: string): Promise<string | null> {
 		try {
-			const sessionPath = join(
-				this.storageBasePath,
-				"session",
-				`${sessionId}.json`,
-			);
-			const content = await readFile(sessionPath, "utf8");
-			const data = JSON.parse(content) as { directory?: string; dir?: string };
-			return data.directory ?? data.dir ?? null;
+			const db = this.getDb();
+			if (!db) {
+				return null;
+			}
+
+			const row = db
+				.prepare("SELECT directory FROM session WHERE id = ?")
+				.get(sessionId) as SessionDirectoryRow | undefined;
+
+			return typeof row?.directory === "string" ? row.directory : null;
 		} catch {
 			return null;
 		}
 	}
 
-	private async loadPartsForMessage(messageId: string): Promise<Part[]> {
-		try {
-			const partDir = join(this.storageBasePath, "part", messageId);
-			const partFiles = (await readdir(partDir))
-				.filter(
-					(fileName) =>
-						fileName.startsWith("prt_") && fileName.endsWith(".json"),
-				)
-				.sort();
-
-			const parts = await Promise.all(
-				partFiles.map(async (fileName) => {
-					try {
-						const filePath = join(partDir, fileName);
-						const content = await readFile(filePath, "utf-8");
-						return this.normalizePart(
-							JSON.parse(content) as Record<string, unknown>,
-						);
-					} catch {
-						return null;
-					}
-				}),
-			);
-
-			return parts.filter((part): part is Part => part !== null);
-		} catch {
-			return [];
-		}
-	}
-
-	private normalizePart(raw: Record<string, unknown>): Part | null {
-		const type = raw.type;
-		if (type === "text") {
-			return { type: "text", text: this.toStringValue(raw.text) };
+	private getDb(): Database.Database | null {
+		if (this.db) {
+			return this.db;
 		}
 
-		if (type === "reasoning") {
-			return { type: "reasoning", text: this.toStringValue(raw.text) };
+		if (this.dbUnavailable) {
+			return null;
 		}
 
-		if (type === "file") {
-			return {
-				type: "file",
-				url: this.toStringValue(raw.url),
-				mime: this.toStringValue(raw.mime),
-				filename: this.optionalStringValue(raw.filename),
-			};
-		}
+		for (const dbPath of getDbCandidatePaths()) {
+			if (!existsSync(dbPath)) {
+				continue;
+			}
 
-		if (type === "tool") {
-			const state = this.normalizeToolState(raw.state);
-
-			const stateObj =
-				typeof raw.state === "object" && raw.state !== null
-					? (raw.state as Record<string, unknown>)
-					: null;
-
-			return {
-				type: "tool",
-				tool: this.toStringValue(raw.tool),
-				state,
-				input: stateObj?.input ?? raw.input,
-				output: stateObj?.output ?? raw.output,
-				error: this.optionalStringValue(stateObj?.error ?? raw.error),
-			};
-		}
-
-		if (type === "agent") {
-			return { type: "agent", name: this.toStringValue(raw.name) };
-		}
-
-		if (type === "step-start") {
-			return { type: "step-start" };
-		}
-
-		if (type === "snapshot") {
-			return { type: "snapshot" };
-		}
-
-		return { type: "other" };
-	}
-
-	private normalizeToolState(
-		value: unknown,
-	): "pending" | "running" | "completed" | "error" {
-		let stateStr = "";
-		if (typeof value === "string") {
-			stateStr = value.trim().toLowerCase();
-		} else if (
-			typeof value === "object" &&
-			value !== null &&
-			"status" in value
-		) {
-			const status = value.status;
-			if (typeof status === "string") {
-				stateStr = status.trim().toLowerCase();
+			try {
+				this.db = new Database(dbPath, { readonly: true, fileMustExist: true });
+				return this.db;
+			} catch {
+				continue;
 			}
 		}
 
-		if (stateStr === "pending") return "pending";
+		this.dbUnavailable = true;
+		return null;
+	}
 
-		if (
-			stateStr === "running" ||
-			stateStr === "in_progress" ||
-			stateStr === "in-progress"
-		) {
-			return "running";
+	private extractMessageContent(
+		parts: Part[],
+		data: Record<string, unknown>,
+	): string {
+		const textContent = parts
+			.filter(
+				(part): part is Extract<Part, { type: "text" }> => part.type === "text",
+			)
+			.map((part) => part.text)
+			.join("");
+		if (textContent.length > 0) {
+			return textContent;
 		}
 
-		if (
-			stateStr === "completed" ||
-			stateStr === "complete" ||
-			stateStr === "done" ||
-			stateStr === "success" ||
-			stateStr === "succeeded" ||
-			stateStr === "result" ||
-			stateStr === "finished"
-		) {
-			return "completed";
+		const builtContent = this.buildMessageContent(parts);
+		if (builtContent.length > 0) {
+			return builtContent;
 		}
 
+		const summary = this.asRecord(data.summary);
+		return this.toStringValue(summary?.title);
+	}
+
+	private normalizePart(raw: Record<string, unknown>): Part {
+		const base = {
+			id: this.optionalStringValue(raw.id),
+			messageID: this.optionalStringValue(raw.messageID),
+		};
+
+		switch (raw.type) {
+			case "text":
+				return { ...base, type: "text", text: this.toStringValue(raw.text) };
+			case "reasoning":
+				return {
+					...base,
+					type: "reasoning",
+					text: this.toStringValue(raw.text),
+				};
+			case "file":
+				return {
+					...base,
+					type: "file",
+					url: this.toStringValue(raw.url),
+					mime: this.toStringValue(raw.mime),
+					filename: this.optionalStringValue(raw.filename),
+				};
+			case "tool": {
+				const state = this.asRecord(raw.state);
+				return {
+					...base,
+					type: "tool",
+					tool: this.toStringValue(raw.tool),
+					state: this.normalizeToolState(state?.status),
+					input: state?.input,
+					output: state?.output,
+					error: this.optionalStringValue(state?.error),
+					metadata: this.asRecord(state?.metadata) ?? undefined,
+				};
+			}
+			case "agent":
+				return { ...base, type: "agent", name: this.toStringValue(raw.name) };
+			case "subtask": {
+				const model = this.asRecord(raw.model);
+				const providerID = this.optionalStringValue(model?.providerID);
+				const modelID = this.optionalStringValue(model?.modelID);
+				return {
+					...base,
+					type: "subtask",
+					sessionID: this.toStringValue(raw.sessionID),
+					prompt: this.toStringValue(raw.prompt),
+					description: this.toStringValue(raw.description),
+					agent: this.toStringValue(raw.agent),
+					model:
+						typeof providerID === "string" && typeof modelID === "string"
+							? { providerID, modelID }
+							: undefined,
+					command: this.optionalStringValue(raw.command),
+				};
+			}
+			case "step-start":
+				return { ...base, type: "step-start" };
+			case "snapshot":
+				return { ...base, type: "snapshot" };
+			default:
+				return { ...base, type: "other" };
+		}
+	}
+
+	private parseRecord(value: string): Record<string, unknown> {
+		try {
+			const parsed = JSON.parse(value) as unknown;
+			return this.asRecord(parsed) ?? {};
+		} catch {
+			return {};
+		}
+	}
+
+	private normalizeToolState(value: unknown): ToolState {
+		if (value === "pending") return "pending";
+		if (value === "running") return "running";
+		if (value === "completed") return "completed";
+		if (value === "error") return "error";
 		return "error";
+	}
+
+	private normalizeTokens(value: unknown): MessageTokens | undefined {
+		const record = this.asRecord(value);
+		const cache = this.asRecord(record?.cache);
+		if (!record || !cache) {
+			return undefined;
+		}
+
+		const input = this.asNumber(record.input);
+		const output = this.asNumber(record.output);
+		const reasoning = this.asNumber(record.reasoning);
+		const read = this.asNumber(cache.read);
+		const write = this.asNumber(cache.write);
+		if (
+			input === undefined ||
+			output === undefined ||
+			reasoning === undefined ||
+			read === undefined ||
+			write === undefined
+		) {
+			return undefined;
+		}
+
+		return {
+			input,
+			output,
+			reasoning,
+			cache: {
+				read,
+				write,
+			},
+		};
+	}
+
+	private asRecord(value: unknown): Record<string, unknown> | null {
+		if (!value || typeof value !== "object" || Array.isArray(value)) {
+			return null;
+		}
+		return value as Record<string, unknown>;
+	}
+
+	private asNumber(value: unknown): number | undefined {
+		if (typeof value === "number" && Number.isFinite(value)) {
+			return value;
+		}
+		return undefined;
 	}
 
 	private toStringValue(value: unknown): string {

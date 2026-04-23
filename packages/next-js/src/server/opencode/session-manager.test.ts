@@ -15,10 +15,7 @@ type PrivateSessionManager = {
 		directory: string;
 	} | null>;
 	storageReader: {
-		getMessagesFromFilesystem(
-			sessionId: string,
-			limit?: number,
-		): Promise<OpenCodeMessage[]>;
+		getMessages(sessionId: string, limit?: number): Promise<OpenCodeMessage[]>;
 	};
 };
 
@@ -63,10 +60,9 @@ describe("OpencodeSessionManager storage fallback", () => {
 				messages: vi.fn(async () => []),
 			},
 		});
-		vi.spyOn(
-			privateManager.storageReader,
-			"getMessagesFromFilesystem",
-		).mockResolvedValue(storageMessages);
+		vi.spyOn(privateManager.storageReader, "getMessages").mockResolvedValue(
+			storageMessages,
+		);
 
 		await expect(manager.getMessages("session-1", 50)).resolves.toEqual(
 			storageMessages,
@@ -93,10 +89,9 @@ describe("OpencodeSessionManager storage fallback", () => {
 		vi.spyOn(manager, "getTodos").mockResolvedValue([]);
 		vi.spyOn(manager, "listPendingPermissions").mockResolvedValue([]);
 		vi.spyOn(manager, "listPendingQuestions").mockResolvedValue([]);
-		vi.spyOn(
-			privateManager.storageReader,
-			"getMessagesFromFilesystem",
-		).mockResolvedValue(storageMessages);
+		vi.spyOn(privateManager.storageReader, "getMessages").mockResolvedValue(
+			storageMessages,
+		);
 
 		const inspection = await manager.inspectSession("session-1");
 
@@ -132,10 +127,9 @@ describe("OpencodeSessionManager storage fallback", () => {
 		vi.spyOn(manager, "getTodos").mockResolvedValue([]);
 		vi.spyOn(manager, "listPendingPermissions").mockResolvedValue([]);
 		vi.spyOn(manager, "listPendingQuestions").mockResolvedValue([]);
-		vi.spyOn(
-			privateManager.storageReader,
-			"getMessagesFromFilesystem",
-		).mockResolvedValue(storageMessages);
+		vi.spyOn(privateManager.storageReader, "getMessages").mockResolvedValue(
+			storageMessages,
+		);
 
 		const inspection = await manager.inspectSession("session-1");
 
