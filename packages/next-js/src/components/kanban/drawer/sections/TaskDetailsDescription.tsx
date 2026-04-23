@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { AlertTriangle, Loader2, Play, Wand2, X } from "lucide-react";
+import {
+	AlertTriangle,
+	FlaskConical,
+	Loader2,
+	Play,
+	Wand2,
+	X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { KanbanTask } from "@/types/kanban";
 import { RichMarkdownEditor } from "@/components/common/RichMarkdownEditor";
@@ -23,19 +30,35 @@ export function TaskDetailsDescription({
 	headerLeft,
 }: TaskDetailsDescriptionProps) {
 	const [isGeneratingStory, setIsGeneratingStory] = useState(false);
-	const [generationError, setGenerationError] = useState<string | null>(null);
+	const [isStartingQaTesting, setIsStartingQaTesting] = useState(false);
+	const [actionError, setActionError] = useState<string | null>(null);
 
 	const handleImproveDescription = async () => {
 		setIsGeneratingStory(true);
-		setGenerationError(null);
+		setActionError(null);
 
 		try {
 			await api.opencode.generateUserStory({ taskId: task.id });
 		} catch (error) {
 			console.error("Failed to generate user story:", error);
-			setGenerationError("Failed to generate user story. Please try again.");
+			setActionError("Failed to generate user story. Please try again.");
 		} finally {
 			setIsGeneratingStory(false);
+		}
+	};
+
+	const handleStartQaTesting = async () => {
+		setIsStartingQaTesting(true);
+		setActionError(null);
+
+		try {
+			await api.opencode.startQaTesting({ taskId: task.id });
+			onStartRun?.();
+		} catch (error) {
+			console.error("Failed to start QA testing:", error);
+			setActionError("Failed to start QA testing. Please try again.");
+		} finally {
+			setIsStartingQaTesting(false);
 		}
 	};
 
@@ -55,13 +78,13 @@ export function TaskDetailsDescription({
 				</div>
 			</div>
 
-			{generationError && (
+			{actionError && (
 				<div className="text-[10px] text-red-400 bg-red-400/10 border border-red-400/20 px-3 py-2 rounded-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
 					<AlertTriangle className="w-3 h-3 shrink-0" />
-					<span className="flex-1">{generationError}</span>
+					<span className="flex-1">{actionError}</span>
 					<button
 						type="button"
-						onClick={() => setGenerationError(null)}
+						onClick={() => setActionError(null)}
 						className="p-0.5 hover:bg-red-400/20 rounded-lg transition-colors"
 					>
 						<X className="w-3 h-3" />
@@ -81,22 +104,48 @@ export function TaskDetailsDescription({
 				toolbarExtra={
 					<>
 						{task.description && task.description.trim().length > 0 && (
-							<button
-								type="button"
-								onClick={onStartRun}
-								className="w-8 h-8 flex items-center justify-center bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-lg transition-all border border-blue-500/20 hover:border-blue-500 shadow-lg shadow-blue-500/5 animate-pulse-subtle mr-1"
-								title="Run task"
-							>
-								<Play className="w-3.5 h-3.5 fill-current" />
-							</button>
+							<>
+								<button
+									type="button"
+									onClick={handleStartQaTesting}
+									disabled={isStartingQaTesting || isGeneratingStory}
+									className={cn(
+										"h-8 inline-flex items-center gap-1.5 px-2.5 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-lg transition-all border border-emerald-500/20 hover:border-emerald-500 shadow-lg shadow-emerald-500/5 mr-1 text-[11px] font-semibold",
+										(isStartingQaTesting || isGeneratingStory) &&
+											"opacity-60 cursor-not-allowed",
+									)}
+									title="Start QA testing"
+								>
+									{isStartingQaTesting ? (
+										<>
+											<Loader2 className="w-3.5 h-3.5 animate-spin" />
+											<span>QA Testing...</span>
+										</>
+									) : (
+										<>
+											<FlaskConical className="w-3.5 h-3.5" />
+											<span>QA Testing</span>
+										</>
+									)}
+								</button>
+								<button
+									type="button"
+									onClick={onStartRun}
+									className="w-8 h-8 flex items-center justify-center bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-lg transition-all border border-blue-500/20 hover:border-blue-500 shadow-lg shadow-blue-500/5 animate-pulse-subtle mr-1"
+									title="Open runs"
+								>
+									<Play className="w-3.5 h-3.5 fill-current" />
+								</button>
+							</>
 						)}
 						<button
 							type="button"
 							onClick={handleImproveDescription}
-							disabled={isGeneratingStory}
+							disabled={isGeneratingStory || isStartingQaTesting}
 							className={cn(
 								"w-8 h-8 flex items-center justify-center bg-violet-600/10 hover:bg-violet-600 text-violet-400 hover:text-white rounded-lg transition-all border border-violet-500/20 hover:border-violet-500",
-								isGeneratingStory && "opacity-50 cursor-not-allowed",
+								(isGeneratingStory || isStartingQaTesting) &&
+									"opacity-50 cursor-not-allowed",
 							)}
 							title="Improve with AI"
 						>
