@@ -58,7 +58,7 @@ Objective:
 
 Response rules:
 1) Keep each answer focused and actionable.
-2) If you need user input, ask questions directly.
+2) Actively use the question tool to ask the user — including multi-question prompts (multiple questions in a single call). Prefer structured questions with predefined options when possible to speed up the dialog.
 3) Do not output textual status markers or special control tokens. If you can proceed with a reasonable assumption, do so and state it briefly. If you cannot continue without user input, ask one specific question.
 4) This is an interactive chat — the user will decide when to trigger final user story generation.`;
 }

@@ -69,11 +69,15 @@ function SingleQuestionForm({
 	};
 
 	const handleCustomToggle = () => {
-		onChange((prev) => ({
-			...prev,
-			useCustom: !prev.useCustom,
-			selectedOptions: isMultiple ? prev.selectedOptions : [],
-		}));
+		onChange((prev) => {
+			// Don't close if there's already text — prevents accidental data loss
+			if (prev.useCustom && prev.customText.trim()) return prev;
+			return {
+				...prev,
+				useCustom: !prev.useCustom,
+				selectedOptions: isMultiple ? prev.selectedOptions : [],
+			};
+		});
 	};
 
 	return (
@@ -159,6 +163,7 @@ function SingleQuestionForm({
 							rows={2}
 							disabled={sending}
 							onClick={(e) => e.stopPropagation()}
+							onKeyDown={(e) => e.stopPropagation()}
 							onChange={(e) =>
 								onChange((prev) => ({ ...prev, customText: e.target.value }))
 							}
@@ -438,8 +443,8 @@ export function QuestionInteraction({
 							}
 							disabled={sending}
 							className={cn(
-								"flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-all cursor-pointer",
-								"bg-transparent border border-slate-600/40 text-slate-400 hover:border-amber-500/30 hover:text-amber-300",
+								"flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer",
+								"bg-slate-700/50 border border-slate-500/40 text-slate-200 hover:bg-amber-500/15 hover:border-amber-500/40 hover:text-amber-200",
 								sending && "opacity-50 cursor-not-allowed",
 							)}
 						>
