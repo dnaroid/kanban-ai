@@ -40,7 +40,7 @@ export function ServerStatusProvider({
 			try {
 				await fetch("/api/projects", { cache: "no-store" });
 				if (!isDisposed) {
-					setIsServerDown(false);
+					window.location.reload();
 				}
 			} catch {
 				return;

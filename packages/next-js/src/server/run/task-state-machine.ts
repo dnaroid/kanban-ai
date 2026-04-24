@@ -990,7 +990,7 @@ export class TaskStateMachine {
 					? "running"
 					: null;
 			case "qa:start":
-				return this.isReviewState(input.task.status, currentColumnKey)
+				return this.canStartQa(input.task.status, currentColumnKey)
 					? "testing"
 					: null;
 			case "run:cancelled":
@@ -1284,6 +1284,12 @@ export class TaskStateMachine {
 
 	private isReviewState(status: TaskStatus, columnKey: string | null): boolean {
 		return status === "done" && columnKey === "review";
+	}
+
+	private canStartQa(status: TaskStatus, columnKey: string | null): boolean {
+		return (
+			status === "done" && (columnKey === "review" || columnKey === "closed")
+		);
 	}
 
 	private isTestingState(

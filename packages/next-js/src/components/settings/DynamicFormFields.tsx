@@ -289,12 +289,31 @@ function inferSchema(value: unknown): JSONSchema {
 	return { type: "object" };
 }
 
+export function canRemoveObjectProperty(
+	schema: JSONSchema,
+	obj: Record<string, unknown>,
+	key: string,
+): boolean {
+	if (!Object.prototype.hasOwnProperty.call(obj, key)) {
+		return false;
+	}
+
+	const requiredKeys = new Set(
+		Array.isArray(schema.required) ? schema.required : [],
+	);
+	const minProperties =
+		typeof schema.minProperties === "number" ? schema.minProperties : 0;
+
+	return !requiredKeys.has(key) && Object.keys(obj).length > minProperties;
+}
+
 function DynamicObjectField({
 	schema,
 	value,
 	onChange,
 	path,
 	label,
+	labelAction,
 	models,
 	modelVariants,
 	depth = 0,
@@ -330,6 +349,7 @@ function DynamicObjectField({
 				onChange={onChange}
 				path={path}
 				label={label}
+				labelAction={labelAction}
 				models={models}
 				modelVariants={modelVariants}
 				depth={depth}
@@ -382,6 +402,7 @@ function ObjectTreeNode({
 	onChange,
 	path,
 	label: labelProp,
+	labelAction,
 	models,
 	modelVariants,
 	depth,
@@ -399,6 +420,8 @@ function ObjectTreeNode({
 	const [showAddModal, setShowAddModal] = useState(false);
 	const [newKeyName, setNewKeyName] = useState("");
 	const obj = (value as Record<string, unknown>) ?? {};
+	const canRemoveKey = (key: string) =>
+		canRemoveObjectProperty(schema, obj, key);
 
 	const handleChange = (key: string, newValue: unknown) => {
 		onChange({ ...obj, [key]: newValue });
@@ -428,6 +451,15 @@ function ObjectTreeNode({
 	};
 
 	const handleRemoveDynamicKey = (key: string) => {
+		if (!canRemoveKey(key)) return;
+		const rest = Object.fromEntries(
+			Object.entries(obj).filter(([entryKey]) => entryKey !== key),
+		);
+		onChange(rest);
+	};
+
+	const handleRemoveDefinedKey = (key: string) => {
+		if (!canRemoveKey(key)) return;
 		const rest = Object.fromEntries(
 			Object.entries(obj).filter(([entryKey]) => entryKey !== key),
 		);
@@ -468,6 +500,7 @@ function ObjectTreeNode({
 				<span className="text-sm font-bold text-slate-300 truncate">
 					{fieldLabel}
 				</span>
+				{labelAction && <span className="ml-2">{labelAction}</span>}
 
 				{itemModel && (
 					<div
@@ -520,21 +553,38 @@ function ObjectTreeNode({
 							))}
 						</div>
 					)}
-					{definedProps.map(([key, propSchema]) => (
-						<DynamicField
-							key={key}
-							schema={propSchema as JSONSchema}
-							value={obj[key]}
-							onChange={(v) => handleChange(key, v)}
-							label={key}
-							path={`${path}.${key}`}
-							models={models}
-							modelVariants={modelVariants}
-							depth={depth + 1}
-							validationErrors={validationErrors}
-							entityModel={obj.model as string}
-						/>
-					))}
+					{definedProps.map(([key, propSchema]) => {
+						const isPresent = Object.prototype.hasOwnProperty.call(obj, key);
+						const canRemoveDefined = isPresent && canRemoveKey(key);
+
+						return (
+							<DynamicField
+								key={key}
+								schema={propSchema as JSONSchema}
+								value={obj[key]}
+								onChange={(v) => handleChange(key, v)}
+								label={key}
+								path={`${path}.${key}`}
+								models={models}
+								modelVariants={modelVariants}
+								depth={depth + 1}
+								validationErrors={validationErrors}
+								entityModel={obj.model as string}
+								labelAction={
+									canRemoveDefined ? (
+										<button
+											type="button"
+											onClick={() => handleRemoveDefinedKey(key)}
+											className="text-slate-500 hover:text-red-400 transition-colors"
+											title="Remove"
+										>
+											<X className="w-3.5 h-3.5" />
+										</button>
+									) : undefined
+								}
+							/>
+						);
+					})}
 					{dynamicKeys.map((key) => {
 						const keyErrors = validationErrors.filter(
 							(e) => e.path === `${path}.${key}`,
@@ -570,6 +620,7 @@ function ObjectTreeNode({
 										<button
 											type="button"
 											onClick={() => handleRemoveDynamicKey(key)}
+											disabled={!canRemoveKey(key)}
 											className="text-slate-500 hover:text-red-400 transition-colors"
 											title="Remove"
 										>
@@ -851,6 +902,7 @@ function DynamicField({
 				modelVariants={modelVariants}
 				depth={depth + 1}
 				label={label}
+				labelAction={labelAction}
 			/>
 		);
 	}

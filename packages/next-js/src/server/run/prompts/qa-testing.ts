@@ -178,10 +178,6 @@ Acceptance Criteria:
 ${acceptanceCriteria ?? "(extract from task description below)"}
 
 ${task.qaReport ? `Previous QA report (issues to re-verify):\n${task.qaReport}\n` : ""}
-
-Full task description:
-${task.description ?? "(empty)"}
-
 Project: ${project.name} (${project.path})
 
 Instructions:

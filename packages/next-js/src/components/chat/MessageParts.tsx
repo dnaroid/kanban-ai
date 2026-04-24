@@ -468,7 +468,8 @@ export function ToolPart({
 								</span>
 								{part.tool === "bash" && typeof part.output === "string" ? (
 									<AnsiOutput text={part.output} />
-								) : part.tool === "background_output" &&
+								) : (part.tool === "background_output" ||
+										part.tool === "skill") &&
 									typeof part.output === "string" ? (
 									<LightMarkdown
 										text={part.output}

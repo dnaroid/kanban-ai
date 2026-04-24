@@ -365,7 +365,7 @@ export function SortableTask({
 						rel="noopener noreferrer"
 						onClick={(e) => e.stopPropagation()}
 						onPointerDown={(e) => e.stopPropagation()}
-						className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-blue-500/85 transition-colors hover:bg-blue-500/10 hover:text-blue-400 active:bg-blue-500/20"
+						className="inline-flex items-center gap-0.5 rounded-md text-xs font-semibold text-blue-500/85 transition-colors hover:bg-blue-500/10 hover:text-blue-400 active:bg-blue-500/20"
 						title="OpenCode"
 					>
 						<ExternalLink className="h-3.5 w-3.5" />
@@ -380,7 +380,7 @@ export function SortableTask({
 						disabled={isLoading}
 						data-testid="run-task-button"
 						className={cn(
-							"inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
+							"inline-flex items-center gap-0.5 rounded-md text-xs font-semibold transition-colors",
 							systemKey === "review"
 								? "text-emerald-400/85 hover:text-emerald-300 hover:bg-emerald-500/10 active:bg-emerald-500/20"
 								: "text-blue-500/85 hover:text-blue-400 hover:bg-blue-500/10 active:bg-blue-500/20",
@@ -403,7 +403,7 @@ export function SortableTask({
 						onPointerDown={handleContextPointerDown}
 						disabled={isQaLoading || isFixLoading}
 						className={cn(
-							"inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
+							"inline-flex items-center gap-0.5 rounded-md text-xs font-semibold transition-colors",
 							"text-emerald-400/85 hover:bg-emerald-500/10 hover:text-emerald-300 active:bg-emerald-500/20",
 							(isQaLoading || isFixLoading) && "pointer-events-none opacity-80",
 						)}
@@ -424,7 +424,7 @@ export function SortableTask({
 						onPointerDown={handleContextPointerDown}
 						disabled={isFixLoading || isQaLoading}
 						className={cn(
-							"inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
+							"inline-flex items-center gap-0.5 rounded-md text-xs font-semibold transition-colors",
 							"text-orange-400/85 hover:bg-orange-500/10 hover:text-orange-300 active:bg-orange-500/20",
 							(isFixLoading || isQaLoading) && "pointer-events-none opacity-80",
 						)}
@@ -446,7 +446,7 @@ export function SortableTask({
 							onRejectAction(task.id);
 						}}
 						onPointerDown={(e) => e.stopPropagation()}
-						className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-orange-400/85 transition-colors hover:bg-orange-500/10 hover:text-orange-300 active:bg-orange-500/20"
+						className="inline-flex items-center gap-0.5 rounded-md text-xs font-semibold text-orange-400/85 transition-colors hover:bg-orange-500/10 hover:text-orange-300 active:bg-orange-500/20"
 						title="Reject Task"
 					>
 						<XCircle className="h-3.5 w-3.5" />
@@ -460,7 +460,7 @@ export function SortableTask({
 						onDelete?.(task.id);
 					}}
 					onPointerDown={(e) => e.stopPropagation()}
-					className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-red-400/85 transition-colors hover:bg-red-500/10 hover:text-red-300 active:bg-red-500/20"
+					className="inline-flex items-center gap-0.5 rounded-md text-xs font-semibold text-red-400/85 transition-colors hover:bg-red-500/10 hover:text-red-300 active:bg-red-500/20"
 					title="Delete Task"
 				>
 					<Trash2 className="h-3.5 w-3.5" />

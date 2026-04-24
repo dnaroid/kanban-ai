@@ -438,7 +438,12 @@ export function BoardScreen({
 										globalTags={globalTags}
 										tasks={tasks
 											.filter((t) => t.columnId === column.id)
-											.sort((a, b) => a.orderInColumn - b.orderInColumn)}
+											.sort((a, b) =>
+												column.systemKey === "review" ||
+												column.systemKey === "closed"
+													? b.updatedAt.localeCompare(a.updatedAt)
+													: a.orderInColumn - b.orderInColumn,
+											)}
 										onTaskClick={handleTaskClick}
 										onDeleteTask={handleDeleteTask}
 										onBulkDelete={handleBulkDelete}

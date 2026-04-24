@@ -220,6 +220,27 @@ describe("TaskStateMachine QA transitions", () => {
 		);
 	});
 
+	it("qa:start transitions done/closed to testing/in_progress", () => {
+		const machine = new TaskStateMachine();
+
+		const result = machine.transition(
+			buildTransitionInput({
+				trigger: "qa:start",
+				task: { status: "done", columnId: "closed-col" },
+			}),
+		);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				action: "update",
+				patch: expect.objectContaining({
+					status: "testing",
+					columnId: "in-progress-col",
+				}),
+			}),
+		);
+	});
+
 	it("qa:start skips from non-review state", () => {
 		const machine = new TaskStateMachine();
 

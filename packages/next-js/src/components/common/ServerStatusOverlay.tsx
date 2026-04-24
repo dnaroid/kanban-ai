@@ -22,11 +22,9 @@ export function ServerStatusOverlay() {
 						<Loader2 className="h-4 w-4 animate-spin" />
 					</div>
 					<p className="text-slate-200 text-lg font-medium">
-						Сервер недоступен
+						Server Unavailable
 					</p>
-					<p className="text-slate-400 text-sm">
-						Пытаемся восстановить соединение...
-					</p>
+					<p className="text-slate-400 text-sm">Attempting to reconnect...</p>
 				</div>
 			</div>
 			<style>{`
