@@ -18,21 +18,26 @@ import {
 } from "@/components/common/ModelPicker";
 import type { OpencodeModel } from "@/types/kanban";
 import Ajv from "ajv";
+import Ajv2020 from "ajv/dist/2020";
 
-// Validation error type
+const ajv = new Ajv({
+	allErrors: true,
+	strict: false,
+	addUsedSchema: false,
+});
+
+const ajv2020 = new Ajv2020({
+	allErrors: true,
+	strict: false,
+	addUsedSchema: false,
+});
+
 export interface ValidationError {
 	path: string;
 	message: string;
 	keyword: string;
 	params?: Record<string, unknown>;
 }
-
-// Global AJV instance - addUsedSchema: false prevents caching by $id
-const ajv = new Ajv({
-	allErrors: true,
-	strict: false,
-	addUsedSchema: false,
-});
 
 interface FieldProps {
 	schema: JSONSchema;
@@ -275,11 +280,21 @@ function DynamicArrayField({
 	);
 }
 
+function inferSchema(value: unknown): JSONSchema {
+	if (value === null || value === undefined) return { type: "string" };
+	if (typeof value === "boolean") return { type: "boolean" };
+	if (typeof value === "number") return { type: "number" };
+	if (typeof value === "string") return { type: "string" };
+	if (Array.isArray(value)) return { type: "array" };
+	return { type: "object" };
+}
+
 function DynamicObjectField({
 	schema,
 	value,
 	onChange,
 	path,
+	label,
 	models,
 	modelVariants,
 	depth = 0,
@@ -300,9 +315,9 @@ function DynamicObjectField({
 	const additionalSchema = schema.additionalProperties as
 		| JSONSchema
 		| undefined;
-	const dynamicKeys = additionalSchema
-		? Object.keys(obj).filter((k) => !definedProps.some(([pk]) => pk === k))
-		: [];
+	const dynamicKeys = Object.keys(obj).filter(
+		(k) => !definedProps.some(([pk]) => pk === k),
+	);
 
 	if (definedProps.length === 0 && dynamicKeys.length === 0) return null;
 
@@ -314,6 +329,7 @@ function DynamicObjectField({
 				value={obj}
 				onChange={onChange}
 				path={path}
+				label={label}
 				models={models}
 				modelVariants={modelVariants}
 				depth={depth}
@@ -365,6 +381,7 @@ function ObjectTreeNode({
 	value,
 	onChange,
 	path,
+	label: labelProp,
 	models,
 	modelVariants,
 	depth,
@@ -419,7 +436,7 @@ function ObjectTreeNode({
 
 	const hasContent = definedProps.length > 0 || dynamicKeys.length > 0;
 	const canAddEntity = additionalSchema && dynamicKeys.length >= 0;
-	const label = path.split(".").pop() ?? "";
+	const label = labelProp ?? path.split(".").pop() ?? "";
 	const fieldLabel = schema.title ?? label;
 
 	// Extract model and variant for header
@@ -522,6 +539,7 @@ function ObjectTreeNode({
 						const keyErrors = validationErrors.filter(
 							(e) => e.path === `${path}.${key}`,
 						);
+						const valueSchema = additionalSchema ?? inferSchema(obj[key]);
 						return (
 							<div key={key} className="relative">
 								{keyErrors.length > 0 && (
@@ -538,7 +556,7 @@ function ObjectTreeNode({
 									</div>
 								)}
 								<DynamicField
-									schema={additionalSchema!}
+									schema={valueSchema}
 									value={obj[key]}
 									onChange={(v) => handleChange(key, v)}
 									label={key}
@@ -832,7 +850,7 @@ function DynamicField({
 				models={models}
 				modelVariants={modelVariants}
 				depth={depth + 1}
-				label={depth === 0 ? fieldLabel : undefined}
+				label={label}
 			/>
 		);
 	}
@@ -1084,7 +1102,10 @@ export function validateSchema(
 	data: unknown,
 ): ValidationError[] {
 	try {
-		const validate = ajv.compile(schema);
+		const schemaRef = schema.$schema as string | undefined;
+		const is2020 = schemaRef?.includes("2020-12");
+		const validator = is2020 ? ajv2020 : ajv;
+		const validate = validator.compile(schema);
 		const isValid = validate(data);
 
 		if (!isValid && validate.errors) {

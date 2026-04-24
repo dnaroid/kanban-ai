@@ -1300,6 +1300,90 @@ class ApiClient {
 		},
 	};
 
+	readonly opencodeConfig = {
+		readConfig: async ({
+			path,
+		}: {
+			path?: string;
+		}): Promise<{ config: unknown; path?: string }> => {
+			const query = path ? `?path=${encodeURIComponent(path)}` : "";
+			const response = await this.fetch(
+				`${this.baseUrl}/api/opencode-config${query}`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to read opencode config",
+				);
+				this.fail(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ config: unknown; path?: string }>(payload);
+		},
+		saveConfig: async ({
+			path,
+			config,
+		}: {
+			path: string;
+			config: unknown;
+		}): Promise<{ ok: boolean }> => {
+			const response = await this.fetch(`${this.baseUrl}/api/opencode-config`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ path, config }),
+			});
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to save opencode config",
+				);
+				this.fail(message);
+			}
+			return { ok: true };
+		},
+		backup: async ({
+			path,
+		}: {
+			path: string;
+		}): Promise<{ ok: boolean; backupPath: string }> => {
+			const response = await this.fetch(
+				`${this.baseUrl}/api/opencode-config/backup`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ path }),
+				},
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to backup opencode config",
+				);
+				this.fail(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ ok: boolean; backupPath: string }>(payload);
+		},
+		restore: async ({ path }: { path: string }): Promise<{ ok: boolean }> => {
+			const response = await this.fetch(
+				`${this.baseUrl}/api/opencode-config/restore`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ path }),
+				},
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to restore opencode config",
+				);
+				this.fail(message);
+			}
+			return { ok: true };
+		},
+	};
+
 	readonly filesystem = {
 		exists: async ({
 			path,
@@ -1402,6 +1486,16 @@ class ApiClient {
 			path: string;
 		}): Promise<{ ok: boolean }> => ({
 			ok: await this.setAppSetting("ohMyOpencodePath", path),
+		}),
+		getOpencodeConfigPath: async (): Promise<{ path: string | null }> => ({
+			path: await this.getAppSetting("opencodeConfigPath"),
+		}),
+		setOpencodeConfigPath: async ({
+			path,
+		}: {
+			path: string;
+		}): Promise<{ ok: boolean }> => ({
+			ok: await this.setAppSetting("opencodeConfigPath", path),
 		}),
 	};
 

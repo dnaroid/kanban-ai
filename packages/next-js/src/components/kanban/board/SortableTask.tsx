@@ -9,9 +9,12 @@ import {
 	ExternalLink,
 	XCircle,
 	RotateCcw,
+	FlaskConical,
+	Wrench,
 } from "lucide-react";
 import type { KanbanTask, Tag } from "@/types/kanban";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api-client";
 import { PillSelect } from "@/components/common/PillSelect";
 import { priorityConfig, typeConfig } from "../TaskPropertyConfigs";
 import {
@@ -53,6 +56,8 @@ export function SortableTask({
 	isDeleting,
 }: SortableTaskProps) {
 	const [isLoading, setIsLoading] = useState(false);
+	const [isQaLoading, setIsQaLoading] = useState(false);
+	const [isFixLoading, setIsFixLoading] = useState(false);
 	const cardRef = useRef<HTMLDivElement | null>(null);
 	const workflowConfig = useWorkflowDisplayConfig();
 	const {
@@ -149,6 +154,11 @@ export function SortableTask({
 		actionConfig &&
 		(shouldBypassInactiveStatus ||
 			!INACTIVE_CONTEXT_ACTION_STATUSES.has(task.status));
+	const showRunQaButton =
+		systemKey === "review" &&
+		task.status === "done" &&
+		task.isSessionBusy !== true;
+	const showFixQaButton = task.status === "qa_failed";
 
 	const handleContextClick = async (e: React.MouseEvent) => {
 		e.stopPropagation();
@@ -163,6 +173,34 @@ export function SortableTask({
 
 	const handleContextPointerDown = (e: React.PointerEvent) => {
 		e.stopPropagation();
+	};
+
+	const handleRunQa = async (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (isQaLoading) return;
+		setIsQaLoading(true);
+		try {
+			await api.opencode.startQaTesting({ taskId: task.id });
+			onUpdate?.(task.id, {});
+		} catch (error) {
+			console.error("Failed to start QA testing:", error);
+		} finally {
+			setIsQaLoading(false);
+		}
+	};
+
+	const handleFixQa = async (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (isFixLoading) return;
+		setIsFixLoading(true);
+		try {
+			await api.opencode.fixQa({ taskId: task.id });
+			onUpdate?.(task.id, {});
+		} catch (error) {
+			console.error("Failed to fix QA:", error);
+		} finally {
+			setIsFixLoading(false);
+		}
 	};
 
 	return (
@@ -356,6 +394,48 @@ export function SortableTask({
 							<actionConfig.icon className="h-3.5 w-3.5" />
 						)}
 						<span>{actionConfig.label}</span>
+					</button>
+				)}
+				{showRunQaButton && (
+					<button
+						type="button"
+						onClick={handleRunQa}
+						onPointerDown={handleContextPointerDown}
+						disabled={isQaLoading || isFixLoading}
+						className={cn(
+							"inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
+							"text-emerald-400/85 hover:bg-emerald-500/10 hover:text-emerald-300 active:bg-emerald-500/20",
+							(isQaLoading || isFixLoading) && "pointer-events-none opacity-80",
+						)}
+						title="Run QA"
+					>
+						{isQaLoading ? (
+							<Loader2 className="h-3.5 w-3.5 animate-spin" />
+						) : (
+							<FlaskConical className="h-3.5 w-3.5" />
+						)}
+						<span>{isQaLoading ? "Running QA..." : "Run QA"}</span>
+					</button>
+				)}
+				{showFixQaButton && (
+					<button
+						type="button"
+						onClick={handleFixQa}
+						onPointerDown={handleContextPointerDown}
+						disabled={isFixLoading || isQaLoading}
+						className={cn(
+							"inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
+							"text-orange-400/85 hover:bg-orange-500/10 hover:text-orange-300 active:bg-orange-500/20",
+							(isFixLoading || isQaLoading) && "pointer-events-none opacity-80",
+						)}
+						title="Fix & Retry"
+					>
+						{isFixLoading ? (
+							<Loader2 className="h-3.5 w-3.5 animate-spin" />
+						) : (
+							<Wrench className="h-3.5 w-3.5" />
+						)}
+						<span>{isFixLoading ? "Fixing..." : "Fix & Retry"}</span>
 					</button>
 				)}
 				{systemKey === "review" && onRejectAction && (

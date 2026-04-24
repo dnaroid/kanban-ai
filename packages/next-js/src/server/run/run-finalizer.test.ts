@@ -257,18 +257,18 @@ describe("resolveTriggerFromOutcome", () => {
 		expect(trigger).toBe("generate:ok");
 	});
 
-	it("returns run:done for completed QA runs", () => {
+	it("returns qa:pass for completed QA runs", () => {
 		const trigger = resolveTriggerFromOutcome(
 			buildRun({ metadata: { kind: "task-qa-testing" } }),
 			"completed",
-			buildOutcome("completed"),
+			buildOutcome("completed", "report"),
 			{ isGenerationRun: () => false },
 		);
 
-		expect(trigger).toBe("run:done");
+		expect(trigger).toBe("qa:pass");
 	});
 
-	it("returns run:fail for failed QA runs", () => {
+	it("returns qa:fail for failed QA runs", () => {
 		const trigger = resolveTriggerFromOutcome(
 			buildRun({ metadata: { kind: "task-qa-testing" } }),
 			"failed",
@@ -276,7 +276,51 @@ describe("resolveTriggerFromOutcome", () => {
 			{ isGenerationRun: () => false },
 		);
 
-		expect(trigger).toBe("run:fail");
+		expect(trigger).toBe("qa:fail");
+	});
+
+	it("returns qa:fail for timeout QA runs", () => {
+		const trigger = resolveTriggerFromOutcome(
+			buildRun({ metadata: { kind: "task-qa-testing" } }),
+			"failed",
+			buildOutcome("timeout"),
+			{ isGenerationRun: () => false },
+		);
+
+		expect(trigger).toBe("qa:fail");
+	});
+
+	it("returns qa:fail for dead QA runs", () => {
+		const trigger = resolveTriggerFromOutcome(
+			buildRun({ metadata: { kind: "task-qa-testing" } }),
+			"failed",
+			buildOutcome("dead"),
+			{ isGenerationRun: () => false },
+		);
+
+		expect(trigger).toBe("qa:fail");
+	});
+
+	it("returns qa:cancelled for cancelled QA runs", () => {
+		const trigger = resolveTriggerFromOutcome(
+			buildRun({ metadata: { kind: "task-qa-testing" } }),
+			"failed",
+			buildOutcome("cancelled"),
+			{ isGenerationRun: () => false },
+		);
+
+		expect(trigger).toBe("qa:cancelled");
+	});
+
+	it("returns qa:fail for question QA runs", () => {
+		const trigger = resolveTriggerFromOutcome(
+			buildRun({ metadata: { kind: "task-qa-testing" } }),
+			"failed",
+			buildOutcome("question"),
+			{ isGenerationRun: () => false },
+		);
+
+		expect(trigger).toBe("qa:fail");
 	});
 
 	it("returns null for unknown outcome kind", () => {
@@ -623,6 +667,41 @@ describe("RunFinalizer", () => {
 				expect.objectContaining({ id: "run-1" }),
 				trigger,
 				"transition content",
+			);
+		});
+
+		it("parses <QA REPORT> content before applying QA task transition", async () => {
+			deps.setStoredRun(buildRun({ metadata: { kind: "task-qa-testing" } }));
+
+			await finalizer.finalizeRunFromSession(
+				"run-1",
+				"completed",
+				buildOutcome(
+					"completed",
+					"intro\n<QA REPORT>\nFix validation error\n</QA REPORT>\noutro",
+				),
+			);
+
+			expect(deps.applyTaskTransition).toHaveBeenCalledWith(
+				expect.objectContaining({ id: "run-1" }),
+				"qa:pass",
+				"Fix validation error",
+			);
+		});
+
+		it("falls back to trimmed QA content when <QA REPORT> tags are missing", async () => {
+			deps.setStoredRun(buildRun({ metadata: { kind: "task-qa-testing" } }));
+
+			await finalizer.finalizeRunFromSession(
+				"run-1",
+				"failed",
+				buildOutcome("failed", "  Missing tests in module X  "),
+			);
+
+			expect(deps.applyTaskTransition).toHaveBeenCalledWith(
+				expect.objectContaining({ id: "run-1" }),
+				"qa:fail",
+				"Missing tests in module X",
 			);
 		});
 

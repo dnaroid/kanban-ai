@@ -18,6 +18,8 @@ const TASK_STATUSES: readonly WorkflowTaskStatus[] = [
 	"paused",
 	"done",
 	"failed",
+	"testing",
+	"qa_failed",
 	"generating",
 	"chat",
 ];
@@ -33,6 +35,8 @@ const BLOCKED_REASON_BY_STATUS: Record<
 	paused: "paused",
 	done: null,
 	failed: "failed",
+	testing: null,
+	qa_failed: "failed",
 	generating: null,
 	chat: null,
 };
@@ -46,6 +50,8 @@ const CLOSED_REASON_BY_STATUS: Record<WorkflowTaskStatus, ClosedReason | null> =
 		paused: null,
 		done: "done",
 		failed: "failed",
+		testing: null,
+		qa_failed: null,
 		generating: null,
 		chat: null,
 	};
@@ -61,6 +67,8 @@ const STATUS_VISUALS: Record<
 	paused: { color: "#eab308", icon: "pause" },
 	done: { color: "#10b981", icon: "check-circle" },
 	failed: { color: "#ef4444", icon: "x-circle" },
+	testing: { color: "#8b5cf6", icon: "flask-conical" },
+	qa_failed: { color: "#ef4444", icon: "alert-circle" },
 	generating: { color: "#8b5cf6", icon: "sparkles" },
 	chat: { color: "#06b6d4", icon: "message-circle" },
 };
@@ -73,6 +81,8 @@ const STATUS_TO_COLUMN: Record<WorkflowTaskStatus, WorkflowColumnSystemKey> = {
 	paused: "blocked",
 	done: "review",
 	failed: "blocked",
+	testing: "in_progress",
+	qa_failed: "blocked",
 	generating: "backlog",
 	chat: "backlog",
 };
@@ -110,8 +120,8 @@ const COLUMN_ALLOWED_STATUSES: Record<
 	backlog: ["pending", "generating", "chat"],
 	ready: ["pending", "rejected"],
 	deferred: ["pending"],
-	in_progress: ["running"],
-	blocked: ["question", "paused", "failed"],
+	in_progress: ["running", "testing"],
+	blocked: ["question", "paused", "failed", "qa_failed"],
 	review: ["done"],
 	closed: ["done", "failed"],
 };
@@ -134,8 +144,10 @@ const STATUS_TRANSITIONS: Record<
 	running: ["pending", "paused", "question", "failed", "done"],
 	question: ["pending", "running", "paused", "failed", "done"],
 	paused: ["pending", "running", "question", "failed", "done"],
-	done: ["pending", "running", "failed"],
+	done: ["pending", "running", "failed", "testing"],
 	failed: ["pending", "running", "paused"],
+	testing: ["done", "qa_failed", "pending"],
+	qa_failed: ["running", "pending"],
 	generating: ["pending", "paused", "question", "failed", "done"],
 	chat: ["pending", "paused", "question", "failed", "generating"],
 };
@@ -147,7 +159,7 @@ const COLUMN_TRANSITIONS: Record<
 	backlog: ["ready", "deferred", "in_progress"],
 	ready: ["backlog", "deferred", "in_progress"],
 	deferred: ["backlog", "ready", "in_progress"],
-	in_progress: ["blocked", "review", "ready", "deferred", "backlog"],
+	in_progress: ["blocked", "review", "ready", "deferred", "backlog", "closed"],
 	blocked: ["in_progress", "review", "ready", "deferred", "backlog", "closed"],
 	review: ["in_progress", "blocked", "ready", "closed"],
 	closed: ["ready", "review", "backlog"],

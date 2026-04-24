@@ -765,6 +765,211 @@ describe("ExecutionBootstrapService", () => {
 		});
 	});
 
+	describe("fixQaFailedTask", () => {
+		it("returns false if task is not qa_failed status", async () => {
+			const task = buildTask({ status: "running", qaReport: "Fix bug" });
+			const { service, sendPrompt } = createService();
+
+			const result = await service.fixQaFailedTask(task);
+
+			expect(result).toBe(false);
+			expect(sendPrompt).not.toHaveBeenCalled();
+		});
+
+		it("returns false if task has no qaReport", async () => {
+			const task = buildTask({ status: "qa_failed", qaReport: null });
+			const { service, sendPrompt } = createService();
+
+			const result = await service.fixQaFailedTask(task);
+
+			expect(result).toBe(false);
+			expect(sendPrompt).not.toHaveBeenCalled();
+		});
+
+		it("returns false if no completed execution run exists", async () => {
+			const task = buildTask({
+				status: "qa_failed",
+				qaReport: "Fix failing checks",
+			});
+			mockRunRepo.listAllByTask.mockReturnValue([]);
+			mockRunRepo.listByTask.mockReturnValue([]);
+
+			const { service, sendPrompt } = createService();
+			const result = await service.fixQaFailedTask(task);
+
+			expect(result).toBe(false);
+			expect(sendPrompt).not.toHaveBeenCalled();
+		});
+
+		it("resumes execution run session with QA report", async () => {
+			const task = buildTask({
+				id: "task-qa-failed",
+				status: "qa_failed",
+				qaReport: "Fix validation and add missing tests",
+			});
+			const completedRun = buildRun({
+				id: "run-completed",
+				taskId: "task-qa-failed",
+				status: "completed",
+				sessionId: "session-123",
+				metadata: { kind: "task-run" },
+			});
+			const resumedRun = buildRun({
+				id: "run-completed",
+				taskId: "task-qa-failed",
+				status: "running",
+				sessionId: "session-123",
+			});
+
+			mockRunRepo.listAllByTask.mockReturnValue([completedRun]);
+			mockRunRepo.listByTask.mockReturnValue([completedRun]);
+			mockBoardRepo.getById.mockReturnValue(buildBoard());
+			mockTaskRepo.listByBoard.mockReturnValue([]);
+			mockRunRepo.update.mockReturnValue(resumedRun);
+
+			const { service, sendPrompt } = createService();
+			const result = await service.fixQaFailedTask(task);
+
+			expect(result).toBe(true);
+			expect(sendPrompt).toHaveBeenCalledWith(
+				"session-123",
+				expect.stringContaining("Fix validation and add missing tests"),
+			);
+			expect(mockRunRepo.update).toHaveBeenCalledWith(
+				"run-completed",
+				expect.objectContaining({
+					status: "running",
+					finishedAt: null,
+					errorText: "",
+				}),
+			);
+		});
+
+		it("updates task to running/in_progress", async () => {
+			const task = buildTask({
+				id: "task-qa-failed-2",
+				boardId: "board-1",
+				projectId: "project-1",
+				status: "qa_failed",
+				qaReport: "Address all QA findings",
+			});
+			const completedRun = buildRun({
+				id: "run-done-2",
+				taskId: "task-qa-failed-2",
+				status: "completed",
+				sessionId: "session-qa-2",
+				metadata: { kind: "task-run" },
+			});
+
+			mockRunRepo.listAllByTask.mockReturnValue([completedRun]);
+			mockRunRepo.listByTask.mockReturnValue([completedRun]);
+			mockBoardRepo.getById.mockReturnValue(buildBoard());
+			mockTaskRepo.listByBoard.mockReturnValue([]);
+			mockRunRepo.update.mockReturnValue(
+				buildRun({
+					id: "run-done-2",
+					taskId: "task-qa-failed-2",
+					status: "running",
+					sessionId: "session-qa-2",
+				}),
+			);
+
+			const { service } = createService();
+			const result = await service.fixQaFailedTask(task);
+
+			expect(result).toBe(true);
+			expect(mockTaskRepo.update).toHaveBeenCalledWith(
+				"task-qa-failed-2",
+				expect.objectContaining({
+					status: "running",
+					columnId: "col-progress",
+					orderInColumn: 0,
+				}),
+			);
+		});
+
+		it("clears qaReport on task", async () => {
+			const task = buildTask({
+				id: "task-qa-failed-3",
+				status: "qa_failed",
+				qaReport: "A detailed QA report",
+			});
+			const completedRun = buildRun({
+				id: "run-done-3",
+				taskId: "task-qa-failed-3",
+				status: "completed",
+				sessionId: "session-qa-3",
+				metadata: { kind: "task-run" },
+			});
+
+			mockRunRepo.listAllByTask.mockReturnValue([completedRun]);
+			mockRunRepo.listByTask.mockReturnValue([completedRun]);
+			mockBoardRepo.getById.mockReturnValue(buildBoard());
+			mockTaskRepo.listByBoard.mockReturnValue([]);
+			mockRunRepo.update.mockReturnValue(
+				buildRun({
+					id: "run-done-3",
+					taskId: "task-qa-failed-3",
+					status: "running",
+					sessionId: "session-qa-3",
+				}),
+			);
+
+			const { service } = createService();
+			const result = await service.fixQaFailedTask(task);
+
+			expect(result).toBe(true);
+			expect(mockTaskRepo.update).toHaveBeenCalledWith(
+				"task-qa-failed-3",
+				expect.objectContaining({ qaReport: null }),
+			);
+		});
+
+		it("publishes SSE events", async () => {
+			const task = buildTask({
+				id: "task-qa-failed-4",
+				boardId: "board-1",
+				projectId: "project-1",
+				status: "qa_failed",
+				qaReport: "Fix flaky test and lint error",
+			});
+			const completedRun = buildRun({
+				id: "run-done-4",
+				taskId: "task-qa-failed-4",
+				status: "completed",
+				sessionId: "session-qa-4",
+				metadata: { kind: "task-run" },
+			});
+			const resumedRun = buildRun({
+				id: "run-done-4",
+				taskId: "task-qa-failed-4",
+				status: "running",
+				sessionId: "session-qa-4",
+			});
+
+			mockRunRepo.listAllByTask.mockReturnValue([completedRun]);
+			mockRunRepo.listByTask.mockReturnValue([completedRun]);
+			mockBoardRepo.getById.mockReturnValue(buildBoard());
+			mockTaskRepo.listByBoard.mockReturnValue([]);
+			mockRunRepo.update.mockReturnValue(resumedRun);
+
+			const { service } = createService();
+			const result = await service.fixQaFailedTask(task);
+
+			expect(result).toBe(true);
+			expect(mockPublishRunUpdate).toHaveBeenCalledWith(resumedRun);
+			expect(mockPublishSseEvent).toHaveBeenCalledWith(
+				"task:event",
+				expect.objectContaining({
+					taskId: "task-qa-failed-4",
+					boardId: "board-1",
+					projectId: "project-1",
+					eventType: "task:updated",
+				}),
+			);
+		});
+	});
+
 	// ============================
 	// prepareTaskRunForTask
 	// ============================
