@@ -27,6 +27,8 @@ export const FALLBACK_WORKFLOW_STATUS_VISUALS: Record<
 	question: { icon: "help-circle", color: "#f97316" },
 	paused: { icon: "pause", color: "#eab308" },
 	done: { icon: "check-circle", color: "#10b981" },
+	testing: { icon: "flask-conical", color: "#8b5cf6" },
+	qa_failed: { icon: "shield-x", color: "#ef4444" },
 	failed: { icon: "x-circle", color: "#ef4444" },
 	generating: { icon: "sparkles", color: "#8b5cf6" },
 };

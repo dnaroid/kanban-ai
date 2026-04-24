@@ -108,6 +108,7 @@ export function TaskDrawerRuns({
 	const [isLoadingRuns, setIsLoadingRuns] = useState(false);
 	const [isStartingRun, setIsStartingRun] = useState(false);
 	const [isStartingQaTesting, setIsStartingQaTesting] = useState(false);
+	const [isFixingQa, setIsFixingQa] = useState(false);
 	const [mergingRunId, setMergingRunId] = useState<string | null>(null);
 	const [roles, setRoles] = useState<AgentRole[]>([]);
 	const [selectedRoleId, setSelectedRoleId] = useState<string>("");
@@ -232,6 +233,22 @@ export function TaskDrawerRuns({
 		}
 	};
 
+	const handleFixQa = async () => {
+		if (isFixingQa) return;
+		setIsFixingQa(true);
+		try {
+			await api.opencode.fixQa({ taskId: task.id });
+			await onRefreshTask?.();
+			await fetchRuns();
+		} catch (error) {
+			console.error("Failed to fix QA:", error);
+			await onRefreshTask?.();
+			await fetchRuns();
+		} finally {
+			setIsFixingQa(false);
+		}
+	};
+
 	const handleDirtyGitConfirmStart = () => {
 		setShowDirtyGitConfirm(false);
 		void handleStartRun(true);
@@ -277,11 +294,10 @@ export function TaskDrawerRuns({
 				? await api.opencode.startQaTesting({ taskId: task.id })
 				: await api.run.start({
 						taskId: task.id,
-						roleId:
-							run.roleId || selectedRoleId || visibleRoles[0]?.id,
+						roleId: run.roleId || selectedRoleId || visibleRoles[0]?.id,
 						mode: run.mode,
 						modelName: task.modelName ?? null,
-				  });
+					});
 			await onRefreshTask?.();
 			await fetchRuns();
 			setSelectedRunId(response.runId);
@@ -365,29 +381,56 @@ export function TaskDrawerRuns({
 					<>
 						<div className="sticky top-0 z-10 px-4 pt-4 pb-2 bg-[#0B0E14]/95 backdrop-blur supports-[backdrop-filter]:bg-[#0B0E14]/80">
 							<div className="flex items-center justify-end gap-2">
-								<button
-									type="button"
-									onClick={() => void handleStartQaTesting()}
-									disabled={isStartingQaTesting || isStartingRun}
-									className={cn(
-										"inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors border",
-										isStartingQaTesting || isStartingRun
-											? "cursor-not-allowed border-emerald-500/20 bg-emerald-500/10 text-emerald-300/60"
-											: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20",
-									)}
-								>
-									{isStartingQaTesting ? (
-										<>
-											<Loader2 className="w-3.5 h-3.5 animate-spin" />
-											QA Testing...
-										</>
-									) : (
-										<>
-											<FlaskConical className="w-3.5 h-3.5" />
-											QA Testing
-										</>
-									)}
-								</button>
+								{task.status === "done" && (
+									<button
+										type="button"
+										onClick={() => void handleStartQaTesting()}
+										disabled={isStartingQaTesting || isStartingRun}
+										className={cn(
+											"inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors border",
+											isStartingQaTesting || isStartingRun
+												? "cursor-not-allowed border-emerald-500/20 bg-emerald-500/10 text-emerald-300/60"
+												: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20",
+										)}
+									>
+										{isStartingQaTesting ? (
+											<>
+												<Loader2 className="w-3.5 h-3.5 animate-spin" />
+												QA Testing...
+											</>
+										) : (
+											<>
+												<FlaskConical className="w-3.5 h-3.5" />
+												QA Testing
+											</>
+										)}
+									</button>
+								)}
+								{task.status === "qa_failed" && (
+									<button
+										type="button"
+										onClick={() => void handleFixQa()}
+										disabled={isFixingQa || isStartingRun}
+										className={cn(
+											"inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors border",
+											isFixingQa || isStartingRun
+												? "cursor-not-allowed border-orange-500/20 bg-orange-500/10 text-orange-300/60"
+												: "border-orange-500/30 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20",
+										)}
+									>
+										{isFixingQa ? (
+											<>
+												<Loader2 className="w-3.5 h-3.5 animate-spin" />
+												Fixing...
+											</>
+										) : (
+											<>
+												<RotateCcw className="w-3.5 h-3.5" />
+												Fix & Retry
+											</>
+										)}
+									</button>
+								)}
 								<button
 									type="button"
 									onClick={() => void handleStartRun()}
@@ -414,6 +457,19 @@ export function TaskDrawerRuns({
 							</div>
 						</div>
 						<div className="p-4 space-y-3">
+							{task.qaReport && (
+								<div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 mb-3">
+									<div className="flex items-center gap-2 mb-2 text-slate-300">
+										<FlaskConical className="w-4 h-4 text-emerald-400" />
+										<span className="text-xs font-bold uppercase tracking-wider">
+											QA Report
+										</span>
+									</div>
+									<div className="text-xs text-slate-400 whitespace-pre-wrap leading-relaxed">
+										{task.qaReport}
+									</div>
+								</div>
+							)}
 							{runs.length === 0 && !isLoadingRuns ? (
 								<div className="flex flex-col items-center justify-center h-full space-y-4 opacity-50 py-12">
 									<div className="w-16 h-16 rounded-2xl bg-slate-800/50 flex items-center justify-center border border-slate-700/50">
@@ -424,15 +480,17 @@ export function TaskDrawerRuns({
 											No runs yet
 										</p>
 										<p className="text-xs text-slate-600 max-w-[220px]">
-											Start a regular execution run or launch QA testing for this task.
+											Start a regular execution run or launch QA testing for
+											this task.
 										</p>
 									</div>
 								</div>
 							) : (
 								runs.map((run) => {
 									const statusStyle =
-										runStatusConfig[run.status as keyof typeof runStatusConfig] ||
-										runStatusConfig.queued;
+										runStatusConfig[
+											run.status as keyof typeof runStatusConfig
+										] || runStatusConfig.queued;
 
 									return (
 										<button
@@ -450,7 +508,11 @@ export function TaskDrawerRuns({
 														onClick={(e) => handleRetryRun(run, e)}
 														data-testid="run-task-button"
 														className="p-1.5 bg-slate-800 text-slate-400 hover:text-white rounded-lg border border-slate-700 hover:border-slate-600 transition-colors shadow-lg"
-														title={isQaTestingRun(run) ? "Retry QA testing" : "Retry run"}
+														title={
+															isQaTestingRun(run)
+																? "Retry QA testing"
+																: "Retry run"
+														}
 													>
 														<RotateCcw className="w-3.5 h-3.5" />
 													</button>
@@ -521,7 +583,9 @@ export function TaskDrawerRuns({
 																<User className="w-3 h-3" />
 																{run.roleId || "default"}
 															</span>
-															<span className="text-slate-700 text-[10px]">•</span>
+															<span className="text-slate-700 text-[10px]">
+																•
+															</span>
 															<span className="text-[10px] text-slate-500 font-medium font-mono">
 																{new Date(run.createdAt).toLocaleString()}
 															</span>

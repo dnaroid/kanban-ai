@@ -83,6 +83,8 @@ const TASK_STATUS_VALUES: readonly WorkflowTaskStatus[] = [
 	"paused",
 	"done",
 	"failed",
+	"testing",
+	"qa_failed",
 	"generating",
 	"chat",
 ];
@@ -116,6 +118,8 @@ const BLOCKED_REASON_BY_STATUS_FALLBACK: Record<
 	paused: "paused",
 	done: null,
 	failed: "failed",
+	testing: null,
+	qa_failed: "failed",
 	generating: null,
 	chat: null,
 };
@@ -131,6 +135,8 @@ const CLOSED_REASON_BY_STATUS_FALLBACK: Record<
 	paused: null,
 	done: "done",
 	failed: "failed",
+	testing: null,
+	qa_failed: null,
 	generating: null,
 	chat: null,
 };
@@ -146,6 +152,8 @@ const STATUS_VISUALS_FALLBACK: Record<
 	paused: { color: "#eab308", icon: "pause" },
 	done: { color: "#10b981", icon: "check-circle" },
 	failed: { color: "#ef4444", icon: "x-circle" },
+	testing: { color: "#8b5cf6", icon: "flask-conical" },
+	qa_failed: { color: "#ef4444", icon: "alert-circle" },
 	generating: { color: "#8b5cf6", icon: "sparkles" },
 	chat: { color: "#06b6d4", icon: "message-circle" },
 };
@@ -161,6 +169,8 @@ const STATUS_TO_WORKFLOW_COLUMN_FALLBACK: Record<
 	paused: "blocked",
 	done: "review",
 	failed: "blocked",
+	testing: "in_progress",
+	qa_failed: "blocked",
 	generating: "backlog",
 	chat: "backlog",
 };
@@ -185,8 +195,8 @@ const COLUMN_ALLOWED_STATUSES_FALLBACK: Record<
 	backlog: ["pending", "generating", "chat"],
 	ready: ["pending", "rejected"],
 	deferred: ["pending"],
-	in_progress: ["running"],
-	blocked: ["question", "paused", "failed"],
+	in_progress: ["running", "testing"],
+	blocked: ["question", "paused", "failed", "qa_failed"],
 	review: ["done"],
 	closed: ["done", "failed"],
 };
@@ -209,8 +219,10 @@ const STATUS_TRANSITIONS_FALLBACK: Record<
 	running: ["pending", "paused", "question", "failed", "done"],
 	question: ["pending", "running", "paused", "failed", "done"],
 	paused: ["pending", "running", "question", "failed", "done"],
-	done: ["pending", "running", "failed"],
+	done: ["pending", "running", "failed", "testing"],
 	failed: ["pending", "running", "paused"],
+	testing: ["done", "qa_failed", "pending"],
+	qa_failed: ["running", "pending"],
 	generating: ["pending", "paused", "question", "failed", "done"],
 	chat: ["pending", "paused", "question", "failed", "generating"],
 };
@@ -222,7 +234,7 @@ const COLUMN_TRANSITIONS_FALLBACK: Record<
 	backlog: ["ready", "deferred", "in_progress"],
 	ready: ["backlog", "deferred", "in_progress"],
 	deferred: ["backlog", "ready", "in_progress"],
-	in_progress: ["blocked", "review", "ready", "deferred", "backlog"],
+	in_progress: ["blocked", "review", "ready", "deferred", "backlog", "closed"],
 	blocked: ["in_progress", "review", "ready", "deferred", "backlog", "closed"],
 	review: ["in_progress", "blocked", "ready", "closed"],
 	closed: ["ready", "review", "backlog"],
@@ -549,6 +561,11 @@ export type TaskTransitionTrigger =
 	| "run:dead"
 	| "review:approve"
 	| "review:reject"
+	| "qa:start"
+	| "qa:pass"
+	| "qa:fail"
+	| "qa:fix"
+	| "qa:cancelled"
 	| "recover:retry"
 	| "recover:reopen"
 	| "chat:start";
@@ -586,6 +603,8 @@ export interface TaskTransitionResult {
 		modelName?: string | null;
 		commitMessage?: string | null;
 		isGenerated?: boolean;
+		qaReport?: string | null;
+		wasQaRejected?: boolean;
 	};
 	effects: TaskEffect[];
 }
@@ -783,6 +802,9 @@ function compactPatch(patch: TaskPatch): TaskPatch {
 		compacted.commitMessage = patch.commitMessage;
 	if (patch.isGenerated !== undefined)
 		compacted.isGenerated = patch.isGenerated;
+	if (patch.qaReport !== undefined) compacted.qaReport = patch.qaReport;
+	if (patch.wasQaRejected !== undefined)
+		compacted.wasQaRejected = patch.wasQaRejected;
 
 	return compacted;
 }
@@ -845,6 +867,39 @@ export function resolveTransitionTrigger(params: {
 	}
 
 	return null;
+}
+
+export function isQaRunKind(runKind: string | null | undefined): boolean {
+	return runKind === "task-qa-testing";
+}
+
+export function adaptTriggerForQa(
+	trigger: TaskTransitionTrigger,
+	runKind: string | null | undefined,
+): TaskTransitionTrigger {
+	if (!isQaRunKind(runKind)) return trigger;
+
+	switch (trigger) {
+		case "run:start":
+			return "qa:start";
+		case "run:done":
+			return "qa:pass";
+		case "run:fail":
+			return "qa:fail";
+		case "run:cancelled":
+			return "qa:cancelled";
+		case "run:question":
+			return "qa:fail";
+		case "run:dead":
+			return "qa:fail";
+		default:
+			return trigger;
+	}
+}
+
+export function parseQaReportContent(content: string): string {
+	const match = content.match(/<QA\s+REPORT>([\s\S]*?)<\/QA\s+REPORT>/i);
+	return match?.[1]?.trim() ?? content.trim();
 }
 
 export class TaskStateMachine {
@@ -934,8 +989,16 @@ export class TaskStateMachine {
 				return this.isReadyPending(input.task.status, currentColumnKey)
 					? "running"
 					: null;
+			case "qa:start":
+				return this.isReviewState(input.task.status, currentColumnKey)
+					? "testing"
+					: null;
 			case "run:cancelled":
 				return "pending";
+			case "qa:cancelled":
+				return this.isTestingState(input.task.status, currentColumnKey)
+					? "done"
+					: null;
 			case "run:done":
 				if (isDescriptionImproveRun(input.runKind)) {
 					return this.isDescriptionImproveCompletionState(
@@ -951,6 +1014,18 @@ export class TaskStateMachine {
 			case "run:fail":
 				return this.isActiveRunState(input.task.status, currentColumnKey)
 					? "failed"
+					: null;
+			case "qa:pass":
+				return this.isTestingState(input.task.status, currentColumnKey)
+					? "done"
+					: null;
+			case "qa:fail":
+				return this.isTestingState(input.task.status, currentColumnKey)
+					? "qa_failed"
+					: null;
+			case "qa:fix":
+				return this.isQaFailedState(input.task.status, currentColumnKey)
+					? "running"
 					: null;
 			case "run:question":
 				return this.isActiveRunState(input.task.status, currentColumnKey)
@@ -985,7 +1060,28 @@ export class TaskStateMachine {
 		input: TaskTransitionInput,
 		nextStatus: TaskStatus,
 	): TaskPatch {
-		const nextColumnId = this.resolveColumnIdForStatus(input, nextStatus);
+		let nextColumnId = this.resolveColumnIdForStatus(input, nextStatus);
+
+		if (input.trigger === "qa:pass") {
+			const closedColumnId = getWorkflowColumnIdBySystemKey(
+				input.board,
+				"closed",
+			);
+			if (closedColumnId) {
+				nextColumnId = closedColumnId;
+			}
+		}
+
+		if (input.trigger === "qa:cancelled") {
+			const reviewColumnId = getWorkflowColumnIdBySystemKey(
+				input.board,
+				"review",
+			);
+			if (reviewColumnId) {
+				nextColumnId = reviewColumnId;
+			}
+		}
+
 		const nextColumnKey = getWorkflowColumnSystemKey(input.board, nextColumnId);
 		const reasons = resolveTaskStatusReasons(nextStatus, nextColumnKey);
 		const patch: TaskPatch = {
@@ -1001,6 +1097,16 @@ export class TaskStateMachine {
 			patch.blockedReasonText = input.outcomeContent || null;
 		} else if (input.task.status === "failed" && nextStatus !== "failed") {
 			patch.blockedReasonText = null;
+		}
+
+		if (input.trigger === "qa:fail") {
+			patch.qaReport = input.outcomeContent || null;
+			patch.wasQaRejected = true;
+		} else if (input.trigger === "qa:pass") {
+			patch.qaReport = null;
+			patch.wasQaRejected = false;
+		} else if (input.trigger === "qa:fix") {
+			patch.qaReport = null;
 		}
 
 		return patch;
@@ -1178,6 +1284,20 @@ export class TaskStateMachine {
 
 	private isReviewState(status: TaskStatus, columnKey: string | null): boolean {
 		return status === "done" && columnKey === "review";
+	}
+
+	private isTestingState(
+		status: TaskStatus,
+		columnKey: string | null,
+	): boolean {
+		return status === "testing" && columnKey === "in_progress";
+	}
+
+	private isQaFailedState(
+		status: TaskStatus,
+		columnKey: string | null,
+	): boolean {
+		return status === "qa_failed" && columnKey === "blocked";
 	}
 }
 

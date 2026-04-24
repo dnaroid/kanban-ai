@@ -1,6 +1,10 @@
 import { createLogger } from "@/lib/logger";
 import { ensureSessionLive } from "@/server/opencode/session-store";
 import { publishRunUpdate } from "@/server/run/run-publisher";
+import {
+	adaptTriggerForQa,
+	type TaskTransitionTrigger,
+} from "@/server/run/task-state-machine";
 import { runEventRepo } from "@/server/repositories/run-event";
 import { runRepo } from "@/server/repositories/run";
 import type { SessionStartPreferences } from "@/server/opencode/session-manager";
@@ -36,12 +40,7 @@ interface RunExecutorDeps {
 	isStoryChatRun: (run: Run) => boolean;
 	applyTaskTransition: (
 		run: Run,
-		trigger:
-			| "generate:start"
-			| "run:start"
-			| "chat:start"
-			| "generate:fail"
-			| "run:fail",
+		trigger: TaskTransitionTrigger,
 		outcomeContent: string,
 	) => void;
 	scheduleRetryAfterNetworkError: (
@@ -104,11 +103,14 @@ export class RunExecutor {
 		publishRunUpdate(runningRun);
 		this.deps.applyTaskTransition(
 			runningRun,
-			this.deps.isStoryChatRun(runningRun)
-				? "chat:start"
-				: this.deps.isGenerationRun(runningRun)
-					? "generate:start"
-					: "run:start",
+			adaptTriggerForQa(
+				this.deps.isStoryChatRun(runningRun)
+					? "chat:start"
+					: this.deps.isGenerationRun(runningRun)
+						? "generate:start"
+						: "run:start",
+				runningRun.metadata?.kind,
+			),
 			"",
 		);
 
@@ -269,7 +271,10 @@ export class RunExecutor {
 			publishRunUpdate(failedRun);
 			this.deps.applyTaskTransition(
 				failedRun,
-				this.deps.isGenerationRun(failedRun) ? "generate:fail" : "run:fail",
+				adaptTriggerForQa(
+					this.deps.isGenerationRun(failedRun) ? "generate:fail" : "run:fail",
+					failedRun.metadata?.kind,
+				),
 				message,
 			);
 			this.deps.activeRunSessions.delete(runId);

@@ -8,7 +8,11 @@ import { publishSseEvent } from "@/server/events/sse-broker";
 import type { SessionStartPreferences } from "@/server/opencode/session-manager";
 import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
 import { publishRunUpdate } from "@/server/run/run-publisher";
-import { getWorkflowColumnIdBySystemKey } from "@/server/run/task-state-machine";
+import {
+	getTaskStateMachine,
+	getWorkflowColumnIdBySystemKey,
+} from "@/server/run/task-state-machine";
+import type { TaskTransitionInput } from "@/server/run/task-state-machine";
 import type { QueueStats } from "@/server/run/runs-queue-manager";
 import { getRunsQueueManager } from "@/server/run/runs-queue-manager";
 import { contextSnapshotRepo } from "@/server/repositories/context-snapshot";
@@ -922,6 +926,47 @@ export class RunService {
 				projectId: task.projectId,
 			});
 			throw new Error(`Project not found for task: ${task.id}`);
+		}
+
+		const board =
+			boardRepo.getById(task.boardId) ??
+			boardRepo.getByProjectId(task.projectId);
+		if (board) {
+			const transitionInput: TaskTransitionInput = {
+				task: {
+					id: task.id,
+					boardId: task.boardId,
+					status: task.status,
+					columnId: task.columnId,
+					tags: task.tags,
+				},
+				board,
+				trigger: "qa:start",
+				runKind: qaTestingRunKind,
+				outcomeContent: "",
+				hasSessionExisted: false,
+				isManualStatusGracePeriod: false,
+			};
+
+			const sm = getTaskStateMachine();
+			const result = sm.transition(transitionInput);
+			if (result.action === "update") {
+				taskRepo.update(
+					task.id,
+					result.patch as Parameters<typeof taskRepo.update>[1],
+				);
+				for (const effect of result.effects) {
+					if (effect.type === "publishSse") {
+						publishSseEvent("task:event", {
+							taskId: task.id,
+							boardId: task.boardId,
+							projectId: task.projectId,
+							eventType: "task:updated",
+							updatedAt: new Date().toISOString(),
+						});
+					}
+				}
+			}
 		}
 
 		log.debug("Creating context snapshot for QA testing", { taskId: task.id });

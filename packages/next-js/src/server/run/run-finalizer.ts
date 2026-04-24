@@ -1,5 +1,9 @@
 import { createLogger } from "@/lib/logger";
-import type { TaskTransitionTrigger } from "@/server/run/task-state-machine";
+import {
+	isQaRunKind,
+	parseQaReportContent,
+	type TaskTransitionTrigger,
+} from "@/server/run/task-state-machine";
 import type { Run, RunLastExecutionStatus, RunStatus } from "@/types/ipc";
 
 const log = createLogger("runs-queue");
@@ -185,12 +189,12 @@ export class RunFinalizer {
 				status,
 				hydratedOutcome,
 			);
+			let transitionContent = hydratedOutcome.content ?? "";
+			if (isQaRunKind(nextRun.metadata?.kind)) {
+				transitionContent = parseQaReportContent(transitionContent);
+			}
 			if (trigger) {
-				this.deps.applyTaskTransition(
-					nextRun,
-					trigger,
-					hydratedOutcome.content,
-				);
+				this.deps.applyTaskTransition(nextRun, trigger, transitionContent);
 			}
 
 			if (
@@ -201,7 +205,11 @@ export class RunFinalizer {
 				this.pendingGeneratedExecutionTaskIds.set(runId, nextRun.taskId);
 			}
 
-			if (status === "completed" && !this.deps.isGenerationRun(nextRun)) {
+			if (
+				status === "completed" &&
+				!this.deps.isGenerationRun(nextRun) &&
+				!isQaRunKind(nextRun.metadata?.kind)
+			) {
 				const mergedRun = await this.tryAutomaticMerge(nextRun);
 				const mergeStatus = mergedRun.metadata?.vcs?.mergeStatus;
 				if (mergeStatus === "merged") {
@@ -230,6 +238,26 @@ export function resolveTriggerFromOutcome(
 	outcome: RunOutcome,
 	deps: { isGenerationRun: (run: Run) => boolean },
 ): TaskTransitionTrigger | null {
+	if (isQaRunKind(run.metadata?.kind)) {
+		if (outcome.kind === "completed") {
+			return "qa:pass";
+		}
+		if (
+			outcome.kind === "failed" ||
+			outcome.kind === "timeout" ||
+			outcome.kind === "dead"
+		) {
+			return "qa:fail";
+		}
+		if (outcome.kind === "cancelled") {
+			return "qa:cancelled";
+		}
+		if (outcome.kind === "question") {
+			return "qa:fail";
+		}
+		return null;
+	}
+
 	if (outcome.kind === "cancelled") {
 		return "run:cancelled";
 	}

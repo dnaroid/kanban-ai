@@ -4,6 +4,7 @@ import {
 	FlaskConical,
 	Loader2,
 	Play,
+	RotateCcw,
 	Wand2,
 	X,
 } from "lucide-react";
@@ -62,6 +63,22 @@ export function TaskDetailsDescription({
 		}
 	};
 
+	const [isFixingQa, setIsFixingQa] = useState(false);
+	const handleFixQa = async () => {
+		setIsFixingQa(true);
+		setActionError(null);
+
+		try {
+			await api.opencode.fixQa({ taskId: task.id });
+			onStartRun?.();
+		} catch (error) {
+			console.error("Failed to fix QA:", error);
+			setActionError("Failed to fix QA. Please try again.");
+		} finally {
+			setIsFixingQa(false);
+		}
+	};
+
 	return (
 		<section
 			className="flex flex-col flex-1 min-h-0 space-y-3 px-6"
@@ -111,8 +128,10 @@ export function TaskDetailsDescription({
 									disabled={isStartingQaTesting || isGeneratingStory}
 									className={cn(
 										"h-8 inline-flex items-center gap-1.5 px-2.5 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-lg transition-all border border-emerald-500/20 hover:border-emerald-500 shadow-lg shadow-emerald-500/5 mr-1 text-[11px] font-semibold",
-										(isStartingQaTesting || isGeneratingStory) &&
-											"opacity-60 cursor-not-allowed",
+										(isStartingQaTesting ||
+											isGeneratingStory ||
+											task.status !== "done") &&
+											"hidden",
 									)}
 									title="Start QA testing"
 								>
@@ -125,6 +144,31 @@ export function TaskDetailsDescription({
 										<>
 											<FlaskConical className="w-3.5 h-3.5" />
 											<span>QA Testing</span>
+										</>
+									)}
+								</button>
+								<button
+									type="button"
+									onClick={handleFixQa}
+									disabled={isFixingQa || isGeneratingStory}
+									className={cn(
+										"h-8 inline-flex items-center gap-1.5 px-2.5 bg-orange-600/10 hover:bg-orange-600 text-orange-400 hover:text-white rounded-lg transition-all border border-orange-500/20 hover:border-orange-500 shadow-lg shadow-orange-500/5 mr-1 text-[11px] font-semibold",
+										(isFixingQa ||
+											isGeneratingStory ||
+											task.status !== "qa_failed") &&
+											"hidden",
+									)}
+									title="Fix & Retry QA"
+								>
+									{isFixingQa ? (
+										<>
+											<Loader2 className="w-3.5 h-3.5 animate-spin" />
+											<span>Fixing...</span>
+										</>
+									) : (
+										<>
+											<RotateCcw className="w-3.5 h-3.5" />
+											<span>Fix & Retry</span>
 										</>
 									)}
 								</button>

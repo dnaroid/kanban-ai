@@ -4,6 +4,7 @@ import { boardRepo } from "@/server/repositories/board";
 import { runRepo } from "@/server/repositories/run";
 import { taskRepo } from "@/server/repositories/task";
 import {
+	adaptTriggerForQa,
 	getWorkflowColumnSystemKey,
 	type TaskTransitionTrigger,
 } from "@/server/run/task-state-machine";
@@ -292,7 +293,7 @@ export class TaskStatusProjectionService {
 				}
 				this.deps.applyTaskTransition(
 					latestSettledRun,
-					trigger,
+					adaptTriggerForQa(trigger, latestSettledRun.metadata?.kind),
 					derivedContent,
 				);
 				log.info("Reconciled task status from latest settled run", {
@@ -333,7 +334,11 @@ export class TaskStatusProjectionService {
 				trigger = "run:start";
 			}
 			if (task.status !== nextStatus) {
-				this.deps.applyTaskTransition(runningRun, trigger, "");
+				this.deps.applyTaskTransition(
+					runningRun,
+					adaptTriggerForQa(trigger, runningRun.metadata?.kind),
+					"",
+				);
 			}
 			return;
 		}
@@ -342,7 +347,7 @@ export class TaskStatusProjectionService {
 		if (pausedRun && task.status !== "question") {
 			this.deps.applyTaskTransition(
 				pausedRun,
-				"run:question",
+				adaptTriggerForQa("run:question", pausedRun.metadata?.kind),
 				"Run paused awaiting input",
 			);
 		}

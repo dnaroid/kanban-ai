@@ -6,7 +6,10 @@ import type {
 	QuestionData,
 } from "@/server/opencode/session-manager";
 import type { Run } from "@/types/ipc";
-import type { TaskTransitionTrigger } from "@/server/run/task-state-machine";
+import {
+	adaptTriggerForQa,
+	type TaskTransitionTrigger,
+} from "@/server/run/task-state-machine";
 
 const log = createLogger("runs-queue");
 
@@ -77,7 +80,7 @@ export class RunInteractionCoordinator {
 		publishRunUpdate(resumedRun);
 		this.deps.applyTaskTransition(
 			resumedRun,
-			"run:answer",
+			adaptTriggerForQa("run:answer", resumedRun.metadata?.kind),
 			`Permission approved: ${permissionId}`,
 		);
 	}
@@ -107,7 +110,7 @@ export class RunInteractionCoordinator {
 		publishRunUpdate(resumedRun);
 		this.deps.applyTaskTransition(
 			resumedRun,
-			"run:answer",
+			adaptTriggerForQa("run:answer", resumedRun.metadata?.kind),
 			"Question answered",
 		);
 	}
@@ -130,7 +133,7 @@ export class RunInteractionCoordinator {
 		publishRunUpdate(resumedRun);
 		this.deps.applyTaskTransition(
 			resumedRun,
-			"run:answer",
+			adaptTriggerForQa("run:answer", resumedRun.metadata?.kind),
 			"Resumed orphaned paused run",
 		);
 	}
@@ -263,7 +266,7 @@ export class RunInteractionCoordinator {
 		publishRunUpdate(pausedRun);
 		this.deps.applyTaskTransition(
 			pausedRun,
-			"run:question",
+			adaptTriggerForQa("run:question", pausedRun.metadata?.kind),
 			`Permission requested: ${permission.title}`,
 		);
 		return pausedRun;
@@ -291,7 +294,11 @@ export class RunInteractionCoordinator {
 			createdAt: question.createdAt,
 		});
 		publishRunUpdate(pausedRun);
-		this.deps.applyTaskTransition(pausedRun, "run:question", "Question asked");
+		this.deps.applyTaskTransition(
+			pausedRun,
+			adaptTriggerForQa("run:question", pausedRun.metadata?.kind),
+			"Question asked",
+		);
 		return pausedRun;
 	}
 }

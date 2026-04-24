@@ -422,6 +422,98 @@ export class ExecutionBootstrapService {
 		return true;
 	}
 
+	public async fixQaFailedTask(task: Task): Promise<boolean> {
+		if (task.status !== "qa_failed" || !task.qaReport) {
+			return false;
+		}
+
+		const completedRun = this.listAllTaskRuns(task.id).find(
+			(run) =>
+				this.isExecutionRun(run) &&
+				run.status === "completed" &&
+				typeof run.sessionId === "string" &&
+				run.sessionId.trim().length > 0,
+		);
+		if (!completedRun?.sessionId) {
+			return false;
+		}
+
+		const board =
+			boardRepo.getById(task.boardId) ??
+			boardRepo.getByProjectId(task.projectId);
+		if (!board) {
+			return false;
+		}
+
+		const qaMessage = [
+			"",
+			"This task did not pass QA review. Reasons:",
+			task.qaReport,
+			"",
+			"Fix ALL issues listed above. Do NOT skip any item.",
+			"",
+			`When done, output exactly one corresponding status line.`,
+		].join("\n");
+
+		await this.deps.sendPrompt(completedRun.sessionId, qaMessage);
+
+		const resumedAt = new Date().toISOString();
+		const resumedRun = runRepo.update(completedRun.id, {
+			status: "running",
+			startedAt: resumedAt,
+			finishedAt: null,
+			errorText: "",
+			metadata: {
+				...(completedRun.metadata ?? {}),
+				lastExecutionStatus: {
+					kind: "running",
+					sessionId: completedRun.sessionId,
+					updatedAt: resumedAt,
+				},
+			},
+		});
+
+		const inProgressColumnId = getWorkflowColumnIdBySystemKey(
+			board,
+			"in_progress",
+		);
+		if (inProgressColumnId) {
+			const existingInColumn = taskRepo
+				.listByBoard(board.id)
+				.filter((item) => item.columnId === inProgressColumnId).length;
+			taskRepo.update(task.id, {
+				status: "running",
+				columnId: inProgressColumnId,
+				orderInColumn: existingInColumn,
+				qaReport: null,
+			});
+		} else {
+			taskRepo.update(task.id, {
+				status: "running",
+				qaReport: null,
+			});
+		}
+
+		runEventRepo.create({
+			runId: resumedRun.id,
+			eventType: "status",
+			payload: {
+				status: "running",
+				message: "Execution run resumed after QA failure",
+			},
+		});
+		publishRunUpdate(resumedRun);
+		publishSseEvent("task:event", {
+			taskId: task.id,
+			boardId: task.boardId,
+			projectId: task.projectId,
+			eventType: "task:updated",
+			updatedAt: resumedAt,
+		});
+
+		return true;
+	}
+
 	public getCurrentTaskRun(taskId: string): Run | null {
 		const repository = runRepo as {
 			getByTask?: (taskId: string) => Run | null;

@@ -148,10 +148,6 @@ function parseTaskDescription(description: string | null | undefined): {
 	};
 }
 
-function formatPromptSection(title: string, content: string | null): string {
-	return `${title}:\n${content ?? "(not specified)"}`;
-}
-
 export function buildQaTestingPrompt(
 	task: QaTestingPromptTask,
 	project: QaTestingPromptProject,
@@ -173,65 +169,46 @@ export function buildQaTestingPrompt(
 	return `${rolePromptLine}
 You may use skills: ${roleSkillsLine}
 
-You are performing manual QA verification for a task implementation in the current project.
-Your job is to validate the delivered result against the task brief and especially against the acceptance criteria.
+You are a QA engineer performing verification for a task implementation.
+Your job is to validate the delivered result against the acceptance criteria.
 
-Task snapshot:
-- Title: ${task.title}
-- Tags: ${(task.tags ?? []).join(", ") || "(empty)"}
-- Type: ${task.type ?? "(not specified)"}
-- Difficulty: ${task.difficulty ?? "(not specified)"}
+Task: ${task.title}
 
-Structured task brief:
-${formatPromptSection("Overview", parsedDescription.overview)}
+Acceptance Criteria:
+${acceptanceCriteria ?? "(extract from task description below)"}
 
-${formatPromptSection("Goal", parsedDescription.sections.goal)}
+${task.qaReport ? `Previous QA report (issues to re-verify):\n${task.qaReport}\n` : ""}
 
-${formatPromptSection("Project Context", parsedDescription.sections.projectContext)}
-
-${formatPromptSection("Scope", parsedDescription.sections.scope)}
-
-${formatPromptSection("In Scope", parsedDescription.sections.inScope)}
-
-${formatPromptSection("Out of Scope", parsedDescription.sections.outOfScope)}
-
-${formatPromptSection("Requirements", parsedDescription.sections.requirements)}
-
-${formatPromptSection("Constraints", parsedDescription.sections.constraints)}
-
-${formatPromptSection("Acceptance Criteria", acceptanceCriteria)}
-
-${formatPromptSection("Expected Outcome", parsedDescription.sections.expectedOutcome)}
-
-Previous QA report:
-${task.qaReport?.trim() || "(none)"}
-
-Original task description:
+Full task description:
 ${task.description ?? "(empty)"}
 
-Project context:
-- Project path: ${project.path}
-- Project name: ${project.name}
-- Project ID: ${project.id}
+Project: ${project.name} (${project.path})
 
-What to do:
-1) Read the task brief and extract the concrete user-visible behaviors that must be verified.
-2) Inspect the implementation in code and run the relevant manual checks, scripts, tests, or app flows needed to validate the task.
-3) Compare the actual result against each acceptance criterion one by one.
-4) Record specific evidence: files inspected, commands run, UI paths checked, and observed outcomes.
-5) If defects or discrepancies are found, list them precisely with reproduction details and expected vs actual behavior.
-6) If information is missing, make the smallest reasonable assumption and state it briefly. Only ask one question if you truly cannot continue.
+Instructions:
+1. Read the acceptance criteria above.
+2. Inspect the implementation in code. Run tests, scripts, or manual checks needed to validate each criterion.
+3. For each criterion, determine PASS or FAIL with specific evidence (files inspected, commands run, observed outcomes).
+4. If defects are found, describe them precisely with reproduction details.
 
-Response format:
-- A concise markdown QA report.
-- Sections:
-  1. "Test Scope"
-  2. "Acceptance Criteria Check" — evaluate each criterion with PASS / FAIL / PARTIAL / BLOCKED
-  3. "Evidence / Checks Performed"
-  4. "Issues Found" (if any)
-  5. "Recommendation"
+CRITICAL: Your entire response MUST be wrapped in <QA REPORT> tags like this:
 
-Do not output textual status markers or special control tokens.
-Prefer concrete verification over generic commentary.
+<QA REPORT>
+## Test Scope
+[What you verified]
+
+## Acceptance Criteria Check
+- Criterion 1: PASS — [evidence]
+- Criterion 2: FAIL — [evidence, expected vs actual]
+
+## Issues Found
+[Detailed list or "None"]
+
+## Recommendation
+[PASS / FAIL with summary]
+</QA REPORT>
+
+Do NOT output anything outside the <QA REPORT> tags.
+Do NOT ask questions — make reasonable assumptions and state them.
+Be concise and evidence-based.
 `;
 }

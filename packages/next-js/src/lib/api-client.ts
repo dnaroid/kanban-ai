@@ -687,6 +687,26 @@ class ApiClient {
 			const payload = await response.json();
 			return this.unwrapApiData<{ runId: string }>(payload);
 		},
+		fixQa: async ({
+			taskId,
+		}: {
+			taskId: string;
+		}): Promise<{ success: boolean }> => {
+			const response = await this.fetch(
+				`${this.baseUrl}/api/tasks/${taskId}/fix-qa`,
+				{
+					method: "POST",
+				},
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to fix QA",
+				);
+				this.fail(message);
+			}
+			return response.json();
+		},
 		generateUserStories: async ({
 			taskIds,
 		}: {

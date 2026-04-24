@@ -9,6 +9,10 @@ import {
 	findStoryContent,
 	toRunLastExecutionStatus,
 } from "@/server/run/run-session-interpreter";
+import {
+	adaptTriggerForQa,
+	type TaskTransitionTrigger,
+} from "@/server/run/task-state-machine";
 import type { QueuedRunInput } from "@/server/run/runs-queue-types";
 import type { Run, RunStatus } from "@/types/ipc";
 import { publishRunUpdate } from "@/server/run/run-publisher";
@@ -34,7 +38,7 @@ interface RunReconciliationServiceDeps {
 	};
 	applyTaskTransition: (
 		run: Run,
-		trigger: "generate:fail" | "run:fail" | "run:answer",
+		trigger: TaskTransitionTrigger,
 		outcomeContent: string,
 	) => void;
 	enqueue: (runId: string, input: QueuedRunInput) => void;
@@ -292,7 +296,7 @@ export class RunReconciliationService {
 			publishRunUpdate(resumedRun);
 			this.deps.applyTaskTransition(
 				resumedRun,
-				"run:answer",
+				adaptTriggerForQa("run:answer", resumedRun.metadata?.kind),
 				"Run resumed during reconciliation",
 			);
 			log.info("Reattached queued run as running during reconciliation", {
@@ -356,7 +360,10 @@ export class RunReconciliationService {
 		publishRunUpdate(failedRun);
 		this.deps.applyTaskTransition(
 			failedRun,
-			this.deps.isGenerationRun(failedRun) ? "generate:fail" : "run:fail",
+			adaptTriggerForQa(
+				this.deps.isGenerationRun(failedRun) ? "generate:fail" : "run:fail",
+				failedRun.metadata?.kind,
+			),
 			assistantContent,
 		);
 
