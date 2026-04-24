@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
 	deriveMetaStatus,
+	extractReportTag,
 	findStoryContent,
 	findStrictStoryContent,
 	hydrateGenerationOutcomeContent,
+	stripTrailingReportTag,
 	toRunLastExecutionStatus,
 } from "@/server/run/run-session-interpreter";
 import type { SessionInspectionResult } from "@/server/opencode/session-manager";
@@ -399,5 +401,54 @@ describe("hydrateGenerationOutcomeContent", () => {
 
 		expect(result).toBe("");
 		expect(result).toBe("");
+	});
+});
+
+describe("extractReportTag", () => {
+	it("extracts done from valid REPORT tag", () => {
+		expect(extractReportTag("<REPORT>done</REPORT>")).toBe("done");
+	});
+
+	it("extracts fail from REPORT tag with preceding content", () => {
+		expect(extractReportTag("Some summary\n<REPORT>fail</REPORT>")).toBe(
+			"fail",
+		);
+	});
+
+	it("extracts question with whitespace inside tag", () => {
+		expect(extractReportTag("<REPORT> question </REPORT>")).toBe("question");
+	});
+
+	it("extracts test_ok from REPORT tag", () => {
+		expect(extractReportTag("<REPORT>test_ok</REPORT>")).toBe("test_ok");
+	});
+
+	it("extracts test_fail from REPORT tag", () => {
+		expect(extractReportTag("<REPORT>test_fail</REPORT>")).toBe("test_fail");
+	});
+
+	it("returns null when no REPORT tag is present", () => {
+		expect(extractReportTag("Just regular text")).toBeNull();
+	});
+
+	it("returns null when multiple REPORT tags found (malformed)", () => {
+		expect(
+			extractReportTag("<REPORT>done</REPORT> some text <REPORT>fail</REPORT>"),
+		).toBeNull();
+	});
+});
+
+describe("stripTrailingReportTag", () => {
+	it("removes trailing REPORT tag and trims", () => {
+		expect(stripTrailingReportTag("summary\n<REPORT>done</REPORT>")).toBe(
+			"summary",
+		);
+	});
+
+	it("preserves QA REPORT content while removing REPORT tag", () => {
+		const input =
+			"<QA REPORT>\n## Recommendation\nPASS\n</QA REPORT>\n<REPORT>test_ok</REPORT>";
+		const result = stripTrailingReportTag(input);
+		expect(result).toBe("<QA REPORT>\n## Recommendation\nPASS\n</QA REPORT>");
 	});
 });

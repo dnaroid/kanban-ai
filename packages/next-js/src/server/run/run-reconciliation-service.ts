@@ -9,6 +9,7 @@ import {
 	findStoryContent,
 	toRunLastExecutionStatus,
 } from "@/server/run/run-session-interpreter";
+import type { ReportTag } from "@/server/run/run-session-interpreter";
 import {
 	adaptTriggerForQa,
 	type TaskTransitionTrigger,
@@ -172,6 +173,39 @@ export class RunReconciliationService {
 				}
 				await this.deps.finalizeRunFromSession(observedRun.id, "completed", {
 					kind: "completed",
+					content: meta.content,
+				});
+				return;
+			}
+			case "reported": {
+				if (isStoryChat) {
+					log.info(
+						"Skipping finalization for story-chat run; waiting for explicit generate trigger",
+						{
+							runId: observedRun.id,
+							sessionId,
+							metaKind: meta.kind,
+							reportTag: meta.report,
+						},
+					);
+					break;
+				}
+				const reportStatus = mapReportToStatus(meta.report);
+				if (reportStatus === "paused") {
+					const nextRun =
+						this.deps.runInteractionCoordinator.ensureRunPausedForSyntheticQuestion(
+							observedRun,
+							meta.content,
+						);
+					this.deps.runInteractionCoordinator.attachReconciledSession(
+						nextRun.id,
+						sessionId,
+					);
+					this.deps.ensureLiveSubscription(nextRun.id, sessionId);
+					return;
+				}
+				await this.deps.finalizeRunFromSession(observedRun.id, reportStatus, {
+					kind: reportStatus === "completed" ? "completed" : "failed",
 					content: meta.content,
 				});
 				return;
@@ -420,6 +454,32 @@ export class RunReconciliationService {
 				return;
 			}
 
+			if (meta.kind === "reported") {
+				const reportStatus = mapReportToStatus(meta.report);
+				if (reportStatus === "paused") {
+					log.info("Stale run has report=question; pausing for user input", {
+						projectId,
+						taskId,
+						runId: run.id,
+					});
+					return;
+				}
+				await this.deps.finalizeRunFromSession(run.id, reportStatus, {
+					kind: reportStatus === "completed" ? "completed" : "failed",
+					content: meta.content,
+				});
+				log.info(
+					"Finalized stale run from REPORT tag during task reconciliation",
+					{
+						projectId,
+						taskId,
+						runId: run.id,
+						reportTag: meta.report,
+					},
+				);
+				return;
+			}
+
 			if (meta.kind === "dead") {
 				await this.failRunDuringReconciliation(
 					run,
@@ -496,6 +556,15 @@ export class RunReconciliationService {
 				content: meta.content,
 			});
 		}
+		if (meta.kind === "reported") {
+			const reportStatus = mapReportToStatus(meta.report);
+			if (reportStatus !== "paused") {
+				await this.deps.finalizeRunFromSession(runId, reportStatus, {
+					kind: reportStatus === "completed" ? "completed" : "failed",
+					content: meta.content,
+				});
+			}
+		}
 	}
 
 	private isRunStale(run: Run): boolean {
@@ -506,5 +575,20 @@ export class RunReconciliationService {
 		const startedAt = run.startedAt ?? run.updatedAt ?? run.createdAt;
 		const elapsedMs = Date.now() - Date.parse(startedAt);
 		return elapsedMs > this.deps.staleRunThresholdMs;
+	}
+}
+
+function mapReportToStatus(
+	report: ReportTag,
+): "completed" | "failed" | "paused" {
+	switch (report) {
+		case "done":
+		case "test_ok":
+			return "completed";
+		case "fail":
+		case "test_fail":
+			return "failed";
+		case "question":
+			return "paused";
 	}
 }

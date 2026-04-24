@@ -206,5 +206,16 @@ CRITICAL: Your entire response MUST be wrapped in <QA REPORT> tags like this:
 Do NOT output anything outside the <QA REPORT> tags.
 Do NOT ask questions — make reasonable assumptions and state them.
 Be concise and evidence-based.
+
+CRITICAL FINAL LINE:
+After </QA REPORT>, your VERY LAST line MUST be exactly one REPORT tag:
+- <REPORT>test_ok</REPORT> — all tests/verification passed.
+- <REPORT>test_fail</REPORT> — tests/verification failed.
+
+Example:
+</QA REPORT>
+<REPORT>test_ok</REPORT>
+
+Do not output multiple REPORT tags.
 `;
 }

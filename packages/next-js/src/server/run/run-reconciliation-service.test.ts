@@ -117,6 +117,7 @@ interface TestDeps {
 	runInteractionCoordinator: {
 		ensureRunPausedForPermission: ReturnType<typeof vi.fn>;
 		ensureRunPausedForQuestion: ReturnType<typeof vi.fn>;
+		ensureRunPausedForSyntheticQuestion: ReturnType<typeof vi.fn>;
 		attachReconciledSession: ReturnType<typeof vi.fn>;
 		reconcilePausedRun: ReturnType<typeof vi.fn>;
 	};
@@ -156,6 +157,7 @@ function setupDeps(): TestDeps {
 		runInteractionCoordinator: {
 			ensureRunPausedForPermission: vi.fn((run: Run) => run),
 			ensureRunPausedForQuestion: vi.fn((run: Run) => run),
+			ensureRunPausedForSyntheticQuestion: vi.fn((run: Run) => run),
 			attachReconciledSession: vi.fn(),
 			reconcilePausedRun: vi.fn(async () => {}),
 		},
@@ -569,6 +571,103 @@ describe("RunReconciliationService", () => {
 			expect(
 				deps.runFinalizer.resolveStaleCompletionOutcome,
 			).not.toHaveBeenCalled();
+			expect(deps.finalizeRunFromSession).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("applyInspectionResult — reported meta", () => {
+		let run: Run;
+
+		beforeEach(() => {
+			run = makeRun({
+				id: "r1",
+				status: "running",
+				sessionId: "session-1",
+			});
+		});
+
+		it("reported done finalizes run as completed", async () => {
+			mockRunRepoUpdate.mockReturnValue(run);
+			mockDeriveMetaStatus.mockReturnValue({
+				kind: "reported",
+				report: "done",
+				content: "Task completed successfully",
+			});
+
+			await service.applyInspectionResult(run, "session-1", buildInspection());
+
+			expect(deps.finalizeRunFromSession).toHaveBeenCalledWith(
+				"r1",
+				"completed",
+				{ kind: "completed", content: "Task completed successfully" },
+			);
+		});
+
+		it("reported fail finalizes run as failed", async () => {
+			mockRunRepoUpdate.mockReturnValue(run);
+			mockDeriveMetaStatus.mockReturnValue({
+				kind: "reported",
+				report: "fail",
+				content: "Something went wrong",
+			});
+
+			await service.applyInspectionResult(run, "session-1", buildInspection());
+
+			expect(deps.finalizeRunFromSession).toHaveBeenCalledWith("r1", "failed", {
+				kind: "failed",
+				content: "Something went wrong",
+			});
+		});
+
+		it("reported test_ok finalizes run as completed", async () => {
+			mockRunRepoUpdate.mockReturnValue(run);
+			mockDeriveMetaStatus.mockReturnValue({
+				kind: "reported",
+				report: "test_ok",
+				content: "QA report content",
+			});
+
+			await service.applyInspectionResult(run, "session-1", buildInspection());
+
+			expect(deps.finalizeRunFromSession).toHaveBeenCalledWith(
+				"r1",
+				"completed",
+				{ kind: "completed", content: "QA report content" },
+			);
+		});
+
+		it("reported test_fail finalizes run as failed", async () => {
+			mockRunRepoUpdate.mockReturnValue(run);
+			mockDeriveMetaStatus.mockReturnValue({
+				kind: "reported",
+				report: "test_fail",
+				content: "QA failures found",
+			});
+
+			await service.applyInspectionResult(run, "session-1", buildInspection());
+
+			expect(deps.finalizeRunFromSession).toHaveBeenCalledWith("r1", "failed", {
+				kind: "failed",
+				content: "QA failures found",
+			});
+		});
+
+		it("reported question pauses run with synthetic question", async () => {
+			mockRunRepoUpdate.mockReturnValue(run);
+			mockDeriveMetaStatus.mockReturnValue({
+				kind: "reported",
+				report: "question",
+				content: "I need clarification on the requirements",
+			});
+
+			await service.applyInspectionResult(run, "session-1", buildInspection());
+
+			expect(
+				deps.runInteractionCoordinator.ensureRunPausedForSyntheticQuestion,
+			).toHaveBeenCalledWith(run, "I need clarification on the requirements");
+			expect(
+				deps.runInteractionCoordinator.attachReconciledSession,
+			).toHaveBeenCalledWith("r1", "session-1");
 			expect(deps.finalizeRunFromSession).not.toHaveBeenCalled();
 		});
 	});

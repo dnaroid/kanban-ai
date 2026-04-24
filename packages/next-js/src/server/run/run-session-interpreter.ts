@@ -7,9 +7,19 @@ import type {
 import type { RunLastExecutionStatus } from "@/types/ipc";
 import type { Run } from "@/types/ipc";
 
+export type ReportTag = "done" | "fail" | "question" | "test_ok" | "test_fail";
+
+const REPORT_TAG_RE =
+	/<REPORT>\s*(done|fail|question|test_ok|test_fail)\s*<\/REPORT>/gi;
+
 const log = createLogger("runs-queue");
 
 export type SessionMetaStatus =
+	| {
+			kind: "reported";
+			report: ReportTag;
+			content: string;
+	  }
 	| {
 			kind: "completed";
 			content: string;
@@ -18,6 +28,33 @@ export type SessionMetaStatus =
 	| { kind: "permission"; permission: PermissionData }
 	| { kind: "running" }
 	| { kind: "dead" };
+
+export function extractReportTag(text: string): ReportTag | null {
+	REPORT_TAG_RE.lastIndex = 0;
+	const matches: ReportTag[] = [];
+	let match = REPORT_TAG_RE.exec(text);
+	while (match !== null) {
+		matches.push(match[1].toLowerCase() as ReportTag);
+		match = REPORT_TAG_RE.exec(text);
+	}
+	if (matches.length === 0) return null;
+	if (matches.length > 1) {
+		log.warn("Multiple REPORT tags found in message; treating as malformed", {
+			tagCount: matches.length,
+		});
+		return null;
+	}
+	return matches[0];
+}
+
+export function stripTrailingReportTag(text: string): string {
+	return text
+		.replace(
+			/\s*<REPORT>\s*(done|fail|question|test_ok|test_fail)\s*<\/REPORT>\s*$/i,
+			"",
+		)
+		.trim();
+}
 
 type StorySearchOptions = {
 	afterTimestamp?: number;
@@ -89,8 +126,33 @@ export function deriveMetaStatus(
 			inspection.sessionStatus === "unknown")
 	) {
 		const latestMessage = inspection.messages[inspection.messages.length - 1];
+		if (latestMessage?.role === "assistant") {
+			const candidates = buildAssistantTextContent(latestMessage);
+			for (const candidate of candidates) {
+				const report = extractReportTag(candidate);
+				if (report) {
+					const content = stripTrailingReportTag(candidate);
+					return { kind: "reported", report, content };
+				}
+			}
+		}
+	}
+
+	if (
+		inspection.probeStatus === "alive" &&
+		(inspection.sessionStatus === "idle" ||
+			inspection.sessionStatus === "unknown")
+	) {
+		const latestMessage = inspection.messages[inspection.messages.length - 1];
 		if (latestMessage?.role !== "user") {
 			const content = findStoryContent(inspection);
+			log.warn(
+				"Session completed without explicit REPORT tag; falling back to legacy completion heuristic",
+				{
+					runId: run?.id,
+					runKind: run?.metadata?.kind,
+				},
+			);
 			return { kind: "completed", content };
 		}
 	}
@@ -98,9 +160,7 @@ export function deriveMetaStatus(
 	return { kind: "running" };
 }
 
-function hasActiveChildSessions(
-	inspection: SessionInspectionResult,
-): boolean {
+function hasActiveChildSessions(inspection: SessionInspectionResult): boolean {
 	for (const childInspection of inspection.childSessions ?? []) {
 		const childMeta = deriveMetaStatus(childInspection);
 		if (
@@ -122,6 +182,20 @@ export function toRunLastExecutionStatus(
 	const updatedAt = new Date().toISOString();
 
 	switch (meta.kind) {
+		case "reported": {
+			const reportedKind =
+				meta.report === "done" || meta.report === "test_ok"
+					? "completed"
+					: meta.report === "fail" || meta.report === "test_fail"
+						? "failed"
+						: "question";
+			return {
+				kind: reportedKind,
+				...(reportedKind !== "question" ? { content: meta.content } : {}),
+				sessionId,
+				updatedAt,
+			};
+		}
 		case "completed":
 			return {
 				kind: "completed",

@@ -214,6 +214,16 @@ export class RunInteractionCoordinator {
 
 		const awaitingQuestionId = this.getAwaitingQuestionId(runId);
 		if (awaitingQuestionId) {
+			if (awaitingQuestionId === "report-question") {
+				log.info(
+					"Synthetic REPORT question paused; waiting for explicit user input",
+					{
+						runId,
+						sessionId,
+					},
+				);
+				return;
+			}
 			const pendingQuestions = await this.deps.listPendingQuestions(sessionId);
 			const stillPending = pendingQuestions.some(
 				(question) => question.id === awaitingQuestionId,
@@ -268,6 +278,30 @@ export class RunInteractionCoordinator {
 			pausedRun,
 			adaptTriggerForQa("run:question", pausedRun.metadata?.kind),
 			`Permission requested: ${permission.title}`,
+		);
+		return pausedRun;
+	}
+
+	public ensureRunPausedForSyntheticQuestion(run: Run, content: string): Run {
+		if (run.status === "paused") {
+			return run;
+		}
+
+		const pausedRun = this.deps.updateRun(run.id, { status: "paused" });
+		this.deps.createRunEvent(run.id, "question", {
+			status: "paused",
+			questionId: "report-question",
+			synthetic: true,
+			message: content || "Question requested via REPORT tag",
+		});
+		log.info("Paused run for synthetic REPORT question", {
+			runId: run.id,
+		});
+		publishRunUpdate(pausedRun);
+		this.deps.applyTaskTransition(
+			pausedRun,
+			adaptTriggerForQa("run:question", pausedRun.metadata?.kind),
+			content || "Question requested via REPORT tag",
 		);
 		return pausedRun;
 	}

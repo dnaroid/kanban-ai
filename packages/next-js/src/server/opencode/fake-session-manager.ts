@@ -160,6 +160,7 @@ export class FakeOpencodeSessionManager {
 				todos: [],
 				pendingPermissions: [],
 				pendingQuestions: [],
+				childSessions: [],
 			};
 		}
 
@@ -172,6 +173,7 @@ export class FakeOpencodeSessionManager {
 			todos: [...session.todos],
 			pendingPermissions: [...session.pendingPermissions],
 			pendingQuestions: [...session.pendingQuestions],
+			childSessions: [],
 		};
 	}
 
@@ -256,7 +258,9 @@ export class FakeOpencodeSessionManager {
 		session.phase = "failed";
 		session.progressStep = Math.max(session.progressStep, 3);
 		session.messages.push(
-			this.buildAssistantMessage("Question was rejected; fake run failed."),
+			this.buildAssistantMessage(
+				"Question was rejected; fake run failed.\n\n<REPORT>fail</REPORT>",
+			),
 		);
 	}
 
@@ -369,7 +373,7 @@ export class FakeOpencodeSessionManager {
 			session.progressStep = 2;
 			session.messages.push(
 				this.buildAssistantMessage(
-					"Fake run completed successfully (happy-path scenario).",
+					"Fake run completed successfully (happy-path scenario).\n\n<REPORT>done</REPORT>",
 				),
 			);
 			return;
@@ -378,7 +382,11 @@ export class FakeOpencodeSessionManager {
 		if (session.scenario === "failure") {
 			session.phase = "failed";
 			session.progressStep = 2;
-			session.absent = true;
+			session.messages.push(
+				this.buildAssistantMessage(
+					"Fake run failed (failure scenario).\n\n<REPORT>fail</REPORT>",
+				),
+			);
 			return;
 		}
 
@@ -399,7 +407,7 @@ export class FakeOpencodeSessionManager {
 			session.progressStep = 3;
 			session.messages.push(
 				this.buildAssistantMessage(
-					"Fake run resumed after question and completed.",
+					"Fake run resumed after question and completed.\n\n<REPORT>done</REPORT>",
 				),
 			);
 		}

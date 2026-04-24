@@ -80,8 +80,15 @@ export function buildTaskPrompt(
 		"3. If the task failed, state the reason clearly.",
 		"4. If you need user input, ask a specific question.",
 		"",
-		"Do not output textual status markers or special control tokens.",
 		"If you can proceed with a reasonable assumption, do so and state it briefly.",
 		"If you cannot continue without user input, ask one specific question.",
+		"",
+		"CRITICAL FINAL MESSAGE FORMAT:",
+		"Your LAST line MUST be exactly one REPORT tag:",
+		"- <REPORT>done</REPORT> — task finished successfully.",
+		"- <REPORT>fail</REPORT> — task failed or cannot be completed.",
+		"- <REPORT>question</REPORT> — cannot continue without user input.",
+		"Put your summary, failure reason, or question BEFORE the REPORT tag.",
+		"Do not output multiple REPORT tags.",
 	].join("\n");
 }
