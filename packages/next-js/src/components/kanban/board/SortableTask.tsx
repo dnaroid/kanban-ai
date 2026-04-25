@@ -383,7 +383,9 @@ export function SortableTask({
 							"inline-flex items-center gap-0.5 rounded-md text-xs font-semibold transition-colors",
 							systemKey === "review" || systemKey === "closed"
 								? "text-emerald-400/85 hover:text-emerald-300 hover:bg-emerald-500/10 active:bg-emerald-500/20"
-								: "text-violet-400/85 hover:text-violet-300 hover:bg-violet-500/10 active:bg-violet-500/20",
+								: systemKey === "in_progress"
+									? "text-orange-400/85 hover:text-orange-300 hover:bg-orange-500/10 active:bg-orange-500/20"
+									: "text-cyan-400/85 hover:text-cyan-300 hover:bg-cyan-500/10 active:bg-cyan-500/20",
 							isLoading ? "pointer-events-none opacity-80" : "opacity-90",
 						)}
 						title={actionConfig.label}
@@ -404,7 +406,7 @@ export function SortableTask({
 						disabled={isQaLoading || isFixLoading}
 						className={cn(
 							"inline-flex items-center gap-0.5 rounded-md text-xs font-semibold transition-colors",
-							"text-teal-400/85 hover:bg-teal-500/10 hover:text-teal-300 active:bg-teal-500/20",
+							"text-violet-400/85 hover:bg-violet-500/10 hover:text-violet-300 active:bg-violet-500/20",
 							(isQaLoading || isFixLoading) && "pointer-events-none opacity-80",
 						)}
 						title="Run QA"
