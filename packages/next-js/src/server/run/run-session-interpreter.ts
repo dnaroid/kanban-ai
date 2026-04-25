@@ -56,6 +56,24 @@ export function stripTrailingReportTag(text: string): string {
 		.trim();
 }
 
+export function findLastAssistantReport(
+	inspection: SessionInspectionResult,
+): { report: ReportTag; content: string } | null {
+	for (let i = inspection.messages.length - 1; i >= 0; i--) {
+		const msg = inspection.messages[i];
+		if (msg.role !== "assistant") continue;
+		const candidates = buildAssistantTextContent(msg);
+		for (const candidate of candidates) {
+			const report = extractReportTag(candidate);
+			if (report) {
+				const content = stripTrailingReportTag(candidate);
+				return { report, content };
+			}
+		}
+	}
+	return null;
+}
+
 type StorySearchOptions = {
 	afterTimestamp?: number;
 };
@@ -90,17 +108,6 @@ export function deriveMetaStatus(
 		return { kind: "question", questions: inspection.pendingQuestions };
 	}
 
-	if (inspection.probeStatus === "not_found") {
-		return { kind: "dead" };
-	}
-
-	if (
-		inspection.sessionStatus === "busy" ||
-		inspection.sessionStatus === "retry"
-	) {
-		return { kind: "running" };
-	}
-
 	if (hasActiveChildSessions(inspection)) {
 		return { kind: "running" };
 	}
@@ -120,22 +127,24 @@ export function deriveMetaStatus(
 		return { kind: "running" };
 	}
 
+	const reportResult = findLastAssistantReport(inspection);
+	if (reportResult) {
+		return {
+			kind: "reported",
+			report: reportResult.report,
+			content: reportResult.content,
+		};
+	}
+
+	if (inspection.probeStatus === "not_found") {
+		return { kind: "dead" };
+	}
+
 	if (
-		inspection.probeStatus === "alive" &&
-		(inspection.sessionStatus === "idle" ||
-			inspection.sessionStatus === "unknown")
+		inspection.sessionStatus === "busy" ||
+		inspection.sessionStatus === "retry"
 	) {
-		const latestMessage = inspection.messages[inspection.messages.length - 1];
-		if (latestMessage?.role === "assistant") {
-			const candidates = buildAssistantTextContent(latestMessage);
-			for (const candidate of candidates) {
-				const report = extractReportTag(candidate);
-				if (report) {
-					const content = stripTrailingReportTag(candidate);
-					return { kind: "reported", report, content };
-				}
-			}
-		}
+		return { kind: "running" };
 	}
 
 	if (

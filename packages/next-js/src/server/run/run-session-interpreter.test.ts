@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	deriveMetaStatus,
 	extractReportTag,
+	findLastAssistantReport,
 	findStoryContent,
 	findStrictStoryContent,
 	hydrateGenerationOutcomeContent,
@@ -50,6 +51,7 @@ function makeInspection(
 		todos: [],
 		pendingPermissions: [],
 		pendingQuestions: [],
+		childSessions: [],
 	};
 }
 
@@ -120,6 +122,135 @@ describe("run-session-interpreter", () => {
 				},
 			]),
 		);
+
+		expect(meta).toEqual({ kind: "running" });
+	});
+
+	it("uses REPORT even when session is busy", () => {
+		const meta = deriveMetaStatus(
+			makeRun(),
+			makeInspection(
+				[
+					{
+						role: "assistant",
+						content: "Work complete\n<REPORT>done</REPORT>",
+					},
+				],
+				"busy",
+			),
+		);
+
+		expect(meta).toEqual({
+			kind: "reported",
+			report: "done",
+			content: "Work complete",
+		});
+	});
+
+	it("uses REPORT even when probe status is not_found", () => {
+		const inspection = makeInspection([
+			{
+				role: "assistant",
+				content: "Final output\n<REPORT>test_ok</REPORT>",
+			},
+		]);
+		inspection.probeStatus = "not_found";
+
+		const meta = deriveMetaStatus(makeRun(), inspection);
+
+		expect(meta).toEqual({
+			kind: "reported",
+			report: "test_ok",
+			content: "Final output",
+		});
+	});
+
+	it("uses REPORT even when session status is retry", () => {
+		const meta = deriveMetaStatus(
+			makeRun(),
+			makeInspection(
+				[
+					{
+						role: "assistant",
+						content: "Will retry\n<REPORT>fail</REPORT>",
+					},
+				],
+				"retry",
+			),
+		);
+
+		expect(meta).toEqual({
+			kind: "reported",
+			report: "fail",
+			content: "Will retry",
+		});
+	});
+
+	it("prefers pending permission over REPORT", () => {
+		const inspection = makeInspection(
+			[{ role: "assistant", content: "Done\n<REPORT>done</REPORT>" }],
+			"busy",
+		);
+		inspection.pendingPermissions = [
+			{
+				id: "perm-1",
+				permissionType: "file_write",
+				sessionId: "session-1",
+				messageId: "msg-0",
+				title: "Allow write?",
+				metadata: {},
+				createdAt: Date.now(),
+			},
+		];
+
+		const meta = deriveMetaStatus(makeRun(), inspection);
+
+		expect(meta).toEqual({
+			kind: "permission",
+			permission: inspection.pendingPermissions[0],
+		});
+	});
+
+	it("prefers pending question over REPORT", () => {
+		const inspection = makeInspection(
+			[{ role: "assistant", content: "Need info\n<REPORT>question</REPORT>" }],
+			"busy",
+		);
+		inspection.pendingQuestions = [
+			{
+				id: "q-1",
+				sessionId: "session-1",
+				questions: [{ question: "Proceed?", options: [{ label: "Yes" }] }],
+				createdAt: Date.now(),
+			},
+		];
+
+		const meta = deriveMetaStatus(makeRun(), inspection);
+
+		expect(meta).toEqual({
+			kind: "question",
+			questions: inspection.pendingQuestions,
+		});
+	});
+
+	it("prefers active child session over parent REPORT", () => {
+		const inspection = makeInspection(
+			[{ role: "assistant", content: "Parent done\n<REPORT>done</REPORT>" }],
+			"busy",
+		);
+		inspection.childSessions = [makeInspection([], "busy")];
+
+		const meta = deriveMetaStatus(makeRun(), inspection);
+
+		expect(meta).toEqual({ kind: "running" });
+	});
+
+	it("keeps parent running when child session is active even if probe is not_found", () => {
+		const inspection = makeInspection([]);
+		inspection.probeStatus = "not_found";
+		inspection.childSessions = [makeInspection([], "busy")];
+
+		const meta = deriveMetaStatus(makeRun(), inspection);
 
 		expect(meta).toEqual({ kind: "running" });
 	});
@@ -330,6 +461,7 @@ describe("hydrateGenerationOutcomeContent", () => {
 			todos: [],
 			pendingPermissions: [],
 			pendingQuestions: [],
+			childSessions: [],
 		};
 
 		const result = await hydrateGenerationOutcomeContent(
@@ -450,5 +582,31 @@ describe("stripTrailingReportTag", () => {
 			"<QA REPORT>\n## Recommendation\nPASS\n</QA REPORT>\n<REPORT>test_ok</REPORT>";
 		const result = stripTrailingReportTag(input);
 		expect(result).toBe("<QA REPORT>\n## Recommendation\nPASS\n</QA REPORT>");
+	});
+});
+
+describe("findLastAssistantReport", () => {
+	it("finds REPORT from the most recent assistant message", () => {
+		const inspection = makeInspection([
+			{ role: "assistant", content: "First\n<REPORT>fail</REPORT>" },
+			{ role: "user", content: "continue" },
+			{ role: "assistant", content: "Second\n<REPORT>done</REPORT>" },
+		]);
+
+		expect(findLastAssistantReport(inspection)).toEqual({
+			report: "done",
+			content: "Second",
+		});
+	});
+
+	it("returns null when no assistant REPORT exists", () => {
+		expect(
+			findLastAssistantReport(
+				makeInspection([
+					{ role: "assistant", content: "No report" },
+					{ role: "user", content: "Thanks" },
+				]),
+			),
+		).toBeNull();
 	});
 });
