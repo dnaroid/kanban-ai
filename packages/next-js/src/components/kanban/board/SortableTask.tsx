@@ -358,20 +358,6 @@ export function SortableTask({
 			)}
 
 			<div className="px-4 pb-4 flex flex-wrap items-center gap-2 border-t border-slate-700/60 pt-3">
-				{task.latestSessionId && task.opencodeWebUrl && (
-					<a
-						href={`${task.opencodeWebUrl}/session/${task.latestSessionId}`}
-						target="_blank"
-						rel="noopener noreferrer"
-						onClick={(e) => e.stopPropagation()}
-						onPointerDown={(e) => e.stopPropagation()}
-						className="inline-flex items-center gap-0.5 rounded-md text-xs font-semibold text-blue-500/85 transition-colors hover:bg-blue-500/10 hover:text-blue-400 active:bg-blue-500/20"
-						title="OpenCode"
-					>
-						<ExternalLink className="h-3.5 w-3.5" />
-						<span>OpenCode</span>
-					</a>
-				)}
 				{showContextButton && (
 					<button
 						type="button"

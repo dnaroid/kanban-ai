@@ -1,6 +1,5 @@
 import {
 	CheckCircle,
-	GitCommitHorizontal,
 	GitMerge,
 	Play,
 	Square,
@@ -52,7 +51,7 @@ export const CONTEXT_ACTION_MAP: Record<
 		label: "Cancel",
 	},
 	closed: {
-		icon: GitCommitHorizontal,
+		icon: GitMerge,
 		label: "Commit",
 	},
 };
