@@ -233,9 +233,8 @@ function DynamicArrayField({
 			</div>
 			<div className="space-y-2">
 				{arr.map((item, index) => {
-					const uniqueId = `${item}-${index}-${Math.random().toString(36).slice(2, 11)}`;
 					return (
-						<div key={uniqueId} className="flex gap-2">
+						<div key={index} className="flex gap-2">
 							{items?.enum ? (
 								<div className="relative flex-1">
 									<select

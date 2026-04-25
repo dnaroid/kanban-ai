@@ -381,7 +381,7 @@ export function SortableTask({
 						data-testid="run-task-button"
 						className={cn(
 							"inline-flex items-center gap-0.5 rounded-md text-xs font-semibold transition-colors",
-							systemKey === "review"
+							systemKey === "review" || systemKey === "closed"
 								? "text-emerald-400/85 hover:text-emerald-300 hover:bg-emerald-500/10 active:bg-emerald-500/20"
 								: "text-violet-400/85 hover:text-violet-300 hover:bg-violet-500/10 active:bg-violet-500/20",
 							isLoading ? "pointer-events-none opacity-80" : "opacity-90",

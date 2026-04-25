@@ -1276,6 +1276,18 @@ export function useBoardModel({
 					addToast("Run merged, task moved to Closed", "success");
 					break;
 				}
+				case "closed": {
+					const { runs } = await api.run.listByTask({ taskId });
+					const completedRun = runs.find((run) => run.status === "completed");
+					if (!completedRun) {
+						addToast("No completed run found for this task", "error");
+						return;
+					}
+					await api.run.merge({ runId: completedRun.id });
+					await refreshBoardTasksFromServer();
+					addToast("Changes committed", "success");
+					break;
+				}
 				default:
 					break;
 			}

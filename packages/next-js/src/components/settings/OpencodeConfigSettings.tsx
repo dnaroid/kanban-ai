@@ -23,6 +23,8 @@ type OpencodeConfigSettingsProps = {
 	}) => void;
 };
 
+const EXCLUDE_FIELDS = new Set(["$schema"]);
+
 export function OpencodeConfigSettings({
 	onStatusChangeAction,
 }: OpencodeConfigSettingsProps) {
@@ -382,7 +384,7 @@ export function OpencodeConfigSettings({
 							schema={schema}
 							data={config}
 							onChange={handleChange}
-							excludeFields={new Set(["$schema"])}
+							excludeFields={EXCLUDE_FIELDS}
 							validationErrors={validationErrors}
 						/>
 					</div>

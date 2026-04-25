@@ -1,5 +1,6 @@
 import {
 	CheckCircle,
+	GitCommitHorizontal,
 	GitMerge,
 	Play,
 	Square,
@@ -14,7 +15,8 @@ export type ContextActionSystemKey =
 	| "deferred"
 	| "review"
 	| "review_reject"
-	| "in_progress";
+	| "in_progress"
+	| "closed";
 
 export interface ContextActionConfig {
 	icon: LucideIcon;
@@ -48,6 +50,10 @@ export const CONTEXT_ACTION_MAP: Record<
 	in_progress: {
 		icon: Square,
 		label: "Cancel",
+	},
+	closed: {
+		icon: GitCommitHorizontal,
+		label: "Commit",
 	},
 };
 
