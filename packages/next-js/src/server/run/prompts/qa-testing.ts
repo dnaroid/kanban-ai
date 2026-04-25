@@ -186,7 +186,7 @@ Instructions:
 3. For each criterion, determine PASS or FAIL with specific evidence (files inspected, commands run, observed outcomes).
 4. If defects are found, describe them precisely with reproduction details.
 
-CRITICAL: Your entire response MUST be wrapped in <QA REPORT> tags like this:
+CRITICAL: Your entire QA report MUST be wrapped in <QA REPORT> tags like this:
 
 <QA REPORT>
 ## Test Scope
@@ -203,7 +203,7 @@ CRITICAL: Your entire response MUST be wrapped in <QA REPORT> tags like this:
 [PASS / FAIL with summary]
 </QA REPORT>
 
-Do NOT output anything outside the <QA REPORT> tags.
+Do NOT output anything outside the <QA REPORT> block EXCEPT the final REPORT line.
 Do NOT ask questions — make reasonable assumptions and state them.
 Be concise and evidence-based.
 
