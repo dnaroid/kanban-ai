@@ -161,5 +161,9 @@ Rules:
 11) The executing agent may delegate part of the work to another agent (including fe) during execution. Do not assign fe "just in case" — if the task is not focused on UI, assign tl or be.
 12) For tasks without clear specialization (architecture, refactoring, mixed logic), choose tl as the universal executor.
 13) ${languageInstruction}
-14) Do not output textual status markers or special control tokens. If you can proceed with a reasonable assumption, do so. If you cannot continue without user input, ask one specific question.`;
+14) In ## Acceptance Criteria, include explicit, testable checklist items aligned to the requirements.
+15) If the task has visual/UI impact (components, layout, styles, rendered content, visible interaction states), include at least one acceptance criterion requiring QA to validate the result visually as a human manual tester in the running product.
+16) The visual QA criterion must clearly distinguish manual visual verification from automated or non-visual checks.
+17) If the task has no visual/UI impact, do not add a visual/manual QA acceptance criterion.
+18) Do not output textual status markers or special control tokens. If you can proceed with a reasonable assumption, do so. If you cannot continue without user input, ask one specific question.`;
 }
