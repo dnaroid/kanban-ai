@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { canRemoveObjectProperty, validateSchema } from "./DynamicFormFields";
+import { act, createElement } from "react";
+import { createRoot, Root } from "react-dom/client";
+import { describe, expect, it, vi } from "vitest";
+import {
+	canRemoveObjectProperty,
+	DynamicFormFields,
+	validateSchema,
+} from "./DynamicFormFields";
 import type { JSONSchema } from "@/lib/json-schema-types";
 
 describe("canRemoveObjectProperty", () => {
@@ -131,5 +137,109 @@ describe("validateSchema", () => {
 			}),
 		);
 		expect(errors[0]?.message).toContain("Schema validation error:");
+	});
+});
+
+describe("mcp dynamic key removal (anyOf schema)", () => {
+	it("shows remove action and removes context7 from mcp", () => {
+		(
+			globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+		).IS_REACT_ACT_ENVIRONMENT = true;
+
+		const schema: JSONSchema = {
+			type: "object",
+			properties: {
+				mcp: {
+					type: "object",
+					additionalProperties: {
+						anyOf: [
+							{
+								anyOf: [
+									{
+										type: "object",
+										properties: {
+											type: { type: "string", const: "remote" },
+											url: { type: "string" },
+											enabled: { type: "boolean" },
+										},
+										required: ["type", "url"],
+										additionalProperties: false,
+									},
+								],
+							},
+							{
+								type: "object",
+								properties: {
+									enabled: { type: "boolean" },
+								},
+								required: ["enabled"],
+								additionalProperties: false,
+							},
+						],
+					},
+				},
+			},
+		};
+
+		const data = {
+			mcp: {
+				context7: {
+					enabled: true,
+					type: "remote",
+					url: "https://mcp.context7.com/mcp",
+				},
+				"web-search-tavily": {
+					enabled: true,
+					type: "remote",
+					url: "https://mcp.tavily.com/mcp",
+				},
+			},
+		};
+
+		const onChange = vi.fn();
+		const container = document.createElement("div");
+		document.body.appendChild(container);
+		const root: Root = createRoot(container);
+
+		try {
+			act(() => {
+				root.render(
+					createElement(DynamicFormFields, { schema, data, onChange }),
+				);
+			});
+
+			const mcpToggle = Array.from(container.querySelectorAll("button")).find(
+				(btn) => btn.textContent?.includes("mcp"),
+			);
+			expect(mcpToggle).toBeTruthy();
+
+			act(() => {
+				mcpToggle?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+			});
+
+			const removeButtons = Array.from(
+				container.querySelectorAll('button[title="Remove"]'),
+			);
+			expect(removeButtons.length).toBeGreaterThan(0);
+
+			act(() => {
+				removeButtons[0]?.dispatchEvent(
+					new MouseEvent("click", { bubbles: true }),
+				);
+			});
+
+			expect(onChange).toHaveBeenCalledWith("mcp", {
+				"web-search-tavily": {
+					enabled: true,
+					type: "remote",
+					url: "https://mcp.tavily.com/mcp",
+				},
+			});
+		} finally {
+			act(() => {
+				root.unmount();
+			});
+			document.body.removeChild(container);
+		}
 	});
 });

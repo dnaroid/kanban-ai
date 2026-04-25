@@ -27,6 +27,17 @@ import { api, uploadClipboardFiles } from "@/lib/api-client";
 import type { OpencodeModel } from "@/types/kanban";
 import { useSTTLanguage } from "@/components/voice/useSTTLanguage";
 
+const RUN_AFTER_GENERATE_KEY = "quick-create-run-after-generate";
+
+function isRunAfterGenerateDefault(): boolean {
+	if (typeof window === "undefined") return false;
+	return localStorage.getItem(RUN_AFTER_GENERATE_KEY) === "true";
+}
+
+function persistRunAfterGenerate(value: boolean): void {
+	localStorage.setItem(RUN_AFTER_GENERATE_KEY, String(value));
+}
+
 type SpeechRecognitionResultLike = {
 	isFinal: boolean;
 	0: {
@@ -69,6 +80,7 @@ interface QuickCreateModalProps {
 		prompt: string,
 		selectedAttachments: QuickCreateAttachment[],
 		modelName?: string | null,
+		runAfterGenerate?: boolean,
 	) => Promise<void>;
 	onStartStoryChat: (
 		prompt: string,
@@ -114,6 +126,7 @@ export function QuickCreateModal({
 	const [projectPath, setProjectPath] = useState<string | undefined>(undefined);
 	const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [runAfterGenerate, setRunAfterGenerate] = useState(false);
 	const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
 	const { language, toggleLanguage } = useSTTLanguage();
 
@@ -196,6 +209,10 @@ export function QuickCreateModal({
 			isCancelled = true;
 		};
 	}, [isOpen]);
+
+	useEffect(() => {
+		setRunAfterGenerate(isRunAfterGenerateDefault());
+	}, []);
 
 	useEffect(() => {
 		return () => {
@@ -307,7 +324,12 @@ export function QuickCreateModal({
 		setSubmittingAction("generate");
 
 		try {
-			await onGenerateStory(fullPrompt, selectedAttachments, selectedModel);
+			await onGenerateStory(
+				fullPrompt,
+				selectedAttachments,
+				selectedModel,
+				runAfterGenerate,
+			);
 			onClose();
 		} catch (err) {
 			setError(
@@ -516,98 +538,116 @@ export function QuickCreateModal({
 				</div>
 			}
 			footer={
-				<div className="flex items-center justify-end gap-2.5 w-full pt-2">
-					<button
-						type="button"
-						onClick={handleSaveDraft}
-						disabled={isSubmitting}
-						className={cn(
-							"inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all border shadow-sm",
-							isSubmitting
-								? "cursor-not-allowed opacity-50 bg-slate-800/50 text-slate-500 border-slate-700/50"
-								: "bg-slate-900/40 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200 hover:border-slate-700",
-						)}
-					>
-						{submittingAction === "draft" ? (
-							<Loader2 className="w-4 h-4 animate-spin" />
-						) : (
-							<Save className="w-4 h-4" />
-						)}
-						Draft
-					</button>
-
-					<button
-						type="button"
-						onClick={handleRunRawStory}
-						disabled={isSubmitting}
-						className={cn(
-							"inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all border shadow-sm",
-							isSubmitting
-								? "cursor-not-allowed opacity-50 bg-slate-800 text-slate-500 border-slate-700"
-								: "bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white hover:border-slate-600",
-						)}
-					>
-						{submittingAction === "runRaw" ? (
-							<Loader2 className="w-4 h-4 animate-spin" />
-						) : (
-							<Play className="w-4 h-4 fill-current" />
-						)}
-						Run
-					</button>
-
-					<div className="h-6 w-px bg-slate-800/60 mx-1" />
-
-					<button
-						type="button"
-						onClick={handleStartStoryChat}
-						disabled={isSubmitting || !prompt.trim()}
-						className={cn(
-							"inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all border shadow-sm",
-							isSubmitting || !prompt.trim()
-								? "cursor-not-allowed opacity-50 bg-cyan-500/10 text-cyan-300/80 border-cyan-500/30"
-								: "bg-cyan-500/5 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/15 hover:text-cyan-300 hover:border-cyan-500/40",
-						)}
-					>
-						{submittingAction === "chatGenerate" ? (
-							<>
+				<div className="flex items-center justify-between w-full pt-2">
+					<label className="flex items-center gap-2 cursor-pointer select-none">
+						<input
+							type="checkbox"
+							checked={runAfterGenerate}
+							onChange={(e) => {
+								const checked = e.target.checked;
+								setRunAfterGenerate(checked);
+								persistRunAfterGenerate(checked);
+							}}
+							disabled={isSubmitting}
+							className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500/30 focus:ring-offset-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 accent-emerald-500"
+						/>
+						<span className="text-sm text-slate-400 font-medium">
+							Run after generate
+						</span>
+					</label>
+					<div className="flex items-center gap-2.5">
+						<button
+							type="button"
+							onClick={handleSaveDraft}
+							disabled={isSubmitting}
+							className={cn(
+								"inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all border shadow-sm",
+								isSubmitting
+									? "cursor-not-allowed opacity-50 bg-slate-800/50 text-slate-500 border-slate-700/50"
+									: "bg-slate-900/40 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200 hover:border-slate-700",
+							)}
+						>
+							{submittingAction === "draft" ? (
 								<Loader2 className="w-4 h-4 animate-spin" />
-								Starting chat...
-							</>
-						) : (
-							<>
-								<MessageSquare className="w-4 h-4" />
-								Chat
-							</>
-						)}
-					</button>
+							) : (
+								<Save className="w-4 h-4" />
+							)}
+							Draft
+						</button>
 
-					<button
-						type="button"
-						onClick={handleGenerateStory}
-						disabled={isSubmitting}
-						data-testid="create-task-submit"
-						className={cn(
-							"inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-xs font-bold transition-all border shadow-lg relative group overflow-hidden",
-							isSubmitting
-								? "cursor-not-allowed bg-emerald-500/10 text-emerald-300/80 border-emerald-500/30"
-								: "bg-emerald-500 text-white border-emerald-400 hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98] shadow-emerald-500/20",
-						)}
-					>
-						{!isSubmitting && (
-							<div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer" />
-						)}
-						{submittingAction === "generate" ? (
-							<>
+						<button
+							type="button"
+							onClick={handleRunRawStory}
+							disabled={isSubmitting}
+							className={cn(
+								"inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all border shadow-sm",
+								isSubmitting
+									? "cursor-not-allowed opacity-50 bg-slate-800 text-slate-500 border-slate-700"
+									: "bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white hover:border-slate-600",
+							)}
+						>
+							{submittingAction === "runRaw" ? (
 								<Loader2 className="w-4 h-4 animate-spin" />
-								Generating...
-							</>
-						) : (
-							<>
-								<Sparkles className="w-4 h-4" />
-								Generate
-							</>
-						)}
-					</button>
+							) : (
+								<Play className="w-4 h-4 fill-current" />
+							)}
+							Run
+						</button>
+
+						<div className="h-6 w-px bg-slate-800/60 mx-1" />
+
+						<button
+							type="button"
+							onClick={handleStartStoryChat}
+							disabled={isSubmitting || !prompt.trim()}
+							className={cn(
+								"inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all border shadow-sm",
+								isSubmitting || !prompt.trim()
+									? "cursor-not-allowed opacity-50 bg-cyan-500/10 text-cyan-300/80 border-cyan-500/30"
+									: "bg-cyan-500/5 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/15 hover:text-cyan-300 hover:border-cyan-500/40",
+							)}
+						>
+							{submittingAction === "chatGenerate" ? (
+								<>
+									<Loader2 className="w-4 h-4 animate-spin" />
+									Starting chat...
+								</>
+							) : (
+								<>
+									<MessageSquare className="w-4 h-4" />
+									Chat
+								</>
+							)}
+						</button>
+
+						<button
+							type="button"
+							onClick={handleGenerateStory}
+							disabled={isSubmitting}
+							data-testid="create-task-submit"
+							className={cn(
+								"inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-xs font-bold transition-all border shadow-lg relative group overflow-hidden",
+								isSubmitting
+									? "cursor-not-allowed bg-emerald-500/10 text-emerald-300/80 border-emerald-500/30"
+									: "bg-emerald-500 text-white border-emerald-400 hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98] shadow-emerald-500/20",
+							)}
+						>
+							{!isSubmitting && (
+								<div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer" />
+							)}
+							{submittingAction === "generate" ? (
+								<>
+									<Loader2 className="w-4 h-4 animate-spin" />
+									Generating...
+								</>
+							) : (
+								<>
+									<Sparkles className="w-4 h-4" />
+									Generate
+								</>
+							)}
+						</button>
+					</div>
 				</div>
 			}
 		>

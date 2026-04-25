@@ -56,7 +56,7 @@ function makeInspection(
 }
 
 describe("run-session-interpreter", () => {
-	it("derives completed status for regular idle session with assistant message", () => {
+	it("keeps regular idle session with assistant message running (no REPORT tag)", () => {
 		const meta = deriveMetaStatus(
 			makeRun(),
 			makeInspection([
@@ -68,7 +68,7 @@ describe("run-session-interpreter", () => {
 			]),
 		);
 
-		expect(meta).toMatchObject({ kind: "completed" });
+		expect(meta).toMatchObject({ kind: "running" });
 	});
 
 	it("keeps story-chat runs running when session becomes idle", () => {

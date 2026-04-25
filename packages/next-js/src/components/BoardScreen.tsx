@@ -423,7 +423,7 @@ export function BoardScreen({
 					onDragEnd={handleDragEnd}
 				>
 					<div className="h-full overflow-x-auto custom-scrollbar">
-						<div className="inline-flex h-full items-stretch gap-0 pl-5 pr-5 pt-8 pb-0">
+						<div className="inline-flex h-full items-stretch gap-0 pl-5 pr-5 pt-5 pb-0">
 							<SortableContext
 								items={columns.map((c) => c.id)}
 								strategy={horizontalListSortingStrategy}
@@ -489,13 +489,19 @@ export function BoardScreen({
 					projectId={projectId}
 					isOpen={isQuickCreateModalOpen}
 					onClose={() => setIsQuickCreateModalOpen(false)}
-					onGenerateStory={async (prompt, selectedAttachments, modelName) => {
+					onGenerateStory={async (
+						prompt,
+						selectedAttachments,
+						modelName,
+						runAfterGenerate,
+					) => {
 						if (firstColumnId) {
 							await handleQuickGenerateStory(
 								firstColumnId,
 								prompt,
 								selectedAttachments,
 								modelName,
+								runAfterGenerate,
 							);
 						}
 					}}

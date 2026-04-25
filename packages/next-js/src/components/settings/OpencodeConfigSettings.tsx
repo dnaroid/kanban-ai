@@ -25,6 +25,20 @@ type OpencodeConfigSettingsProps = {
 
 const EXCLUDE_FIELDS = new Set(["$schema"]);
 
+export function applyTopLevelConfigChange(
+	prev: Record<string, unknown>,
+	key: string,
+	value: unknown,
+): Record<string, unknown> {
+	if (value === undefined) {
+		const next = { ...prev };
+		delete next[key];
+		return next;
+	}
+
+	return { ...prev, [key]: value };
+}
+
 export function OpencodeConfigSettings({
 	onStatusChangeAction,
 }: OpencodeConfigSettingsProps) {
@@ -233,7 +247,7 @@ export function OpencodeConfigSettings({
 	const handleChange = useCallback((key: string, value: unknown) => {
 		setConfig((prev) => {
 			if (!prev) return null;
-			return { ...prev, [key]: value };
+			return applyTopLevelConfigChange(prev, key, value);
 		});
 		setUnsavedChanges(true);
 	}, []);

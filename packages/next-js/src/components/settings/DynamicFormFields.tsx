@@ -234,7 +234,7 @@ function DynamicArrayField({
 			<div className="space-y-2">
 				{arr.map((item, index) => {
 					return (
-						<div key={index} className="flex gap-2">
+						<div key={`${index}-${item}`} className="flex gap-2">
 							{items?.enum ? (
 								<div className="relative flex-1">
 									<select
@@ -486,57 +486,59 @@ function ObjectTreeNode({
 
 	return (
 		<div className="border border-slate-800/60 rounded-xl overflow-hidden bg-slate-900/20">
-			<button
-				type="button"
-				onClick={() => setIsExpanded(!isExpanded)}
-				className="w-full flex items-center gap-2 px-4 py-3 bg-slate-800/40 hover:bg-slate-800/60 transition-colors border-b border-transparent hover:border-slate-800/60"
-			>
-				{isExpanded ? (
-					<ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-				) : (
-					<ChevronRight className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-				)}
-				<span className="text-sm font-bold text-slate-300 truncate">
-					{fieldLabel}
-				</span>
-				{labelAction && <span className="ml-2">{labelAction}</span>}
-
-				{itemModel && (
-					<div
-						className={cn(
-							"flex items-center gap-1.5 ml-2 px-2 py-0.5 rounded-md ring-1 max-w-[200px] truncate",
-							styles.bg,
-							styles.text.replace("text-", "text-opacity-80 text-"), // Handle text opacity if needed
-							"ring-opacity-20 border-none",
-						)}
-						style={{
-							borderColor: "transparent",
-							boxShadow: "none",
-						}}
-					>
-						<Cpu className={cn("w-3 h-3 shrink-0", styles.text)} />
-						<span
-							className={cn(
-								"text-[10px] font-bold uppercase tracking-tight truncate",
-								styles.text,
-							)}
-						>
-							{itemModel.split("/").pop()}
-							{itemVariant ? ` (${itemVariant})` : ""}
-						</span>
-					</div>
-				)}
-
-				{pathErrors.length > 0 && (
-					<span className="text-xs text-red-400 ml-2 flex items-center gap-1">
-						<AlertCircle className="w-3 h-3" />
-						{pathErrors.length} error{pathErrors.length > 1 ? "s" : ""}
+			<div className="w-full flex items-center gap-2 px-4 py-3 bg-slate-800/40 border-b border-transparent hover:border-slate-800/60">
+				<button
+					type="button"
+					onClick={() => setIsExpanded(!isExpanded)}
+					className="flex-1 flex items-center gap-2 hover:bg-slate-800/60 transition-colors rounded px-1 py-0.5 text-left"
+				>
+					{isExpanded ? (
+						<ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+					) : (
+						<ChevronRight className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+					)}
+					<span className="text-sm font-bold text-slate-300 truncate">
+						{fieldLabel}
 					</span>
-				)}
-				{!hasContent && pathErrors.length === 0 && (
-					<span className="text-xs text-slate-500 ml-auto">empty</span>
-				)}
-			</button>
+
+					{itemModel && (
+						<div
+							className={cn(
+								"flex items-center gap-1.5 ml-2 px-2 py-0.5 rounded-md ring-1 max-w-[200px] truncate",
+								styles.bg,
+								styles.text.replace("text-", "text-opacity-80 text-"), // Handle text opacity if needed
+								"ring-opacity-20 border-none",
+							)}
+							style={{
+								borderColor: "transparent",
+								boxShadow: "none",
+							}}
+						>
+							<Cpu className={cn("w-3 h-3 shrink-0", styles.text)} />
+							<span
+								className={cn(
+									"text-[10px] font-bold uppercase tracking-tight truncate",
+									styles.text,
+								)}
+							>
+								{itemModel.split("/").pop()}
+								{itemVariant ? ` (${itemVariant})` : ""}
+							</span>
+						</div>
+					)}
+
+					{pathErrors.length > 0 && (
+						<span className="text-xs text-red-400 ml-2 flex items-center gap-1">
+							<AlertCircle className="w-3 h-3" />
+							{pathErrors.length} error{pathErrors.length > 1 ? "s" : ""}
+						</span>
+					)}
+					{!hasContent && pathErrors.length === 0 && (
+						<span className="text-xs text-slate-500 ml-auto">empty</span>
+					)}
+				</button>
+				{labelAction && <span className="ml-2">{labelAction}</span>}
+			</div>
 			{isExpanded && (
 				<div className="p-4 space-y-4 bg-slate-900/10">
 					{pathErrors.length > 0 && (
@@ -943,11 +945,7 @@ function DynamicField({
 
 		return (
 			<div className="space-y-2">
-				{fieldLabel && (
-					<div className="block text-xs font-bold text-slate-400 mb-1.5 pl-1">
-						{fieldLabel}
-					</div>
-				)}
+				{fieldLabel && <FieldLabel label={fieldLabel} action={labelAction} />}
 				<select
 					value={currentVariantIndex}
 					onChange={(e) => {
@@ -1128,6 +1126,7 @@ export function DynamicFormFields({
 			{sectionFields.map(([key, propSchema]) => {
 				const ps = propSchema as JSONSchema;
 				const sectionTitle = ps.title ?? key;
+				const canRemoveSection = canRemoveObjectProperty(schema, data, key);
 
 				return (
 					<DynamicField
@@ -1140,6 +1139,18 @@ export function DynamicFormFields({
 						models={models}
 						modelVariants={modelVariants}
 						depth={1}
+						labelAction={
+							canRemoveSection ? (
+								<button
+									type="button"
+									onClick={() => onChange(key, undefined)}
+									className="text-slate-500 hover:text-red-400 transition-colors"
+									title="Remove section"
+								>
+									<X className="w-3.5 h-3.5" />
+								</button>
+							) : undefined
+						}
 					/>
 				);
 			})}

@@ -581,6 +581,7 @@ export function useBoardModel({
 		prompt: string,
 		selectedAttachments?: PromptAttachment[],
 		modelName?: string | null,
+		runAfterGenerate?: boolean,
 	) => {
 		if (!board) {
 			throw new Error("Board not found");
@@ -623,6 +624,62 @@ export function useBoardModel({
 			pendingStoryGenerations.current.set(runId, createdTask.id);
 			await loadBoard();
 			addToast("User story generation started", "info");
+
+			if (runAfterGenerate) {
+				const rolesResponse = await api.roles.listFull();
+				const roleWithBehavior = rolesResponse.roles.map((role) => {
+					try {
+						const parsed = JSON.parse(role.preset_json) as {
+							behavior?: {
+								preferredForStoryGeneration?: unknown;
+								quickSelect?: unknown;
+								recommended?: unknown;
+							};
+						};
+						return {
+							role,
+							behavior: {
+								preferredForStoryGeneration:
+									parsed.behavior?.preferredForStoryGeneration === true,
+								quickSelect: parsed.behavior?.quickSelect === true,
+								recommended: parsed.behavior?.recommended === true,
+							},
+						};
+					} catch {
+						return {
+							role,
+							behavior: {
+								preferredForStoryGeneration: false,
+								quickSelect: false,
+								recommended: false,
+							},
+						};
+					}
+				});
+
+				const executionRoleId =
+					roleWithBehavior.find(
+						(item) =>
+							item.behavior.quickSelect &&
+							!item.behavior.preferredForStoryGeneration,
+					)?.role.id ??
+					roleWithBehavior.find(
+						(item) =>
+							item.behavior.recommended &&
+							!item.behavior.preferredForStoryGeneration,
+					)?.role.id ??
+					roleWithBehavior.find(
+						(item) => !item.behavior.preferredForStoryGeneration,
+					)?.role.id;
+
+				await api.run.start({
+					taskId: createdTask.id,
+					roleId: executionRoleId,
+					mode: "execute",
+					modelName: modelName ?? null,
+				});
+				addToast("Execution run queued", "info");
+			}
 		} catch (generateError) {
 			console.error("Failed to quick-create generated story:", generateError);
 			// Error toast handled by ApiClient.onError.

@@ -127,6 +127,10 @@ export function deriveMetaStatus(
 		return { kind: "running" };
 	}
 
+	if (hasPendingToolCalls(inspection)) {
+		return { kind: "running" };
+	}
+
 	const reportResult = findLastAssistantReport(inspection);
 	if (reportResult) {
 		return {
@@ -147,25 +151,6 @@ export function deriveMetaStatus(
 		return { kind: "running" };
 	}
 
-	if (
-		inspection.probeStatus === "alive" &&
-		(inspection.sessionStatus === "idle" ||
-			inspection.sessionStatus === "unknown")
-	) {
-		const latestMessage = inspection.messages[inspection.messages.length - 1];
-		if (latestMessage?.role !== "user") {
-			const content = findStoryContent(inspection);
-			log.warn(
-				"Session completed without explicit REPORT tag; falling back to legacy completion heuristic",
-				{
-					runId: run?.id,
-					runKind: run?.metadata?.kind,
-				},
-			);
-			return { kind: "completed", content };
-		}
-	}
-
 	return { kind: "running" };
 }
 
@@ -181,6 +166,20 @@ function hasActiveChildSessions(inspection: SessionInspectionResult): boolean {
 		}
 	}
 
+	return false;
+}
+
+function hasPendingToolCalls(inspection: SessionInspectionResult): boolean {
+	for (const message of inspection.messages) {
+		for (const part of message.parts) {
+			if (
+				part.type === "tool" &&
+				(part.state === "pending" || part.state === "running")
+			) {
+				return true;
+			}
+		}
+	}
 	return false;
 }
 
