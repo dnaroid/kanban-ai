@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+	BookOpen,
 	Trash2,
 	Loader2,
 	XCircle,
@@ -30,6 +31,7 @@ import {
 } from "./contextActions";
 import { TaskDetailsModel } from "../drawer/sections/TaskDetailsModel";
 import { StatusPillSelect } from "./StatusPillSelect";
+import { TranslationModal } from "@/components/kanban/TranslationModal";
 
 export interface SortableTaskProps {
 	task: KanbanTask;
@@ -57,6 +59,7 @@ export function SortableTask({
 	const [isLoading, setIsLoading] = useState(false);
 	const [isQaLoading, setIsQaLoading] = useState(false);
 	const [isFixLoading, setIsFixLoading] = useState(false);
+	const [isStoryModalOpen, setIsStoryModalOpen] = useState(false);
 	const cardRef = useRef<HTMLDivElement | null>(null);
 	const workflowConfig = useWorkflowDisplayConfig();
 	const {
@@ -200,6 +203,11 @@ export function SortableTask({
 		} finally {
 			setIsFixLoading(false);
 		}
+	};
+
+	const handleViewStory = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		setIsStoryModalOpen(true);
 	};
 
 	return (
@@ -440,6 +448,18 @@ export function SortableTask({
 						<span>Reject</span>
 					</button>
 				)}
+				{systemKey === "ready" && task.description && (
+					<button
+						type="button"
+						onClick={handleViewStory}
+						onPointerDown={(e) => e.stopPropagation()}
+						className="inline-flex items-center gap-0.5 rounded-md text-xs font-semibold transition-colors text-blue-400/85 hover:text-blue-300 hover:bg-blue-500/10 active:bg-blue-500/20"
+						title="View Story"
+					>
+						<BookOpen className="h-3.5 w-3.5" />
+						<span>View Story</span>
+					</button>
+				)}
 				<button
 					type="button"
 					onClick={(e) => {
@@ -454,6 +474,12 @@ export function SortableTask({
 					<span>Delete</span>
 				</button>
 			</div>
+			<TranslationModal
+				taskId={task.id}
+				storyText={task.description}
+				open={isStoryModalOpen}
+				onOpenChange={setIsStoryModalOpen}
+			/>
 		</div>
 	);
 }

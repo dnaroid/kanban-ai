@@ -612,6 +612,33 @@ class ApiClient {
 			const payload = await response.json();
 			return this.unwrapApiData<{ runId: string }>(payload);
 		},
+		translate: async ({
+			taskId,
+			language,
+			modelName,
+		}: {
+			taskId: string;
+			language: string;
+			modelName?: string | null;
+		}): Promise<{ sessionId: string }> => {
+			const response = await this.fetch(
+				`${this.baseUrl}/api/opencode/translate`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ taskId, language, modelName }),
+				},
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to start translation",
+				);
+				this.fail(message);
+			}
+			const payload = await response.json();
+			return this.unwrapApiData<{ sessionId: string }>(payload);
+		},
 		triggerStoryChatGenerate: async ({
 			runId,
 		}: {

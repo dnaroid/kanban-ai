@@ -292,6 +292,10 @@ export interface OpenCodeStartStoryChatResponse {
 	runId: string;
 }
 
+export interface OpenCodeTranslateResponse {
+	sessionId: string;
+}
+
 export interface OpenCodeTriggerStoryChatGenerateResponse {
 	success: boolean;
 }

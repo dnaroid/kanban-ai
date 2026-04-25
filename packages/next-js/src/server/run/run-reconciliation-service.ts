@@ -157,18 +157,17 @@ export class RunReconciliationService {
 		}
 
 		const isStoryChat = this.deps.isStoryChatRun(run);
+		const shouldSkipAutomaticFinalization = isStoryChat;
 
 		switch (meta.kind) {
 			case "completed": {
-				if (isStoryChat) {
-					log.info(
-						"Skipping finalization for story-chat run; waiting for explicit generate trigger",
-						{
-							runId: observedRun.id,
-							sessionId,
-							metaKind: meta.kind,
-						},
-					);
+				if (shouldSkipAutomaticFinalization) {
+					log.info("Skipping finalization for interactive specialized run", {
+						runId: observedRun.id,
+						sessionId,
+						metaKind: meta.kind,
+						runKind: observedRun.metadata?.kind ?? null,
+					});
 					break;
 				}
 				await this.deps.finalizeRunFromSession(observedRun.id, "completed", {
@@ -178,16 +177,14 @@ export class RunReconciliationService {
 				return;
 			}
 			case "reported": {
-				if (isStoryChat) {
-					log.info(
-						"Skipping finalization for story-chat run; waiting for explicit generate trigger",
-						{
-							runId: observedRun.id,
-							sessionId,
-							metaKind: meta.kind,
-							reportTag: meta.report,
-						},
-					);
+				if (shouldSkipAutomaticFinalization) {
+					log.info("Skipping finalization for interactive specialized run", {
+						runId: observedRun.id,
+						sessionId,
+						metaKind: meta.kind,
+						reportTag: meta.report,
+						runKind: observedRun.metadata?.kind ?? null,
+					});
 					break;
 				}
 				const reportStatus = mapReportToStatus(meta.report);
