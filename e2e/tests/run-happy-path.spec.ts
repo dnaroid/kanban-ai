@@ -18,7 +18,7 @@ test.describe("Run Happy Path", () => {
 		await page.getByTestId("tab-runs").click();
 
 		const runTab = page.locator(
-			"[data-testid='run-status'], button:has-text('Start')",
+			"[data-testid='run-status'], button:has-text('New Run')",
 		);
 		await expect(runTab.first()).toBeVisible({ timeout: 5_000 });
 	});
