@@ -19,9 +19,10 @@ import { api } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import type { OpencodeModel } from "@/types/kanban";
 import type { OhMyOpenagentConfig } from "./OhMyOpenagentTypes";
-import { DynamicFormFields, validateSchema } from "./DynamicFormFields";
+import { DynamicFormFields } from "./DynamicFormFields";
 import { EngagedModelsSummary } from "./EngagedModelsSummary";
 import type { JSONSchema } from "@/lib/json-schema-types";
+import { validateSchema } from "./schema-utils";
 
 type OhMyOpenagentSettingsProps = {
 	onStatusChangeAction: (status: {

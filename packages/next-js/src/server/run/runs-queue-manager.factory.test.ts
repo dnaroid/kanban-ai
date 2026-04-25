@@ -183,12 +183,12 @@ function createMockCtx(): RqmContext {
 			cleanupRunWorkspace: vi.fn(),
 			syncVcsMetadata: vi.fn(),
 			syncRunWorkspace: vi.fn(),
-		} as RqmContext["vcsManager"],
+		} as unknown as RqmContext["vcsManager"],
 		sessionManager: {
 			sendPrompt: vi.fn(),
 			listPendingPermissions: vi.fn(),
 			listPendingQuestions: vi.fn(),
-		} as RqmContext["sessionManager"],
+		} as unknown as RqmContext["sessionManager"],
 		stateMachine: {} as RqmContext["stateMachine"],
 		retryManager: {} as RqmContext["retryManager"],
 		opencodeService: {} as RqmContext["opencodeService"],
@@ -266,7 +266,7 @@ describe("runs-queue-manager factory", () => {
 
 	describe("runReconciler wiring", () => {
 		it("receives taskStatusProjectionService for board context polling", () => {
-			const [config] = captured.runReconciler[0];
+			const config = captured.runReconciler[0][0] as Record<string, unknown>;
 			expect(config).toHaveProperty("taskStatusProjectionService");
 			expect(config.taskStatusProjectionService).toBe(
 				mockInstances.taskStatusProjectionService,
@@ -276,7 +276,9 @@ describe("runs-queue-manager factory", () => {
 
 	describe("runExecutor wiring", () => {
 		it("delegates onComplete to ctx.onRunExecutionCompleted", () => {
-			const [config] = captured.runExecutor[0];
+			const config = captured.runExecutor[0][0] as {
+				onComplete: (runId: string) => void;
+			};
 			config.onComplete("run-99");
 			expect(ctx.onRunExecutionCompleted).toHaveBeenCalledWith("run-99");
 		});
@@ -284,7 +286,9 @@ describe("runs-queue-manager factory", () => {
 
 	describe("postRunWorkflowService wiring", () => {
 		it("delegates resumeRejectedTaskRun to executionBootstrapService", async () => {
-			const [config] = captured.postRunWorkflowService[0];
+			const config = captured.postRunWorkflowService[0][0] as {
+				resumeRejectedTaskRun: (task: { id: string }) => Promise<unknown>;
+			};
 			const task = { id: "task-1" };
 			await config.resumeRejectedTaskRun(task);
 			expect(
@@ -293,7 +297,9 @@ describe("runs-queue-manager factory", () => {
 		});
 
 		it("delegates enqueueExecutionForNextTask to executionBootstrapService", async () => {
-			const [config] = captured.postRunWorkflowService[0];
+			const config = captured.postRunWorkflowService[0][0] as {
+				enqueueExecutionForNextTask: (taskId: string) => Promise<unknown>;
+			};
 			await config.enqueueExecutionForNextTask("task-2");
 			expect(
 				mockInstances.executionBootstrapService.enqueueExecutionForNextTask,

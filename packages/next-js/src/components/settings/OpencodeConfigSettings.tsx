@@ -13,8 +13,10 @@ import {
 import { FileSystemPicker } from "@/components/common/FileSystemPicker";
 import { api } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
-import { DynamicFormFields, validateSchema } from "./DynamicFormFields";
+import { DynamicFormFields } from "./DynamicFormFields";
 import type { JSONSchema } from "@/lib/json-schema-types";
+import { applyTopLevelConfigChange } from "./config-utils";
+import { validateSchema } from "./schema-utils";
 
 type OpencodeConfigSettingsProps = {
 	onStatusChangeAction: (status: {
@@ -24,20 +26,6 @@ type OpencodeConfigSettingsProps = {
 };
 
 const EXCLUDE_FIELDS = new Set(["$schema"]);
-
-export function applyTopLevelConfigChange(
-	prev: Record<string, unknown>,
-	key: string,
-	value: unknown,
-): Record<string, unknown> {
-	if (value === undefined) {
-		const next = { ...prev };
-		delete next[key];
-		return next;
-	}
-
-	return { ...prev, [key]: value };
-}
 
 export function OpencodeConfigSettings({
 	onStatusChangeAction,

@@ -87,7 +87,7 @@ function buildTask(task: Partial<TaskTransitionInput["task"]> = {}) {
 }
 
 function buildTransitionInput(
-	input: Partial<TaskTransitionInput> & {
+	input: Omit<Partial<TaskTransitionInput>, "task"> & {
 		task?: Partial<TaskTransitionInput["task"]>;
 	} = {},
 ): TaskTransitionInput {

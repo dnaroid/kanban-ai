@@ -11,6 +11,10 @@ import { SortableColumn } from "./kanban/board/SortableColumn";
 import { SortableTask } from "./kanban/board/SortableTask";
 import { QuickCreateModal } from "./kanban/board/QuickCreateModal";
 import { RejectModal, type RejectAttachment } from "./kanban/board/RejectModal";
+import {
+	type ActiveExecutionSessionConfirmationState,
+	buildConfirmedReadyStartOptions,
+} from "./board/buildConfirmedReadyStartOptions";
 import { useBoardModel } from "@/features/board/model/use-board-model";
 import { cn } from "@/lib/utils";
 import { ConfirmationModal } from "@/components/common/ConfirmationModal";
@@ -21,27 +25,6 @@ interface BoardScreenProps {
 	projectId: string;
 	projectName: string;
 	projectColor?: string;
-}
-
-export interface ActiveExecutionSessionConfirmationState {
-	message: string;
-	forceDirtyGit: boolean;
-}
-
-export function buildConfirmedReadyStartOptions(
-	confirmation: ActiveExecutionSessionConfirmationState | null,
-): {
-	forceDirtyGit: boolean;
-	confirmActiveSession: true;
-} | null {
-	if (!confirmation) {
-		return null;
-	}
-
-	return {
-		forceDirtyGit: confirmation.forceDirtyGit,
-		confirmActiveSession: true,
-	};
 }
 
 export function BoardScreen({

@@ -6,13 +6,11 @@ import { Sidebar } from "@/components/Sidebar";
 import { ApiErrorProvider } from "@/components/common/toast/ApiErrorProvider";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
-import { ToastProvider } from "@/components/common/toast/ToastContext";
+import { ToastProvider } from "@/components/common/toast/ToastProvider";
 import { ToastContainer } from "@/components/common/toast/ToastContainer";
 import { useRunSoundNotifications } from "@/lib/use-run-sound-notifications";
-import {
-	ServerStatusProvider,
-	useServerStatus,
-} from "@/components/common/ServerStatusContext";
+import { useServerStatus } from "@/components/common/ServerStatusContext";
+import { ServerStatusProvider } from "@/components/common/ServerStatusProvider";
 import { ServerStatusOverlay } from "@/components/common/ServerStatusOverlay";
 
 const SIDEBAR_COLLAPSED_KEY = "sidebar-collapsed";

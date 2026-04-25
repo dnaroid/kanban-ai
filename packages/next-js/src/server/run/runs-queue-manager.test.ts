@@ -59,6 +59,7 @@ const {
 				todos: [],
 				pendingPermissions: [],
 				pendingQuestions: [],
+				childSessions: [],
 			})),
 			getMessages: vi.fn(
 				async (_sessionId?: string, _limit?: number) => [] as Array<MockRecord>,
@@ -429,6 +430,7 @@ function buildInspection(options?: {
 		todos: [],
 		pendingPermissions: options?.pendingPermissions ?? [],
 		pendingQuestions: options?.pendingQuestions ?? [],
+		childSessions: [],
 	};
 }
 
@@ -1120,7 +1122,10 @@ describe("RunsQueueManager scheduling", () => {
 		);
 
 		mockSessionManager.inspectSession.mockResolvedValue(
-			buildInspection({ sessionStatus: "idle" }),
+			buildInspection({
+				content: "<REPORT>done</REPORT>",
+				sessionStatus: "idle",
+			}),
 		);
 
 		const manager = new RunsQueueManager();
@@ -1209,7 +1214,7 @@ describe("RunsQueueManager scheduling", () => {
 				pendingQuestions: [
 					{
 						id: "que-test-1",
-						sessionId: runMap.get("run-net-guard")?.sessionId ?? "",
+						sessionId: (runMap.get("run-net-guard")?.sessionId as string) ?? "",
 						questions: [
 							{
 								question: "What should I do?",
@@ -1442,7 +1447,10 @@ describe("RunsQueueManager scheduling", () => {
 			},
 		});
 		mockSessionManager.inspectSession.mockResolvedValue(
-			buildInspection({ sessionStatus: "idle" }),
+			buildInspection({
+				content: "<REPORT>done</REPORT>",
+				sessionStatus: "idle",
+			}),
 		);
 
 		const manager = new RunsQueueManager();
@@ -2184,7 +2192,7 @@ describe("RunsQueueManager permission handling", () => {
 			async (currentSessionId?: string) => {
 				return currentSessionId === isolatedSessionId
 					? buildInspection({
-							content: "Done",
+							content: "Done\n<REPORT>done</REPORT>",
 							sessionStatus: "idle",
 						})
 					: buildInspection();

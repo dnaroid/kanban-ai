@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyTopLevelConfigChange } from "./OpencodeConfigSettings";
+import { applyTopLevelConfigChange } from "./config-utils";
 
 describe("applyTopLevelConfigChange", () => {
 	it("updates key when value is provided", () => {

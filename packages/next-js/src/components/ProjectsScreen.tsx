@@ -141,23 +141,23 @@ function CreateProjectModal({
 							<label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
 								Project Color
 							</label>
-							<div className="grid grid-cols-4 gap-2">
+							<div className="grid grid-cols-10 gap-2 max-h-[120px] overflow-y-auto p-1 custom-scrollbar">
 								{PROJECT_COLORS.map((color) => (
 									<button
 										key={color.value}
 										type="button"
 										onClick={() => setSelectedColor(color.value)}
 										className={cn(
-											"h-10 rounded-xl transition-all relative flex items-center justify-center group",
+											"aspect-square rounded-lg transition-all relative flex items-center justify-center group",
 											selectedColor === color.value
-												? "ring-2 ring-white ring-offset-2 ring-offset-[#0B0E14]"
-												: "opacity-60 hover:opacity-100",
+												? "ring-2 ring-white ring-offset-2 ring-offset-[#0B0E14] z-10"
+												: "opacity-80 hover:opacity-100 hover:scale-105",
 										)}
 										style={{ backgroundColor: color.value }}
 										title={color.name}
 									>
 										{selectedColor === color.value && (
-											<Check className="w-5 h-5 text-white shadow-lg" />
+											<Check className="w-3 h-3 text-white" />
 										)}
 									</button>
 								))}

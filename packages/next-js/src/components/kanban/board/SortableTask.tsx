@@ -6,7 +6,6 @@ import { CSS } from "@dnd-kit/utilities";
 import {
 	Trash2,
 	Loader2,
-	ExternalLink,
 	XCircle,
 	RotateCcw,
 	FlaskConical,

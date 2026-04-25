@@ -1,11 +1,8 @@
 import { act, createElement } from "react";
 import { createRoot, Root } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
-import {
-	canRemoveObjectProperty,
-	DynamicFormFields,
-	validateSchema,
-} from "./DynamicFormFields";
+import { DynamicFormFields } from "./DynamicFormFields";
+import { canRemoveObjectProperty, validateSchema } from "./schema-utils";
 import type { JSONSchema } from "@/lib/json-schema-types";
 
 describe("canRemoveObjectProperty", () => {

@@ -100,13 +100,13 @@ function buildInspection(
 	overrides: Partial<SessionInspectionResult> = {},
 ): SessionInspectionResult {
 	return {
-		probeStatus: "alive" as SessionProbeStatus,
-		sessionStatus: "busy",
-		messages: [],
-		todos: [],
-		pendingPermissions: [],
-		pendingQuestions: [],
-		...overrides,
+		probeStatus: (overrides.probeStatus ?? "alive") as SessionProbeStatus,
+		sessionStatus: overrides.sessionStatus ?? "busy",
+		messages: overrides.messages ?? [],
+		todos: overrides.todos ?? [],
+		pendingPermissions: overrides.pendingPermissions ?? [],
+		pendingQuestions: overrides.pendingQuestions ?? [],
+		childSessions: [],
 	};
 }
 

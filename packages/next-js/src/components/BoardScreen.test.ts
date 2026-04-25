@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildConfirmedReadyStartOptions } from "./BoardScreen";
+import { buildConfirmedReadyStartOptions } from "./board/buildConfirmedReadyStartOptions";
 
 describe("buildConfirmedReadyStartOptions", () => {
 	it("returns null without confirmation state", () => {
