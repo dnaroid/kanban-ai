@@ -237,7 +237,7 @@ export class RunsQueueManager {
 	private readonly worktreeEnabled =
 		process.env.RUNS_WORKTREE_ENABLED === "true";
 	private draining = false;
-	private readonly staleRunThresholdMs = 10 * 60 * 1000;
+	private readonly staleRunThresholdMs = 30 * 60 * 1000;
 	private readonly manualStatusGraceMs = 15_000;
 	private recoveryTimer: ReturnType<typeof setInterval> | null = null;
 	private readonly recoveryIntervalMs = 30_000;

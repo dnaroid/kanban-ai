@@ -16,6 +16,7 @@ export default function StandaloneTaskPage() {
 		| "runs"
 		| "vcs"
 		| "properties"
+		| "report"
 		| null;
 
 	const {

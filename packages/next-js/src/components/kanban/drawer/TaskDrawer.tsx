@@ -17,6 +17,7 @@ import { TaskDrawerDetails } from "./TaskDrawerDetails";
 import { TaskDrawerRuns } from "./TaskDrawerRuns";
 import { TaskDrawerVcs } from "./TaskDrawerVcs";
 import { TaskArtifactsPanel } from "./TaskArtifactsPanel";
+import { TaskDrawerExecutionReport } from "./TaskDrawerExecutionReport";
 
 interface TaskDrawerContentProps {
 	task: KanbanTask;
@@ -27,7 +28,14 @@ interface TaskDrawerContentProps {
 	isExpanded?: boolean;
 	onToggleExpand?: () => void;
 	showExpandButton?: boolean;
-	defaultTab?: "details" | "runs" | "qa" | "vcs" | "properties" | "artifacts";
+	defaultTab?:
+		| "details"
+		| "runs"
+		| "qa"
+		| "vcs"
+		| "properties"
+		| "artifacts"
+		| "report";
 }
 
 export function TaskDrawerContent({
@@ -42,7 +50,7 @@ export function TaskDrawerContent({
 	defaultTab = "details",
 }: TaskDrawerContentProps) {
 	const [activeTab, setActiveTab] = useState<
-		"details" | "runs" | "qa" | "vcs" | "properties" | "artifacts"
+		"details" | "runs" | "qa" | "vcs" | "properties" | "artifacts" | "report"
 	>(defaultTab);
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
 	const [editedTitle, setEditedTitle] = useState(task.title || "");
@@ -88,6 +96,7 @@ export function TaskDrawerContent({
 	const tabs = [
 		{ id: "details" as const, label: "Details" },
 		{ id: "runs" as const, label: "Run" },
+		{ id: "report" as const, label: "Report" },
 		...(task.qaReport ? [{ id: "qa" as const, label: "QA" }] : []),
 		{ id: "artifacts" as const, label: "Artifacts" },
 		{ id: "vcs" as const, label: "VCS" },
@@ -249,6 +258,18 @@ export function TaskDrawerContent({
 						<QaReportPanel task={task} onUpdate={onUpdate} />
 					</div>
 				)}
+
+				<div
+					className={cn(
+						"absolute inset-0 flex flex-col",
+						activeTab !== "report" && "hidden",
+					)}
+				>
+					<TaskDrawerExecutionReport
+						task={task}
+						isActive={activeTab === "report"}
+					/>
+				</div>
 
 				<div
 					className={cn(

@@ -518,7 +518,7 @@ describe("RunReconciliationService", () => {
 			).toHaveBeenCalledWith("r1", "session-1");
 		});
 
-		it("stale running run with alive probe and non-terminal meta force-finalizes via resolveStaleCompletionOutcome", async () => {
+		it("stale running run with alive probe and non-terminal meta does NOT force-finalize", async () => {
 			const oldDate = new Date(Date.now() - 120000).toISOString();
 			const staleRun = makeRun({
 				id: "r1",
@@ -528,10 +528,6 @@ describe("RunReconciliationService", () => {
 			});
 			mockRunRepoUpdate.mockReturnValue(staleRun);
 			mockDeriveMetaStatus.mockReturnValue({ kind: "running" });
-			deps.runFinalizer.resolveStaleCompletionOutcome.mockReturnValue({
-				kind: "completed",
-				content: "",
-			});
 
 			await service.applyInspectionResult(
 				staleRun,
@@ -541,12 +537,8 @@ describe("RunReconciliationService", () => {
 
 			expect(
 				deps.runFinalizer.resolveStaleCompletionOutcome,
-			).toHaveBeenCalledWith(staleRun);
-			expect(deps.finalizeRunFromSession).toHaveBeenCalledWith(
-				"r1",
-				"completed",
-				{ kind: "completed", content: "" },
-			);
+			).not.toHaveBeenCalled();
+			expect(deps.finalizeRunFromSession).not.toHaveBeenCalled();
 		});
 
 		it("does not stale force-finalize generation runs without strict completion", async () => {
@@ -812,7 +804,7 @@ describe("RunReconciliationService", () => {
 			expect(deps.removeFromQueue).toHaveBeenCalledWith("r1");
 		});
 
-		it("alive non-terminal session uses fallback finalize via resolveStaleCompletionOutcome", async () => {
+		it("alive non-terminal session does NOT force-finalize", async () => {
 			const run = makeRun({
 				id: "r1",
 				status: "running",
@@ -837,12 +829,8 @@ describe("RunReconciliationService", () => {
 
 			expect(
 				deps.runFinalizer.resolveStaleCompletionOutcome,
-			).toHaveBeenCalledWith(run);
-			expect(deps.finalizeRunFromSession).toHaveBeenCalledWith(
-				"r1",
-				"completed",
-				{ kind: "completed", content: "fallback-story" },
-			);
+			).not.toHaveBeenCalled();
+			expect(deps.finalizeRunFromSession).not.toHaveBeenCalled();
 		});
 
 		it("skips stale fallback finalization for generation runs", async () => {

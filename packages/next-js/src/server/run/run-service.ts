@@ -1328,9 +1328,70 @@ export class RunService {
 
 	public async delete(runId: string): Promise<void> {
 		log.info("Deleting run", { runId });
+
+		const run = runRepo.getById(runId);
+		const taskId = run?.taskId ?? null;
+
 		await this.cancel(runId);
 		runRepo.delete(runId);
+
+		if (taskId) {
+			this.resetTaskIfNeeded(taskId);
+		}
+
 		log.info("Run deleted", { runId });
+	}
+
+	// cancel() skips task transition when run was already in terminal status (failed/cancelled)
+	private resetTaskIfNeeded(taskId: string): void {
+		const task = taskRepo.getById(taskId);
+		if (!task) return;
+
+		if (task.status === "pending" || task.status === "rejected") return;
+
+		const board =
+			typeof boardRepo.getById === "function"
+				? boardRepo.getById(task.boardId)
+				: boardRepo.getByProjectId(task.projectId);
+		if (!board) return;
+
+		const sm = getTaskStateMachine();
+		const input: TaskTransitionInput & {
+			task: TaskTransitionInput["task"] & { tags: string };
+		} = {
+			task: {
+				id: task.id,
+				boardId: task.boardId,
+				status: task.status,
+				columnId: task.columnId,
+				tags: task.tags,
+			},
+			board,
+			trigger: "run:cancelled",
+			runKind: null,
+			outcomeContent: "",
+			hasSessionExisted: false,
+			isManualStatusGracePeriod: false,
+		};
+
+		const result = sm.transition(input);
+		if (result.action === "update") {
+			taskRepo.update(task.id, result.patch);
+			for (const effect of result.effects) {
+				if (effect.type === "publishSse") {
+					publishSseEvent("task:event", {
+						taskId: task.id,
+						boardId: task.boardId,
+						projectId: effect.projectId,
+						updatedAt: new Date().toISOString(),
+					});
+				}
+			}
+			log.info("Reset task state after run deletion", {
+				taskId,
+				patch: result.patch,
+			});
+		}
 	}
 
 	private parseTaskTags(rawTags: unknown): string[] {

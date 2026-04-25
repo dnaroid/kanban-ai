@@ -6,7 +6,6 @@ import { RunInteractionCoordinator } from "@/server/run/run-interaction-coordina
 import type { RunOutcome } from "@/server/run/run-finalizer";
 import {
 	deriveMetaStatus,
-	findStoryContent,
 	toRunLastExecutionStatus,
 } from "@/server/run/run-session-interpreter";
 import type { ReportTag } from "@/server/run/run-session-interpreter";
@@ -259,34 +258,14 @@ export class RunReconciliationService {
 			this.isRunStale(observedRun) &&
 			inspection.probeStatus === "alive"
 		) {
-			if (
-				this.deps.isGenerationRun(observedRun) ||
-				this.deps.isStoryChatRun(observedRun)
-			) {
-				log.info(
-					"Skipping stale force-finalization for story generation flow without strict completion",
-					{
-						runId: observedRun.id,
-						sessionId,
-						runKind: observedRun.metadata?.kind ?? null,
-					},
-				);
-			} else {
-				const staleOutcome =
-					this.deps.runFinalizer.resolveStaleCompletionOutcome(observedRun);
-				await this.deps.finalizeRunFromSession(
-					observedRun.id,
-					"completed",
-					staleOutcome,
-				);
-				log.info("Force-finalized stale running run during reconciliation", {
+			log.info(
+				"Skipping stale force-finalization; session alive without REPORT tag",
+				{
 					runId: observedRun.id,
 					sessionId,
-					outcomeKind: staleOutcome.kind,
 					runKind: observedRun.metadata?.kind ?? null,
-				});
-				return;
-			}
+				},
+			);
 		}
 
 		if (observedRun.status === "paused") {
@@ -491,40 +470,16 @@ export class RunReconciliationService {
 				return;
 			}
 
-			log.info("Stale run session alive but non-terminal; force-finalizing", {
-				projectId,
-				taskId,
-				runId: run.id,
-				inspectionKind: meta.kind,
-				runKind: run.metadata?.kind ?? null,
-			});
-
-			if (this.deps.isGenerationRun(run) || this.deps.isStoryChatRun(run)) {
-				log.info(
-					"Skipping stale reconciliation fallback finalization for story generation flow",
-					{
-						projectId,
-						taskId,
-						runId: run.id,
-						runKind: run.metadata?.kind ?? null,
-					},
-				);
-				return;
-			}
-
-			const staleOutcome =
-				this.deps.runFinalizer.resolveStaleCompletionOutcome(run);
-			const fallbackContent = findStoryContent(inspection);
-			await this.deps.finalizeRunFromSession(run.id, "completed" as RunStatus, {
-				...staleOutcome,
-				content: fallbackContent,
-			});
-			log.info("Force-finalized stale run with fallback outcome", {
-				projectId,
-				taskId,
-				runId: run.id,
-				outcomeKind: staleOutcome.kind,
-			});
+			log.info(
+				"Skipping stale force-finalization; session alive without REPORT tag",
+				{
+					projectId,
+					taskId,
+					runId: run.id,
+					inspectionKind: meta.kind,
+					runKind: run.metadata?.kind ?? null,
+				},
+			);
 		} catch (error) {
 			log.error("Failed to reconcile stale run", {
 				projectId,
