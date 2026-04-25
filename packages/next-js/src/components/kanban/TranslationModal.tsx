@@ -1,8 +1,23 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Languages, Loader2, AlertTriangle, Check, Copy } from "lucide-react";
-import { Modal } from "@/components/common/Modal";
+import {
+	Languages,
+	Loader2,
+	AlertTriangle,
+	Check,
+	Copy,
+	Eye,
+	X,
+} from "lucide-react";
+import {
+	ModalRoot,
+	ModalPortal,
+	ModalOverlay,
+	ModalContent,
+	ModalTitle,
+	ModalClose,
+} from "@/components/common/Modal";
 import { api } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import type { OpenCodeMessage } from "@/types/ipc";
@@ -69,6 +84,7 @@ export const TranslationModal = ({
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [isCopied, setIsCopied] = useState(false);
+	const [showOriginal, setShowOriginal] = useState(false);
 
 	const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -85,7 +101,7 @@ export const TranslationModal = ({
 
 			setIsLoading(true);
 			setError(null);
-			setTranslatedText(null);
+			setShowOriginal(false);
 			clearPolling();
 
 			try {
@@ -94,14 +110,12 @@ export const TranslationModal = ({
 					language: lang,
 				});
 
-				// Poll session messages until we get an assistant response
 				pollIntervalRef.current = setInterval(async () => {
 					try {
 						const { messages } = await api.opencode.getSessionMessages({
 							sessionId,
 						});
 
-						// Find the last assistant message
 						const lastAssistantMessage = [...messages]
 							.reverse()
 							.find((m: OpenCodeMessage) => m.role === "assistant");
@@ -111,7 +125,6 @@ export const TranslationModal = ({
 							setIsLoading(false);
 							clearPolling();
 						}
-						// If no assistant message yet, keep polling
 					} catch (err) {
 						console.error("Polling error:", err);
 						setError("Error while checking translation status.");
@@ -138,6 +151,7 @@ export const TranslationModal = ({
 			setIsLoading(false);
 			setError(null);
 			setTranslatedText(null);
+			setShowOriginal(false);
 		}
 
 		return () => clearPolling();
@@ -151,164 +165,178 @@ export const TranslationModal = ({
 	};
 
 	const handleCopy = () => {
-		if (translatedText) {
-			navigator.clipboard.writeText(translatedText);
+		const textToCopy = showOriginal ? storyText : translatedText;
+		if (textToCopy) {
+			navigator.clipboard.writeText(textToCopy);
 			setIsCopied(true);
 			setTimeout(() => setIsCopied(false), 2000);
 		}
 	};
 
+	const displayText = showOriginal ? storyText : (translatedText ?? storyText);
+
 	return (
-		<Modal
-			open={open}
-			onOpenChange={onOpenChange}
-			title={
-				<div className="flex items-center gap-2">
-					<Languages className="w-5 h-5 text-blue-400" />
-					<span>Translate Story</span>
-				</div>
-			}
-			size="lg"
-		>
-			<div className="space-y-6">
-				<div className="space-y-2">
-					<h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-						Original Story
-					</h3>
-					<div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800/60 max-h-[200px] overflow-y-auto">
-						{storyText ? (
-							<pre className="whitespace-pre-wrap text-sm text-slate-300 leading-relaxed font-sans">
-								{storyText}
-							</pre>
-						) : (
-							<p className="text-sm text-slate-500 italic">
-								No story text available
-							</p>
-						)}
-					</div>
-				</div>
+		<ModalRoot open={open} onOpenChange={onOpenChange}>
+			<ModalPortal>
+				<ModalOverlay className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-[10px] animate-in fade-in duration-200" />
+				<ModalContent
+					size="none"
+					className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[51] w-full max-w-4xl bg-[#0B0E14] border border-slate-800/60 rounded-2xl shadow-2xl animate-in zoom-in-95 fade-in duration-200 focus:outline-none focus-visible:ring-0 flex flex-col"
+					style={{ height: "calc(100vh - 20px)" }}
+				>
+					<div className="flex items-center gap-3 px-5 py-3 border-b border-slate-800/60 shrink-0">
+						<ModalTitle className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+							<Languages className="w-5 h-5 text-blue-400" />
+							<span>Story</span>
+						</ModalTitle>
 
-				<div className="flex items-center gap-4">
-					<div className="flex-1 relative">
-						<select
-							aria-label="Target language"
-							value={selectedLanguage}
-							onChange={handleLanguageChange}
-							className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 appearance-none cursor-pointer"
-							disabled={isLoading || !storyText}
-						>
-							{LANGUAGES.map((lang) => (
-								<option key={lang.code} value={lang.code}>
-									{lang.name}
-								</option>
-							))}
-						</select>
-						<div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
-							<svg
-								className="w-4 h-4 fill-current"
-								viewBox="0 0 20 20"
-								aria-hidden="true"
+						<div className="h-5 w-px bg-slate-700/60 mx-1" />
+
+						<div className="relative w-40">
+							<select
+								aria-label="Target language"
+								value={selectedLanguage}
+								onChange={handleLanguageChange}
+								className="w-full bg-slate-900 border border-slate-700/60 rounded-md px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500/50 appearance-none cursor-pointer"
+								disabled={isLoading || !storyText}
 							>
-								<path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
-							</svg>
+								{LANGUAGES.map((lang) => (
+									<option key={lang.code} value={lang.code}>
+										{lang.name}
+									</option>
+								))}
+							</select>
+							<div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+								<svg
+									className="w-3 h-3 fill-current"
+									viewBox="0 0 20 20"
+									aria-hidden="true"
+								>
+									<path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+								</svg>
+							</div>
 						</div>
-					</div>
 
-					<button
-						type="button"
-						onClick={() => handleTranslate(selectedLanguage)}
-						disabled={isLoading || !storyText || !selectedLanguage}
-						className={cn(
-							"px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2",
-							isLoading || !storyText || !selectedLanguage
-								? "bg-slate-800 text-slate-500 cursor-not-allowed"
-								: "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 active:scale-[0.98]",
-						)}
-					>
-						{isLoading ? (
-							<>
-								<Loader2 className="w-4 h-4 animate-spin" />
-								<span>Translating...</span>
-							</>
-						) : (
-							<>
-								<Languages className="w-4 h-4" />
-								<span>Translate</span>
-							</>
-						)}
-					</button>
-				</div>
-
-				{error && (
-					<div className="bg-red-400/10 border border-red-400/20 rounded-lg p-3 flex items-center justify-between gap-2 text-red-400 text-sm">
-						<div className="flex items-center gap-2">
-							<AlertTriangle className="w-4 h-4" />
-							<span>{error}</span>
-						</div>
 						<button
 							type="button"
 							onClick={() => handleTranslate(selectedLanguage)}
-							className="text-xs font-bold hover:underline"
+							disabled={isLoading || !storyText || !selectedLanguage}
+							className={cn(
+								"px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 shrink-0",
+								isLoading || !storyText || !selectedLanguage
+									? "bg-slate-800 text-slate-500 cursor-not-allowed"
+									: "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 active:scale-[0.97]",
+							)}
 						>
-							Retry
+							{isLoading ? (
+								<>
+									<Loader2 className="w-3.5 h-3.5 animate-spin" />
+									<span>...</span>
+								</>
+							) : (
+								<>
+									<Languages className="w-3.5 h-3.5" />
+									<span>Translate</span>
+								</>
+							)}
 						</button>
-					</div>
-				)}
 
-				<div className="space-y-2">
-					<div className="flex items-center justify-between">
-						<h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-							Translated Story
-						</h3>
-						{translatedText && (
+						{translatedText && !showOriginal && (
+							<button
+								type="button"
+								onClick={() => setShowOriginal(true)}
+								className="px-2.5 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-300 bg-slate-800/50 border border-slate-700/50 hover:border-slate-600 transition-all flex items-center gap-1 shrink-0"
+							>
+								<Eye className="w-3 h-3" />
+								<span>Original</span>
+							</button>
+						)}
+
+						{showOriginal && (
+							<button
+								type="button"
+								onClick={() => setShowOriginal(false)}
+								className="px-2.5 py-1.5 rounded-md text-xs font-medium text-slate-300 bg-slate-700/50 border border-slate-600 transition-all flex items-center gap-1 shrink-0"
+							>
+								<Languages className="w-3 h-3" />
+								<span>Translation</span>
+							</button>
+						)}
+
+						{displayText && (
 							<button
 								type="button"
 								onClick={handleCopy}
-								className="inline-flex items-center gap-1.5 text-xs text-cyan-400/80 hover:text-cyan-300 transition-colors"
+								className="ml-auto px-2 py-1.5 rounded-md text-xs text-cyan-400/80 hover:text-cyan-300 transition-colors flex items-center gap-1 shrink-0"
 							>
 								{isCopied ? (
 									<>
-										<Check className="w-3.5 h-3.5" />
-										<span>Copied!</span>
+										<Check className="w-3 h-3" />
+										<span>Copied</span>
 									</>
 								) : (
 									<>
-										<Copy className="w-3.5 h-3.5" />
-										<span>Copy Result</span>
+										<Copy className="w-3 h-3" />
+										<span>Copy</span>
 									</>
 								)}
 							</button>
 						)}
+
+						<ModalClose asChild>
+							<button
+								type="button"
+								className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-all focus:outline-none shrink-0"
+							>
+								<X className="w-4 h-4" />
+							</button>
+						</ModalClose>
 					</div>
 
-					<div
-						className={cn(
-							"bg-slate-900/50 rounded-lg p-4 border border-slate-800/60 min-h-[120px] max-h-[300px] overflow-y-auto relative transition-all",
-							translatedText && "border-l-2 border-emerald-500/50",
-						)}
-					>
+					{error && (
+						<div className="mx-5 mt-3 bg-red-400/10 border border-red-400/20 rounded-lg p-2.5 flex items-center justify-between gap-2 text-red-400 text-xs shrink-0">
+							<div className="flex items-center gap-2">
+								<AlertTriangle className="w-3.5 h-3.5" />
+								<span>{error}</span>
+							</div>
+							<button
+								type="button"
+								onClick={() => handleTranslate(selectedLanguage)}
+								className="text-xs font-bold hover:underline"
+							>
+								Retry
+							</button>
+						</div>
+					)}
+
+					<div className="flex-1 min-h-0 overflow-y-auto p-5">
 						{isLoading ? (
-							<div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-900/40 backdrop-blur-[1px] rounded-lg">
-								<Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+							<div className="flex flex-col items-center justify-center h-full gap-3">
+								<Loader2 className="w-8 h-8 animate-spin text-blue-400" />
 								<span className="text-sm text-slate-400">
 									Translating to{" "}
 									{LANGUAGES.find((l) => l.code === selectedLanguage)?.name}...
 								</span>
 							</div>
-						) : translatedText ? (
-							<pre className="whitespace-pre-wrap text-sm text-slate-300 leading-relaxed font-sans animate-in fade-in duration-500">
-								{translatedText}
+						) : displayText ? (
+							<pre
+								className={cn(
+									"whitespace-pre-wrap text-sm leading-relaxed font-sans",
+									showOriginal ? "text-slate-300" : "text-slate-300",
+								)}
+							>
+								{displayText}
 							</pre>
 						) : (
 							!error && (
 								<p className="text-sm text-slate-600 italic">
-									Translation will appear here
+									No story text available
 								</p>
 							)
 						)}
 					</div>
-				</div>
-			</div>
-		</Modal>
+				</ModalContent>
+			</ModalPortal>
+		</ModalRoot>
 	);
 };
