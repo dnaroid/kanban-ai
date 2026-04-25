@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { projectRepo, boardRepo } from "@/server/repositories";
 import type { CreateProjectInput } from "@/server/types";
+import { publishSseEvent } from "@/server/events/sse-broker";
 
 function getErrorMessage(error: unknown): string {
 	if (error instanceof Error) return error.message;
@@ -40,6 +41,12 @@ export async function POST(request: NextRequest) {
 		boardRepo.create({
 			projectId: project.id,
 			name: "Main Board",
+		});
+
+		publishSseEvent("project:event", {
+			projectId: project.id,
+			eventType: "project:created",
+			updatedAt: project.updatedAt,
 		});
 
 		return NextResponse.json({ success: true, data: project });

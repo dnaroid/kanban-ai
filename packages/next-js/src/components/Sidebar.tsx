@@ -95,6 +95,37 @@ export function Sidebar({
 	}, []);
 
 	useEffect(() => {
+		const token = localStorage.getItem("token");
+		const params = new URLSearchParams();
+		if (token) {
+			params.set("token", token);
+		}
+
+		const query = params.toString();
+		const eventSource = new EventSource(
+			query.length > 0 ? `/events?${query}` : "/events",
+		);
+
+		const onProjectEvent = () => {
+			api
+				.getProjects()
+				.then((data) => setProjects(data))
+				.catch((err) => console.error("Failed to refresh projects", err));
+		};
+
+		eventSource.addEventListener("project:event", onProjectEvent);
+
+		eventSource.onerror = (event) => {
+			console.error("Sidebar SSE error:", event);
+		};
+
+		return () => {
+			eventSource.removeEventListener("project:event", onProjectEvent);
+			eventSource.close();
+		};
+	}, []);
+
+	useEffect(() => {
 		const fetchAttention = () => {
 			api
 				.getProjectAttentionIds()

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { projectRepo } from "@/server/repositories";
 import type { UpdateProjectInput } from "@/server/types";
+import { publishSseEvent } from "@/server/events/sse-broker";
 
 interface RouteParams {
 	params: Promise<{ id: string }>;
@@ -41,6 +42,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 				{ status: 404 },
 			);
 		}
+
+		publishSseEvent("project:event", {
+			projectId: project.id,
+			eventType: "project:updated",
+			updatedAt: project.updatedAt,
+		});
 
 		return NextResponse.json({ success: true, data: project });
 	} catch (error) {
