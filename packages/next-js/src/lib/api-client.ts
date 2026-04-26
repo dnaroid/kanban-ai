@@ -1819,6 +1819,20 @@ class ApiClient {
 		return data.projectIds;
 	}
 
+	async getProjectUpdateIds(): Promise<string[]> {
+		const response = await this.fetch(`${this.baseUrl}/api/projects/updates`);
+		if (!response.ok) return [];
+		const payload = await response.json();
+		const data = this.unwrapApiData<{ projectIds: string[] }>(payload);
+		return data.projectIds;
+	}
+
+	async markProjectSeen(projectId: string): Promise<void> {
+		await this.fetch(`${this.baseUrl}/api/projects/${projectId}`, {
+			method: "POST",
+		});
+	}
+
 	// Tasks
 	async getTasks(boardId: string): Promise<KanbanTask[]> {
 		const response = await this.fetch(

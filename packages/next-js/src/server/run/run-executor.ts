@@ -7,6 +7,8 @@ import {
 } from "@/server/run/task-state-machine";
 import { runEventRepo } from "@/server/repositories/run-event";
 import { runRepo } from "@/server/repositories/run";
+import { taskRepo } from "@/server/repositories/task";
+import { projectUpdatesService } from "@/server/services/project-updates-service";
 import type { SessionStartPreferences } from "@/server/opencode/session-manager";
 import type { Run } from "@/types/ipc";
 
@@ -101,6 +103,10 @@ export class RunExecutor {
 			payload: { status: "running", message: "Run started" },
 		});
 		publishRunUpdate(runningRun);
+		const task = taskRepo.getById(current.taskId);
+		if (task) {
+			projectUpdatesService.recordActivity(task.projectId);
+		}
 		this.deps.applyTaskTransition(
 			runningRun,
 			adaptTriggerForQa(

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { projectRepo } from "@/server/repositories";
 import type { UpdateProjectInput } from "@/server/types";
 import { publishSseEvent } from "@/server/events/sse-broker";
+import { projectUpdatesService } from "@/server/services/project-updates-service";
 
 interface RouteParams {
 	params: Promise<{ id: string }>;
@@ -54,6 +55,20 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 		console.error("[API] Error updating project:", error);
 		return NextResponse.json(
 			{ success: false, error: "Failed to update project" },
+			{ status: 500 },
+		);
+	}
+}
+
+export async function POST(_request: NextRequest, { params }: RouteParams) {
+	try {
+		const { id } = await params;
+		projectUpdatesService.markSeen(id);
+		return NextResponse.json({ success: true });
+	} catch (error) {
+		console.error("[API] Error marking project as seen:", error);
+		return NextResponse.json(
+			{ success: false, error: "Failed to mark project as seen" },
 			{ status: 500 },
 		);
 	}

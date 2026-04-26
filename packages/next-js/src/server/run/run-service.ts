@@ -28,6 +28,7 @@ import { runEventRepo } from "@/server/repositories/run-event";
 import { runRepo } from "@/server/repositories/run";
 import { tagRepo } from "@/server/repositories/tag";
 import { taskRepo } from "@/server/repositories/task";
+import { projectUpdatesService } from "@/server/services/project-updates-service";
 import { getVcsManager } from "@/server/vcs/vcs-manager";
 import type { Run, RunVcsMetadata, DiffFile } from "@/types/ipc";
 import type { TaskPriority } from "@/types/kanban";
@@ -325,6 +326,7 @@ export class RunService {
 			projectPath: executionProjectPath,
 		});
 		this.transitionTaskToInProgress(task);
+		projectUpdatesService.recordActivity(project.id);
 		this.queueManager.enqueue(run.id, {
 			projectPath: executionProjectPath,
 			projectId: project.id,

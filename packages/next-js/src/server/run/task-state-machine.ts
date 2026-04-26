@@ -3,6 +3,7 @@ import type { BlockedReason, ClosedReason, TaskStatus } from "@/types/kanban";
 import type { RunStatus } from "@/types/ipc";
 import type { WorkflowIconKey } from "@/types/workflow";
 import { normalizeWorkflowIconKey } from "@/types/workflow";
+import { projectUpdatesService } from "@/server/services/project-updates-service";
 
 export const WORKFLOW_COLUMN_SYSTEM_KEYS = [
 	"deferred",
@@ -534,6 +535,16 @@ export function resetWorkflowRuntimeConfigForTests(): void {
 const allowedTaskTypes = ["feature", "bug", "chore", "improvement"] as const;
 const allowedDifficulties = ["easy", "medium", "hard", "epic"] as const;
 const agentRoleTagPrefix = "agent:";
+const activityTrackedTaskStatuses = new Set<TaskStatus>([
+	"running",
+	"done",
+	"failed",
+	"generating",
+	"testing",
+	"qa_failed",
+	"question",
+	"chat",
+]);
 
 type AllowedTaskType = (typeof allowedTaskTypes)[number];
 type AllowedDifficulty = (typeof allowedDifficulties)[number];
@@ -925,6 +936,10 @@ export class TaskStateMachine {
 
 		if (isPatchEmpty(compactedPatch)) {
 			return createSkipResult();
+		}
+
+		if (activityTrackedTaskStatuses.has(nextStatus)) {
+			projectUpdatesService.recordActivity(input.board.projectId);
 		}
 
 		const effects: TaskEffect[] = [

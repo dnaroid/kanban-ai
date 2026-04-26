@@ -4,6 +4,8 @@ import {
 	parseQaReportContent,
 	type TaskTransitionTrigger,
 } from "@/server/run/task-state-machine";
+import { taskRepo } from "@/server/repositories/task";
+import { projectUpdatesService } from "@/server/services/project-updates-service";
 import type { Run, RunLastExecutionStatus, RunStatus } from "@/types/ipc";
 
 const log = createLogger("runs-queue");
@@ -182,6 +184,12 @@ export class RunFinalizer {
 			taskId: run.taskId,
 		});
 		this.deps.createStatusEvent(runId, status, `Run ${status}`);
+		if (status === "completed" || status === "failed") {
+			const task = taskRepo.getById(nextRun.taskId);
+			if (task) {
+				projectUpdatesService.recordActivity(task.projectId);
+			}
+		}
 
 		try {
 			const trigger = this.resolveTriggerFromOutcome(

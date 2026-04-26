@@ -50,6 +50,9 @@ export function Sidebar({
 	const [attentionProjectIds, setAttentionProjectIds] = useState<Set<string>>(
 		new Set(),
 	);
+	const [updatedProjectIds, setUpdatedProjectIds] = useState<Set<string>>(
+		new Set(),
+	);
 	const [showProjectHints, setShowProjectHints] = useState(false);
 	const [hintPositions, setHintPositions] = useState<Record<string, number>>(
 		{},
@@ -111,6 +114,11 @@ export function Sidebar({
 				.getProjects()
 				.then((data) => setProjects(data))
 				.catch((err) => console.error("Failed to refresh projects", err));
+
+			api
+				.getProjectUpdateIds()
+				.then((ids: string[]) => setUpdatedProjectIds(new Set(ids)))
+				.catch(() => {});
 		};
 
 		eventSource.addEventListener("project:event", onProjectEvent);
@@ -133,8 +141,19 @@ export function Sidebar({
 				.catch(() => {});
 		};
 
+		const fetchUpdates = () => {
+			api
+				.getProjectUpdateIds()
+				.then((ids: string[]) => setUpdatedProjectIds(new Set(ids)))
+				.catch(() => {});
+		};
+
 		fetchAttention();
-		const interval = setInterval(fetchAttention, 5000);
+		fetchUpdates();
+		const interval = setInterval(() => {
+			fetchAttention();
+			fetchUpdates();
+		}, 5000);
 		return () => clearInterval(interval);
 	}, []);
 
@@ -273,6 +292,7 @@ export function Sidebar({
 							const isActive = activeProject?.id === project.id;
 							const needsAttention =
 								!isActive && attentionProjectIds.has(project.id);
+							const hasUpdates = !isActive && updatedProjectIds.has(project.id);
 							return (
 								<div
 									key={project.id}
@@ -284,6 +304,12 @@ export function Sidebar({
 									tabIndex={0}
 									onClick={() => {
 										if (!isActive) {
+											setUpdatedProjectIds((prev) => {
+												const next = new Set(prev);
+												next.delete(project.id);
+												return next;
+											});
+											api.markProjectSeen(project.id).catch(() => {});
 											router.push(`/board/${project.id}`);
 										}
 									}}
@@ -291,6 +317,12 @@ export function Sidebar({
 										if (e.key === "Enter" || e.key === " ") {
 											e.preventDefault();
 											if (!isActive) {
+												setUpdatedProjectIds((prev) => {
+													const next = new Set(prev);
+													next.delete(project.id);
+													return next;
+												});
+												api.markProjectSeen(project.id).catch(() => {});
 												router.push(`/board/${project.id}`);
 											}
 										}
@@ -311,29 +343,39 @@ export function Sidebar({
 									)}
 								>
 									{isSidebarCollapsed ? (
-										<div
-											className={cn(
-												"rounded-lg shrink-0 flex items-center justify-center font-semibold text-sm transition-all duration-200",
-												isActive
-													? "w-10 h-10"
-													: "w-8 h-8 group-hover:scale-110",
-												needsAttention && "animate-sidebar-pulse-yellow",
+										<div className="relative">
+											<div
+												className={cn(
+													"rounded-lg shrink-0 flex items-center justify-center font-semibold text-sm transition-all duration-200",
+													isActive
+														? "w-10 h-10"
+														: "w-8 h-8 group-hover:scale-110",
+													needsAttention && "animate-sidebar-pulse-yellow",
+												)}
+												style={{
+													backgroundColor: project.color || "#64748b",
+													color: getContrastColor(project.color || "#64748b"),
+												}}
+											>
+												{project.name.slice(0, 2).toUpperCase()}
+											</div>
+											{hasUpdates && (
+												<div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-blue-400 rounded-full border-2 border-[#11151C]" />
 											)}
-											style={{
-												backgroundColor: project.color || "#64748b",
-												color: getContrastColor(project.color || "#64748b"),
-											}}
-										>
-											{project.name.slice(0, 2).toUpperCase()}
 										</div>
 									) : (
-										<div
-											className={cn(
-												"rounded-full shrink-0 w-3 h-3",
-												needsAttention && "animate-sidebar-pulse-yellow",
+										<div className="flex items-center gap-2 shrink-0">
+											<div
+												className={cn(
+													"rounded-full shrink-0 w-3 h-3",
+													needsAttention && "animate-sidebar-pulse-yellow",
+												)}
+												style={{ backgroundColor: project.color || "#64748b" }}
+											/>
+											{hasUpdates && (
+												<div className="w-2 h-2 bg-blue-400 rounded-full shrink-0" />
 											)}
-											style={{ backgroundColor: project.color || "#64748b" }}
-										/>
+										</div>
 									)}
 									{!isSidebarCollapsed && (
 										<span className="text-sm font-medium truncate text-left flex-1">
