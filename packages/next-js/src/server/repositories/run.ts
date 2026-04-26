@@ -214,6 +214,32 @@ export class RunRepository {
 		return rows.map(mapRunRow);
 	}
 
+	public getLatestRunsByTaskIds(taskIds: string[]): Map<string, Run> {
+		if (taskIds.length === 0) {
+			return new Map();
+		}
+
+		const placeholders = taskIds.map(() => "?").join(", ");
+		const rows = this.db
+			.prepare(
+				`SELECT *
+				 FROM runs
+				 WHERE task_id IN (${placeholders})
+				 ORDER BY updated_at DESC, created_at DESC`,
+			)
+			.all(...taskIds) as RunRow[];
+
+		const latestRunsByTaskId = new Map<string, Run>();
+		for (const row of rows) {
+			const run = mapRunRow(row);
+			if (!latestRunsByTaskId.has(run.taskId)) {
+				latestRunsByTaskId.set(run.taskId, run);
+			}
+		}
+
+		return latestRunsByTaskId;
+	}
+
 	public update(runId: string, patch: UpdateRunInput): Run {
 		const updates: string[] = ["updated_at = ?"];
 		const values: unknown[] = [new Date().toISOString()];

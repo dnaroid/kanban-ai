@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { boardRepo, taskRepo } from "@/server/repositories";
+import { boardRepo, runRepo, taskRepo } from "@/server/repositories";
 import { projectRepo } from "@/server/repositories/project";
 import { getOpencodeService } from "@/server/opencode/opencode-service";
 import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
-import { runService } from "@/server/run/run-service";
 import type { CreateTaskInput } from "@/server/types";
 import { publishSseEvent } from "@/server/events/sse-broker";
 import {
@@ -13,46 +12,6 @@ import {
 	isWorkflowTaskStatus,
 	resolveTaskStatusReasons,
 } from "@/server/run/task-state-machine";
-
-function getLatestSessionId(taskId: string): string | null {
-	const runs = runService.listByTask(taskId);
-	if (runs.length === 0) {
-		return null;
-	}
-
-	const sorted = [...runs].sort(
-		(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-	);
-	return sorted[0]?.sessionId || null;
-}
-
-function getLatestExecutionStatus(
-	taskId: string,
-): import("@/types/ipc").RunLastExecutionStatus | null {
-	const runs = runService.listByTask(taskId);
-	if (runs.length === 0) {
-		return null;
-	}
-
-	const sorted = [...runs].sort(
-		(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-	);
-	return sorted[0]?.metadata?.lastExecutionStatus ?? null;
-}
-
-function isLatestRunActive(taskId: string): boolean {
-	const runs = runService.listByTask(taskId);
-	if (runs.length === 0) {
-		return false;
-	}
-
-	const sorted = [...runs].sort(
-		(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-	);
-	const status = sorted[0]?.status;
-	return status === "running" || status === "queued";
-}
-
 export async function GET(request: NextRequest) {
 	try {
 		const { searchParams } = new URL(request.url);
@@ -82,12 +41,19 @@ export async function GET(request: NextRequest) {
 			}
 		}
 
-		const enrichedTasks = tasks.map((task) => ({
-			...task,
-			latestSessionId: getLatestSessionId(task.id),
-			lastExecutionStatus: getLatestExecutionStatus(task.id),
-			opencodeWebUrl,
-		}));
+		const latestRunsByTaskId = runRepo.getLatestRunsByTaskIds(
+			tasks.map((task) => task.id),
+		);
+
+		const enrichedTasks = tasks.map((task) => {
+			const latestRun = latestRunsByTaskId.get(task.id);
+			return {
+				...task,
+				latestSessionId: latestRun?.sessionId || null,
+				lastExecutionStatus: latestRun?.metadata?.lastExecutionStatus ?? null,
+				opencodeWebUrl,
+			};
+		});
 
 		let busySessionIds: Set<string> = new Set();
 		try {
@@ -97,13 +63,19 @@ export async function GET(request: NextRequest) {
 			// OpenCode not running — no busy sessions
 		}
 
-		const tasksWithBusyStatus = enrichedTasks.map((task) => ({
-			...task,
-			isSessionBusy:
-				isLatestRunActive(task.id) ||
-				(task.latestSessionId !== null &&
-					busySessionIds.has(task.latestSessionId)),
-		}));
+		const tasksWithBusyStatus = enrichedTasks.map((task) => {
+			const latestRun = latestRunsByTaskId.get(task.id);
+			const isLatestRunActive =
+				latestRun?.status === "running" || latestRun?.status === "queued";
+
+			return {
+				...task,
+				isSessionBusy:
+					isLatestRunActive ||
+					(task.latestSessionId !== null &&
+						busySessionIds.has(task.latestSessionId)),
+			};
+		});
 
 		return NextResponse.json({ success: true, data: tasksWithBusyStatus });
 	} catch (error) {
