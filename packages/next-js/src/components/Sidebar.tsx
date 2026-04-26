@@ -144,7 +144,15 @@ export function Sidebar({
 		const fetchUpdates = () => {
 			api
 				.getProjectUpdateIds()
-				.then((ids: string[]) => setUpdatedProjectIds(new Set(ids)))
+				.then((ids: string[]) =>
+					setUpdatedProjectIds(
+						new Set(
+							activeProject?.id
+								? ids.filter((id) => id !== activeProject.id)
+								: ids,
+						),
+					),
+				)
 				.catch(() => {});
 		};
 
@@ -155,7 +163,15 @@ export function Sidebar({
 			fetchUpdates();
 		}, 5000);
 		return () => clearInterval(interval);
-	}, []);
+	}, [activeProject?.id]);
+
+	useEffect(() => {
+		if (!activeProject?.id) return;
+		const mark = () => api.markProjectSeen(activeProject.id).catch(() => {});
+		mark();
+		const interval = setInterval(mark, 3000);
+		return () => clearInterval(interval);
+	}, [activeProject?.id]);
 
 	const handleReorder = async (projectId: string, direction: "up" | "down") => {
 		const currentIndex = projects.findIndex((p) => p.id === projectId);
