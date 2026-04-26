@@ -200,7 +200,7 @@ export function RunTodosPanel({ sessionId }: { sessionId: string }) {
 				</div>
 			)}
 
-			<div className="flex-1 overflow-y-auto custom-scrollbar">
+			<div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
 				<div className="divide-y divide-slate-800/40">
 					{todos.map((todo) => {
 						const config =
@@ -231,7 +231,7 @@ export function RunTodosPanel({ sessionId }: { sessionId: string }) {
 								<div className="flex-1 min-w-0">
 									<p
 										className={cn(
-											"text-[13px] leading-snug transition-all font-semibold",
+											"text-[13px] leading-snug transition-all font-semibold break-words pr-2",
 											todo.status === "completed"
 												? "text-slate-500 line-through decoration-slate-600/50"
 												: config.color,

@@ -367,7 +367,7 @@ export function RunDetailsView({
 							type="button"
 							onClick={() => setView("todo")}
 							className={cn(
-								"flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200",
+								"xl:hidden flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200",
 								view === "todo"
 									? "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
 									: "text-slate-500 hover:text-slate-300",
@@ -414,16 +414,23 @@ export function RunDetailsView({
 
 			<div className="flex-1 overflow-hidden">
 				{view === "log" ? (
-					<ExecutionLog
-						runId={runId}
-						sessionId={activeSessionId}
-						runStatus={run?.status ?? null}
-						onContextStats={setMessageContextStats}
-						showReasoning={showReasoning}
-						onNavigateToSubAgent={handleNavigateToSubAgent}
-						isSubAgent={isViewingSubAgent}
-						hideFirstUserMessage={taskStatus !== "chat"}
-					/>
+					<div className="flex h-full">
+						<div className="flex-1 min-w-0 overflow-hidden">
+							<ExecutionLog
+								runId={runId}
+								sessionId={activeSessionId}
+								runStatus={run?.status ?? null}
+								onContextStats={setMessageContextStats}
+								showReasoning={showReasoning}
+								onNavigateToSubAgent={handleNavigateToSubAgent}
+								isSubAgent={isViewingSubAgent}
+								hideFirstUserMessage={taskStatus !== "chat"}
+							/>
+						</div>
+						<div className="hidden xl:flex w-[320px] shrink-0 flex-col border-l border-slate-800/50 overflow-hidden">
+							<RunTodosPanel sessionId={activeSessionId} />
+						</div>
+					</div>
 				) : view === "diff" ? (
 					<RunDiffPanel runId={runId} />
 				) : (

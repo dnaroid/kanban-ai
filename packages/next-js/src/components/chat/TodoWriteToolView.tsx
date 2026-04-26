@@ -174,7 +174,7 @@ export function TodoWriteToolView({ part }: { part: TodoWriteToolPart }) {
 			</div>
 
 			{isExpanded && (
-				<div className="px-3 pb-3 border-t border-white/5 pt-2">
+				<div className="px-3 pb-3 border-t border-white/5 pt-2 overflow-x-hidden">
 					{todos.length === 0 ? (
 						<p className="text-[11px] text-slate-500 italic py-1">No tasks</p>
 					) : (
@@ -212,7 +212,7 @@ export function TodoWriteToolView({ part }: { part: TodoWriteToolPart }) {
 										<div className="flex-1 min-w-0">
 											<p
 												className={cn(
-													"text-[12px] leading-snug font-medium",
+													"text-[12px] leading-snug font-medium break-words",
 													todo.status === "completed"
 														? "text-slate-500 line-through decoration-slate-600/50"
 														: todo.status === "cancelled"
