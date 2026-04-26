@@ -23,15 +23,9 @@ import { api } from "@/lib/api-client";
 
 interface BoardScreenProps {
 	projectId: string;
-	projectName: string;
-	projectColor?: string;
 }
 
-export function BoardScreen({
-	projectId,
-	projectName,
-	projectColor,
-}: BoardScreenProps) {
+export function BoardScreen({ projectId }: BoardScreenProps) {
 	const { addToast } = useToast();
 
 	const [isQuickCreateModalOpen, setIsQuickCreateModalOpen] = useState(false);
@@ -57,6 +51,8 @@ export function BoardScreen({
 		board,
 		tasks,
 		globalTags,
+		projectName,
+		projectColor,
 		loading,
 		error,
 		activeTask,

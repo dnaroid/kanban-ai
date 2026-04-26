@@ -8,7 +8,7 @@ import {
 	useSensors,
 } from "@dnd-kit/core";
 import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import type { Board, BoardColumn } from "@/server/types";
+import type { Board, BoardColumn, Project } from "@/server/types";
 import type { KanbanTask, Tag, BoardColumnInput } from "@/types/kanban";
 import { api } from "@/lib/api-client";
 import { useToast } from "@/components/common/toast/ToastContext";
@@ -73,6 +73,7 @@ export function useBoardModel({
 	const { addToast } = useToast();
 	const { reportNetworkError } = useServerStatus();
 	const [board, setBoard] = useState<Board | null>(null);
+	const [project, setProject] = useState<Project | null>(null);
 	const [tasks, setTasks] = useState<KanbanTask[]>([]);
 	const [globalTags, setGlobalTags] = useState<Tag[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -156,22 +157,19 @@ export function useBoardModel({
 			setLoading(true);
 			setError(null);
 
-			const [boardData, tagsData] = await Promise.all([
-				api.getBoardByProject(projectId),
-				api.getGlobalTags(),
-			]);
+			const result = await api.getBoardFull(projectId);
 
-			if (!boardData) {
+			if (!result?.board) {
 				throw new Error("Board not found");
 			}
 
-			setBoard(boardData);
-			setGlobalTags(tagsData);
-
-			const tasksData = await api.getTasks(boardData.id);
-			setTasks(tasksData);
+			setProject(result.project);
+			setBoard(result.board);
+			setGlobalTags(result.tags);
+			setTasks(result.tasks);
 		} catch (loadError) {
 			console.error("Failed to load board:", loadError);
+			setProject(null);
 			setError(
 				loadError instanceof Error
 					? loadError.message
@@ -1390,6 +1388,8 @@ export function useBoardModel({
 
 	return {
 		board,
+		projectName: project?.name || "",
+		projectColor: project?.color,
 		tasks,
 		globalTags,
 		loading,

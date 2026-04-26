@@ -64,6 +64,13 @@ function taskToKanban(
 	};
 }
 
+interface BoardFullResponse {
+	project: Project;
+	board: Board;
+	tags: Tag[];
+	tasks: KanbanTask[];
+}
+
 class ApiClient {
 	private baseUrl: string;
 
@@ -1931,6 +1938,35 @@ class ApiClient {
 		if (!response.ok) return null;
 		const payload = await response.json();
 		return this.unwrapApiData<Board>(payload);
+	}
+
+	async getBoardFull(projectId: string): Promise<BoardFullResponse | null> {
+		const response = await this.fetch(
+			`${this.baseUrl}/api/boards/project/${projectId}/full`,
+			{ cache: "no-store" },
+		);
+		if (!response.ok) return null;
+		const payload = await response.json();
+		const data = this.unwrapApiData<{
+			project: Project;
+			board: Board;
+			tags: Tag[];
+			tasks: Array<
+				Task & {
+					latestSessionId?: string | null;
+					lastExecutionStatus?: RunLastExecutionStatus | null;
+					opencodeWebUrl?: string | null;
+					isSessionBusy?: boolean;
+				}
+			>;
+		}>(payload);
+
+		return {
+			project: data.project,
+			board: data.board,
+			tags: data.tags,
+			tasks: data.tasks.map(taskToKanban),
+		};
 	}
 
 	async updateBoardColumns(
