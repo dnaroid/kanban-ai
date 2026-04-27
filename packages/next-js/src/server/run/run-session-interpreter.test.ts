@@ -278,6 +278,78 @@ describe("run-session-interpreter", () => {
 		});
 	});
 
+	it("ignores REPORT tags from before the resumedAt boundary when session is busy", () => {
+		const meta = deriveMetaStatus(
+			makeRun({
+				metadata: {
+					kind: "task-run",
+					resumedAt: new Date(200).toISOString(),
+				},
+			}),
+			makeInspection(
+				[
+					{
+						role: "assistant",
+						content: "Old work\n<REPORT>done</REPORT>",
+						timestamp: 100,
+					},
+				],
+				"busy",
+			),
+		);
+
+		expect(meta).toMatchObject({ kind: "running" });
+	});
+
+	it("ignores REPORT tags from before the resumedAt boundary when session is idle", () => {
+		const meta = deriveMetaStatus(
+			makeRun({
+				metadata: {
+					kind: "task-run",
+					resumedAt: new Date(200).toISOString(),
+				},
+			}),
+			makeInspection([
+				{
+					role: "assistant",
+					content: "Old work\n<REPORT>done</REPORT>",
+					timestamp: 100,
+				},
+			]),
+		);
+
+		expect(meta).toMatchObject({ kind: "running" });
+	});
+
+	it("accepts REPORT tags from after the resumedAt boundary", () => {
+		const meta = deriveMetaStatus(
+			makeRun({
+				metadata: {
+					kind: "task-run",
+					resumedAt: new Date(200).toISOString(),
+				},
+			}),
+			makeInspection([
+				{
+					role: "assistant",
+					content: "Old work\n<REPORT>done</REPORT>",
+					timestamp: 100,
+				},
+				{
+					role: "assistant",
+					content: "New work after resume\n<REPORT>done</REPORT>",
+					timestamp: 300,
+				},
+			]),
+		);
+
+		expect(meta).toEqual({
+			kind: "reported",
+			report: "done",
+			content: "New work after resume",
+		});
+	});
+
 	it("maps meta status to run last execution status", () => {
 		const status = toRunLastExecutionStatus(
 			{ kind: "completed", content: "ok" },
@@ -608,5 +680,44 @@ describe("findLastAssistantReport", () => {
 				]),
 			),
 		).toBeNull();
+	});
+
+	it("ignores REPORT tags from messages before afterTimestamp", () => {
+		const inspection = makeInspection([
+			{
+				role: "assistant",
+				content: "Old\n<REPORT>done</REPORT>",
+				timestamp: 50,
+			},
+			{ role: "user", content: "continue", timestamp: 100 },
+			{
+				role: "assistant",
+				content: "Still old\n<REPORT>fail</REPORT>",
+				timestamp: 150,
+			},
+		]);
+
+		expect(findLastAssistantReport(inspection, 200)).toBeNull();
+	});
+
+	it("finds REPORT from messages after afterTimestamp", () => {
+		const inspection = makeInspection([
+			{
+				role: "assistant",
+				content: "Old\n<REPORT>done</REPORT>",
+				timestamp: 50,
+			},
+			{ role: "user", content: "continue", timestamp: 100 },
+			{
+				role: "assistant",
+				content: "New\n<REPORT>done</REPORT>",
+				timestamp: 250,
+			},
+		]);
+
+		expect(findLastAssistantReport(inspection, 200)).toEqual({
+			report: "done",
+			content: "New",
+		});
 	});
 });

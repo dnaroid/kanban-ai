@@ -58,10 +58,14 @@ export function stripTrailingReportTag(text: string): string {
 
 export function findLastAssistantReport(
 	inspection: SessionInspectionResult,
+	afterTimestamp?: number,
 ): { report: ReportTag; content: string } | null {
 	for (let i = inspection.messages.length - 1; i >= 0; i--) {
 		const msg = inspection.messages[i];
 		if (msg.role !== "assistant") continue;
+		if (typeof afterTimestamp === "number" && msg.timestamp < afterTimestamp) {
+			continue;
+		}
 		const candidates = buildAssistantTextContent(msg);
 		for (const candidate of candidates) {
 			const report = extractReportTag(candidate);
@@ -97,6 +101,7 @@ export function deriveMetaStatus(
 	const isStoryChatRun = runKind === "task-story-chat";
 	const isGenerationRun = runKind === "task-description-improve";
 	const storyGenerationBoundary = getStoryGenerationBoundaryTimestamp(run);
+	const resumeBoundary = getResumeBoundaryTimestamp(run);
 
 	const permission = inspection.pendingPermissions[0];
 	if (permission) {
@@ -131,7 +136,10 @@ export function deriveMetaStatus(
 		return { kind: "running" };
 	}
 
-	const reportResult = findLastAssistantReport(inspection);
+	const reportResult = findLastAssistantReport(
+		inspection,
+		resumeBoundary ?? undefined,
+	);
 	if (reportResult) {
 		return {
 			kind: "reported",
@@ -299,6 +307,16 @@ function extractStoryTagContent(text: string): string | null {
 
 function getStoryGenerationBoundaryTimestamp(run: Run | null): number | null {
 	const rawTimestamp = run?.metadata?.storyGenerationRequestedAt;
+	if (typeof rawTimestamp !== "string") {
+		return null;
+	}
+
+	const parsedTimestamp = Date.parse(rawTimestamp);
+	return Number.isNaN(parsedTimestamp) ? null : parsedTimestamp;
+}
+
+function getResumeBoundaryTimestamp(run: Run | null): number | null {
+	const rawTimestamp = run?.metadata?.resumedAt;
 	if (typeof rawTimestamp !== "string") {
 		return null;
 	}

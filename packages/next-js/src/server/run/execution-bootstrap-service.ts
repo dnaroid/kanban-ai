@@ -373,6 +373,7 @@ export class ExecutionBootstrapService {
 			errorText: "",
 			metadata: {
 				...(completedRun.metadata ?? {}),
+				resumedAt,
 				lastExecutionStatus: {
 					kind: "running",
 					sessionId: completedRun.sessionId,
@@ -465,6 +466,7 @@ export class ExecutionBootstrapService {
 			errorText: "",
 			metadata: {
 				...(completedRun.metadata ?? {}),
+				resumedAt,
 				lastExecutionStatus: {
 					kind: "running",
 					sessionId: completedRun.sessionId,
