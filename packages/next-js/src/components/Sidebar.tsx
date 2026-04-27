@@ -60,6 +60,8 @@ export function Sidebar({
 	const scrollContainerRef = useRef<HTMLDivElement>(null);
 	const projectItemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 	const { muted: soundMuted, toggleMute: toggleSoundMute } = useSoundMute();
+	const activeProjectRef = useRef(activeProject);
+	activeProjectRef.current = activeProject;
 
 	const measureHintPositions = useCallback(() => {
 		const positions: Record<string, number> = {};
@@ -121,7 +123,33 @@ export function Sidebar({
 				.catch(() => {});
 		};
 
+		const onProjectIndicators = (e: MessageEvent) => {
+			try {
+				const data = JSON.parse(e.data) as {
+					attentionProjectIds?: string[];
+					updatedProjectIds?: string[];
+				};
+				const attentionSet = new Set<string>(data.attentionProjectIds ?? []);
+				const updateIds = data.updatedProjectIds ?? [];
+
+				const activeProjectId = activeProjectRef.current?.id;
+				const filteredUpdateIds = activeProjectId
+					? updateIds.filter((id) => id !== activeProjectId)
+					: updateIds;
+
+				setAttentionProjectIds(attentionSet);
+				setUpdatedProjectIds(new Set(filteredUpdateIds));
+
+				if (activeProjectId && updateIds.includes(activeProjectId)) {
+					api.markProjectSeen(activeProjectId).catch(() => {});
+				}
+			} catch {
+				// Ignore malformed SSE payloads.
+			}
+		};
+
 		eventSource.addEventListener("project:event", onProjectEvent);
+		eventSource.addEventListener("project:indicators", onProjectIndicators);
 
 		eventSource.onerror = (event) => {
 			console.error("Sidebar SSE error:", event);
@@ -129,49 +157,35 @@ export function Sidebar({
 
 		return () => {
 			eventSource.removeEventListener("project:event", onProjectEvent);
+			eventSource.removeEventListener(
+				"project:indicators",
+				onProjectIndicators,
+			);
 			eventSource.close();
 		};
 	}, []);
 
 	useEffect(() => {
-		const fetchAttention = () => {
-			api
-				.getProjectAttentionIds()
-				.then((ids: string[]) => setAttentionProjectIds(new Set(ids)))
-				.catch(() => {});
-		};
+		const initialActiveProjectId = activeProjectRef.current?.id;
 
-		const fetchUpdates = () => {
-			api
-				.getProjectUpdateIds()
-				.then((ids: string[]) =>
-					setUpdatedProjectIds(
-						new Set(
-							activeProject?.id
-								? ids.filter((id) => id !== activeProject.id)
-								: ids,
-						),
+		api
+			.getProjectAttentionIds()
+			.then((ids: string[]) => setAttentionProjectIds(new Set(ids)))
+			.catch(() => {});
+
+		api
+			.getProjectUpdateIds()
+			.then((ids: string[]) => {
+				setUpdatedProjectIds(
+					new Set(
+						initialActiveProjectId
+							? ids.filter((id) => id !== initialActiveProjectId)
+							: ids,
 					),
-				)
-				.catch(() => {});
-		};
-
-		fetchAttention();
-		fetchUpdates();
-		const interval = setInterval(() => {
-			fetchAttention();
-			fetchUpdates();
-		}, 5000);
-		return () => clearInterval(interval);
-	}, [activeProject?.id]);
-
-	useEffect(() => {
-		if (!activeProject?.id) return;
-		const mark = () => api.markProjectSeen(activeProject.id).catch(() => {});
-		mark();
-		const interval = setInterval(mark, 3000);
-		return () => clearInterval(interval);
-	}, [activeProject?.id]);
+				);
+			})
+			.catch(() => {});
+	}, []);
 
 	const handleReorder = async (projectId: string, direction: "up" | "down") => {
 		const currentIndex = projects.findIndex((p) => p.id === projectId);

@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { subscribeSse } from "@/server/events/sse-broker";
+import "@/server/services/project-indicators-publisher";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

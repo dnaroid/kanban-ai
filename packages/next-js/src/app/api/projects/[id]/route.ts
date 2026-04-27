@@ -3,6 +3,7 @@ import { projectRepo } from "@/server/repositories";
 import type { UpdateProjectInput } from "@/server/types";
 import { publishSseEvent } from "@/server/events/sse-broker";
 import { projectUpdatesService } from "@/server/services/project-updates-service";
+import { refreshIndicators } from "@/server/services/project-indicators-publisher";
 
 interface RouteParams {
 	params: Promise<{ id: string }>;
@@ -64,6 +65,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
 	try {
 		const { id } = await params;
 		projectUpdatesService.markSeen(id);
+		refreshIndicators();
 		return NextResponse.json({ success: true });
 	} catch (error) {
 		console.error("[API] Error marking project as seen:", error);
