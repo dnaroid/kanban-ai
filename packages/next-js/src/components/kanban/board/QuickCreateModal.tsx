@@ -26,6 +26,7 @@ import { FileSystemPicker } from "@/components/common/FileSystemPicker";
 import { api, uploadClipboardFiles } from "@/lib/api-client";
 import type { OpencodeModel } from "@/types/kanban";
 import { useSTTLanguage } from "@/components/voice/useSTTLanguage";
+import { useEnabledModels } from "@/components/common/useEnabledModels";
 
 const RUN_AFTER_GENERATE_KEY = "quick-create-run-after-generate";
 
@@ -118,7 +119,6 @@ export function QuickCreateModal({
 	const [submittingAction, setSubmittingAction] = useState<
 		"generate" | "chatGenerate" | "runRaw" | "draft" | null
 	>(null);
-	const [models, setModels] = useState<OpencodeModel[]>([]);
 	const [selectedModel, setSelectedModel] = useState<string | null>(null);
 	const [selectedAttachments, setSelectedAttachments] = useState<
 		QuickCreateAttachment[]
@@ -129,6 +129,7 @@ export function QuickCreateModal({
 	const [runAfterGenerate, setRunAfterGenerate] = useState(false);
 	const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
 	const { language, toggleLanguage } = useSTTLanguage();
+	const { models } = useEnabledModels();
 
 	const stopDictation = useCallback(() => {
 		recognitionRef.current?.stop();
@@ -177,38 +178,6 @@ export function QuickCreateModal({
 			isCancelled = true;
 		};
 	}, [isOpen, projectId]);
-
-	useEffect(() => {
-		if (!isOpen) {
-			return;
-		}
-
-		let isCancelled = false;
-		const loadEnabledModels = async () => {
-			try {
-				const response = await api.opencode.listEnabledModels();
-				const difficultyOrder = { easy: 0, medium: 1, hard: 2, epic: 3 };
-				const sortedModels = [...response.models].sort((a, b) => {
-					return (
-						difficultyOrder[a.difficulty as keyof typeof difficultyOrder] -
-						difficultyOrder[b.difficulty as keyof typeof difficultyOrder]
-					);
-				});
-
-				if (!isCancelled) {
-					setModels(sortedModels);
-				}
-			} catch (loadError) {
-				console.error("Failed to load models:", loadError);
-			}
-		};
-
-		void loadEnabledModels();
-
-		return () => {
-			isCancelled = true;
-		};
-	}, [isOpen]);
 
 	useEffect(() => {
 		setRunAfterGenerate(isRunAfterGenerateDefault());

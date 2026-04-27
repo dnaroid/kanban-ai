@@ -18,6 +18,8 @@ interface RichMarkdownEditorProps {
 	autoEditWhenEmpty?: boolean;
 	toolbarExtra?: React.ReactNode;
 	saveOnBlur?: boolean;
+	/** When false, suppresses autoEditWhenEmpty and auto-focus so hidden tabs don't steal focus */
+	isActive?: boolean;
 }
 
 type AttachmentItem = {
@@ -37,9 +39,10 @@ export function RichMarkdownEditor({
 	autoEditWhenEmpty = false,
 	toolbarExtra,
 	saveOnBlur = true,
+	isActive = true,
 }: RichMarkdownEditorProps) {
 	const [isEditing, setIsEditing] = useState(
-		autoEditWhenEmpty && !value?.trim(),
+		isActive && autoEditWhenEmpty && !value?.trim(),
 	);
 	const [editValue, setEditValue] = useState(value ?? "");
 	const [liveTranscript, setLiveTranscript] = useState("");
@@ -55,15 +58,15 @@ export function RichMarkdownEditor({
 	}, [value]);
 
 	useEffect(() => {
-		if (autoEditWhenEmpty && !value?.trim()) {
+		if (isActive && autoEditWhenEmpty && !value?.trim()) {
 			setIsEditing(true);
 		}
-	}, [autoEditWhenEmpty, value]);
+	}, [isActive, autoEditWhenEmpty, value]);
 
 	useEffect(() => {
-		if (!isEditing || !textareaRef.current) return;
+		if (!isActive || !isEditing || !textareaRef.current) return;
 		textareaRef.current.focus();
-	}, [isEditing]);
+	}, [isActive, isEditing]);
 
 	useEffect(() => {
 		if (!isFilePickerOpen || !projectId) return;

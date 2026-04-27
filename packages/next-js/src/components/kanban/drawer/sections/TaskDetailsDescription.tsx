@@ -30,6 +30,7 @@ export function TaskDetailsDescription({
 	onStartRun,
 	onFilesSelected,
 	columnName,
+	isActive = true,
 	headerLeft,
 }: TaskDetailsDescriptionProps) {
 	const [isGeneratingStory, setIsGeneratingStory] = useState(false);
@@ -126,6 +127,7 @@ export function TaskDetailsDescription({
 					emptyText="No description provided. Click to add..."
 					autoEditWhenEmpty={true}
 					saveOnBlur={true}
+					isActive={isActive}
 					toolbarExtra={
 						<>
 							{task.description && task.description.trim().length > 0 && (

@@ -261,7 +261,11 @@ export function TaskDrawerContent({
 							activeTab !== "qa" && "hidden",
 						)}
 					>
-						<QaReportPanel task={task} onUpdate={onUpdate} />
+						<QaReportPanel
+							task={task}
+							onUpdate={onUpdate}
+							isActive={activeTab === "qa"}
+						/>
 					</div>
 				)}
 
@@ -319,9 +323,11 @@ export function TaskDrawerContent({
 function QaReportPanel({
 	task,
 	onUpdate,
+	isActive: isActive = true,
 }: {
 	task: KanbanTask;
 	onUpdate?: (id: string, patch: Partial<KanbanTask>) => void;
+	isActive?: boolean;
 }) {
 	return (
 		<div className="p-5 flex flex-col gap-4 h-full">
@@ -344,6 +350,7 @@ function QaReportPanel({
 				placeholder="Describe QA issues..."
 				emptyText="No QA report. Click to add..."
 				autoEditWhenEmpty={true}
+				isActive={isActive}
 			/>
 		</div>
 	);

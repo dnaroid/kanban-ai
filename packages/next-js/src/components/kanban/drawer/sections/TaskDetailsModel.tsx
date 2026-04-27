@@ -1,8 +1,7 @@
-import { useState, useEffect } from "react";
 import { ExternalLink } from "lucide-react";
-import type { KanbanTask, OpencodeModel } from "@/types/kanban";
+import type { KanbanTask } from "@/types/kanban";
 import { ModelPicker } from "@/components/common/ModelPicker";
-import { api } from "@/lib/api-client";
+import { useEnabledModels } from "@/components/common/useEnabledModels";
 
 interface TaskDetailsModelProps {
 	task: KanbanTask;
@@ -10,26 +9,7 @@ interface TaskDetailsModelProps {
 }
 
 export function TaskDetailsModel({ task, onUpdate }: TaskDetailsModelProps) {
-	const [models, setModels] = useState<OpencodeModel[]>([]);
-
-	useEffect(() => {
-		const loadEnabledModels = async () => {
-			try {
-				const response = await api.opencode.listEnabledModels();
-				const difficultyOrder = { easy: 0, medium: 1, hard: 2, epic: 3 };
-				const sortedModels = [...response.models].sort((a, b) => {
-					return (
-						difficultyOrder[a.difficulty as keyof typeof difficultyOrder] -
-						difficultyOrder[b.difficulty as keyof typeof difficultyOrder]
-					);
-				});
-				setModels(sortedModels);
-			} catch (error) {
-				console.error("Failed to load models:", error);
-			}
-		};
-		loadEnabledModels();
-	}, []);
+	const { models } = useEnabledModels();
 
 	const selectModel = (fullId: string | null) => {
 		onUpdate?.(task.id, { modelName: fullId });

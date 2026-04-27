@@ -6,6 +6,7 @@ import type { OpencodeModel } from "@/types/kanban";
 import { AllModelsTab } from "./AllModelsTab";
 import { MyModelsTab } from "./MyModelsTab";
 import { OhMyOpenagentSettings } from "./OhMyOpenagentSettings";
+import { invalidateEnabledModelsCache } from "@/components/common/useEnabledModels";
 
 type Difficulty = "easy" | "medium" | "hard" | "epic";
 
@@ -85,6 +86,7 @@ export function ModelsManagement({
 	const handleToggleModel = async (name: string, enabled: boolean) => {
 		try {
 			await api.opencode.toggleModel({ name, enabled });
+			invalidateEnabledModelsCache();
 			setModels((prev) =>
 				prev.map((m) => (m.name === name ? { ...m, enabled } : m)),
 			);
@@ -125,6 +127,7 @@ export function ModelsManagement({
 					api.opencode.toggleModel({ name: m.name, enabled }),
 				),
 			);
+			invalidateEnabledModelsCache();
 			const updatedNames = new Set(targetModels.map((m) => m.name));
 			setModels((prev) =>
 				prev.map((m) => (updatedNames.has(m.name) ? { ...m, enabled } : m)),

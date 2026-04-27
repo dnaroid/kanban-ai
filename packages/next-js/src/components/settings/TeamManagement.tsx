@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { useSettingsStatus } from "@/components/settings/SettingsStatusContext";
 import { ConfirmationModal } from "@/components/common/ConfirmationModal";
+import { useEnabledModels } from "@/components/common/useEnabledModels";
 import type { OpencodeAgent, OpencodeModel } from "@/types/ipc";
 
 interface AgentRolePreset {
@@ -117,7 +118,7 @@ function normalizeSkills(skills: string[]): string[] {
 export function TeamManagement() {
 	const [roles, setRoles] = useState<FullRole[]>([]);
 	const [skillsCatalog, setSkillsCatalog] = useState<string[]>([]);
-	const [enabledModels, setEnabledModels] = useState<OpencodeModel[]>([]);
+	const { models: enabledModels } = useEnabledModels();
 	const [agentsCatalog, setAgentsCatalog] = useState<OpencodeAgent[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
@@ -375,16 +376,6 @@ export function TeamManagement() {
 		}
 	}, []);
 
-	const loadEnabledModels = useCallback(async () => {
-		try {
-			const response = await api.opencode.listEnabledModels();
-			setEnabledModels(response.models ?? []);
-		} catch (error) {
-			console.error("Failed to load enabled OpenCode models:", error);
-			setEnabledModels([]);
-		}
-	}, []);
-
 	const loadAgentsCatalog = useCallback(async () => {
 		try {
 			const response = await api.opencode.listAgents();
@@ -418,9 +409,8 @@ export function TeamManagement() {
 	useEffect(() => {
 		void loadRoles(true);
 		void loadSkillsCatalog();
-		void loadEnabledModels();
 		void loadAgentsCatalog();
-	}, [loadRoles, loadSkillsCatalog, loadEnabledModels, loadAgentsCatalog]);
+	}, [loadRoles, loadSkillsCatalog, loadAgentsCatalog]);
 
 	const handleAddNew = () => {
 		if (latestDataRef.current) {
