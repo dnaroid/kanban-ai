@@ -444,6 +444,7 @@ export function ExecutionLog({
 	useEffect(() => {
 		if (effectiveSessionId) return;
 		let isActive = true;
+		let timeoutId: ReturnType<typeof setTimeout> | null = null;
 		const pollSessionId = async () => {
 			try {
 				const response = await api.run.get({ runId });
@@ -456,12 +457,15 @@ export function ExecutionLog({
 				// retry via setTimeout
 			}
 			if (isActive) {
-				setTimeout(pollSessionId, 1000);
+				timeoutId = setTimeout(pollSessionId, 1000);
 			}
 		};
 		pollSessionId();
 		return () => {
 			isActive = false;
+			if (timeoutId !== null) {
+				clearTimeout(timeoutId);
+			}
 		};
 	}, [effectiveSessionId, runId]);
 
