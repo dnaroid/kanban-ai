@@ -838,19 +838,42 @@ export function ExecutionLog({
 
 		const fetchSessionMessages = async () => {
 			if (!effectiveSessionId || !isActive) return;
+
+			const FETCH_TIMEOUT_MS = 15_000;
+
+			const withTimeout = <T,>(promise: Promise<T>): Promise<T> =>
+				new Promise<T>((resolve, reject) => {
+					const timer = setTimeout(
+						() => reject(new Error("Session data fetch timed out")),
+						FETCH_TIMEOUT_MS,
+					);
+					promise.then(
+						(value) => {
+							clearTimeout(timer);
+							resolve(value);
+						},
+						(error) => {
+							clearTimeout(timer);
+							reject(error);
+						},
+					);
+				});
+
 			try {
-				const [messagesResponse, pendingPerms, pendingQs] = await Promise.all([
-					api.opencode.getSessionMessages({
-						sessionId: effectiveSessionId,
-						limit: 200,
-					}),
-					api.opencode.getPendingPermissions({
-						sessionId: effectiveSessionId,
-					}),
-					api.opencode.getPendingQuestions({
-						sessionId: effectiveSessionId,
-					}),
-				]);
+				const [messagesResponse, pendingPerms, pendingQs] = await withTimeout(
+					Promise.all([
+						api.opencode.getSessionMessages({
+							sessionId: effectiveSessionId,
+							limit: 200,
+						}),
+						api.opencode.getPendingPermissions({
+							sessionId: effectiveSessionId,
+						}),
+						api.opencode.getPendingQuestions({
+							sessionId: effectiveSessionId,
+						}),
+					]),
+				);
 				if (!isActive) return;
 
 				if (pendingPerms.length > 0) {
