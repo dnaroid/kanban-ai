@@ -73,15 +73,21 @@ export function TaskDrawerContent({
 	const handleKeyDown = (e: React.KeyboardEvent) => {
 		if (e.key === "Enter") {
 			handleSaveTitle();
-		} else if (e.key === "Escape") {
-			setIsEditingTitle(false);
-			setEditedTitle(task?.title || "");
 		}
+		// Escape is handled by the global keydown listener below
 	};
 
 	useEffect(() => {
 		const handleGlobalKeyDown = (e: KeyboardEvent) => {
-			if (e.key === "Escape" && !isEditingTitle) {
+			if (e.key === "Escape") {
+				// Skip if a Radix Dialog already handled this Escape (modal open)
+				if (e.defaultPrevented) return;
+
+				// Cancel title editing if active, then always navigate back
+				if (isEditingTitle) {
+					setIsEditingTitle(false);
+					setEditedTitle(task?.title || "");
+				}
 				onClose();
 			}
 		};
@@ -91,7 +97,7 @@ export function TaskDrawerContent({
 		return () => {
 			window.removeEventListener("keydown", handleGlobalKeyDown);
 		};
-	}, [isEditingTitle, onClose]);
+	}, [isEditingTitle, onClose, task?.title]);
 
 	const tabs = [
 		{ id: "details" as const, label: "Details" },
