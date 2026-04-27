@@ -1118,6 +1118,43 @@ class ApiClient {
 			const data = payload.questions as import("@/types/ipc").QuestionData[];
 			return Array.isArray(data) ? data : [];
 		},
+		getSessionSnapshot: async ({
+			sessionId,
+			limit,
+		}: {
+			sessionId: string;
+			limit?: number;
+		}): Promise<{
+			messages: OpenCodeMessage[];
+			permissions: PermissionData[];
+			questions: import("@/types/ipc").QuestionData[];
+		}> => {
+			const query =
+				typeof limit === "number" && limit > 0
+					? `?limit=${encodeURIComponent(String(limit))}`
+					: "";
+			const response = await this.fetch(
+				`${this.baseUrl}/api/opencode/sessions/${sessionId}/snapshot${query}`,
+			);
+			if (!response.ok) {
+				const message = await this.getErrorMessage(
+					response,
+					"Failed to load session snapshot",
+				);
+				this.fail(message);
+			}
+			const payload = await response.json();
+			const data = this.unwrapApiData<{
+				messages: OpenCodeMessage[];
+				permissions: PermissionData[];
+				questions: import("@/types/ipc").QuestionData[];
+			}>(payload);
+			return {
+				messages: data.messages ?? [],
+				permissions: Array.isArray(data.permissions) ? data.permissions : [],
+				questions: Array.isArray(data.questions) ? data.questions : [],
+			};
+		},
 		replyQuestion: async ({
 			sessionId,
 			requestId,

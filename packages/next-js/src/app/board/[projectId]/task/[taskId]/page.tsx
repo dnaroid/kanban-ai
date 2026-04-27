@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useTaskModel } from "@/features/task/model/use-task-model";
@@ -28,6 +29,21 @@ export default function StandaloneTaskPage() {
 		refreshTaskFromServer,
 		handleUpdate,
 	} = useTaskModel(projectId, taskId);
+
+	const handleClose = useCallback(() => {
+		const boardUrl = `/board/${projectId}`;
+		if (window.history.length > 1) {
+			router.back();
+			// Fallback: if router.back() doesn't navigate within 100ms, use replace
+			setTimeout(() => {
+				if (window.location.pathname.includes("/task/")) {
+					router.replace(boardUrl);
+				}
+			}, 100);
+		} else {
+			router.replace(boardUrl);
+		}
+	}, [projectId, router]);
 
 	if (loading) {
 		return (
@@ -80,7 +96,7 @@ export default function StandaloneTaskPage() {
 					columnName={columnName}
 					onUpdate={handleUpdate}
 					onRefreshTask={refreshTaskFromServer}
-					onClose={() => router.push(`/board/${projectId}`)}
+					onClose={handleClose}
 					defaultTab={defaultTab}
 				/>
 			</main>

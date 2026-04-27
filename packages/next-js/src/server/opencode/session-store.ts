@@ -2,6 +2,7 @@ import type {
 	OpenCodeMessage,
 	OpenCodeTodo,
 	PermissionData,
+	QuestionData,
 } from "@/types/ipc";
 import { bootstrapOpencodeService } from "@/server/opencode/opencode-bootstrap";
 import {
@@ -57,6 +58,25 @@ export async function ensureSessionLive(sessionId: string): Promise<void> {
 	await ensureServiceStarted();
 	await sessionTracker.ensureTracking(sessionId);
 	await ensureSseBridge(sessionId);
+}
+
+export async function loadSessionSnapshot(
+	sessionId: string,
+	messageLimit?: number,
+): Promise<{
+	messages: OpenCodeMessage[];
+	permissions: PermissionData[];
+	questions: QuestionData[];
+}> {
+	await ensureServiceStarted();
+
+	const [messages, permissions, questions] = await Promise.all([
+		sessionManager.getMessages(sessionId, messageLimit),
+		sessionManager.listPendingPermissions(sessionId),
+		sessionManager.listPendingQuestions(sessionId),
+	]);
+
+	return { messages, permissions, questions };
 }
 
 export async function getSessionMessages(

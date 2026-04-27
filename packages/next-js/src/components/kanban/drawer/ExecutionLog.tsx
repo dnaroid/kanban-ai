@@ -812,6 +812,87 @@ export function ExecutionLog({
 				return;
 			}
 
+			if (eventType === "session.snapshot") {
+				const snap = typedEvent as unknown as {
+					messages?: unknown;
+					todos?: unknown;
+				};
+				if (!snap.messages || !Array.isArray(snap.messages)) return;
+
+				const snapMessages = snap.messages as OpenCodeMessage[];
+				const nonHiddenCount = snapMessages.filter(
+					(m) => m.role !== "user" || hiddenUserMessageIdRef.current !== m.id,
+				).length;
+
+				if (
+					!isSubAgent &&
+					hideFirstUserMessage &&
+					!hiddenUserMessageIdRef.current &&
+					nonHiddenCount > 0
+				) {
+					let firstUserMessage: OpenCodeMessage | null = null;
+					for (const message of snapMessages) {
+						if (message.role !== "user") continue;
+						if (
+							!firstUserMessage ||
+							message.timestamp < firstUserMessage.timestamp
+						) {
+							firstUserMessage = message;
+						}
+					}
+					if (firstUserMessage) {
+						hiddenUserMessageIdRef.current = firstUserMessage.id;
+					}
+				}
+
+				setEvents((prev) => {
+					const updated = [...prev];
+					const indexById = new Map<string, number>();
+					updated.forEach((ev, index) => {
+						indexById.set(ev.id, index);
+					});
+
+					for (const msg of snapMessages) {
+						if (!isSubAgent && hiddenUserMessageIdRef.current === msg.id)
+							continue;
+						const id = `msg-${msg.id}`;
+						seenMessageIdsRef.current.add(id);
+						const ev: RunEvent = {
+							id,
+							runId: effectiveSessionId,
+							ts: new Date(msg.timestamp).toISOString(),
+							eventType: "message",
+							payload: {
+								role: msg.role,
+								content: msg.content,
+								parts: msg.parts,
+								modelID: msg.modelID,
+								tokens: msg.tokens,
+							},
+						};
+						const existingIndex = indexById.get(id);
+						if (existingIndex === undefined) {
+							updated.push(ev);
+							indexById.set(id, updated.length - 1);
+						} else {
+							updated[existingIndex] = {
+								...updated[existingIndex],
+								ts: ev.ts,
+								payload: ev.payload,
+							};
+						}
+					}
+
+					const hiddenId = hiddenUserMessageIdRef.current;
+					const filtered = hiddenId
+						? updated.filter((e) => e.id !== `msg-${hiddenId}`)
+						: updated;
+					return filtered.slice(-500);
+				});
+				setIsLoading(false);
+				return;
+			}
+
 			console.warn(
 				`[ExecutionLog] Unhandled SSE event type: ${eventType}`,
 				typedEvent,
@@ -831,6 +912,7 @@ export function ExecutionLog({
 		extractStatusLineFromMessage,
 		upsertStatusEvent,
 		isSubAgent,
+		hideFirstUserMessage,
 	]);
 
 	useEffect(() => {
@@ -860,44 +942,36 @@ export function ExecutionLog({
 				});
 
 			try {
-				const [messagesResponse, pendingPerms, pendingQs] = await withTimeout(
-					Promise.all([
-						api.opencode.getSessionMessages({
-							sessionId: effectiveSessionId,
-							limit: 200,
-						}),
-						api.opencode.getPendingPermissions({
-							sessionId: effectiveSessionId,
-						}),
-						api.opencode.getPendingQuestions({
-							sessionId: effectiveSessionId,
-						}),
-					]),
+				const snapshot = await withTimeout(
+					api.opencode.getSessionSnapshot({
+						sessionId: effectiveSessionId,
+						limit: 200,
+					}),
 				);
 				if (!isActive) return;
 
-				if (pendingPerms.length > 0) {
+				if (snapshot.permissions.length > 0) {
 					setPendingPermissions((prev) => {
 						const next = new Map(prev);
-						for (const perm of pendingPerms) {
+						for (const perm of snapshot.permissions) {
 							next.set(perm.id, perm);
 						}
 						return next;
 					});
 				}
 
-				if (pendingQs.length > 0) {
+				if (snapshot.questions.length > 0) {
 					setPendingQuestions((prev) => {
 						const next = new Map(prev);
-						for (const q of pendingQs) {
+						for (const q of snapshot.questions) {
 							next.set(q.id, q);
 						}
 						return next;
 					});
 				}
 
-				if (messagesResponse.messages.length > 0) {
-					const latestStatusMessage = [...messagesResponse.messages]
+				if (snapshot.messages.length > 0) {
+					const latestStatusMessage = [...snapshot.messages]
 						.reverse()
 						.find((msg: OpenCodeMessage) => {
 							if (msg.role !== "assistant") return false;
@@ -918,10 +992,11 @@ export function ExecutionLog({
 					if (
 						!isSubAgent &&
 						hideFirstUserMessage &&
-						!hiddenUserMessageIdRef.current
+						!hiddenUserMessageIdRef.current &&
+						snapshot.messages.some((m: OpenCodeMessage) => m.role !== "user")
 					) {
 						let firstUserMessage: OpenCodeMessage | null = null;
-						for (const message of messagesResponse.messages) {
+						for (const message of snapshot.messages) {
 							if (message.role !== "user") continue;
 							if (
 								!firstUserMessage ||
@@ -942,7 +1017,7 @@ export function ExecutionLog({
 							indexById.set(event.id, index);
 						});
 
-						messagesResponse.messages.forEach((msg: OpenCodeMessage) => {
+						snapshot.messages.forEach((msg: OpenCodeMessage) => {
 							if (!isSubAgent && hiddenUserMessageIdRef.current === msg.id) {
 								return;
 							}
