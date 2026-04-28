@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	Maximize2,
 	Minimize2,
@@ -57,6 +57,19 @@ export function TaskDrawerContent({
 	const titleInputRef = useRef<HTMLInputElement>(null);
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+	const handleClose = useCallback(() => {
+		// The Run tab owns live streams/polling through nested components. Give React a
+		// render turn to deactivate that tab before route navigation unmounts the page.
+		// This prevents active Run effects from holding up task-page navigation.
+		if (activeTab === "runs") {
+			setActiveTab("details");
+			window.setTimeout(onClose, 0);
+			return;
+		}
+
+		onClose();
+	}, [activeTab, onClose]);
+
 	useEffect(() => {
 		if (isEditingTitle && titleInputRef.current) {
 			titleInputRef.current.focus();
@@ -88,7 +101,7 @@ export function TaskDrawerContent({
 					setIsEditingTitle(false);
 					setEditedTitle(task?.title || "");
 				}
-				onClose();
+				handleClose();
 			}
 		};
 
@@ -97,7 +110,7 @@ export function TaskDrawerContent({
 		return () => {
 			window.removeEventListener("keydown", handleGlobalKeyDown);
 		};
-	}, [isEditingTitle, onClose, task?.title]);
+	}, [handleClose, isEditingTitle, task?.title]);
 
 	const tabs = [
 		{ id: "details" as const, label: "Details" },
@@ -194,7 +207,7 @@ export function TaskDrawerContent({
 					<div className="w-px h-4 bg-slate-800/60 mx-1" />
 					<button
 						type="button"
-						onClick={onClose}
+						onClick={handleClose}
 						className="p-1.5 text-slate-500 hover:text-white hover:bg-red-500/10 hover:border-red-500/20 border border-transparent rounded-lg transition-colors"
 					>
 						<X className="w-4 h-4" />

@@ -32,17 +32,7 @@ export default function StandaloneTaskPage() {
 
 	const handleClose = useCallback(() => {
 		const boardUrl = `/board/${projectId}`;
-		if (window.history.length > 1) {
-			router.back();
-			// Fallback: if router.back() doesn't navigate within 100ms, use replace
-			setTimeout(() => {
-				if (window.location.pathname.includes("/task/")) {
-					router.replace(boardUrl);
-				}
-			}, 100);
-		} else {
-			router.replace(boardUrl);
-		}
+		router.replace(boardUrl);
 	}, [projectId, router]);
 
 	if (loading) {

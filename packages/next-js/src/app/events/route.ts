@@ -38,18 +38,43 @@ export async function GET(request: Request): Promise<Response> {
 		start(controller) {
 			const listenerId = `sse:${randomUUID()}`;
 			let closed = false;
+			let heartbeat: ReturnType<typeof setInterval> | null = null;
+			let unsubscribe: (() => void) | null = null;
+
+			const safeCloseController = () => {
+				try {
+					controller.close();
+				} catch {
+					// The client may have already aborted/cancelled the stream.
+				}
+			};
 
 			const close = () => {
 				if (closed) {
 					return;
 				}
 				closed = true;
-				unsubscribe();
-				clearInterval(heartbeat);
-				controller.close();
+				request.signal.removeEventListener("abort", close);
+				unsubscribe?.();
+				if (heartbeat !== null) {
+					clearInterval(heartbeat);
+				}
+				safeCloseController();
 			};
 
-			const unsubscribe = subscribeSse(listenerId, (channel, payload) => {
+			const send = (chunk: string) => {
+				if (closed) {
+					return;
+				}
+
+				try {
+					controller.enqueue(encoder.encode(chunk));
+				} catch {
+					close();
+				}
+			};
+
+			unsubscribe = subscribeSse(listenerId, (channel, payload) => {
 				if (closed) {
 					return;
 				}
@@ -61,17 +86,17 @@ export async function GET(request: Request): Promise<Response> {
 					}
 				}
 
-				controller.enqueue(encoder.encode(formatSseEvent(channel, payload)));
+				send(formatSseEvent(channel, payload));
 			});
 
-			const heartbeat = setInterval(() => {
+			heartbeat = setInterval(() => {
 				if (closed) {
 					return;
 				}
-				controller.enqueue(encoder.encode(": heartbeat\n\n"));
+				send(": heartbeat\n\n");
 			}, 25_000);
 
-			controller.enqueue(encoder.encode(": connected\n\n"));
+			send(": connected\n\n");
 
 			request.signal.addEventListener("abort", close, { once: true });
 			cleanup = close;
