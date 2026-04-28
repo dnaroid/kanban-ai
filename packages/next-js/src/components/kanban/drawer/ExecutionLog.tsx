@@ -201,6 +201,7 @@ export function ExecutionLog({
 	onNavigateToSubAgent,
 	isSubAgent = false,
 	hideFirstUserMessage = true,
+	isActive: isComponentActive = true,
 }: {
 	runId: string;
 	sessionId: string;
@@ -222,6 +223,7 @@ export function ExecutionLog({
 	onNavigateToSubAgent?: (sessionId: string) => void;
 	isSubAgent?: boolean;
 	hideFirstUserMessage?: boolean;
+	isActive?: boolean;
 }) {
 	const [events, setEvents] = useState<RunEvent[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
@@ -442,6 +444,10 @@ export function ExecutionLog({
 	}, [runId]);
 
 	useEffect(() => {
+		if (!isComponentActive) {
+			return;
+		}
+
 		if (effectiveSessionId) return;
 		let isActive = true;
 		let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -467,9 +473,13 @@ export function ExecutionLog({
 				clearTimeout(timeoutId);
 			}
 		};
-	}, [effectiveSessionId, runId]);
+	}, [effectiveSessionId, isComponentActive, runId]);
 
 	useEffect(() => {
+		if (!isComponentActive) {
+			return;
+		}
+
 		const upsertMessageEvent = (payload: {
 			id?: string;
 			role?: string;
@@ -908,6 +918,7 @@ export function ExecutionLog({
 		};
 	}, [
 		effectiveSessionId,
+		isComponentActive,
 		buildMessageEvent,
 		extractStatusLineFromMessage,
 		upsertStatusEvent,
@@ -916,6 +927,12 @@ export function ExecutionLog({
 	]);
 
 	useEffect(() => {
+		if (!isComponentActive) {
+			refreshMessagesRef.current = null;
+			setIsLoading(false);
+			return;
+		}
+
 		let isActive = true;
 		const abortController = new AbortController();
 
@@ -1067,6 +1084,7 @@ export function ExecutionLog({
 		};
 	}, [
 		effectiveSessionId,
+		isComponentActive,
 		extractStatusLineFromMessage,
 		upsertStatusEvent,
 		isSubAgent,

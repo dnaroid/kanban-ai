@@ -22,6 +22,7 @@ import { api } from "@/lib/api";
 export function RunDetailsView({
 	runId,
 	run,
+	isActive = true,
 	onBack,
 	onDelete,
 	onRestart,
@@ -33,6 +34,7 @@ export function RunDetailsView({
 }: {
 	runId: string;
 	run: Run | null;
+	isActive?: boolean;
 	onBack: () => void;
 	onDelete?: (e: React.MouseEvent) => void;
 	onRestart?: (e: React.MouseEvent) => void;
@@ -111,7 +113,7 @@ export function RunDetailsView({
 					: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20";
 
 	useEffect(() => {
-		if (!sessionId) return;
+		if (!isActive || !sessionId) return;
 		const checkTodos = async () => {
 			try {
 				const response = await api.opencode.getSessionTodos({ sessionId });
@@ -127,21 +129,25 @@ export function RunDetailsView({
 			}
 		};
 		void checkTodos();
-	}, [sessionId]);
+	}, [isActive, sessionId]);
 
 	useEffect(() => {
+		if (!isActive) {
+			return;
+		}
+
 		const modelID = messageContextStats.modelID || run?.model;
 		if (!modelID) {
 			setContextLimit(null);
 			return;
 		}
 
-		let isActive = true;
+		let isEffectActive = true;
 
 		const fetchContextLimit = async () => {
 			try {
 				const response = await api.opencode.listModels();
-				if (!isActive) {
+				if (!isEffectActive) {
 					return;
 				}
 
@@ -152,7 +158,7 @@ export function RunDetailsView({
 				setContextLimit(matchedModel?.contextLimit ?? null);
 			} catch (error) {
 				console.error("Failed to fetch model context limit:", error);
-				if (isActive) {
+				if (isEffectActive) {
 					setContextLimit(null);
 				}
 			}
@@ -161,9 +167,9 @@ export function RunDetailsView({
 		void fetchContextLimit();
 
 		return () => {
-			isActive = false;
+			isEffectActive = false;
 		};
-	}, [messageContextStats.modelID, run?.model]);
+	}, [isActive, messageContextStats.modelID, run?.model]);
 
 	const handleTriggerStoryGenerate = async () => {
 		if (!run?.id || isTriggeringStoryGenerate) {
@@ -419,6 +425,7 @@ export function RunDetailsView({
 							<ExecutionLog
 								runId={runId}
 								sessionId={activeSessionId}
+								isActive={isActive}
 								runStatus={run?.status ?? null}
 								onContextStats={setMessageContextStats}
 								showReasoning={showReasoning}
@@ -428,13 +435,13 @@ export function RunDetailsView({
 							/>
 						</div>
 						<div className="hidden xl:flex w-[320px] shrink-0 flex-col border-l border-slate-800/50 overflow-hidden">
-							<RunTodosPanel sessionId={activeSessionId} />
+							<RunTodosPanel sessionId={activeSessionId} isActive={isActive} />
 						</div>
 					</div>
 				) : view === "diff" ? (
-					<RunDiffPanel runId={runId} />
+					<RunDiffPanel runId={runId} isActive={isActive} />
 				) : (
-					<RunTodosPanel sessionId={activeSessionId} />
+					<RunTodosPanel sessionId={activeSessionId} isActive={isActive} />
 				)}
 			</div>
 		</div>

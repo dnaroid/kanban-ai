@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FileCode2, ChevronDown, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { DiffViewer } from "@/components/common/DiffViewer";
@@ -6,6 +6,7 @@ import type { DiffFile } from "@/types/ipc";
 
 interface RunDiffPanelProps {
 	runId: string;
+	isActive?: boolean;
 }
 
 type DiffState =
@@ -25,14 +26,28 @@ function getFilePathMeta(filePath: string) {
 	return { fileName, directory };
 }
 
-export function RunDiffPanel({ runId }: RunDiffPanelProps) {
+export function RunDiffPanel({ runId, isActive = true }: RunDiffPanelProps) {
 	const [state, setState] = useState<DiffState>({ status: "idle" });
 	const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
+	const isActiveRef = useRef(isActive);
+
+	useEffect(() => {
+		isActiveRef.current = isActive;
+		if (!isActive) {
+			setState({ status: "idle" });
+		}
+	}, [isActive]);
 
 	const fetchDiff = useCallback(async () => {
+		if (!isActive) {
+			setState({ status: "idle" });
+			return;
+		}
+
 		setState({ status: "loading" });
 		try {
 			const result = await api.run.diff({ runId });
+			if (!isActiveRef.current) return;
 			if (result === null) {
 				setState({ status: "too_large" });
 				return;
@@ -44,15 +59,18 @@ export function RunDiffPanel({ runId }: RunDiffPanelProps) {
 			setExpandedFiles(new Set(result.files.map((f) => f.path)));
 			setState({ status: "loaded", files: result.files });
 		} catch (error) {
+			if (!isActiveRef.current) return;
 			const message =
 				error instanceof Error ? error.message : "Failed to load diff";
 			setState({ status: "error", message });
 		}
-	}, [runId]);
+	}, [isActive, runId]);
 
 	useEffect(() => {
-		void fetchDiff();
-	}, [fetchDiff]);
+		if (isActive) {
+			void fetchDiff();
+		}
+	}, [fetchDiff, isActive]);
 
 	const toggleFile = (filePath: string) => {
 		setExpandedFiles((prev) => {

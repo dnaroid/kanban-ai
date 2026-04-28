@@ -11,11 +11,18 @@ interface Todo {
 	priority: "high" | "medium" | "low";
 }
 
-export function RunTodosPanel({ sessionId }: { sessionId: string }) {
+export function RunTodosPanel({
+	sessionId,
+	isActive = true,
+}: {
+	sessionId: string;
+	isActive?: boolean;
+}) {
 	const [todos, setTodos] = useState<Todo[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [isReconnecting, setIsReconnecting] = useState(false);
+	const isActiveRef = useRef(isActive);
 	const retryAttemptRef = useRef(0);
 	const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const unsubscribeRef = useRef<null | (() => void)>(null);
@@ -23,48 +30,65 @@ export function RunTodosPanel({ sessionId }: { sessionId: string }) {
 	const completedCount = todos.filter((t) => t.status === "completed").length;
 	const totalCount = todos.length;
 
+	const clearRetry = useCallback(() => {
+		if (retryTimerRef.current) {
+			clearTimeout(retryTimerRef.current);
+			retryTimerRef.current = null;
+		}
+	}, []);
+
+	useEffect(() => {
+		isActiveRef.current = isActive;
+		if (!isActive) {
+			clearRetry();
+			unsubscribeRef.current?.();
+			unsubscribeRef.current = null;
+			setIsLoading(false);
+			setIsReconnecting(false);
+		}
+	}, [clearRetry, isActive]);
+
 	const fetchTodos = useCallback(async () => {
-		if (!sessionId) {
+		if (!isActive || !sessionId) {
 			setIsLoading(false);
 			return;
 		}
 		setIsLoading(true);
 		try {
 			const response = await api.opencode.getSessionTodos({ sessionId });
+			if (!isActiveRef.current) return;
 			setTodos(response.todos);
 			setErrorMessage(null);
 		} catch (error) {
+			if (!isActiveRef.current) return;
 			console.error("Failed to fetch todos:", error);
 			setErrorMessage("Failed to fetch todos");
 		} finally {
-			setIsLoading(false);
-		}
-	}, [sessionId]);
-
-	useEffect(() => {
-		fetchTodos();
-	}, [fetchTodos]);
-
-	useEffect(() => {
-		if (!sessionId) return;
-
-		let isActive = true;
-
-		const clearRetry = () => {
-			if (retryTimerRef.current) {
-				clearTimeout(retryTimerRef.current);
-				retryTimerRef.current = null;
+			if (isActiveRef.current) {
+				setIsLoading(false);
 			}
-		};
+		}
+	}, [isActive, sessionId]);
+
+	useEffect(() => {
+		if (isActive) {
+			fetchTodos();
+		}
+	}, [fetchTodos, isActive]);
+
+	useEffect(() => {
+		if (!isActive || !sessionId) return;
+
+		let isSubscribed = true;
 
 		const scheduleRetry = () => {
-			if (!isActive || retryTimerRef.current) return;
+			if (!isSubscribed || retryTimerRef.current) return;
 			retryAttemptRef.current = Math.min(retryAttemptRef.current + 1, 6);
 			const delay = Math.min(1000 * 2 ** (retryAttemptRef.current - 1), 15000);
 			setIsReconnecting(true);
 			retryTimerRef.current = setTimeout(() => {
 				retryTimerRef.current = null;
-				if (isActive) {
+				if (isSubscribed) {
 					subscribe();
 				}
 			}, delay);
@@ -120,13 +144,13 @@ export function RunTodosPanel({ sessionId }: { sessionId: string }) {
 		subscribe();
 
 		return () => {
-			isActive = false;
+			isSubscribed = false;
 			clearRetry();
 			unsubscribeRef.current?.();
 			unsubscribeRef.current = null;
 			setIsReconnecting(false);
 		};
-	}, [sessionId, fetchTodos]);
+	}, [clearRetry, fetchTodos, isActive, sessionId]);
 
 	if (!sessionId) {
 		return (

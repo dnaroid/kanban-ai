@@ -368,6 +368,7 @@ export function TaskDrawerRuns({
 					<RunDetailsView
 						runId={selectedRun.id}
 						run={selectedRun}
+						isActive={isActive}
 						onBack={() => setSelectedRunId(null)}
 						onDelete={(e) => handleDeleteRun(selectedRun.id, e)}
 						onRestart={(e) => selectedRun && handleRetryRun(selectedRun, e)}

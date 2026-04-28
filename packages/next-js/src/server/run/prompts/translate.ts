@@ -1,3 +1,5 @@
+import { ENABLE_SKILLS_IN_PROMPTS } from "./task";
+
 interface TranslatePromptTask {
 	title: string;
 	description: string | null;
@@ -25,9 +27,11 @@ export function buildTranslatePrompt(
 	options: TranslatePromptOptions = {},
 ): string {
 	const rolePrompt = options.role?.systemPrompt?.trim() ?? "";
-	const roleSkills = (options.role?.skills ?? [])
-		.map((skill) => skill.trim())
-		.filter((skill) => skill.length > 0);
+	const roleSkills = ENABLE_SKILLS_IN_PROMPTS
+		? (options.role?.skills ?? [])
+				.map((skill) => skill.trim())
+				.filter((skill) => skill.length > 0)
+		: [];
 	const rolePromptLine = rolePrompt.length > 0 ? rolePrompt : "(not set)";
 	const roleSkillsLine =
 		roleSkills.length > 0 ? roleSkills.join(", ") : "(not set)";

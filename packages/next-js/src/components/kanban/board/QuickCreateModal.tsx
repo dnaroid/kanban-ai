@@ -24,7 +24,7 @@ import { Modal } from "@/components/common/Modal";
 import { ModelPicker } from "@/components/common/ModelPicker";
 import { FileSystemPicker } from "@/components/common/FileSystemPicker";
 import { api, uploadClipboardFiles } from "@/lib/api-client";
-import type { OpencodeModel } from "@/types/kanban";
+
 import { useSTTLanguage } from "@/components/voice/useSTTLanguage";
 import { useEnabledModels } from "@/components/common/useEnabledModels";
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+
 import {
 	Maximize2,
 	Minimize2,
@@ -56,19 +57,43 @@ export function TaskDrawerContent({
 	const [editedTitle, setEditedTitle] = useState(task.title || "");
 	const titleInputRef = useRef<HTMLInputElement>(null);
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
+	const [isClosing, setIsClosing] = useState(false);
+	const closingResetTimerRef = useRef<number | null>(null);
+	const isRunActive = activeTab === "runs" && !isClosing;
 
 	const handleClose = useCallback(() => {
-		// The Run tab owns live streams/polling through nested components. Give React a
-		// render turn to deactivate that tab before route navigation unmounts the page.
-		// This prevents active Run effects from holding up task-page navigation.
-		if (activeTab === "runs") {
-			setActiveTab("details");
-			window.setTimeout(onClose, 0);
-			return;
+		if (closingResetTimerRef.current) {
+			window.clearTimeout(closingResetTimerRef.current);
+			closingResetTimerRef.current = null;
 		}
 
-		onClose();
-	}, [activeTab, onClose]);
+		// Deactivate nested Run live effects first, then navigate on the next macrotask.
+		// This gives EventSource/fetch cleanup a turn without changing the selected tab.
+		setIsClosing(true);
+		window.setTimeout(() => {
+			onClose();
+
+			// If navigation did not unmount this component, restore live effects so the
+			// Run tab does not remain visually open but disconnected from realtime updates.
+			closingResetTimerRef.current = window.setTimeout(() => {
+				setIsClosing(false);
+				closingResetTimerRef.current = null;
+			}, 1000);
+		}, 0);
+	}, [onClose]);
+
+	useEffect(() => {
+		return () => {
+			if (closingResetTimerRef.current) {
+				window.clearTimeout(closingResetTimerRef.current);
+				closingResetTimerRef.current = null;
+			}
+		}
+	}, []);
+
+	useEffect(() => {
+		setIsClosing(false);
+	}, [task.id]);
 
 	useEffect(() => {
 		if (isEditingTitle && titleInputRef.current) {
@@ -262,7 +287,7 @@ export function TaskDrawerContent({
 				>
 					<TaskDrawerRuns
 						task={task}
-						isActive={activeTab === "runs"}
+						isActive={isRunActive}
 						onRefreshTask={onRefreshTask}
 					/>
 				</div>

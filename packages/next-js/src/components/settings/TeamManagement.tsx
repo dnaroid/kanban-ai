@@ -27,7 +27,7 @@ import { api } from "@/lib/api-client";
 import { useSettingsStatus } from "@/components/settings/SettingsStatusContext";
 import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 import { useEnabledModels } from "@/components/common/useEnabledModels";
-import type { OpencodeAgent, OpencodeModel } from "@/types/ipc";
+import type { OpencodeAgent } from "@/types/ipc";
 
 interface AgentRolePreset {
 	version: string;
