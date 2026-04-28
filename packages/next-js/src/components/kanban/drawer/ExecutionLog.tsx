@@ -917,37 +917,17 @@ export function ExecutionLog({
 
 	useEffect(() => {
 		let isActive = true;
+		const abortController = new AbortController();
 
 		const fetchSessionMessages = async () => {
 			if (!effectiveSessionId || !isActive) return;
 
-			const FETCH_TIMEOUT_MS = 15_000;
-
-			const withTimeout = <T,>(promise: Promise<T>): Promise<T> =>
-				new Promise<T>((resolve, reject) => {
-					const timer = setTimeout(
-						() => reject(new Error("Session data fetch timed out")),
-						FETCH_TIMEOUT_MS,
-					);
-					promise.then(
-						(value) => {
-							clearTimeout(timer);
-							resolve(value);
-						},
-						(error) => {
-							clearTimeout(timer);
-							reject(error);
-						},
-					);
-				});
-
 			try {
-				const snapshot = await withTimeout(
-					api.opencode.getSessionSnapshot({
-						sessionId: effectiveSessionId,
-						limit: 200,
-					}),
-				);
+				const snapshot = await api.opencode.getSessionSnapshot({
+					sessionId: effectiveSessionId,
+					limit: 200,
+					signal: abortController.signal,
+				});
 				if (!isActive) return;
 
 				if (snapshot.permissions.length > 0) {
@@ -1060,6 +1040,7 @@ export function ExecutionLog({
 					});
 				}
 			} catch (error) {
+				if (!isActive || abortController.signal.aborted) return;
 				console.error("Failed to fetch session messages:", error);
 			} finally {
 				if (isActive) {
@@ -1081,6 +1062,7 @@ export function ExecutionLog({
 		void loadInitial();
 		return () => {
 			isActive = false;
+			abortController.abort();
 			refreshMessagesRef.current = null;
 		};
 	}, [

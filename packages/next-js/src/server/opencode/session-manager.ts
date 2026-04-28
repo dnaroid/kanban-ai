@@ -14,6 +14,8 @@ type OpenCodeClient = ReturnType<typeof createOpencodeClient>;
 
 type Subscriber = (event: SessionEvent) => void;
 
+const OPENCODE_SDK_CALL_TIMEOUT_MS = 2_500;
+
 export interface PermissionData {
 	id: string;
 	permissionType: string;
@@ -186,27 +188,83 @@ export class OpencodeSessionManager {
 		directory: string,
 	): Promise<string> {
 		const client = this.getDirectoryClient(directory);
-		const response = await client.session.create({ title, directory });
-		const data = getData<unknown>(response);
-		const sessionRecord = asRecord(data);
-		const sessionId =
-			asString(sessionRecord?.id) ??
-			asString(sessionRecord?.sessionID) ??
-			asString(asRecord(sessionRecord?.info)?.id) ??
-			asString(asRecord(sessionRecord?.info)?.sessionID);
-
-		if (!sessionId) {
-			throw new Error("OpenCode returned invalid session ID");
+		const createFn = asRecord(client.session)?.["create"] as
+			| ((args: unknown) => Promise<unknown>)
+			| undefined;
+		if (typeof createFn !== "function") {
+			throw new Error("OpenCode session.create API not available");
 		}
 
-		this.sessions.set(sessionId, { id: sessionId, directory });
-		this.sessionClients.set(sessionId, client);
-		return sessionId;
+		const requestVariants: unknown[] = [
+			{ title, directory },
+			{ body: { title, directory } },
+			{ body: { title } },
+		];
+		let lastError: unknown;
+
+		for (const args of requestVariants) {
+			try {
+				const response = await createFn.call(client.session, args);
+				const data = getData<unknown>(response);
+				const sessionRecord = asRecord(data);
+				const info = asRecord(sessionRecord?.info);
+				const sessionId =
+					asString(sessionRecord?.id) ??
+					asString(sessionRecord?.sessionID) ??
+					asString(info?.id) ??
+					asString(info?.sessionID);
+
+				if (!sessionId) {
+					continue;
+				}
+
+				const resolvedDirectory =
+					asString(sessionRecord?.directory) ??
+					asString(sessionRecord?.dir) ??
+					asString(info?.directory) ??
+					asString(info?.dir) ??
+					directory;
+
+				this.sessions.set(sessionId, { id: sessionId, directory: resolvedDirectory });
+				this.sessionClients.set(sessionId, this.getDirectoryClient(resolvedDirectory));
+				return sessionId;
+			} catch (error) {
+				lastError = error;
+			}
+		}
+
+		if (lastError instanceof Error) {
+			throw new Error(`Failed to create OpenCode session: ${lastError.message}`);
+		}
+		throw new Error("OpenCode returned invalid session ID");
 	}
 
 	public async abortSession(sessionId: string): Promise<void> {
 		const client = await this.getSessionClient(sessionId);
-		await client.session.abort({ sessionID: sessionId });
+		const directory = await this.resolveSessionDirectory(sessionId);
+		const abortFn = asRecord(client.session)?.["abort"] as
+			| ((args: unknown) => Promise<unknown>)
+			| undefined;
+		if (typeof abortFn !== "function") {
+			throw new Error("OpenCode session.abort API not available");
+		}
+
+		let lastError: unknown;
+		for (const args of [
+			{ sessionID: sessionId, directory: directory ?? undefined },
+			{ path: { id: sessionId } },
+		]) {
+			try {
+				await abortFn.call(client.session, args);
+				return;
+			} catch (error) {
+				lastError = error;
+			}
+		}
+
+		if (lastError instanceof Error) {
+			throw lastError;
+		}
 	}
 
 	public async sendPrompt(
@@ -215,16 +273,42 @@ export class OpencodeSessionManager {
 		preferences?: SessionStartPreferences,
 	): Promise<void> {
 		const client = await this.getSessionClient(sessionId);
+		const directory = await this.resolveSessionDirectory(sessionId);
 		const promptPreferences = this.toPromptPreferences(preferences);
-		await client.session.prompt({
-			sessionID: sessionId,
+		const body = {
 			parts: [{ type: "text", text: prompt }],
 			...(promptPreferences.model ? { model: promptPreferences.model } : {}),
 			...(promptPreferences.agent ? { agent: promptPreferences.agent } : {}),
 			...(promptPreferences.variant
 				? { variant: promptPreferences.variant }
 				: {}),
-		});
+		};
+		const promptFn = asRecord(client.session)?.["prompt"] as
+			| ((args: unknown) => Promise<unknown>)
+			| undefined;
+		if (typeof promptFn !== "function") {
+			throw new Error("OpenCode session.prompt API not available");
+		}
+
+		const requestVariants: unknown[] = [
+			{ sessionID: sessionId, directory: directory ?? undefined, ...body },
+			{ path: { id: sessionId }, body },
+			{ path: { id: sessionId }, ...body },
+		];
+		let lastError: unknown;
+
+		for (const args of requestVariants) {
+			try {
+				await promptFn.call(client.session, args);
+				return;
+			} catch (error) {
+				lastError = error;
+			}
+		}
+
+		if (lastError instanceof Error) {
+			throw lastError;
+		}
 	}
 
 	private toPromptPreferences(
@@ -256,23 +340,60 @@ export class OpencodeSessionManager {
 		limit?: number,
 	): Promise<OpenCodeMessage[]> {
 		try {
-			const client = await this.getSessionClient(sessionId);
-			const response = await client.session.messages({
-				sessionID: sessionId,
-				limit,
-			});
-			const rawItems = getData<unknown[]>(response);
-			if (!Array.isArray(rawItems)) {
-				return [];
+			let client: OpenCodeClient;
+			let directory: string | null = null;
+			try {
+				directory = await this.resolveSessionDirectory(sessionId);
+				client = await this.getSessionClient(sessionId);
+			} catch {
+				client = this.getRootClient();
+			}
+			const messagesFn = asRecord(client.session)?.["messages"] as
+				| ((args: unknown) => Promise<unknown>)
+				| undefined;
+			if (typeof messagesFn !== "function") {
+				return this.storageReader.getMessages(sessionId, limit);
 			}
 
-			const messages = rawItems
-				.map((item) => this.normalizeMessage(item))
-				.filter((message): message is OpenCodeMessage => message !== null)
-				.sort((a, b) => a.timestamp - b.timestamp);
+			const requestVariants: unknown[] = [
+				{
+					sessionID: sessionId,
+					directory: directory ?? undefined,
+					...(typeof limit === "number" && limit > 0 ? { limit } : {}),
+				},
+				{
+					path: { id: sessionId },
+					...(typeof limit === "number" && limit > 0
+						? { query: { limit } }
+						: {}),
+				},
+				{
+					path: { id: sessionId },
+					...(typeof limit === "number" && limit > 0 ? { limit } : {}),
+				},
+			];
 
-			if (messages.length > 0) {
-				return messages;
+			for (const args of requestVariants) {
+				try {
+					const response = await this.withSdkTimeout(
+						messagesFn.call(client.session, args),
+						"OpenCode session.messages",
+					);
+					const data = getData<unknown>(response);
+					const rawItems = this.pickArray(data, ["messages", "items"]);
+					const messages = rawItems
+						.map((item) => this.normalizeMessage(item))
+						.filter(
+							(message): message is OpenCodeMessage => message !== null,
+						)
+						.sort((a, b) => a.timestamp - b.timestamp);
+
+					if (messages.length > 0) {
+						return messages;
+					}
+				} catch {
+					// Try the next SDK request shape before falling back to storage.
+				}
 			}
 		} catch {
 			return this.storageReader.getMessages(sessionId, limit);
@@ -407,9 +528,10 @@ export class OpencodeSessionManager {
 				| undefined;
 			if (typeof listFn !== "function") return [];
 			const directory = await this.resolveSessionDirectory(sessionId);
-			const result = await listFn.call(questionApi, {
-				directory: directory ?? undefined,
-			});
+			const result = await this.withSdkTimeout(
+				listFn.call(questionApi, { directory: directory ?? undefined }),
+				"OpenCode question.list",
+			);
 			const data = getData<unknown>(result);
 			if (!Array.isArray(data)) return [];
 			return data
@@ -468,9 +590,10 @@ export class OpencodeSessionManager {
 			const client = await this.getSessionClient(sessionId);
 			const directory = await this.resolveSessionDirectory(sessionId);
 
-			const result = await client.permission.list({
-				directory: directory ?? undefined,
-			});
+			const result = await this.withSdkTimeout(
+				client.permission.list({ directory: directory ?? undefined }),
+				"OpenCode permission.list",
+			);
 			const data = getData<unknown>(result);
 			if (!Array.isArray(data)) {
 				return [];
@@ -619,6 +742,11 @@ export class OpencodeSessionManager {
 	private async fetchSessionInfo(
 		sessionId: string,
 	): Promise<SessionInfo | null> {
+		const fromStorage = await this.storageReader.getSessionDirectory(sessionId);
+		if (fromStorage) {
+			return { id: sessionId, directory: fromStorage };
+		}
+
 		const client = this.getRootClient();
 		const fromSessionGet = await this.fetchSessionInfoByGet(client, sessionId);
 		if (fromSessionGet) {
@@ -633,35 +761,57 @@ export class OpencodeSessionManager {
 			return fromProjectScan;
 		}
 
-		const fromStorage = await this.storageReader.getSessionDirectory(sessionId);
-		return fromStorage ? { id: sessionId, directory: fromStorage } : null;
+		return null;
 	}
 
 	private async fetchSessionInfoByGet(
 		client: OpenCodeClient,
 		sessionId: string,
 	): Promise<SessionInfo | null> {
-		try {
-			const response = await client.session.get({ sessionID: sessionId });
-			const data = getData<unknown>(response);
-			const sessionRecord = asRecord(data);
-			const id =
-				asString(sessionRecord?.id) ??
-				asString(sessionRecord?.sessionID) ??
-				sessionId;
-			const directory =
-				asString(sessionRecord?.directory) ??
-				asString(sessionRecord?.dir) ??
-				null;
-
-			if (!directory) {
-				return null;
-			}
-
-			return { id, directory };
-		} catch {
+		const getFn = asRecord(client.session)?.["get"] as
+			| ((args: unknown) => Promise<unknown>)
+			| undefined;
+		if (typeof getFn !== "function") {
 			return null;
 		}
+
+		const directory = await this.storageReader.getSessionDirectory(sessionId);
+		for (const args of [
+			{ sessionID: sessionId, directory: directory ?? undefined },
+			{ path: { id: sessionId } },
+		]) {
+			try {
+				const response = await this.withSdkTimeout(
+					getFn.call(client.session, args),
+					"OpenCode session.get",
+				);
+				const data = getData<unknown>(response);
+				const sessionRecord = asRecord(data);
+				const info = asRecord(sessionRecord?.info);
+				const id =
+					asString(sessionRecord?.id) ??
+					asString(sessionRecord?.sessionID) ??
+					asString(info?.id) ??
+					asString(info?.sessionID) ??
+					sessionId;
+				const directory =
+					asString(sessionRecord?.directory) ??
+					asString(sessionRecord?.dir) ??
+					asString(info?.directory) ??
+					asString(info?.dir) ??
+					null;
+
+				if (!directory) {
+					continue;
+				}
+
+				return { id, directory };
+			} catch {
+				// Try the next SDK request shape.
+			}
+		}
+
+		return null;
 	}
 
 	private async findSessionInfoByProjectScan(
@@ -669,7 +819,10 @@ export class OpencodeSessionManager {
 		sessionId: string,
 	): Promise<SessionInfo | null> {
 		try {
-			const projectListResponse = await client.project.list();
+			const projectListResponse = await this.withSdkTimeout(
+				client.project.list(),
+				"OpenCode project.list",
+			);
 			const projectListData = getData<unknown>(projectListResponse);
 			const projects = this.pickArray(projectListData, ["projects", "items"]);
 
@@ -691,11 +844,12 @@ export class OpencodeSessionManager {
 					continue;
 				}
 
-				const sessionsResponse = await this.getDirectoryClient(
-					projectDirectory,
-				).session.list({
-					directory: projectDirectory,
-				});
+				const sessionsResponse = await this.withSdkTimeout(
+					this.getDirectoryClient(projectDirectory).session.list({
+						directory: projectDirectory,
+					}),
+					"OpenCode session.list",
+				);
 				const sessionsData = getData<unknown>(sessionsResponse);
 				const sessions = this.pickArray(sessionsData, ["sessions", "items"]);
 
@@ -762,6 +916,34 @@ export class OpencodeSessionManager {
 		}
 
 		return [];
+	}
+
+	private async withSdkTimeout<T>(
+		promise: Promise<T>,
+		operation: string,
+		timeoutMs: number = OPENCODE_SDK_CALL_TIMEOUT_MS,
+	): Promise<T> {
+		let timeoutId: ReturnType<typeof setTimeout> | null = null;
+		try {
+			return await new Promise<T>((resolve, reject) => {
+				timeoutId = setTimeout(() => {
+					reject(new Error(`${operation} timed out`));
+				}, timeoutMs);
+
+				promise.then(
+					(value) => {
+						if (timeoutId) clearTimeout(timeoutId);
+						resolve(value);
+					},
+					(error: unknown) => {
+						if (timeoutId) clearTimeout(timeoutId);
+						reject(error);
+					},
+				);
+			});
+		} finally {
+			if (timeoutId) clearTimeout(timeoutId);
+		}
 	}
 
 	private collectSubtaskSessionIds(messages: OpenCodeMessage[]): string[] {
@@ -1257,6 +1439,8 @@ export class OpencodeSessionManager {
 		const createdAt =
 			asNumber(asRecord(info.time)?.created) ??
 			asNumber(info.createdAt) ??
+			asNumber(info.timestamp) ??
+			asNumber(container.timestamp) ??
 			Date.now();
 
 		const partsRaw =
@@ -1273,16 +1457,21 @@ export class OpencodeSessionManager {
 			asString(container.content) ??
 			this.buildMessageContent(parts);
 
+		const modelID = asString(info.modelID) ?? undefined;
+		const providerID = asString(info.providerID) ?? undefined;
+		const variant = asString(info.variant) ?? undefined;
+		const tokens = this.normalizeTokens(info.tokens);
+
 		return {
 			id,
 			role,
 			content,
 			timestamp: createdAt,
 			parts,
-			modelID: asString(info.modelID) ?? undefined,
-			providerID: asString(info.providerID) ?? undefined,
-			variant: asString(info.variant) ?? undefined,
-			tokens: this.normalizeTokens(info.tokens),
+			...(modelID ? { modelID } : {}),
+			...(providerID ? { providerID } : {}),
+			...(variant ? { variant } : {}),
+			...(tokens ? { tokens } : {}),
 		};
 	}
 

@@ -69,6 +69,23 @@ describe("OpencodeSessionManager storage fallback", () => {
 		);
 	});
 
+	it("reads messages from wrapped session API responses", async () => {
+		const manager = new OpencodeSessionManager();
+		const privateManager = manager as unknown as PrivateSessionManager;
+		const message = buildGeneratedMessage();
+
+		vi.spyOn(privateManager, "getSessionClient").mockResolvedValue({
+			session: {
+				messages: vi.fn(async () => ({ messages: [message] })),
+			},
+		});
+		vi.spyOn(privateManager.storageReader, "getMessages").mockResolvedValue([]);
+
+		await expect(manager.getMessages("session-1", 50)).resolves.toEqual([
+			message,
+		]);
+	});
+
 	it("returns markerless inspection result since text markers are no longer parsed", async () => {
 		const manager = new OpencodeSessionManager();
 		const privateManager = manager as unknown as PrivateSessionManager;

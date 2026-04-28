@@ -1121,9 +1121,11 @@ class ApiClient {
 		getSessionSnapshot: async ({
 			sessionId,
 			limit,
+			signal,
 		}: {
 			sessionId: string;
 			limit?: number;
+			signal?: AbortSignal;
 		}): Promise<{
 			messages: OpenCodeMessage[];
 			permissions: PermissionData[];
@@ -1135,6 +1137,7 @@ class ApiClient {
 					: "";
 			const response = await this.fetch(
 				`${this.baseUrl}/api/opencode/sessions/${sessionId}/snapshot${query}`,
+				{ signal },
 			);
 			if (!response.ok) {
 				const message = await this.getErrorMessage(
