@@ -10,7 +10,7 @@ import {
 	stripTrailingReportTag,
 	toRunLastExecutionStatus,
 } from "@/server/run/run-session-interpreter";
-import type { SessionInspectionResult } from "@/server/opencode/session-manager";
+import type { SessionInspectionResult } from "@/server/agent/session-types";
 import type { Run } from "@/types/ipc";
 
 function makeRun(overrides: Partial<Run> = {}): Run {

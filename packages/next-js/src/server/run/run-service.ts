@@ -5,8 +5,8 @@ import { buildQaTestingPrompt } from "@/server/run/prompts/qa-testing";
 import { buildStoryChatPrompt } from "@/server/run/prompts/story-chat";
 import { buildUserStoryPrompt } from "@/server/run/prompts/user-story";
 import { publishSseEvent } from "@/server/events/sse-broker";
-import type { SessionStartPreferences } from "@/server/opencode/session-manager";
-import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
+import { getAgentSessionManager } from "@/server/agent/session-manager";
+import type { SessionStartPreferences } from "@/server/agent/session-types";
 import { publishRunUpdate } from "@/server/run/run-publisher";
 import {
 	getTaskStateMachine,
@@ -89,7 +89,7 @@ interface StartReadyTasksOptions {
 export class RunService {
 	private readonly queueManager = getRunsQueueManager();
 	private readonly vcsManager = getVcsManager();
-	private readonly sessionManager = getOpencodeSessionManager();
+	private readonly sessionManager = getAgentSessionManager();
 
 	private static resolveStoryLanguage(): StoryLanguage {
 		return process.env.STORY_LANGUAGE?.trim().toLowerCase() || "en";
@@ -1299,6 +1299,11 @@ export class RunService {
 		await this.queueManager.cancel(runId);
 	}
 
+	public async cancelActiveRuns(): Promise<void> {
+		log.info("Cancelling all active runs via service");
+		await this.queueManager.cancelActiveRuns();
+	}
+
 	public async replyPermission(
 		runId: string,
 		permissionId: string,
@@ -1319,7 +1324,7 @@ export class RunService {
 			throw new Error(`Run has no session ID, cannot reply to permission`);
 		}
 
-		const sessionManager = getOpencodeSessionManager();
+		const sessionManager = getAgentSessionManager();
 		await sessionManager.replyToPermission(
 			run.sessionId,
 			permissionId,

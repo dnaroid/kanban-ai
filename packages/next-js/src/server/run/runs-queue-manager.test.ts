@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
 	PermissionData,
 	SessionInspectionResult,
-} from "@/server/opencode/session-manager";
+} from "@/server/agent/session-types";
 import type {
 	TaskTransitionInput,
 	TaskTransitionTrigger,
@@ -18,7 +18,6 @@ const {
 	runEventMap,
 	taskMap,
 	state,
-	mockOpencodeService,
 	mockSessionManager,
 	mockContextSnapshotRepo,
 	mockProjectRepo,
@@ -41,9 +40,6 @@ const {
 		runEventMap: runEvents,
 		taskMap: tasks,
 		state: hoistedState,
-		mockOpencodeService: {
-			start: vi.fn(async () => undefined),
-		},
 		mockSessionManager: {
 			createSession: vi.fn(async () => {
 				hoistedState.sessionCounter += 1;
@@ -265,12 +261,8 @@ vi.mock("@/server/run/prompts/task", () => ({
 	buildTaskPrompt: vi.fn(() => "task prompt"),
 }));
 
-vi.mock("@/server/opencode/opencode-service", () => ({
-	getOpencodeService: () => mockOpencodeService,
-}));
-
-vi.mock("@/server/opencode/session-manager", () => ({
-	getOpencodeSessionManager: () => mockSessionManager,
+vi.mock("@/server/agent/session-manager", () => ({
+	getAgentSessionManager: () => mockSessionManager,
 }));
 
 vi.mock("@/server/opencode/session-store", () => ({
@@ -832,6 +824,45 @@ describe("RunsQueueManager scheduling", () => {
 				}),
 			}),
 		);
+	});
+
+	it("cancels every active persisted run", async () => {
+		runMap.set("run-running", {
+			...buildRun(
+				"run-running",
+				"task-running",
+				"execution",
+				"2026-01-01T00:00:00.000Z",
+			),
+			status: "running",
+		});
+		runMap.set("run-paused", {
+			...buildRun(
+				"run-paused",
+				"task-paused",
+				"execution",
+				"2026-01-01T00:00:01.000Z",
+			),
+			status: "paused",
+		});
+		runMap.set("run-completed", {
+			...buildRun(
+				"run-completed",
+				"task-completed",
+				"execution",
+				"2026-01-01T00:00:02.000Z",
+			),
+			status: "completed",
+		});
+
+		const manager = new RunsQueueManager();
+		const cancel = vi.spyOn(manager, "cancel").mockResolvedValue(undefined);
+
+		await manager.cancelActiveRuns();
+
+		expect(cancel).toHaveBeenCalledTimes(2);
+		expect(cancel).toHaveBeenCalledWith("run-running");
+		expect(cancel).toHaveBeenCalledWith("run-paused");
 	});
 
 	it("automatically merges and cleans a completed execution run", async () => {

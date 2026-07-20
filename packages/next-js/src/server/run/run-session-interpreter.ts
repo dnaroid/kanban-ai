@@ -3,7 +3,7 @@ import type {
 	PermissionData,
 	QuestionData,
 	SessionInspectionResult,
-} from "@/server/opencode/session-manager";
+} from "@/server/agent/session-types";
 import type { RunLastExecutionStatus } from "@/types/ipc";
 import type { Run } from "@/types/ipc";
 

@@ -29,7 +29,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 		const message =
 			error instanceof Error
 				? error.message
-				: "Failed to fetch OpenCode session messages";
+				: "Failed to fetch agent session messages";
 		return NextResponse.json(
 			{ success: false, error: message },
 			{ status: 500 },

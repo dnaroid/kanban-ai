@@ -32,14 +32,14 @@ It allows tasks to be turned into runs, tracks their progress, supports follow-u
 - **Language**: [TypeScript 5.9](https://www.typescriptlang.org/)
 - **Database**: SQLite via [better-sqlite3](https://github.com/WiseLibs/better-sqlite3)
 - **Drag & Drop**: [@dnd-kit](https://dndkit.com/)
-- **AI Integration**: [@opencode-ai/sdk](https://github.com/nicepkg/opencode)
+- **AI Integration**: [Pi Coding Agent SDK](https://www.npmjs.com/package/@earendil-works/pi-coding-agent)
 - **Diagramming**: [Mermaid](https://mermaid.js.org/)
 - **Testing**: [Vitest](https://vitest.dev/)
 - **Linting**: [ESLint 9](https://eslint.org/)
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) v22+
+- [Node.js](https://nodejs.org/) v22.19.0+
 - [pnpm](https://pnpm.io/) v9+
 
 ## Setup
@@ -61,8 +61,6 @@ cp packages/next-js/.env.local.example packages/next-js/.env.local
 
 | Variable | File | Description |
 |---|---|---|
-| `OPENCODE_PORT` | `.env` | Port for the OpenCode server (default: `4096`) |
-| `OPENCODE_URL` | `.env` | URL for connecting to the OpenCode SDK |
 | `STORY_LANGUAGE` | `.env` | Language for AI-generated stories — any ISO 639-1 code, e.g. `en`, `ru`, `de`, `fr` (default: `en`) |
 | `NEXT_PUBLIC_API_URL` | `packages/next-js/.env.local` | API URL (default: `http://127.0.0.1:3000`) |
 | `NEXT_PUBLIC_APP_URL` | `packages/next-js/.env.local` | App URL (default: `http://127.0.0.1:3100`) |

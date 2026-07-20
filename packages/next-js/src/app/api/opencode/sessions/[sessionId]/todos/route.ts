@@ -14,7 +14,7 @@ export async function GET(_: Request, { params }: RouteParams) {
 		const message =
 			error instanceof Error
 				? error.message
-				: "Failed to fetch OpenCode session todos";
+				: "Failed to fetch agent session todos";
 		return NextResponse.json(
 			{ success: false, error: message },
 			{ status: 500 },

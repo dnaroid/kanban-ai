@@ -1,7 +1,7 @@
 {
 	"name": "kanban-ai",
 	"version": "0.2.0",
-	"description": "Kanban for Headless OpenCode + oh-my-openagent",
+	"description": "Kanban task manager with embedded Pi agent execution",
 	"private": true,
 	"type": "module",
 	"workspaces": [

@@ -10,7 +10,7 @@ import type {
 	SessionInspectionResult,
 	SessionProbeStatus,
 	SessionStartPreferences,
-} from "./session-manager";
+} from "@/server/agent/session-types";
 
 type FakeScenario = "happy-path" | "pause-resume" | "failure";
 
@@ -93,6 +93,10 @@ export class FakeOpencodeSessionManager {
 		if (config?.scenario) {
 			this.store.scenario = config.scenario;
 		}
+	}
+
+	public dispose(): Promise<void> {
+		return Promise.resolve();
 	}
 
 	public async createSession(
@@ -330,7 +334,7 @@ export class FakeOpencodeSessionManager {
 	private getSessionOrThrow(sessionId: string): FakeSessionState {
 		const session = this.store.sessions.get(sessionId);
 		if (!session || session.absent) {
-			throw new Error(`Unknown fake OpenCode session ${sessionId}`);
+			throw new Error(`Unknown fake agent session ${sessionId}`);
 		}
 		return session;
 	}

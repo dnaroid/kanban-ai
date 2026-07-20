@@ -1,6 +1,5 @@
 import { createLogger } from "@/lib/logger";
-import { bootstrapOpencodeService } from "@/server/opencode/opencode-bootstrap";
-import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
+import { getAgentSessionManager } from "@/server/agent/session-manager";
 import { roleRepo } from "@/server/repositories/role";
 import { NextResponse } from "next/server";
 
@@ -137,7 +136,7 @@ async function waitForAssistantMessage(
 	sessionId: string,
 	sinceTimestamp: number,
 ): Promise<string | null> {
-	const sessionManager = getOpencodeSessionManager();
+	const sessionManager = getAgentSessionManager();
 
 	for (let attempt = 0; attempt < messagePollAttempts; attempt += 1) {
 		const messages = await sessionManager.getMessages(sessionId, 200);
@@ -163,8 +162,6 @@ async function waitForAssistantMessage(
 
 export async function POST(): Promise<NextResponse> {
 	try {
-		await bootstrapOpencodeService();
-
 		const roles = roleRepo.listWithPresets();
 		if (roles.length === 0) {
 			return NextResponse.json(
@@ -174,7 +171,7 @@ export async function POST(): Promise<NextResponse> {
 		}
 
 		const prompt = buildRefreshPrompt(roles);
-		const sessionManager = getOpencodeSessionManager();
+		const sessionManager = getAgentSessionManager();
 		const sessionId = await sessionManager.createSession(
 			"Refresh Team Skills",
 			process.cwd(),

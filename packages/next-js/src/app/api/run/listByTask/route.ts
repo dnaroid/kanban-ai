@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
 import { runService } from "@/server/run/run-service";
-import { taskRepo } from "@/server/repositories/task";
-import { projectRepo } from "@/server/repositories/project";
-import { getOpencodeService } from "@/server/opencode/opencode-service";
 import type { Run } from "@/types/ipc";
 
 export async function GET(request: Request): Promise<Response> {
@@ -19,25 +16,9 @@ export async function GET(request: Request): Promise<Response> {
 
 		const runs = runService.listByTask(taskId);
 
-		let opencodeWebUrl: string | null = null;
-		const task = taskRepo.getById(taskId);
-		if (task) {
-			const project = projectRepo.getById(task.projectId);
-			if (project) {
-				try {
-					const service = getOpencodeService();
-					const port = service.getPort();
-					const base64Path = Buffer.from(project.path).toString("base64");
-					opencodeWebUrl = `http://localhost:${port}/${base64Path}`;
-				} catch {
-					opencodeWebUrl = null;
-				}
-			}
-		}
-
 		const data: { runs: Run[]; opencodeWebUrl: string | null } = {
 			runs,
-			opencodeWebUrl,
+			opencodeWebUrl: null,
 		};
 		return NextResponse.json({ success: true, data });
 	} catch (error) {

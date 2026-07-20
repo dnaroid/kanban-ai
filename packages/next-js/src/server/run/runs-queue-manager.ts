@@ -2,9 +2,8 @@ import { createLogger } from "@/lib/logger";
 import type {
 	SessionInspectionResult,
 	SessionStartPreferences,
-} from "@/server/opencode/session-manager";
-import { getOpencodeService } from "@/server/opencode/opencode-service";
-import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
+} from "@/server/agent/session-types";
+import { getAgentSessionManager } from "@/server/agent/session-manager";
 import { roleRepo } from "@/server/repositories/role";
 import { projectRepo } from "@/server/repositories/project";
 import { runEventRepo } from "@/server/repositories/run-event";
@@ -197,8 +196,7 @@ export class RunsQueueManager {
 	private readonly queueManager = new QueueManager();
 	private readonly runInputs = new Map<string, QueuedRunInput>();
 	private readonly activeRunSessions = new Map<string, string>();
-	private readonly opencodeService = getOpencodeService();
-	private readonly sessionManager = getOpencodeSessionManager();
+	private readonly sessionManager = getAgentSessionManager();
 	private readonly stateMachine = getTaskStateMachine();
 	private readonly vcsManager = getVcsManager();
 	private readonly retryManager = new RetryManager();
@@ -443,13 +441,13 @@ export class RunsQueueManager {
 
 		if (run.sessionId) {
 			try {
-				log.debug("Aborting OpenCode session", {
+				log.debug("Aborting Pi session", {
 					runId,
 					sessionId: run.sessionId,
 				});
 				await this.sessionManager.abortSession(run.sessionId);
 			} catch (error) {
-				log.error("Failed to abort OpenCode session during cancel", {
+				log.error("Failed to abort Pi session during cancel", {
 					runId,
 					sessionId: run.sessionId,
 					error,
@@ -476,6 +474,12 @@ export class RunsQueueManager {
 
 		this.activeRunSessions.delete(runId);
 		void this.runLiveSubscriptionService.unsubscribe(runId);
+	}
+
+	public async cancelActiveRuns(): Promise<void> {
+		const activeRuns =
+			this.runReconciliationService.listActiveRunsForReconciliation();
+		await Promise.all(activeRuns.map((run) => this.cancel(run.id)));
 	}
 
 	public restoreActiveRunSubscriptions(): Promise<void> {
@@ -575,9 +579,6 @@ export class RunsQueueManager {
 	private async bootstrapRuntimeState(): Promise<void> {
 		try {
 			log.info("startup bootstrap started");
-
-			await this.opencodeService.start();
-			log.info("startup opencode service ready");
 
 			// Restore active run subscriptions from DB
 			await this.runLiveSubscriptionService.restoreActiveRunSubscriptions();

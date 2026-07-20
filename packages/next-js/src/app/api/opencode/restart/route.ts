@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOpencodeService } from "@/server/opencode/opencode-service";
-import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
+import { getAgentSessionManager } from "@/server/agent/session-manager";
 import { runService } from "@/server/run/run-service";
 
 export async function POST(request: Request): Promise<Response> {
@@ -36,13 +35,13 @@ export async function POST(request: Request): Promise<Response> {
 				);
 			}
 
-			const manager = getOpencodeSessionManager();
+			const manager = getAgentSessionManager();
 			const sessionStats = await manager.getActiveSessionCount();
 			if (sessionStats.busySessions > 0) {
 				return NextResponse.json(
 					{
 						success: false,
-						error: "Cannot restart: active OpenCode sessions in progress",
+						error: "Cannot restart: active Pi sessions in progress",
 						busySessions: sessionStats.busySessions,
 						totalSessions: sessionStats.totalSessions,
 					},
@@ -51,15 +50,23 @@ export async function POST(request: Request): Promise<Response> {
 			}
 		}
 
-		const service = getOpencodeService();
-		await service.stop();
-		await service.start();
+		if (force) {
+			await runService.cancelActiveRuns();
+			const manager = getAgentSessionManager();
+			const stats = await manager.getActiveSessionCount();
+			await Promise.all(
+				stats.busySessionIds.map((sessionId) =>
+					manager.abortSession(sessionId),
+				),
+			);
+		}
+		await getAgentSessionManager().dispose();
 		return NextResponse.json({ success: true, data: { restarted: true } });
 	} catch (error) {
 		const message =
 			error instanceof Error
 				? error.message
-				: "Failed to restart opencode serve";
+				: "Failed to restart Pi sessions";
 		return NextResponse.json(
 			{ success: false, error: message },
 			{ status: 500 },

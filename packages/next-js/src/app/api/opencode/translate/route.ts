@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
-import type { SessionStartPreferences } from "@/server/opencode/session-manager";
+import { getAgentSessionManager } from "@/server/agent/session-manager";
+import type { SessionStartPreferences } from "@/server/agent/session-types";
 import { taskRepo } from "@/server/repositories/task";
 import { projectRepo } from "@/server/repositories/project";
 import { roleRepo } from "@/server/repositories/role";
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
 			}
 		}
 
-		const sessionManager = getOpencodeSessionManager();
+		const sessionManager = getAgentSessionManager();
 		const sessionId = await sessionManager.createSession(
 			`Translation: ${task.title}`.slice(0, 120),
 			project.path,

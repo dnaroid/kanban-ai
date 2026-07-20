@@ -1,72 +1,28 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
-import {
-	Trash2,
-	Tag as TagIcon,
-	Cpu,
-	CheckCircle2,
-	Settings2,
-	Users,
-} from "lucide-react";
+import { type ReactNode } from "react";
+import { Trash2, Tag as TagIcon, Cpu, CheckCircle2, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { api } from "@/lib/api-client";
 import { SettingsStatusProvider } from "@/components/settings/SettingsStatusProvider";
 
-type Tab =
-	| "all-models"
-	| "my-models"
-	| "team"
-	| "opencode"
-	| "oh-my-openagent"
-	| "tags"
-	| "danger";
+type Tab = "all-models" | "my-models" | "team" | "tags" | "danger";
 
-const allTabs: {
+const tabs: {
 	id: Tab;
 	label: string;
 	icon: React.ComponentType<{ className?: string }>;
-	requiresPlugin?: string;
 }[] = [
 	{ id: "all-models", label: "All Models", icon: Cpu },
 	{ id: "my-models", label: "My Models", icon: CheckCircle2 },
 	{ id: "team", label: "Team", icon: Users },
-	{ id: "opencode", label: "OpenCode", icon: Settings2 },
-	{
-		id: "oh-my-openagent",
-		label: "Oh-My-Openagent",
-		icon: Settings2,
-		requiresPlugin: "oh-my-openagent",
-	},
 	{ id: "tags", label: "Tags", icon: TagIcon },
 	{ id: "danger", label: "Danger Zone", icon: Trash2 },
 ];
 
 function SettingsLayoutInner({ children }: { children: ReactNode }) {
 	const pathname = usePathname();
-	const [plugins, setPlugins] = useState<string[] | null>(null);
-
-	useEffect(() => {
-		api.opencodeConfig
-			.readConfig({})
-			.then((res) => {
-				const config = res.config as { plugin?: string[] } | null;
-				setPlugins(config?.plugin ?? []);
-			})
-			.catch(() => setPlugins([]));
-	}, []);
-
-	const tabs = useMemo(
-		() =>
-			allTabs.filter((tab) => {
-				if (!tab.requiresPlugin) return true;
-				if (!plugins) return false;
-				return plugins.some((p) => p.includes(tab.requiresPlugin!));
-			}),
-		[plugins],
-	);
 
 	const activeTab =
 		tabs.find((tab) => pathname?.includes(tab.id))?.id ?? "all-models";

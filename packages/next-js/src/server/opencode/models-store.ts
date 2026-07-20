@@ -1,6 +1,5 @@
-import { createOpencodeClient } from "@opencode-ai/sdk/v2/client";
 import { dbManager } from "@/server/db";
-import { getOpencodeService } from "@/server/opencode/opencode-service";
+import { getPiModelRuntime } from "@/server/pi/runtime";
 import type { OpencodeModel } from "@/types/ipc";
 
 type Difficulty = OpencodeModel["difficulty"];
@@ -25,75 +24,6 @@ function normalizeModelRows(rows: unknown[]): OpencodeModel[] {
 					: undefined,
 		};
 	});
-}
-
-function getProviderModels(
-	providersPayload: unknown,
-): Array<{ name: string; variants: string[]; contextLimit: number }> {
-	const payloadRecord =
-		typeof providersPayload === "object" && providersPayload !== null
-			? (providersPayload as Record<string, unknown>)
-			: null;
-	const dataRecord =
-		payloadRecord && typeof payloadRecord.data === "object"
-			? (payloadRecord.data as Record<string, unknown>)
-			: payloadRecord;
-
-	const allProviders = Array.isArray(dataRecord?.all)
-		? (dataRecord.all as unknown[])
-		: [];
-	const connectedProviders = new Set(
-		Array.isArray(dataRecord?.connected)
-			? (dataRecord.connected as string[])
-			: [],
-	);
-
-	const modelData = new Map<
-		string,
-		{ variants: Set<string>; contextLimit: number }
-	>();
-
-	for (const providerEntry of allProviders) {
-		if (typeof providerEntry !== "object" || providerEntry === null) continue;
-		const provider = providerEntry as {
-			id?: string;
-			models?: Record<string, unknown>;
-		};
-
-		if (!provider.id || !connectedProviders.has(provider.id)) continue;
-
-		const models = Object.values(provider.models ?? {});
-		for (const modelEntry of models) {
-			if (typeof modelEntry !== "object" || modelEntry === null) continue;
-			const model = modelEntry as {
-				id?: string;
-				variants?: Record<string, unknown>;
-				limit?: { context?: number };
-			};
-			if (!model.id) continue;
-
-			const baseName = `${provider.id}/${model.id}`;
-			const existing = modelData.get(baseName) ?? {
-				variants: new Set<string>(),
-				contextLimit: 0,
-			};
-			for (const variantName of Object.keys(model.variants ?? {})) {
-				if (variantName.trim().length > 0) existing.variants.add(variantName);
-			}
-			if (typeof model.limit?.context === "number" && model.limit.context > 0) {
-				existing.contextLimit = model.limit.context;
-			}
-			modelData.set(baseName, existing);
-		}
-	}
-
-	return Array.from(modelData.entries()).map(
-		([name, { variants: variantsSet, contextLimit }]) => ({
-			name,
-			variants: Array.from(variantsSet).sort(),
-			contextLimit,
-		}),
-	);
 }
 
 export function listAllModels(): OpencodeModel[] {
@@ -159,28 +89,27 @@ export function updateModelDifficulty(
 }
 
 export async function refreshModelsFromProviders(): Promise<OpencodeModel[]> {
-	const service = getOpencodeService();
-	await service.start();
-
-	const baseUrl =
-		process.env.OPENCODE_URL ?? `http://127.0.0.1:${service.getPort()}`;
-	const client = createOpencodeClient({
-		baseUrl,
-		throwOnError: true,
-		directory: process.cwd(),
-	});
-
-	const providers = await client.provider.list();
-	const sdkModels = getProviderModels(providers);
+	const runtime = await getPiModelRuntime();
+	await runtime.refresh();
+	const sdkModels = await runtime.getAvailable();
 
 	const db = dbManager.connect();
 	const normalized = sdkModels
-		.map((entry) => ({
-			name: entry.name.trim(),
-			variants: Array.from(new Set(entry.variants.map((v) => v.trim()))).filter(
-				Boolean,
-			),
-			contextLimit: entry.contextLimit,
+		.map((model) => ({
+			name: `${model.provider}/${model.id}`,
+			variants: model.reasoning
+				? Object.entries(
+						model.thinkingLevelMap ?? {
+							minimal: "minimal",
+							low: "low",
+							medium: "medium",
+							high: "high",
+						},
+					)
+					.filter(([, value]) => value !== null)
+					.map(([level]) => level)
+				: [],
+			contextLimit: model.contextWindow,
 		}))
 		.filter((entry) => entry.name.length > 0);
 

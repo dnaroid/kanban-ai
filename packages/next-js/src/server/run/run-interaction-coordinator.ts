@@ -4,7 +4,7 @@ import { publishSseEvent } from "@/server/events/sse-broker";
 import type {
 	PermissionData,
 	QuestionData,
-} from "@/server/opencode/session-manager";
+} from "@/server/agent/session-types";
 import type { Run } from "@/types/ipc";
 import {
 	adaptTriggerForQa,

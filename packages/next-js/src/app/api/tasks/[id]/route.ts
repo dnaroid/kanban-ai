@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { boardRepo, taskRepo, uploadRepo } from "@/server/repositories";
-import { projectRepo } from "@/server/repositories/project";
-import { getOpencodeService } from "@/server/opencode/opencode-service";
-import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
+import { getAgentSessionManager } from "@/server/agent/session-manager";
 import { runService } from "@/server/run/run-service";
 import type { UpdateTaskInput } from "@/server/types";
 import { publishSseEvent } from "@/server/events/sse-broker";
@@ -63,22 +61,6 @@ function isLatestRunActive(taskId: string): boolean {
 	return status === "running" || status === "queued";
 }
 
-function getOpencodeWebUrl(projectId: string): string | null {
-	const project = projectRepo.getById(projectId);
-	if (!project) {
-		return null;
-	}
-
-	try {
-		const service = getOpencodeService();
-		const port = service.getPort();
-		const base64Path = Buffer.from(project.path).toString("base64");
-		return `http://localhost:${port}/${base64Path}`;
-	} catch {
-		return null;
-	}
-}
-
 export async function GET(_request: NextRequest, { params }: RouteParams) {
 	try {
 		const { id } = await params;
@@ -96,7 +78,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 		let openCodeSessionBusy = false;
 		if (latestSessionId) {
 			try {
-				const stats = await getOpencodeSessionManager().getActiveSessionCount();
+				const stats = await getAgentSessionManager().getActiveSessionCount();
 				openCodeSessionBusy = stats.busySessionIds.includes(latestSessionId);
 			} catch {
 				// session stats unavailable — treat as not busy
@@ -113,7 +95,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 				blockedReasonText: task.blockedReasonText,
 				latestSessionId,
 				lastExecutionStatus: getLatestExecutionStatus(task.id),
-				opencodeWebUrl: getOpencodeWebUrl(task.projectId),
+				opencodeWebUrl: null,
 				isSessionBusy,
 			},
 		});

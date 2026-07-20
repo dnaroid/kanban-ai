@@ -1,8 +1,6 @@
 import type { OpenCodeMessage, OpenCodeTodo } from "@/types/ipc";
-import {
-	getOpencodeSessionManager,
-	type SessionEvent,
-} from "@/server/opencode/session-manager";
+import { getAgentSessionManager } from "@/server/agent/session-manager";
+import type { SessionEvent } from "@/server/agent/session-types";
 
 export type SessionSnapshot = {
 	type: "session.snapshot";
@@ -23,7 +21,7 @@ type SessionTrackerState = {
 };
 
 export class OpencodeSessionTracker {
-	private readonly manager = getOpencodeSessionManager();
+	private readonly manager = getAgentSessionManager();
 	private readonly states = new Map<string, SessionTrackerState>();
 
 	public async subscribe(
@@ -120,7 +118,7 @@ export class OpencodeSessionTracker {
 			const message =
 				error instanceof Error
 					? error.message
-					: "Failed to refresh tracked OpenCode session";
+					: "Failed to refresh tracked agent session";
 			this.emit(sessionId, { type: "error", sessionId, error: message });
 		}
 	}

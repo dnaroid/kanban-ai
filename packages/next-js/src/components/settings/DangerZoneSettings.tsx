@@ -114,7 +114,7 @@ export function DangerZoneSettings({
 		try {
 			await api.opencode.restartServe({ force });
 			onStatusChange({
-				message: "OpenCode restarted successfully",
+				message: "Pi sessions restarted successfully",
 				type: "success",
 			});
 		} catch (err) {
@@ -125,10 +125,10 @@ export function DangerZoneSettings({
 					return;
 				}
 			}
-			console.error("Failed to restart opencode serve:", err);
+			console.error("Failed to restart Pi sessions:", err);
 			onStatusChange({
 				message:
-					err instanceof Error ? err.message : "Failed to restart OpenCode",
+					err instanceof Error ? err.message : "Failed to restart Pi sessions",
 				type: "error",
 			});
 		} finally {
@@ -245,12 +245,11 @@ export function DangerZoneSettings({
 									/>
 								</div>
 								<h5 className="text-xs font-bold text-red-200 uppercase tracking-widest">
-									Restart OpenCode
+									Restart Pi sessions
 								</h5>
 							</div>
 							<p className="text-xs text-slate-500 leading-relaxed max-w-sm">
-								Restart the OpenCode server process. Active sessions and running
-								tasks may be interrupted.
+								Dispose active Pi sessions. Running tasks may be interrupted.
 							</p>
 						</div>
 
@@ -261,7 +260,7 @@ export function DangerZoneSettings({
 								disabled={isRestarting}
 								className="w-full md:w-auto px-6 py-2 text-xs font-semibold rounded-lg border border-red-900/40 text-red-500 hover:bg-red-500 hover:text-white transition-all duration-300 disabled:opacity-50"
 							>
-								Restart OpenCode
+								Restart Pi sessions
 							</button>
 						</div>
 					</div>
@@ -301,7 +300,7 @@ export function DangerZoneSettings({
 					await performRestart(true);
 				}}
 				title="Active work in progress"
-				description="There are active tasks or OpenCode sessions running. Restarting will interrupt them."
+				description="There are active tasks or Pi sessions running. Restarting will interrupt them."
 				confirmLabel="Restart anyway"
 				variant="danger"
 				isLoading={isRestarting}

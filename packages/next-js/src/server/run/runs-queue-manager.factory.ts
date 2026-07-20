@@ -1,5 +1,4 @@
-import { getOpencodeService } from "@/server/opencode/opencode-service";
-import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
+import { getAgentSessionManager } from "@/server/agent/session-manager";
 import { boardRepo } from "@/server/repositories/board";
 import { runEventRepo } from "@/server/repositories/run-event";
 import { runRepo } from "@/server/repositories/run";
@@ -25,7 +24,7 @@ import { getRunErrorText } from "@/server/run/runs-queue-manager";
 import { RetryManager } from "@/server/run/retry-manager";
 import type { Run, RunStatus } from "@/types/ipc";
 import { getVcsManager } from "@/server/vcs/vcs-manager";
-import type { SessionInspectionResult } from "@/server/opencode/session-manager";
+import type { SessionInspectionResult } from "@/server/agent/session-types";
 import { hydrateGenerationOutcomeContent } from "@/server/run/run-session-interpreter";
 import type { RunOutcome } from "@/server/run/run-finalizer";
 
@@ -36,10 +35,9 @@ export interface RqmContext {
 	readonly runInputs: Map<string, QueuedRunInput>;
 	readonly queueManager: QueueManager;
 	readonly vcsManager: ReturnType<typeof getVcsManager>;
-	readonly sessionManager: ReturnType<typeof getOpencodeSessionManager>;
+	readonly sessionManager: ReturnType<typeof getAgentSessionManager>;
 	readonly stateMachine: ReturnType<typeof getTaskStateMachine>;
 	readonly retryManager: RetryManager;
-	readonly opencodeService: ReturnType<typeof getOpencodeService>;
 	readonly staleRunThresholdMs: number;
 	readonly manualStatusGraceMs: number;
 	readonly defaultConcurrency: number;
@@ -283,7 +281,6 @@ export function createServices(ctx: RqmContext): ServiceRegistry {
 	});
 
 	const runExecutor = new RunExecutor({
-		opencodeService: ctx.opencodeService,
 		sessionManager: ctx.sessionManager,
 		runInputs: ctx.runInputs,
 		activeRunSessions: ctx.activeRunSessions,

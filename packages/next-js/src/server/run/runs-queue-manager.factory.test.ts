@@ -48,12 +48,8 @@ const captured = vi.hoisted(() => ({
 	taskStatusProjectionService: [] as unknown[][],
 }));
 
-vi.mock("@/server/opencode/opencode-service", () => ({
-	getOpencodeService: vi.fn(),
-}));
-
-vi.mock("@/server/opencode/session-manager", () => ({
-	getOpencodeSessionManager: vi.fn(),
+vi.mock("@/server/agent/session-manager", () => ({
+	getAgentSessionManager: vi.fn(),
 }));
 
 vi.mock("@/server/repositories/board", () => ({
@@ -191,7 +187,6 @@ function createMockCtx(): RqmContext {
 		} as unknown as RqmContext["sessionManager"],
 		stateMachine: {} as RqmContext["stateMachine"],
 		retryManager: {} as RqmContext["retryManager"],
-		opencodeService: {} as RqmContext["opencodeService"],
 		staleRunThresholdMs: 60_000,
 		manualStatusGraceMs: 30_000,
 		defaultConcurrency: 2,

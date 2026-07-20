@@ -4,38 +4,21 @@ import type {
 	PermissionData,
 	QuestionData,
 } from "@/types/ipc";
-import { bootstrapOpencodeService } from "@/server/opencode/opencode-bootstrap";
-import {
-	getOpencodeSessionManager,
-	type SessionEvent,
-} from "@/server/opencode/session-manager";
+import { getAgentSessionManager } from "@/server/agent/session-manager";
+import type { SessionEvent } from "@/server/agent/session-types";
 import {
 	getOpencodeSessionTracker,
 	type SessionTrackerEvent,
 } from "@/server/opencode/session-tracker";
 import { publishSseEvent } from "@/server/events/sse-broker";
 
-const sessionManager = getOpencodeSessionManager();
+const sessionManager = getAgentSessionManager();
 const sessionTracker = getOpencodeSessionTracker();
 
-let ensureServicePromise: Promise<void> | null = null;
 const sseBridgedSessions = new Set<string>();
 
 function getSseSubscriberId(sessionId: string): string {
 	return `sse:${sessionId}`;
-}
-
-async function ensureServiceStarted(): Promise<void> {
-	if (!ensureServicePromise) {
-		ensureServicePromise = bootstrapOpencodeService().catch(
-			(error: unknown) => {
-				ensureServicePromise = null;
-				throw error;
-			},
-		);
-	}
-
-	await ensureServicePromise;
 }
 
 async function ensureSseBridge(sessionId: string): Promise<void> {
@@ -55,7 +38,6 @@ async function ensureSseBridge(sessionId: string): Promise<void> {
 }
 
 export async function ensureSessionLive(sessionId: string): Promise<void> {
-	await ensureServiceStarted();
 	await sessionTracker.ensureTracking(sessionId);
 	await ensureSseBridge(sessionId);
 }
@@ -68,8 +50,6 @@ export async function loadSessionSnapshot(
 	permissions: PermissionData[];
 	questions: QuestionData[];
 }> {
-	await ensureServiceStarted();
-
 	const [messages, permissions, questions] = await Promise.all([
 		sessionManager.getMessages(sessionId, messageLimit),
 		sessionManager.listPendingPermissions(sessionId),
@@ -120,7 +100,7 @@ export async function unsubscribeSessionEvents(
 
 export async function listPendingQuestions(
 	sessionId: string,
-): Promise<import("./session-manager").QuestionData[]> {
+): Promise<QuestionData[]> {
 	await ensureSessionLive(sessionId);
 	return sessionManager.listPendingQuestions(sessionId);
 }

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
+import { getAgentSessionManager } from "@/server/agent/session-manager";
 
 export async function GET(): Promise<Response> {
 	try {
-		const manager = getOpencodeSessionManager();
+		const manager = getAgentSessionManager();
 		const stats = await manager.getActiveSessionCount();
 		return NextResponse.json({ success: true, data: stats });
 	} catch (error) {

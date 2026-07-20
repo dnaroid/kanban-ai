@@ -4,7 +4,7 @@ import type { Run } from "@/types/ipc";
 import type {
 	SessionInspectionResult,
 	SessionProbeStatus,
-} from "@/server/opencode/session-manager";
+} from "@/server/agent/session-types";
 import type { RunOutcome } from "@/server/run/run-finalizer";
 import { RunReconciliationService } from "@/server/run/run-reconciliation-service";
 
@@ -518,7 +518,7 @@ describe("RunReconciliationService", () => {
 			).toHaveBeenCalledWith("r1", "session-1");
 		});
 
-		it("stale running run with alive probe and non-terminal meta does NOT force-finalize", async () => {
+		it("stale running run with a busy alive session does NOT force-finalize", async () => {
 			const oldDate = new Date(Date.now() - 120000).toISOString();
 			const staleRun = makeRun({
 				id: "r1",
@@ -539,6 +539,42 @@ describe("RunReconciliationService", () => {
 				deps.runFinalizer.resolveStaleCompletionOutcome,
 			).not.toHaveBeenCalled();
 			expect(deps.finalizeRunFromSession).not.toHaveBeenCalled();
+		});
+
+		it("fails a stale running run when its Pi session is idle without a report", async () => {
+			const oldDate = new Date(Date.now() - 120000).toISOString();
+			const staleRun = makeRun({
+				id: "r1",
+				status: "running",
+				sessionId: "session-1",
+				startedAt: oldDate,
+			});
+			mockRunRepoUpdate.mockImplementation(
+				(_id: string, patch: Record<string, unknown>) => ({
+					...staleRun,
+					...patch,
+				}),
+			);
+			mockDeriveMetaStatus.mockReturnValue({ kind: "running" });
+
+			await service.applyInspectionResult(
+				staleRun,
+				"session-1",
+				buildInspection({ sessionStatus: "idle" }),
+			);
+
+			expect(mockRunRepoUpdate).toHaveBeenCalledWith(
+				"r1",
+				expect.objectContaining({
+					status: "failed",
+					errorText: "Pi session stopped without a final report",
+				}),
+			);
+			expect(deps.applyTaskTransition).toHaveBeenCalledWith(
+				expect.objectContaining({ status: "failed" }),
+				"run:fail",
+				"Pi session stopped before emitting a final <REPORT> tag.",
+			);
 		});
 
 		it("does not stale force-finalize generation runs without strict completion", async () => {
@@ -804,7 +840,7 @@ describe("RunReconciliationService", () => {
 			expect(deps.removeFromQueue).toHaveBeenCalledWith("r1");
 		});
 
-		it("alive non-terminal session does NOT force-finalize", async () => {
+		it("busy alive non-terminal session does NOT force-finalize", async () => {
 			const run = makeRun({
 				id: "r1",
 				status: "running",
@@ -831,6 +867,32 @@ describe("RunReconciliationService", () => {
 				deps.runFinalizer.resolveStaleCompletionOutcome,
 			).not.toHaveBeenCalled();
 			expect(deps.finalizeRunFromSession).not.toHaveBeenCalled();
+		});
+
+		it("fails an idle alive stale session without a report", async () => {
+			const run = makeRun({
+				id: "r1",
+				status: "running",
+				sessionId: "session-1",
+			});
+			deps.sessionManager.inspectSession.mockResolvedValue(
+				buildInspection({ sessionStatus: "idle" }),
+			);
+			mockRunRepoUpdate.mockImplementation(
+				(_id: string, patch: Record<string, unknown>) => ({
+					...run,
+					...patch,
+				}),
+			);
+			mockDeriveMetaStatus.mockReturnValue({ kind: "running" });
+
+			await service.reconcileStaleRun(run, "proj-1", "task-1");
+
+			expect(mockRunRepoUpdate).toHaveBeenCalledWith(
+				"r1",
+				expect.objectContaining({ status: "failed" }),
+			);
+			expect(deps.clearActiveRunSession).toHaveBeenCalledWith("r1");
 		});
 
 		it("skips stale fallback finalization for generation runs", async () => {

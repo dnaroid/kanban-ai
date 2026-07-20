@@ -130,8 +130,8 @@ vi.mock("@/server/events/sse-broker", () => ({
 	publishSseEvent: vi.fn(),
 }));
 
-vi.mock("@/server/opencode/session-manager", () => ({
-	getOpencodeSessionManager: () => mockSessionManager,
+vi.mock("@/server/agent/session-manager", () => ({
+	getAgentSessionManager: () => mockSessionManager,
 }));
 
 vi.mock("@/server/opencode/session-store", () => ({

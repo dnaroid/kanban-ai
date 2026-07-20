@@ -3,11 +3,6 @@ export async function register(): Promise<void> {
 		return;
 	}
 
-	const { bootstrapOpencodeService } = await import(
-		"./server/opencode/opencode-bootstrap"
-	);
-	void bootstrapOpencodeService();
-
 	const { cleanupStaleUploads } = await import(
 		"./server/upload/startup-cleanup"
 	);

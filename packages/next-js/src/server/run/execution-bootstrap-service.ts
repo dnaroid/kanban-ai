@@ -1,6 +1,6 @@
 import { createLogger } from "@/lib/logger";
 import { buildTaskPrompt } from "@/server/run/prompts/task";
-import type { SessionStartPreferences } from "@/server/opencode/session-manager";
+import type { SessionStartPreferences } from "@/server/agent/session-types";
 import { artifactRepo } from "@/server/repositories/artifact";
 import { contextSnapshotRepo } from "@/server/repositories/context-snapshot";
 import { projectRepo } from "@/server/repositories/project";

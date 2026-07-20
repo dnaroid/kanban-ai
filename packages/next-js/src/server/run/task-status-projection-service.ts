@@ -1,5 +1,5 @@
 import { createLogger } from "@/lib/logger";
-import type { SessionInspectionResult } from "@/server/opencode/session-manager";
+import type { SessionInspectionResult } from "@/server/agent/session-types";
 import { boardRepo } from "@/server/repositories/board";
 import { runRepo } from "@/server/repositories/run";
 import { taskRepo } from "@/server/repositories/task";

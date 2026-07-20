@@ -989,7 +989,7 @@ class ApiClient {
 			if (!response.ok) {
 				const message = await this.getErrorMessage(
 					response,
-					"Failed to restart opencode serve",
+					"Failed to restart Pi sessions",
 				);
 				this.fail(message);
 			}

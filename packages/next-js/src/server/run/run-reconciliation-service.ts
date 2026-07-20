@@ -1,5 +1,5 @@
 import { createLogger } from "@/lib/logger";
-import type { SessionInspectionResult } from "@/server/opencode/session-manager";
+import type { SessionInspectionResult } from "@/server/agent/session-types";
 import { runEventRepo } from "@/server/repositories/run-event";
 import { runRepo } from "@/server/repositories/run";
 import { RunInteractionCoordinator } from "@/server/run/run-interaction-coordinator";
@@ -258,6 +258,17 @@ export class RunReconciliationService {
 			this.isRunStale(observedRun) &&
 			inspection.probeStatus === "alive"
 		) {
+			if (
+				inspection.sessionStatus === "idle" &&
+				!shouldSkipAutomaticFinalization
+			) {
+				await this.failRunDuringReconciliation(
+					observedRun,
+					"Pi session stopped without a final report",
+					"Pi session stopped before emitting a final <REPORT> tag.",
+				);
+				return;
+			}
 			log.info(
 				"Skipping stale force-finalization; session alive without REPORT tag",
 				{
@@ -467,6 +478,18 @@ export class RunReconciliationService {
 					taskId,
 					runId: run.id,
 				});
+				return;
+			}
+
+			if (
+				inspection.sessionStatus === "idle" &&
+				!this.deps.isStoryChatRun(run)
+			) {
+				await this.failRunDuringReconciliation(
+					run,
+					"Pi session stopped without a final report",
+					"Pi session stopped before emitting a final <REPORT> tag.",
+				);
 				return;
 			}
 

@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { boardRepo, runRepo, taskRepo } from "@/server/repositories";
-import { projectRepo } from "@/server/repositories/project";
-import { getOpencodeService } from "@/server/opencode/opencode-service";
-import { getOpencodeSessionManager } from "@/server/opencode/session-manager";
+import { getAgentSessionManager } from "@/server/agent/session-manager";
 import type { CreateTaskInput } from "@/server/types";
 import { publishSseEvent } from "@/server/events/sse-broker";
 import {
@@ -26,20 +24,7 @@ export async function GET(request: NextRequest) {
 
 		const tasks = taskRepo.listByBoard(boardId);
 
-		let opencodeWebUrl: string | null = null;
-		if (tasks.length > 0) {
-			const project = projectRepo.getById(tasks[0].projectId);
-			if (project) {
-				try {
-					const service = getOpencodeService();
-					const port = service.getPort();
-					const base64Path = Buffer.from(project.path).toString("base64");
-					opencodeWebUrl = `http://localhost:${port}/${base64Path}`;
-				} catch {
-					opencodeWebUrl = null;
-				}
-			}
-		}
+		const opencodeWebUrl: string | null = null;
 
 		const latestRunsByTaskId = runRepo.getLatestRunsByTaskIds(
 			tasks.map((task) => task.id),
@@ -57,10 +42,10 @@ export async function GET(request: NextRequest) {
 
 		let busySessionIds: Set<string> = new Set();
 		try {
-			const stats = await getOpencodeSessionManager().getActiveSessionCount();
+			const stats = await getAgentSessionManager().getActiveSessionCount();
 			busySessionIds = new Set(stats.busySessionIds);
 		} catch {
-			// OpenCode not running — no busy sessions
+			// Session stats unavailable — no busy sessions.
 		}
 
 		const tasksWithBusyStatus = enrichedTasks.map((task) => {

@@ -1,4 +1,4 @@
-import type { SessionStartPreferences } from "@/server/opencode/session-manager";
+import type { SessionStartPreferences } from "@/server/agent/session-types";
 
 export interface QueuedRunInput {
 	projectPath: string;

@@ -9,7 +9,7 @@ import { runEventRepo } from "@/server/repositories/run-event";
 import { runRepo } from "@/server/repositories/run";
 import { taskRepo } from "@/server/repositories/task";
 import { projectUpdatesService } from "@/server/services/project-updates-service";
-import type { SessionStartPreferences } from "@/server/opencode/session-manager";
+import type { SessionStartPreferences } from "@/server/agent/session-types";
 import type { Run } from "@/types/ipc";
 
 const log = createLogger("runs-queue");
@@ -23,7 +23,6 @@ interface QueuedRunInput {
 }
 
 interface RunExecutorDeps {
-	opencodeService: { start: () => Promise<void> };
 	sessionManager: {
 		createSession: (
 			sessionTitle: string,
@@ -126,10 +125,7 @@ export class RunExecutor {
 				throw new Error(`Run input not found for run: ${runId}`);
 			}
 
-			log.debug("Starting OpenCode service", { runId });
-			await this.deps.opencodeService.start();
-
-			log.debug("Creating OpenCode session", {
+			log.debug("Creating Pi session", {
 				runId,
 				projectPath: runInput.projectPath,
 			});
@@ -137,7 +133,7 @@ export class RunExecutor {
 				runInput.sessionTitle,
 				runInput.projectPath,
 			);
-			log.info("OpenCode session created", { runId, sessionId });
+			log.info("Pi session created", { runId, sessionId });
 
 			await ensureSessionLive(sessionId);
 
@@ -147,7 +143,7 @@ export class RunExecutor {
 				eventType: "status",
 				payload: {
 					status: "running",
-					message: "OpenCode session created",
+					message: "Pi session created",
 					sessionId,
 				},
 			});
@@ -160,7 +156,7 @@ export class RunExecutor {
 				sessionId,
 			);
 
-			log.debug("Sending prompt to OpenCode", { runId, sessionId });
+			log.debug("Sending prompt to Pi", { runId, sessionId });
 			await this.deps.sessionManager.sendPrompt(
 				sessionId,
 				runInput.prompt,
@@ -173,7 +169,7 @@ export class RunExecutor {
 				eventType: "status",
 				payload: {
 					status: "running",
-					message: "Prompt sent to OpenCode",
+					message: "Prompt sent to Pi",
 				},
 			});
 		} catch (error) {
